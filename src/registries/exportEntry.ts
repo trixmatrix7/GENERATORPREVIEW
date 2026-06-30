@@ -12,9 +12,18 @@ export function toTsLiteral(obj: unknown): string {
   return JSON.stringify(obj, null, 2).replace(/"([A-Za-z_$][\w$]*)":/g, '$1:');
 }
 
-/** One entry as a drop-in snippet (with a comment pointing at the target file). */
+const target = (registry: RegistryName) =>
+  `// → src/registries/${registry}.ts  (add this object to the ${registry} array)`;
+
+/** One entry as a drop-in snippet (serialized — for built-in/preview-generated entries). */
 export function entrySnippet(registry: RegistryName, entry: AnyEntry): string {
-  return `// → src/registries/${registry}.ts  (add this object to the ${registry} array)\n${toTsLiteral(entry)},\n`;
+  return `${target(registry)}\n${toTsLiteral(entry)},\n`;
+}
+
+/** Custom (pasted) entry → VERBATIM source. Lossless: keeps comments, hex
+ *  literals, functions, formatting — exactly what you vibe-coded, byte-for-byte. */
+export function sourceSnippet(registry: RegistryName, source: string): string {
+  return `${target(registry)}\n${source.trim()}\n`;
 }
 
 /** Trigger a browser download of `text` as `filename`. */
@@ -61,21 +70,22 @@ export function presetToSnippet(preset: AnimationPreset, registries: Registries)
   );
 }
 
-/** All user-pasted custom entries as one bundle file. */
+/** All user-pasted custom entries as one bundle file. Emits VERBATIM source
+ *  when available (lossless), falling back to serialization only if missing. */
 export function customBundle(
-  custom: { registry: RegistryName; entry: AnyEntry; author?: string }[],
+  custom: { registry: RegistryName; entry: AnyEntry; source?: string }[],
 ): string {
   if (!custom.length) return '// no custom entries yet\n';
-  const byReg = new Map<RegistryName, AnyEntry[]>();
+  const byReg = new Map<RegistryName, { entry: AnyEntry; source?: string }[]>();
   for (const c of custom) {
     const arr = byReg.get(c.registry) ?? [];
-    arr.push(c.entry);
+    arr.push({ entry: c.entry, source: c.source });
     byReg.set(c.registry, arr);
   }
-  let out = '// Custom overlay entries exported from the preview generator.\n// Paste each block into the matching src/registries/*.ts array.\n\n';
-  for (const [registry, entries] of byReg) {
+  let out = '// Custom overlay entries exported from the preview generator (verbatim — no quality loss).\n// Paste each block into the matching src/registries/*.ts array.\n\n';
+  for (const [registry, items] of byReg) {
     out += `// ── ${registry} ──────────────────────────────\n`;
-    out += entries.map((e) => toTsLiteral(e) + ',').join('\n') + '\n\n';
+    out += items.map((i) => (i.source ? i.source.trim() : toTsLiteral(i.entry) + ',')).join('\n\n') + '\n\n';
   }
   return out;
 }

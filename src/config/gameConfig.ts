@@ -41,8 +41,8 @@ export const HOLD_WIN = {
 } as const;
 
 /** Preview-only bet ladder (display units). On-chain bet is base units; here it's a display number. */
-export const BET_LEVELS = [0.1, 0.2, 0.3, 0.4, 0.5, 0.8, 1, 1.5, 2, 2.5, 4, 5, 8, 10, 20, 40, 60, 80, 100];
-export const DEFAULT_BET_INDEX = 6; // 1.00
+export const BET_LEVELS = [0.1, 0.2, 0.5, 1, 2, 5, 10, 20, 50, 100];
+export const DEFAULT_BET_INDEX = 3; // 1.00
 
 /** Win tiers (× bet) for celebration screens — preview default thresholds. */
 export const WIN_TIERS = {

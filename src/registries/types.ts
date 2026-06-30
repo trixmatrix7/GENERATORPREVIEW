@@ -101,7 +101,7 @@ export interface SoundEventEntry extends RegistryEntry {
   loop: boolean;
   volume: number;
   synth: {
-    type: 'tone' | 'noise' | 'chime' | 'sweep' | 'thud' | 'riser' | 'siren';
+    type: 'tone' | 'noise' | 'chime' | 'sweep' | 'thud' | 'riser' | 'wobble';
     freq?: number;
     freqTo?: number;
     durationMs?: number;

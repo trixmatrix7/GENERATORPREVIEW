@@ -15,12 +15,10 @@ export interface SymbolStateConfig {
 }
 
 export interface EffectToggles {
-  policeLights: boolean;
   scatterOrbit: boolean;
-  sweatColumns: boolean;
+  anticipationColumns: boolean;
   shockwave: boolean;
   winScreens: boolean;
-  ambientSiren: boolean;
 }
 
 export interface AnimationPreset {
@@ -54,7 +52,7 @@ export const BUILTIN_PRESETS: AnimationPreset[] = [
       win: state(true, 'back.out'),
       reset: state(true, 'power2.out'),
     },
-    effects: { policeLights: true, scatterOrbit: true, sweatColumns: true, shockwave: true, winScreens: true, ambientSiren: true },
+    effects: { scatterOrbit: true, anticipationColumns: true, shockwave: true, winScreens: true },
   },
   {
     id: 'snappy-turbo',
@@ -68,21 +66,21 @@ export const BUILTIN_PRESETS: AnimationPreset[] = [
       win: state(true, 'back.out', 0.75, 1.1),
       reset: state(true, 'power2.out', 0.8),
     },
-    effects: { policeLights: true, scatterOrbit: true, sweatColumns: true, shockwave: true, winScreens: true, ambientSiren: true },
+    effects: { scatterOrbit: true, anticipationColumns: true, shockwave: true, winScreens: true },
   },
   {
     id: 'cinematic',
     name: 'Cinematic',
     description: 'Slow, dramatic, heavy juice. Big anticipation + celebration weight.',
     builtIn: true,
-    params: { spinSpeed: 0.8, dropDurationMs: 560, dropStaggerMs: 110, glowIntensity: 1.4, shockwaveScale: 2.3, celebrationIntensity: 1.5, sweatSlowFactor: 2.2 },
+    params: { spinSpeed: 0.8, dropDurationMs: 560, dropStaggerMs: 110, glowIntensity: 1.4, shockwaveScale: 2.3, celebrationIntensity: 1.5, anticipationSlowFactor: 2.2 },
     states: {
       idle: state(true, 'sine.inOut', 1.2),
       landing: state(true, 'elastic.out', 1.2, 1.2),
       win: state(true, 'back.out', 1.3, 1.35),
       reset: state(true, 'power2.out', 1.2),
     },
-    effects: { policeLights: true, scatterOrbit: true, sweatColumns: true, shockwave: true, winScreens: true, ambientSiren: true },
+    effects: { scatterOrbit: true, anticipationColumns: true, shockwave: true, winScreens: true },
   },
   {
     id: 'minimal',
@@ -96,7 +94,7 @@ export const BUILTIN_PRESETS: AnimationPreset[] = [
       win: state(true, 'power2.out', 0.9, 0.7),
       reset: state(true, 'power2.out'),
     },
-    effects: { policeLights: false, scatterOrbit: false, sweatColumns: true, shockwave: false, winScreens: true, ambientSiren: false },
+    effects: { scatterOrbit: false, anticipationColumns: true, shockwave: false, winScreens: true },
   },
 ];
 

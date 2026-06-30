@@ -7,7 +7,7 @@ import { useState, useEffect } from 'react';
 import { useStudio } from '../store/useStudio';
 import { useDerivedConfig } from '../store/derive';
 import { REGISTRY_NAMES, type RegistryName } from '../registries';
-import { entrySnippet, presetToSnippet, customBundle, download } from '../registries/exportEntry';
+import { entrySnippet, sourceSnippet, presetToSnippet, customBundle, download } from '../registries/exportEntry';
 
 export function ExportPanel() {
   const { registries } = useDerivedConfig();
@@ -23,7 +23,9 @@ export function ExportPanel() {
   const pickEntry = (rid: RegistryName, eid: string) => {
     const e = registries[rid].find((x) => x.id === eid) ?? registries[rid][0];
     if (!e) return;
-    setText(entrySnippet(rid, e));
+    // custom (pasted) entries export VERBATIM source → zero quality loss
+    const custom = customEntries.find((c) => c.registry === rid && c.entry.id === eid);
+    setText(custom?.source ? sourceSnippet(rid, custom.source) : entrySnippet(rid, e));
     setName(`${e.id}.ts`);
   };
   const onRegistry = (rid: RegistryName) => {
@@ -56,7 +58,9 @@ export function ExportPanel() {
     <div className="stack">
       <p className="hint">
         Export any single feature as a typed registry entry — copy or download, then the dev pastes it
-        straight into the real generator. Pick a registry + entry, or bake the whole preset.
+        straight into the real generator. <strong>Entries you pasted export verbatim</strong> (comments,
+        hex colors, functions, formatting all preserved — zero quality loss). Pick a registry + entry, or
+        bake the whole preset.
       </p>
 
       <div className="row gap">

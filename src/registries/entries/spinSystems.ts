@@ -11,7 +11,7 @@ export const spinSystems: SpinSystemEntry[] = [
     version: '1.0.0',
     implemented: true,
     style: 'drop',
-    params: { dropDurationMs: 430, staggerMs: 70, rowGapMs: 30 },
+    params: { dropDurationMs: 400, staggerMs: 60, rowGapMs: 30 },
     compatibleGrids: ['5x5', '5x3'],
     compatibleModels: ['ways', 'payline'],
   },

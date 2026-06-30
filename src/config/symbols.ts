@@ -33,24 +33,25 @@ export const SYMBOL_KIND: Record<SymbolId, SymbolKind> = {
   [SymbolId.COIN]: 'coin',
 };
 
-/** Base render scale (× cell) per kind — extracted from the Chain Games export. */
+/** Base render scale (× cell) per kind — neutral generator defaults. Tune via a
+ *  theme/animation preset; nothing here is tuned to any specific game. */
 export const BASE_SCALE_PER_KIND: Record<SymbolKind, number> = {
-  royal: 0.82,
+  royal: 0.92,
   mid: 1.0,
   high: 1.0,
   wild: 1.0,
-  scatter: 1.34,
+  scatter: 1.1,
   coin: 1.0,
 };
 
-/** Win-pop overshoot factor per kind (premiums pop harder). */
+/** Win-pop overshoot factor per kind — neutral defaults (premiums pop a touch harder). */
 export const POP_FACTOR_PER_KIND: Record<SymbolKind, number> = {
-  scatter: 1.32,
-  wild: 1.29,
-  high: 1.28,
-  mid: 1.24,
-  royal: 1.18,
-  coin: 1.26,
+  scatter: 1.28,
+  wild: 1.26,
+  high: 1.25,
+  mid: 1.22,
+  royal: 1.2,
+  coin: 1.24,
 };
 
 export const ALL_SYMBOL_IDS: SymbolId[] = [

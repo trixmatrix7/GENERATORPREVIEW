@@ -394,12 +394,10 @@ function Effects() {
   const effects = useStudio((s) => s.working.effects);
   const toggleEffect = useStudio((s) => s.toggleEffect);
   const items: { key: keyof typeof effects; label: string }[] = [
-    { key: 'policeLights', label: 'Police lights' },
     { key: 'scatterOrbit', label: 'Scatter orbit' },
-    { key: 'sweatColumns', label: 'Sweat columns' },
+    { key: 'anticipationColumns', label: 'Anticipation columns' },
     { key: 'shockwave', label: 'Win shockwave' },
     { key: 'winScreens', label: 'Win screens' },
-    { key: 'ambientSiren', label: 'Anticipation siren' },
   ];
   return (
     <div className="toggles">

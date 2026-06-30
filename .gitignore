@@ -10,3 +10,6 @@ npm-debug.log*
 
 # keep the extracted spec around locally but don't ship it
 /extracted
+
+.vercel
+.env*

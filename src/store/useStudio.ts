@@ -140,8 +140,41 @@ export const useStudio = create<StudioState>()(
     }),
     {
       name: 'chain-slot-preview-studio',
-      version: 1,
+      version: 2, // removed police/siren effects + renamed sweat→anticipation
       storage: createJSONStorage(() => localStorage),
+      // keep custom entries/presets across the v2 shape change; just fix effects + the renamed param
+      migrate: (persisted: unknown) => {
+        const s = persisted as Record<string, unknown> | null;
+        if (!s) return s as never;
+        const fixEffects = (e: Record<string, unknown> | undefined) =>
+          e
+            ? {
+                scatterOrbit: (e.scatterOrbit as boolean) ?? true,
+                anticipationColumns: (e.anticipationColumns as boolean) ?? (e.sweatColumns as boolean) ?? true,
+                shockwave: (e.shockwave as boolean) ?? true,
+                winScreens: (e.winScreens as boolean) ?? true,
+              }
+            : e;
+        const fixParams = (p: Record<string, unknown> | undefined) => {
+          if (p && 'sweatSlowFactor' in p) {
+            p.anticipationSlowFactor = p.sweatSlowFactor;
+            delete p.sweatSlowFactor;
+          }
+          return p;
+        };
+        const w = s.working as Record<string, unknown> | undefined;
+        if (w) {
+          w.effects = fixEffects(w.effects as Record<string, unknown>);
+          w.params = fixParams(w.params as Record<string, unknown>);
+        }
+        if (Array.isArray(s.customPresets)) {
+          for (const p of s.customPresets as Record<string, unknown>[]) {
+            p.effects = fixEffects(p.effects as Record<string, unknown>);
+            p.params = fixParams(p.params as Record<string, unknown>);
+          }
+        }
+        return s as never;
+      },
     },
   ),
 );

@@ -7,7 +7,7 @@ import { Application, Container, Graphics, Text, type TextStyleOptions } from 'p
 import { gsap } from 'gsap';
 import { ReelSet } from './ReelSet';
 import type { SymbolRenderCtx } from './AnimatedSymbol';
-import { PoliceLights, SweatColumns, orbitScatter, fsSpinOut, fsSpinIn, type OrbitHandle } from './effects';
+import { AnticipationColumns, orbitScatter, fsSpinOut, fsSpinIn, type OrbitHandle } from './effects';
 import { spawnCoinBurst } from './particles';
 import { Banners } from './banners';
 import { computeLayout, GRIDS, type GridId, type GridLayout } from '../config/gridConfig';
@@ -57,7 +57,7 @@ export class PixiApp {
   private frameLayer = new Container();
   private backdropLayer = new Container();
   private reelArea = new Container(); // holds the reel symbols (rotated by FS transition)
-  private fxBelow = new Container(); // police, sweat columns (below symbols)
+  private fxBelow = new Container(); // anticipation columns (below symbols)
   private fxAbove = new Container(); // scatter orbit (above symbols)
   private burstLayer = new Container();
   private overlay = new Container();
@@ -69,8 +69,7 @@ export class PixiApp {
   private cfg!: RenderConfig;
 
   private orbits: OrbitHandle[] = [];
-  private police?: PoliceLights;
-  private sweat?: SweatColumns;
+  private columns?: AnticipationColumns;
 
   async init(parent: HTMLElement, cfg: RenderConfig): Promise<void> {
     this.cfg = cfg;
@@ -267,7 +266,7 @@ export class PixiApp {
         rowGapMs: sp.rowGapMs ?? 30,
         spinSpeed: this.cfg.params.spinSpeed,
         sweatFromReel: plan.sweatFromReel,
-        sweatSlowFactor: this.cfg.params.sweatSlowFactor,
+        sweatSlowFactor: this.cfg.params.anticipationSlowFactor,
       },
       (reel) => {
         if (my !== this.token) return;
@@ -449,16 +448,11 @@ export class PixiApp {
   }
 
   private startAnticipation(plan: { sweatFromReel?: number; scatterCells: Cell[] }, fromReel: number): void {
-    if (this.cfg.preset.effects.policeLights && !this.police) {
-      this.police = new PoliceLights(this.fxBelow, this.layout, this.cfg.theme);
-      this.police.start();
-    }
-    if (this.cfg.preset.effects.ambientSiren) this.loop('siren-loop');
-    if (this.cfg.preset.effects.sweatColumns) {
-      if (!this.sweat) this.sweat = new SweatColumns(this.fxBelow, this.layout, this.cfg.theme);
+    if (this.cfg.preset.effects.anticipationColumns) {
+      if (!this.columns) this.columns = new AnticipationColumns(this.fxBelow, this.layout, this.cfg.theme);
       const pending: number[] = [];
       for (let r = fromReel + 1; r < REEL_COUNT; r++) pending.push(r);
-      if (pending.length) this.sweat.setPending(pending, pending[0]);
+      if (pending.length) this.columns.setPending(pending, pending[0]);
     }
   }
 
@@ -470,11 +464,8 @@ export class PixiApp {
   private clearAnticipation(): void {
     for (const o of this.orbits) o.stop();
     this.orbits = [];
-    this.police?.stop();
-    this.police = undefined;
-    this.sweat?.clear();
-    this.sweat = undefined;
-    this.stopLoop('siren-loop');
+    this.columns?.clear();
+    this.columns = undefined;
     for (const cell of this.reels?.cellsFlat() ?? []) cell.stopIdlePulse();
   }
 

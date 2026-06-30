@@ -16,8 +16,6 @@ export interface CanvasTheme {
   cellGridAlpha: number;
 
   // effect palette
-  policeRed: number;
-  policeBlue: number;
   goldFrame: number;
   warmFlash: number;
   spotlightBackdrop: number;
@@ -42,8 +40,6 @@ export const DARK_THEME: CanvasTheme = {
   cellGrid: 0x2e2748,
   cellGridAlpha: 0.5,
 
-  policeRed: 0xff3030,
-  policeBlue: 0x4076ff,
   goldFrame: 0xffd633,
   warmFlash: 0xfff0cf,
   spotlightBackdrop: 0x06050a,

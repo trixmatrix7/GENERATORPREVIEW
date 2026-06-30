@@ -72,7 +72,7 @@ export class SoundManager {
       }
       case 'sweep':
       case 'riser':
-      case 'siren': {
+      case 'wobble': {
         const osc = ctx.createOscillator();
         osc.type = entry.synth.type === 'riser' ? 'sawtooth' : 'triangle';
         const to = entry.synth.freqTo ?? f * 2;
@@ -139,7 +139,7 @@ export class SoundManager {
       src.start();
       this.loops.set(entry.id, { stop: () => { try { src.stop(); } catch { /* */ } gain.disconnect(); } });
     } else {
-      // siren / tone loop with an LFO
+      // wobble / tone loop with an LFO
       const osc = ctx.createOscillator();
       osc.type = 'triangle';
       const f = entry.synth.freq ?? 440;

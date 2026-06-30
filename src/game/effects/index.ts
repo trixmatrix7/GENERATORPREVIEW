@@ -8,48 +8,6 @@ import { glowTexture, ringTexture, discTexture } from '../textures';
 import type { GridLayout } from '../../config/gridConfig';
 import type { CanvasTheme } from '../../config/canvasTheme';
 
-// ── Police lights (full-grid red/blue alternating wash) ──────────────────────
-export class PoliceLights {
-  private left: Sprite;
-  private right: Sprite;
-  private tl?: gsap.core.Timeline;
-  constructor(private layer: Container, layout: GridLayout, theme: CanvasTheme) {
-    const w = layout.width * 1.2;
-    const h = layout.height * 1.6;
-    this.left = new Sprite(glowTexture(theme.policeRed));
-    this.right = new Sprite(glowTexture(theme.policeBlue));
-    for (const s of [this.left, this.right]) {
-      s.anchor.set(0.5);
-      s.width = w;
-      s.height = h;
-      s.blendMode = 'add';
-      s.alpha = 0;
-      s.y = layout.height / 2;
-      layer.addChild(s);
-    }
-    this.left.x = layout.width * 0.16;
-    this.right.x = layout.width * 0.84;
-  }
-  start(intensity = 1): void {
-    if (this.tl) return;
-    this.left.alpha = 0.6 * intensity;
-    this.right.alpha = 0.12 * intensity;
-    this.tl = gsap.timeline({ repeat: -1, yoyo: true });
-    this.tl.to(this.left, { alpha: 0.12 * intensity, duration: 0.23, ease: 'none' }, 0);
-    this.tl.to(this.right, { alpha: 0.6 * intensity, duration: 0.23, ease: 'none' }, 0);
-  }
-  stop(): void {
-    this.tl?.kill();
-    this.tl = undefined;
-    gsap.to([this.left, this.right], { alpha: 0, duration: 0.26 });
-  }
-  destroy(): void {
-    this.tl?.kill();
-    this.left.destroy();
-    this.right.destroy();
-  }
-}
-
 // ── Scatter orbit light (per landed scatter cell) ────────────────────────────
 export interface OrbitHandle {
   stop(): void;
@@ -100,8 +58,8 @@ export function orbitScatter(
   };
 }
 
-// ── Sweat column highlight (gold frame on pending reels) ─────────────────────
-export class SweatColumns {
+// ── Anticipation column highlight (gold frame on pending reels) ──────────────
+export class AnticipationColumns {
   private strips = new Map<number, { frame: Graphics; glow: Sprite; pulse?: gsap.core.Tween }>();
   constructor(private layer: Container, private layout: GridLayout, private theme: CanvasTheme) {}
 

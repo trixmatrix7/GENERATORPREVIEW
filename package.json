@@ -1,0 +1,31 @@
+{
+  "name": "chain-slot-preview-generator",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Preview studio for the chain.wtf slot generator — typed-registry layer system, Pixi v8 runtime, Fantasy Slots spec. Strip of the dev generator for testing animation presets.",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "build:fast": "vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "gsap": "^3.12.5",
+    "lottie-web": "^5.12.2",
+    "pixi-filters": "^6.1.4",
+    "pixi.js": "^8.6.6",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "viem": "^2.21.55",
+    "zustand": "^5.0.2"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.18",
+    "@types/react-dom": "^18.3.5",
+    "@vitejs/plugin-react": "^4.3.4",
+    "typescript": "^5.7.2",
+    "vite": "^5.4.11"
+  }
+}

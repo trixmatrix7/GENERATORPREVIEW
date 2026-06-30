@@ -1,0 +1,16 @@
+{
+  "name": "Fantasy Slots",
+  "description": "A high volatility 3125-ways slot game with Fantasy theme.",
+  "version": "1.0.0",
+  "type": "slot",
+  "gridType": "ways-3125",
+  "maxPayoutMultiplier": 5000,
+  "rtpBps": 9620,
+  "features": [
+    "wild-standard",
+    "scatter-trigger",
+    "near-miss-tease",
+    "bonus-buy",
+    "hold-and-win"
+  ]
+}

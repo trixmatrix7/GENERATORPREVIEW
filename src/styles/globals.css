@@ -1,0 +1,99 @@
+/* globals.css — brand fonts + design tokens.
+ * Per dev contract: Poppins (display, italic 900) + Rubik (body) ONLY.
+ * Palette follows the chain.wtf design kit (#121212, brand-yellow #FFE168). */
+
+:root {
+  /* Fonts — the ONLY two allowed (dev invariant). */
+  --font-display: 'Poppins', system-ui, sans-serif;
+  --font-body: 'Rubik', system-ui, sans-serif;
+
+  /* chain.wtf brand palette */
+  --bg: #121212;
+  --bg-elevated: #1a1a1d;
+  --bg-panel: #161618;
+  --bg-input: #0e0e10;
+  --line: #2a2a2e;
+  --line-soft: #232327;
+  --text: #f4f4f5;
+  --text-dim: #a1a1aa;
+  --text-faint: #6b6b73;
+
+  --brand: #ffe168;        /* primary yellow CTA */
+  --brand-deep: #ffcf33;
+  --brand-ink: #1a1500;    /* text on yellow */
+  --accent: #7c5cff;
+  --good: #46d17a;
+  --bad: #ff5a5a;
+  --warn: #ff9f43;
+
+  --radius: 12px;
+  --radius-sm: 8px;
+  --radius-lg: 18px;
+  --shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  font-family: var(--font-body);
+  background: radial-gradient(1200px 700px at 50% -10%, #1d1d22 0%, var(--bg) 60%);
+  color: var(--text);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  overflow: hidden;
+}
+
+h1,
+h2,
+h3,
+h4,
+.display {
+  font-family: var(--font-display);
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  margin: 0;
+}
+
+.italic-black {
+  font-style: italic;
+  font-weight: 900;
+}
+
+button {
+  font-family: var(--font-body);
+  cursor: pointer;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background: #2e2e33;
+  border-radius: 8px;
+  border: 2px solid var(--bg-panel);
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+code,
+pre,
+textarea.code {
+  font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
+}

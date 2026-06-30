@@ -1,0 +1,12 @@
+node_modules
+dist
+dist-ssr
+*.local
+.vercel
+.DS_Store
+*.log
+npm-debug.log*
+.vite
+
+# keep the extracted spec around locally but don't ship it
+/extracted

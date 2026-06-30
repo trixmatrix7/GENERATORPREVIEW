@@ -39,10 +39,21 @@ export interface SymbolAnimationEntry extends RegistryEntry {
 }
 
 // ── Layer 5/6 — win presentation (EXACT interface) ──────────────────────────
+export type WinRevealMode = 'sequential' | 'all-at-once';
 export interface WinPresentationEntry extends RegistryEntry {
   trigger: string; // 'any win'
   duration: number; // seconds (per single presentation; the chain is cancellable)
   components: string[]; // ids resolved from other registries (gridEffects/sound/text)
+  mode?: WinRevealMode; // how the winning connections are revealed
+}
+
+// ── Spin system (the visual spin/fill style — an OVERLAY category) ───────────
+// The spin ENGINE (fill→drop→evaluate→present) and the math are SPEC and frozen;
+// this only changes how the board animates IN. Swappable + code-addable.
+export type SpinStyle = 'drop' | 'reel-spin' | 'slam' | 'fade';
+export interface SpinSystemEntry extends RegistryEntry {
+  style: SpinStyle;
+  params?: Record<string, number>;
 }
 
 // ── Layer 6/8 — grid effects (EXACT interface) ──────────────────────────────
@@ -120,7 +131,8 @@ export type AnyEntry =
   | TransitionAnimationEntry
   | TextAnimationEntry
   | SoundEventEntry
-  | ThemeEntry;
+  | ThemeEntry
+  | SpinSystemEntry;
 
 export type RegistryName =
   | 'canvasLayers'
@@ -131,4 +143,5 @@ export type RegistryName =
   | 'transitionAnimations'
   | 'textAnimations'
   | 'soundEvents'
-  | 'themes';
+  | 'themes'
+  | 'spinSystems';

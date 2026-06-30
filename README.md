@@ -56,6 +56,29 @@ git push -u origin main
 
 ---
 
+## Frozen spec ↔ overlay (the core rule)
+
+The **spec is immutable**. The Fantasy math/contract — reels, paytable, ways evaluation,
+free spins, hold & win — lives in `src/engine` + `src/config` and is **deep-frozen at load**
+(`src/spec/index.ts`). Presets, the code panel, and every "overlay" category can only
+**read** it; they can never edit it. Changing the actual game math means importing a new
+spec (a new ZIP from the dev), not an overlay edit. The header shows a **🔒 spec frozen** badge.
+
+Everything else is the **overlay** — swappable presets **and** pasteable code, all adapting
+to the frozen spec:
+
+| Overlay category | What you swap | Add your own via |
+|---|---|---|
+| **Animation preset** | the 4 symbol states + effects + params | Presets + code panel (`symbolAnimations`) |
+| **Spin system** | how the board animates in (Drop · Reel Spin · Slam · Fade) | Systems selector + code panel (`spinSystems`) |
+| **Win presentation** | how wins reveal (Sequential ways ↔ All-at-once) | Systems selector + code panel (`winPresentation`) |
+| **Sound set** | Full / Minimal / Off | Systems selector + code panel (`soundEvents`) |
+| **Effects, win screens, themes, transitions, text** | any layer entry | code panel (the matching registry) |
+
+So: you vibe-code anything — a spin system, a win-line presentation, a sound, an animation —
+paste it into **Add entry (code)**, and it's parsed → applied live → saved, **without ever
+touching the spec**. Then the dev copy-pastes the entry into the real generator.
+
 ## How the studio works
 
 - **SPIN / scenario buttons** — run deterministic outcomes (the engine mirrors the

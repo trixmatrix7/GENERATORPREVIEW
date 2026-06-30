@@ -25,6 +25,7 @@ export function Studio() {
           </div>
         </div>
         <div className="chips">
+          <span className="chip spec" title="The Fantasy math/contract is frozen — presets & code only overlay, never edit it">🔒 spec frozen</span>
           <span className="chip">RTP {SPEC.targetRtpPct}%</span>
           <span className="chip">max {SPEC.maxWinMultiplier}×</span>
           <span className={`chip phase ${busy ? 'busy' : ''}`}>{busy ? phase : 'idle'}</span>

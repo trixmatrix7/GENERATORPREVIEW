@@ -1,6 +1,7 @@
 import { createRoot } from 'react-dom/client';
 import App from './App';
 import { installVisibilityTicker } from './game/ticker';
+import './spec'; // deep-freezes the spec at load (presets/code can only overlay it)
 import './styles/globals.css';
 import './ui/ui.css';
 

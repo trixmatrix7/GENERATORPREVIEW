@@ -4,8 +4,9 @@
 
 import { useState } from 'react';
 import { controller, type ScenarioName } from '../game/controller';
-import { useStudio } from '../store/useStudio';
+import { useStudio, type SoundSet } from '../store/useStudio';
 import { useRuntime } from '../store/useRuntime';
+import { useDerivedConfig } from '../store/derive';
 import { CodePanel } from './CodePanel';
 import { ADJUSTABLE_PARAMS } from '../config/adjustableParams';
 import { BET_LEVELS } from '../config/gameConfig';
@@ -52,6 +53,9 @@ export function Controls() {
     <aside className="controls">
       <Section title="Spin & Test">
         <TestTriggers busy={busy} />
+      </Section>
+      <Section title="Systems (overlay)">
+        <Systems />
       </Section>
       <Section title="Animation states (4)">
         <StatesEditor />
@@ -200,6 +204,55 @@ function Presets() {
           </button>
         )}
       </div>
+    </div>
+  );
+}
+
+function Systems() {
+  const { registries } = useDerivedConfig();
+  const activeSpinSystemId = useStudio((s) => s.activeSpinSystemId);
+  const setSpinSystem = useStudio((s) => s.setSpinSystem);
+  const activeWinPresentationId = useStudio((s) => s.activeWinPresentationId);
+  const setWinPresentation = useStudio((s) => s.setWinPresentation);
+  const soundSet = useStudio((s) => s.soundSet);
+  const setSoundSet = useStudio((s) => s.setSoundSet);
+  const spinSystems = registries.spinSystems.filter((e) => e.implemented);
+  const winPres = registries.winPresentation.filter((e) => 'mode' in e && e.implemented);
+
+  return (
+    <div className="stack">
+      <label className="mini">
+        Spin system <span className="hint-inline">how the board animates in</span>
+        <select value={activeSpinSystemId} onChange={(e) => setSpinSystem(e.target.value)}>
+          {spinSystems.map((s) => (
+            <option key={s.id} value={s.id}>
+              {s.name}
+            </option>
+          ))}
+        </select>
+      </label>
+      <label className="mini">
+        Win presentation <span className="hint-inline">how wins reveal</span>
+        <select value={activeWinPresentationId} onChange={(e) => setWinPresentation(e.target.value)}>
+          {winPres.map((w) => (
+            <option key={w.id} value={w.id}>
+              {w.name}
+            </option>
+          ))}
+        </select>
+      </label>
+      <label className="mini">
+        Sound set
+        <select value={soundSet} onChange={(e) => setSoundSet(e.target.value as SoundSet)}>
+          <option value="full">Full</option>
+          <option value="minimal">Minimal</option>
+          <option value="off">Off</option>
+        </select>
+      </label>
+      <p className="hint">
+        These are <strong>overlay</strong> categories — swappable + code-addable, all adapting to the frozen
+        spec. Paste your own spin system / win presentation / sound in the <em>Add entry (code)</em> panel.
+      </p>
     </div>
   );
 }

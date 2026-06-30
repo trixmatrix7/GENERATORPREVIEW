@@ -31,6 +31,7 @@ function stripTsOnly(src: string): string {
 
 export function inferRegistry(entry: Record<string, unknown>): RegistryName | undefined {
   if ('state' in entry && 'anchor' in entry) return 'symbolAnimations';
+  if ('style' in entry && !('scope' in entry)) return 'spinSystems';
   if ('components' in entry) return 'winPresentation';
   if ('synth' in entry) return 'soundEvents';
   if ('tier' in entry && 'thresholdX' in entry) return 'winScreenTiers';

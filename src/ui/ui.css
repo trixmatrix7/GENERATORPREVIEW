@@ -55,6 +55,11 @@
   border-color: var(--brand);
   font-weight: 600;
 }
+.chip.spec {
+  color: var(--good);
+  border-color: rgba(70, 209, 122, 0.35);
+  background: rgba(70, 209, 122, 0.08);
+}
 .winbox {
   margin-left: auto;
   display: flex;

@@ -15,12 +15,14 @@ import { HOLD_WIN } from '../config/gameConfig';
 import { SymbolId, isScatter } from '../config/symbols';
 import { REEL_COUNT } from '../engine/reels';
 import type { CanvasTheme } from '../config/canvasTheme';
-import type { ThemeSymbol, SoundEventEntry } from '../registries/types';
+import type { ThemeSymbol, SoundEventEntry, SpinSystemEntry, WinRevealMode } from '../registries/types';
 import type { Registries } from '../registries';
 import type { AnimationPreset } from '../registries/presets';
 import type { ParamValues } from '../config/adjustableParams';
 import type { Outcome, Board, Cell } from '../engine/types';
 import type { SoundManager } from '../audio/SoundManager';
+
+export type SoundSet = 'full' | 'minimal' | 'off';
 
 export interface RenderConfig {
   grid: GridId;
@@ -30,9 +32,15 @@ export interface RenderConfig {
   params: ParamValues;
   registries: Registries;
   sound: SoundManager;
+  spinSystem: SpinSystemEntry;
+  winReveal: WinRevealMode;
+  soundSet: SoundSet;
   onWinUpdate?: (winX: number) => void;
   onPhase?: (phase: string) => void;
 }
+
+// cues kept when the sound set is "minimal"
+const MINIMAL_CUES = new Set(['spin-start', 'reel-stop', 'win-small', 'win-normal', 'win-big', 'win-mega', 'free-spin-trigger']);
 
 const PAD = 54;
 const TOP = 70;
@@ -191,11 +199,18 @@ export class PixiApp {
   }
 
   // ── sound helper ───────────────────────────────────────────────────────────
+  private soundAllowed(id: string): boolean {
+    if (this.cfg.soundSet === 'off') return false;
+    if (this.cfg.soundSet === 'minimal') return MINIMAL_CUES.has(id);
+    return true;
+  }
   private sfx(id: string, pitchMul = 1): void {
+    if (!this.soundAllowed(id)) return;
     const e = this.cfg.registries.soundEvents.find((s) => s.id === id) as SoundEventEntry | undefined;
     if (e && e.implemented) this.cfg.sound.play(e, pitchMul);
   }
   private loop(id: string): void {
+    if (!this.soundAllowed(id)) return;
     const e = this.cfg.registries.soundEvents.find((s) => s.id === id) as SoundEventEntry | undefined;
     if (e && e.implemented) this.cfg.sound.startLoop(e);
   }
@@ -241,12 +256,15 @@ export class PixiApp {
     const plan = this.sweatPlan(o.base.board);
     let scattersLanded = 0;
 
+    // spin SYSTEM is overlay (visual): its params seed the drop, sliders override.
+    const sp = this.cfg.spinSystem.params ?? {};
     await this.reels.dropBoard(
       o.base.board,
       {
-        dropDurationMs: this.cfg.params.dropDurationMs,
-        staggerMs: this.cfg.params.dropStaggerMs,
-        rowGapMs: 30,
+        style: this.cfg.spinSystem.style,
+        dropDurationMs: sp.dropDurationMs ?? sp.spinMs ?? sp.fadeMs ?? this.cfg.params.dropDurationMs,
+        staggerMs: sp.staggerMs ?? this.cfg.params.dropStaggerMs,
+        rowGapMs: sp.rowGapMs ?? 30,
         spinSpeed: this.cfg.params.spinSpeed,
         sweatFromReel: plan.sweatFromReel,
         sweatSlowFactor: this.cfg.params.sweatSlowFactor,
@@ -281,16 +299,26 @@ export class PixiApp {
       await this.banners.flashBanner('SO CLOSE!', this.cfg.theme.warmFlash);
     }
 
-    // ── base sequential ways reveal ──
+    // ── base win reveal (mode = overlay; the wins themselves are SPEC) ──
     this.cfg.onPhase?.('reveal');
     if (o.base.scatterWinX > 0) setWin(shownWinX + o.base.scatterWinX);
-    for (let i = 0; i < o.base.connections.length; i++) {
-      if (my !== this.token) return;
-      const conn = o.base.connections[i];
-      this.sfx('win-connect-sound', 1 + i * 0.12);
-      setWin(shownWinX + conn.winX);
-      await Promise.all(conn.cells.map((c) => this.reels.cell(c.reel, c.row).playWin(this.cfg.preset.states.win, this.cfg.params)));
-      await sleep(150);
+    if (this.cfg.winReveal === 'all-at-once') {
+      if (o.base.connections.length) {
+        const total = o.base.connections.reduce((s, c) => s + c.winX, 0);
+        setWin(shownWinX + total);
+        this.sfx('win-connect-sound', 1.3);
+        const cells = o.base.connections.flatMap((c) => c.cells);
+        await Promise.all(cells.map((c) => this.reels.cell(c.reel, c.row).playWin(this.cfg.preset.states.win, this.cfg.params)));
+      }
+    } else {
+      for (let i = 0; i < o.base.connections.length; i++) {
+        if (my !== this.token) return;
+        const conn = o.base.connections[i];
+        this.sfx('win-connect-sound', 1 + i * 0.12);
+        setWin(shownWinX + conn.winX);
+        await Promise.all(conn.cells.map((c) => this.reels.cell(c.reel, c.row).playWin(this.cfg.preset.states.win, this.cfg.params)));
+        await sleep(150);
+      }
     }
     if (o.base.connections.length && !o.freeSpins.triggered) {
       this.sfx(o.base.baseWinX >= 10 ? 'win-big' : o.base.baseWinX >= 2 ? 'win-normal' : 'win-small');

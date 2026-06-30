@@ -11,6 +11,7 @@ import { transitionAnimations } from './entries/transitionAnimations';
 import { textAnimations } from './entries/textAnimations';
 import { soundEvents } from './entries/soundEvents';
 import { themes } from './entries/themes';
+import { spinSystems } from './entries/spinSystems';
 
 export * from './types';
 
@@ -26,6 +27,7 @@ export const DEFAULT_REGISTRIES: Registries = {
   textAnimations,
   soundEvents,
   themes,
+  spinSystems,
 };
 
 export const REGISTRY_NAMES: RegistryName[] = [
@@ -38,6 +40,7 @@ export const REGISTRY_NAMES: RegistryName[] = [
   'textAnimations',
   'soundEvents',
   'themes',
+  'spinSystems',
 ];
 
 /** A user-authored entry override, keyed by registry + id. */
@@ -62,6 +65,7 @@ export function mergeRegistries(defaults: Registries, custom: CustomEntry[]): Re
     textAnimations: [...defaults.textAnimations],
     soundEvents: [...defaults.soundEvents],
     themes: [...defaults.themes],
+    spinSystems: [...defaults.spinSystems],
   };
   for (const c of custom) {
     const arr = out[c.registry];

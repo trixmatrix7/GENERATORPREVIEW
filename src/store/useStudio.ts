@@ -21,6 +21,8 @@ import type { SymbolState } from '../registries/types';
 
 const clone = <T>(x: T): T => JSON.parse(JSON.stringify(x)) as T;
 
+export type SoundSet = 'full' | 'minimal' | 'off';
+
 export interface StudioState {
   author: string;
   grid: GridId;
@@ -29,8 +31,13 @@ export interface StudioState {
   muted: boolean;
   volume: number;
 
+  // overlay category selectors (all adapt to the frozen spec, never edit it)
+  activeSpinSystemId: string;
+  activeWinPresentationId: string;
+  soundSet: SoundSet;
+
   selectedPresetId: string;
-  working: AnimationPreset; // the live-edited preset
+  working: AnimationPreset; // the live-edited animation preset
   customPresets: AnimationPreset[];
   customEntries: CustomEntry[]; // pasted registry entries (live + persisted)
 
@@ -41,6 +48,9 @@ export interface StudioState {
   setBetIndex: (i: number) => void;
   setMuted: (m: boolean) => void;
   setVolume: (v: number) => void;
+  setSpinSystem: (id: string) => void;
+  setWinPresentation: (id: string) => void;
+  setSoundSet: (s: SoundSet) => void;
 
   selectPreset: (id: string) => void;
   setParam: (key: string, value: number) => void;
@@ -67,6 +77,10 @@ export const useStudio = create<StudioState>()(
       muted: false,
       volume: 0.6,
 
+      activeSpinSystemId: 'spin-drop',
+      activeWinPresentationId: 'sequential-ways-reveal',
+      soundSet: 'full',
+
       selectedPresetId: DEFAULT_PRESET_ID,
       working: clone(BUILTIN_PRESETS.find((p) => p.id === DEFAULT_PRESET_ID)!),
       customPresets: [],
@@ -78,6 +92,9 @@ export const useStudio = create<StudioState>()(
       setBetIndex: (betIndex) => set({ betIndex: Math.max(0, Math.min(BET_LEVELS.length - 1, betIndex)) }),
       setMuted: (muted) => set({ muted }),
       setVolume: (volume) => set({ volume }),
+      setSpinSystem: (activeSpinSystemId) => set({ activeSpinSystemId }),
+      setWinPresentation: (activeWinPresentationId) => set({ activeWinPresentationId }),
+      setSoundSet: (soundSet) => set({ soundSet }),
 
       selectPreset: (id) =>
         set({ selectedPresetId: id, working: clone(findPreset(id, get().customPresets)) }),

@@ -9,7 +9,10 @@ import { REEL_COUNT } from '../engine/reels';
 import type { GridLayout } from '../config/gridConfig';
 import type { Board } from '../engine/types';
 
+import type { SpinStyle } from '../registries/types';
+
 export interface DropOptions {
+  style: SpinStyle;
   dropDurationMs: number;
   staggerMs: number;
   rowGapMs: number;
@@ -66,21 +69,25 @@ export class ReelSet {
   setBoardInstant(board: Board): void {
     for (let row = 0; row < this.cells.length; row++) {
       for (let reel = 0; reel < REEL_COUNT; reel++) {
-        this.cells[row][reel].setSymbol(board[row][reel]);
+        const sym = this.cells[row][reel];
+        sym.setSymbol(board[row][reel]);
         const c = this.layout.cellCenter(reel, row);
-        this.cells[row][reel].view.y = c.y;
+        sym.view.y = c.y;
+        sym.view.alpha = 1;
+        sym.view.scale.set(1);
       }
     }
   }
 
-  /** Drop the board in. Resolves when every reel has settled. */
+  /** Bring the board in using the selected spin STYLE. Resolves when settled.
+   *  Style is OVERLAY (visual only); the board contents are SPEC and unchanged. */
   dropBoard(board: Board, opts: DropOptions, onReelLanded?: (reel: number) => void): Promise<void> {
     const rows = this.cells.length;
     const dropAbove = this.layout.height + this.layout.cellH * 2;
-    const dur = (opts.dropDurationMs / 1000) / Math.max(0.2, opts.spinSpeed);
-    const stagger = (opts.staggerMs / 1000) / Math.max(0.2, opts.spinSpeed);
-    const rowGap = (opts.rowGapMs / 1000) / Math.max(0.2, opts.spinSpeed);
-
+    const speed = Math.max(0.2, opts.spinSpeed);
+    const dur = opts.dropDurationMs / 1000 / speed;
+    const stagger = opts.staggerMs / 1000 / speed;
+    const rowGap = opts.rowGapMs / 1000 / speed;
     const promises: Promise<void>[] = [];
 
     for (let reel = 0; reel < REEL_COUNT; reel++) {
@@ -94,23 +101,32 @@ export class ReelSet {
         const sym = this.cells[row][reel];
         sym.setSymbol(board[row][reel]);
         const target = this.layout.cellCenter(reel, row).y;
-        sym.view.y = target - dropAbove;
         const delay = reelDelayBase + row * rowGap;
         lastSettle = Math.max(lastSettle, delay + reelDur);
+
+        // reset transform state then apply the style's entry animation
+        sym.view.y = target;
+        sym.view.alpha = 1;
+        sym.view.scale.set(1);
+
         promises.push(
           new Promise<void>((resolve) => {
-            gsap.to(sym.view, {
-              y: target,
-              duration: reelDur,
-              delay,
-              ease: 'back.out(1.1)',
-              onComplete: resolve,
-            });
+            if (opts.style === 'fade') {
+              sym.view.alpha = 0;
+              sym.view.scale.set(0.6);
+              gsap.to(sym.view, { alpha: 1, duration: reelDur, delay, ease: 'power2.out' });
+              gsap.to(sym.view.scale, { x: 1, y: 1, duration: reelDur, delay, ease: 'back.out(1.6)', onComplete: resolve });
+            } else {
+              // drop / slam / reel-spin all fall from above; ease/offset differ
+              const above = opts.style === 'reel-spin' ? dropAbove * 1.8 : dropAbove;
+              const ease = opts.style === 'slam' ? 'back.out(2.4)' : opts.style === 'reel-spin' ? 'power3.out' : 'back.out(1.1)';
+              sym.view.y = target - above;
+              gsap.to(sym.view, { y: target, duration: reelDur, delay, ease, onComplete: resolve });
+            }
           }),
         );
       }
 
-      // reel-landed callback after this reel's last row settles
       gsap.delayedCall(lastSettle, () => onReelLanded?.(reel));
     }
 

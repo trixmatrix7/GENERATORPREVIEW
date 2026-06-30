@@ -2,7 +2,7 @@
 // live params, effect toggles, presets (save/load/delete), the code panel, the
 // outcome inspector, and settings.
 
-import { useState } from 'react';
+import { useState, useRef, useEffect, useContext, createContext } from 'react';
 import { controller, type ScenarioName } from '../game/controller';
 import { useStudio, type SoundSet } from '../store/useStudio';
 import { useRuntime } from '../store/useRuntime';
@@ -33,8 +33,17 @@ const SCENARIOS: { name: ScenarioName; label: string }[] = [
   { name: 'bonus-buy', label: 'Bonus Buy' },
 ];
 
+// broadcast "open all" / "close all" to every Section
+const SectionCmd = createContext<{ cmd: 'open' | 'close' | null; nonce: number }>({ cmd: null, nonce: 0 });
+
 function Section({ title, children, defaultOpen = true }: { title: string; children: React.ReactNode; defaultOpen?: boolean }) {
   const [open, setOpen] = useState(defaultOpen);
+  const ctx = useContext(SectionCmd);
+  useEffect(() => {
+    if (ctx.cmd === 'open') setOpen(true);
+    else if (ctx.cmd === 'close') setOpen(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ctx.nonce]);
   return (
     <div className={`section ${open ? 'open' : ''}`}>
       <button className="section-head" onClick={() => setOpen((o) => !o)}>
@@ -46,11 +55,100 @@ function Section({ title, children, defaultOpen = true }: { title: string; child
   );
 }
 
+/** Drag/swipe anywhere on the panel (except over a control) to scroll it.
+ *  For mouse-wheel-free scrolling. */
+function useDragScroll(ref: React.RefObject<HTMLElement>) {
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    let active = false;
+    let dragging = false;
+    let startY = 0;
+    let startTop = 0;
+    const isControl = (t: EventTarget | null) =>
+      t instanceof Element && !!t.closest('input,select,textarea,button,a,[role="slider"]');
+    const down = (e: PointerEvent) => {
+      if (e.button !== 0 || isControl(e.target)) return;
+      active = true;
+      dragging = false;
+      startY = e.clientY;
+      startTop = el.scrollTop;
+    };
+    const move = (e: PointerEvent) => {
+      if (!active) return;
+      const dy = e.clientY - startY;
+      if (!dragging && Math.abs(dy) > 6) {
+        dragging = true;
+        el.classList.add('dragging');
+        try {
+          el.setPointerCapture(e.pointerId);
+        } catch {
+          /* */
+        }
+      }
+      if (dragging) {
+        el.scrollTop = startTop - dy;
+        e.preventDefault();
+      }
+    };
+    const up = (e: PointerEvent) => {
+      if (dragging) {
+        try {
+          el.releasePointerCapture(e.pointerId);
+        } catch {
+          /* */
+        }
+      }
+      active = false;
+      dragging = false;
+      el.classList.remove('dragging');
+    };
+    el.addEventListener('pointerdown', down);
+    el.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+    return () => {
+      el.removeEventListener('pointerdown', down);
+      el.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+    };
+  }, [ref]);
+}
+
 export function Controls() {
   const busy = useRuntime((s) => s.busy);
+  const ref = useRef<HTMLElement>(null);
+  const [cmd, setCmd] = useState<{ cmd: 'open' | 'close' | null; nonce: number }>({ cmd: null, nonce: 0 });
+  useDragScroll(ref);
+
+  const by = (dy: number) => ref.current?.scrollBy({ top: dy, behavior: 'smooth' });
+  const to = (top: number) => ref.current?.scrollTo({ top, behavior: 'smooth' });
+  const expandAll = () => setCmd((c) => ({ cmd: 'open', nonce: c.nonce + 1 }));
+  const collapseAll = () => setCmd((c) => ({ cmd: 'close', nonce: c.nonce + 1 }));
+  const onKey = (e: React.KeyboardEvent) => {
+    const step = 320;
+    if (e.key === 'ArrowDown') by(120);
+    else if (e.key === 'ArrowUp') by(-120);
+    else if (e.key === 'PageDown') by(step);
+    else if (e.key === 'PageUp') by(-step);
+    else if (e.key === 'Home') to(0);
+    else if (e.key === 'End') to(ref.current?.scrollHeight ?? 0);
+    else return;
+    e.preventDefault();
+  };
 
   return (
-    <aside className="controls">
+    <aside className="controls" ref={ref} tabIndex={0} onKeyDown={onKey}>
+      <div className="scroll-tools">
+        <span className="st-label">scroll</span>
+        <button className="btn tiny" title="Up" onClick={() => by(-340)}>▲</button>
+        <button className="btn tiny" title="Down" onClick={() => by(340)}>▼</button>
+        <button className="btn tiny" title="Top" onClick={() => to(0)}>⤒</button>
+        <button className="btn tiny" title="Bottom" onClick={() => to(ref.current?.scrollHeight ?? 0)}>⤓</button>
+        <span className="st-spacer" />
+        <button className="btn tiny" title="Open all sections" onClick={expandAll}>Expand all</button>
+        <button className="btn tiny" title="Collapse all sections" onClick={collapseAll}>Collapse</button>
+      </div>
+      <SectionCmd.Provider value={cmd}>
       <Section title="Spin & Test">
         <TestTriggers busy={busy} />
       </Section>
@@ -81,6 +179,7 @@ export function Controls() {
       <Section title="Settings" defaultOpen={false}>
         <Settings />
       </Section>
+      </SectionCmd.Provider>
     </aside>
   );
 }

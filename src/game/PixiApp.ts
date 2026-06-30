@@ -11,6 +11,7 @@ import { PoliceLights, SweatColumns, orbitScatter, fsSpinOut, fsSpinIn, type Orb
 import { spawnCoinBurst } from './particles';
 import { Banners } from './banners';
 import { computeLayout, GRIDS, type GridId, type GridLayout } from '../config/gridConfig';
+import { HOLD_WIN } from '../config/gameConfig';
 import { SymbolId, isScatter } from '../config/symbols';
 import { REEL_COUNT } from '../engine/reels';
 import type { CanvasTheme } from '../config/canvasTheme';
@@ -324,13 +325,12 @@ export class PixiApp {
     this.clearAnticipation();
     await fsSpinOut(this.reelArea, this.layout);
     if (my !== this.token) return;
-    await this.banners.fsIntro(this.cfg.params ? o.freeSpins.spins.length || 18 : 18, o.freeSpins.multiplier);
+    await this.banners.fsIntro(o.freeSpins.spins.length || 18, o.freeSpins.multiplier);
     this.relayoutReelAreaAfterTransition();
     await fsSpinIn(this.reelArea);
     if (my !== this.token) return;
 
     const shown = Math.min(o.freeSpins.spins.length, 10);
-    let acc = getWin();
     for (let i = 0; i < shown; i++) {
       if (my !== this.token) return;
       const fs = o.freeSpins.spins[i];
@@ -338,17 +338,15 @@ export class PixiApp {
       for (const cell of this.reels.cellsFlat()) void cell.playLanding(this.cfg.preset.states.landing, this.cfg.params);
       this.sfx('reel-stop');
       if (fs.winX > 0) {
-        acc += fs.winX;
-        setWin(acc);
+        setWin(getWin() + fs.winX);
         this.sfx('win-connect-sound', 1.2 + i * 0.05);
       }
       await sleep(260 / Math.max(0.5, this.cfg.params.spinSpeed));
     }
-    // fold remaining FS winnings into the counter at once
-    if (o.freeSpins.spins.length > shown) {
-      acc = getWin() + o.freeSpins.totalWinX - o.freeSpins.spins.slice(0, shown).reduce((s, f) => s + f.winX, 0);
-    }
-    setWin(getWin());
+    // fold any FS spins beyond the shown montage into the counter at once
+    const shownSum = o.freeSpins.spins.slice(0, shown).reduce((s, f) => s + f.winX, 0);
+    const rest = o.freeSpins.totalWinX - shownSum;
+    if (rest > 0.0001) setWin(getWin() + rest);
     await this.banners.fsOutro(o.freeSpins.totalWinX);
     // restore base board
     this.reels.setBoardInstant(o.base.board);
@@ -359,7 +357,7 @@ export class PixiApp {
     // place coins on the board
     this.reels.setBoardInstant(o.base.board);
     await this.banners.flashBanner('HOLD & WIN', this.cfg.theme.goldFrame);
-    let acc = getWin();
+    let running = getWin(); // base/FS win accumulated so far
     for (const step of o.holdWin.steps) {
       if (my !== this.token) return;
       for (let k = 0; k < step.landed.length; k++) {
@@ -370,12 +368,15 @@ export class PixiApp {
         this.sfx('coin-chime', 1 + Math.min(1, step.values[k] / 10));
         this.spawnValueText(c, step.isJackpot[k] ? `${step.values[k]}×` : `${step.values[k]}`, step.isJackpot[k]);
       }
-      acc = getWin() + Math.min(o.holdWin.totalMultiplierX, acc + step.values.reduce((s, v) => s + v, 0) - getWin());
-      setWin(getWin() + 0); // keep counter; value shown via texts
+      running += step.values.reduce((s, v) => s + v, 0);
+      setWin(running);
       await sleep(360 / Math.max(0.5, this.cfg.params.spinSpeed));
     }
-    if (o.holdWin.grand) await this.banners.flashBanner('GRAND!', 0xffd633);
-    setWin(getWin() + o.holdWin.totalMultiplierX);
+    if (o.holdWin.grand) {
+      await this.banners.flashBanner('GRAND!', 0xffd633);
+      running += HOLD_WIN.grandValue;
+      setWin(running);
+    }
   }
 
   private spawnValueText(c: Cell, text: string, jackpot: boolean): void {

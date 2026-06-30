@@ -8,6 +8,7 @@ import { useStudio, type SoundSet } from '../store/useStudio';
 import { useRuntime } from '../store/useRuntime';
 import { useDerivedConfig } from '../store/derive';
 import { CodePanel } from './CodePanel';
+import { ExportPanel } from './ExportPanel';
 import { ADJUSTABLE_PARAMS } from '../config/adjustableParams';
 import { BET_LEVELS } from '../config/gameConfig';
 import { GRIDS, type GridId } from '../config/gridConfig';
@@ -169,6 +170,9 @@ export function Controls() {
       </Section>
       <Section title="Add entry (code)" defaultOpen={false}>
         <CodePanel />
+      </Section>
+      <Section title="Export feature" defaultOpen={false}>
+        <ExportPanel />
       </Section>
       <Section title="Inspector" defaultOpen={false}>
         <Inspector />

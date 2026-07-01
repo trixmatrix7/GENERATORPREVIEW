@@ -3,6 +3,8 @@
 
 import { StageCanvas } from './StageCanvas';
 import { Controls } from './Controls';
+import { GameHud } from './GameHud';
+import { Paytable } from './Paytable';
 import { useRuntime } from '../store/useRuntime';
 import { useStudio } from '../store/useStudio';
 import { GAME_META, SPEC, BET_LEVELS } from '../config/gameConfig';
@@ -38,10 +40,14 @@ export function Studio() {
       </header>
       <main className="workspace">
         <section className="stage-wrap">
-          <StageCanvas />
+          <div className="stage-column">
+            <StageCanvas />
+            <GameHud />
+          </div>
         </section>
         <Controls />
       </main>
+      <Paytable />
     </div>
   );
 }

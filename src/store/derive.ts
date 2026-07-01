@@ -27,6 +27,7 @@ export function useDerivedConfig(): DerivedConfig {
   const activeSpinSystemId = useStudio((s) => s.activeSpinSystemId);
   const activeWinPresentationId = useStudio((s) => s.activeWinPresentationId);
   const soundSet = useStudio((s) => s.soundSet);
+  const turbo = useStudio((s) => s.turbo);
 
   const registries = useMemo(() => mergeRegistries(DEFAULT_REGISTRIES, customEntries), [customEntries]);
 
@@ -53,7 +54,11 @@ export function useDerivedConfig(): DerivedConfig {
     return map;
   }, [registries, themeId]);
 
-  const params = useMemo(() => resolveParams(working), [working]);
+  const params = useMemo(() => {
+    const p = resolveParams(working);
+    if (turbo) p.spinSpeed = Math.min(2.5, (p.spinSpeed ?? 1) * 2.2);
+    return p;
+  }, [working, turbo]);
 
   return { registries, theme, symbolMeta, params, spinSystem, winReveal, soundSet };
 }

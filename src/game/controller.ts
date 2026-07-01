@@ -42,19 +42,28 @@ class StudioController {
     return useStudio.getState().grid;
   }
 
-  private async run(o: Outcome): Promise<void> {
+  private async run(o: Outcome, stake: number): Promise<void> {
     if (!this.app) return;
+    const st = useStudio.getState();
+    st.setBalance(st.balance - stake); // debit stake up front
     useRuntime.getState().setOutcome(o);
     useRuntime.getState().setBusy(true);
     try {
       await this.app.spin(o);
     } finally {
       useRuntime.getState().setBusy(false);
+      const s2 = useStudio.getState();
+      s2.setBalance(s2.balance + o.totalWin); // credit win after the reveal
     }
   }
 
   async spin(seed?: `0x${string}`): Promise<void> {
-    await this.run(spin({ grid: this.grid(), bet: this.bet(), seed }));
+    await this.run(spin({ grid: this.grid(), bet: this.bet(), seed }), this.bet());
+  }
+
+  /** Buy-bonus stake (× base bet) — typical slot buy price for the FS feature. */
+  private buyCost(): number {
+    return this.bet() * 100;
   }
 
   async scenario(name: ScenarioName): Promise<void> {
@@ -88,7 +97,7 @@ class StudioController {
         o = spin({ grid, bet });
         break;
     }
-    await this.run(o);
+    await this.run(o, name === 'bonus-buy' ? this.buyCost() : bet);
   }
 
   async previewState(state: SymbolState): Promise<void> {

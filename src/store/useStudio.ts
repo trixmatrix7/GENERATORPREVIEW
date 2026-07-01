@@ -30,6 +30,8 @@ export interface StudioState {
   betIndex: number;
   muted: boolean;
   volume: number;
+  balance: number; // play-money balance for the in-game HUD
+  turbo: boolean;
 
   // overlay category selectors (all adapt to the frozen spec, never edit it)
   activeSpinSystemId: string;
@@ -48,6 +50,9 @@ export interface StudioState {
   setBetIndex: (i: number) => void;
   setMuted: (m: boolean) => void;
   setVolume: (v: number) => void;
+  setBalance: (n: number) => void;
+  resetBalance: () => void;
+  setTurbo: (b: boolean) => void;
   setSpinSystem: (id: string) => void;
   setWinPresentation: (id: string) => void;
   setSoundSet: (s: SoundSet) => void;
@@ -76,6 +81,8 @@ export const useStudio = create<StudioState>()(
       betIndex: DEFAULT_BET_INDEX,
       muted: false,
       volume: 0.6,
+      balance: 1000,
+      turbo: false,
 
       activeSpinSystemId: 'spin-reel',
       activeWinPresentationId: 'sequential-ways-reveal',
@@ -92,6 +99,9 @@ export const useStudio = create<StudioState>()(
       setBetIndex: (betIndex) => set({ betIndex: Math.max(0, Math.min(BET_LEVELS.length - 1, betIndex)) }),
       setMuted: (muted) => set({ muted }),
       setVolume: (volume) => set({ volume }),
+      setBalance: (balance) => set({ balance: Math.max(0, balance) }),
+      resetBalance: () => set({ balance: 1000 }),
+      setTurbo: (turbo) => set({ turbo }),
       setSpinSystem: (activeSpinSystemId) => set({ activeSpinSystemId }),
       setWinPresentation: (activeWinPresentationId) => set({ activeWinPresentationId }),
       setSoundSet: (soundSet) => set({ soundSet }),

@@ -70,7 +70,7 @@ to the frozen spec:
 | Overlay category | What you swap | Add your own via |
 |---|---|---|
 | **Animation preset** | the 4 symbol states + effects + params | Presets + code panel (`symbolAnimations`) |
-| **Spin system** | how the board animates in (Drop · Reel Spin · Slam · Fade) | Systems selector + code panel (`spinSystems`) |
+| **Spin system** | how the board animates in — default is the **spec strip-reel spin** (scrolls the real 40-symbol strips to seed%40); Drop · Slam · Fade are optional | Systems selector + code panel (`spinSystems`) |
 | **Win presentation** | how wins reveal (Sequential ways ↔ All-at-once) | Systems selector + code panel (`winPresentation`) |
 | **Sound set** | Full / Minimal / Off | Systems selector + code panel (`soundEvents`) |
 | **Effects, win screens, themes, transitions, text** | any layer entry | code panel (the matching registry) |

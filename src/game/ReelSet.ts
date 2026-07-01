@@ -5,7 +5,7 @@
 import { Container, Graphics } from 'pixi.js';
 import { gsap } from 'gsap';
 import { AnimatedSymbol, type SymbolRenderCtx } from './AnimatedSymbol';
-import { REEL_COUNT } from '../engine/reels';
+import { REEL_COUNT, REEL_LENGTH, REEL_STRIPS } from '../engine/reels';
 import type { GridLayout } from '../config/gridConfig';
 import type { Board } from '../engine/types';
 
@@ -17,6 +17,7 @@ export interface DropOptions {
   staggerMs: number;
   rowGapMs: number;
   spinSpeed: number;
+  stops?: number[]; // per-reel strip stop (seed%40) — required for the spec strip-reel spin
   sweatFromReel?: number; // reels >= this index fall in slow-mo
   sweatSlowFactor?: number;
 }
@@ -28,6 +29,8 @@ export class ReelSet {
   private ctx: SymbolRenderCtx;
   /** cells[row][reel] */
   cells: AnimatedSymbol[][] = [];
+  /** one off-screen buffer symbol per reel (fills the top gap during a reel spin) */
+  private buffers: AnimatedSymbol[] = [];
 
   constructor(layout: GridLayout, ctx: SymbolRenderCtx) {
     this.layout = layout;
@@ -56,6 +59,26 @@ export class ReelSet {
         this.cells[row][reel] = sym;
       }
     }
+
+    // one buffer symbol per reel, parked just above row 0 (hidden until a spin)
+    this.buffers = [];
+    const pitch = this.pitch();
+    for (let reel = 0; reel < REEL_COUNT; reel++) {
+      const buf = new AnimatedSymbol(this.ctx, reel, -1);
+      const c = this.layout.cellCenter(reel, 0);
+      buf.view.x = c.x;
+      buf.view.y = c.y - pitch;
+      buf.view.alpha = 0;
+      this.symbolsLayer.addChild(buf.view);
+      this.buffers[reel] = buf;
+    }
+  }
+
+  /** vertical distance between two rows' centers (cell height + gap). */
+  private pitch(): number {
+    return this.layout.spec.rows > 1
+      ? this.layout.cellCenter(0, 1).y - this.layout.cellCenter(0, 0).y
+      : this.layout.cellH;
   }
 
   cell(reel: number, row: number): AnimatedSymbol {
@@ -82,6 +105,10 @@ export class ReelSet {
   /** Bring the board in using the selected spin STYLE. Resolves when settled.
    *  Style is OVERLAY (visual only); the board contents are SPEC and unchanged. */
   dropBoard(board: Board, opts: DropOptions, onReelLanded?: (reel: number) => void): Promise<void> {
+    // Spec-accurate strip-reel spin: scrolls the REAL 40-symbol strips to seed%40.
+    if (opts.style === 'reel-spin' && opts.stops) {
+      return this.spinStrip(board, opts.stops, opts, onReelLanded);
+    }
     const rows = this.cells.length;
     const dropAbove = this.layout.height + this.layout.cellH * 2;
     const speed = Math.max(0.2, opts.spinSpeed);
@@ -133,8 +160,83 @@ export class ReelSet {
     return Promise.all(promises).then(() => undefined);
   }
 
+  /** Spec-accurate strip-reel spin. Each reel scrolls its REAL 40-symbol strip
+   *  (engine/reels.ts REEL_STRIPS) downward, decelerates, and stops on seed%40 so
+   *  the window shows strip[(stop+row)%40] = the spec board. Later reels spin
+   *  longer (stagger). Pure spec data — nothing tuned. */
+  private spinStrip(
+    board: Board,
+    stops: number[],
+    opts: DropOptions,
+    onReelLanded?: (reel: number) => void,
+  ): Promise<void> {
+    const rows = this.cells.length;
+    const len = REEL_LENGTH;
+    const pitch = this.pitch();
+    const rowY0 = this.layout.cellCenter(0, 0).y;
+    const speed = Math.max(0.2, opts.spinSpeed);
+    const baseDur = opts.dropDurationMs / 1000 / speed;
+    const stagger = opts.staggerMs / 1000 / speed;
+    const promises: Promise<void>[] = [];
+
+    for (let reel = 0; reel < REEL_COUNT; reel++) {
+      const strip = REEL_STRIPS[reel];
+      const cx = this.layout.cellCenter(reel, 0).x;
+      const stop = stops[reel];
+      const spinSteps = 20 + reel * 6; // later reels travel further → natural stagger
+      const dur = baseDur * (1 + reel * 0.25);
+      const delay = reel * stagger;
+      const buffer = this.buffers[reel];
+
+      // slots d = 0..rows: d=0 is the top buffer, d=1..rows are the visible rows.
+      const symAt = (d: number): AnimatedSymbol => (d === 0 ? buffer : this.cells[d - 1][reel]);
+      buffer.view.alpha = 1;
+
+      const proxy = { p: stop + spinSteps };
+      promises.push(
+        new Promise<void>((resolve) => {
+          gsap.to(proxy, {
+            p: stop,
+            duration: dur,
+            delay,
+            ease: 'power4.out', // fast spin → long decelerate → settle
+            onUpdate: () => {
+              const baseP = Math.floor(proxy.p);
+              const frac = proxy.p - baseP;
+              for (let d = 0; d <= rows; d++) {
+                const sym = symAt(d);
+                const idx = (((baseP + d - 1) % len) + len) % len;
+                sym.setSymbol(strip[idx]);
+                sym.view.x = cx;
+                sym.view.y = (d - 1 + frac) * pitch + rowY0;
+                sym.view.alpha = 1;
+                sym.view.scale.set(1);
+              }
+            },
+            onComplete: () => {
+              buffer.view.alpha = 0;
+              for (let row = 0; row < rows; row++) {
+                const sym = this.cells[row][reel];
+                const c = this.layout.cellCenter(reel, row);
+                sym.setSymbol(board[row][reel]);
+                sym.view.x = c.x;
+                sym.view.y = c.y;
+                sym.view.alpha = 1;
+                sym.view.scale.set(1);
+              }
+              onReelLanded?.(reel);
+              resolve();
+            },
+          });
+        }),
+      );
+    }
+    return Promise.all(promises).then(() => undefined);
+  }
+
   rebuild(layout: GridLayout, ctx: SymbolRenderCtx): void {
     for (const c of this.cellsFlat()) c.destroy();
+    for (const b of this.buffers) b.destroy();
     this.symbolsLayer.removeChildren();
     this.symbolsLayer.addChild(this.maskG);
     this.layout = layout;
@@ -144,10 +246,12 @@ export class ReelSet {
 
   killAll(): void {
     for (const c of this.cellsFlat()) c.killTweens();
+    for (const b of this.buffers) b.killTweens();
   }
 
   destroy(): void {
     for (const c of this.cellsFlat()) c.destroy();
+    for (const b of this.buffers) b.destroy();
     this.symbolsLayer.destroy({ children: true });
   }
 }

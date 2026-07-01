@@ -265,6 +265,7 @@ export class PixiApp {
         staggerMs: sp.staggerMs ?? this.cfg.params.dropStaggerMs,
         rowGapMs: sp.rowGapMs ?? 30,
         spinSpeed: this.cfg.params.spinSpeed,
+        stops: o.base.stops, // spec strip-reel spin lands on seed%40
         sweatFromReel: plan.sweatFromReel,
         sweatSlowFactor: this.cfg.params.anticipationSlowFactor,
       },

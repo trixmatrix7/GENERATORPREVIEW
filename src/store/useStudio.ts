@@ -77,7 +77,7 @@ export const useStudio = create<StudioState>()(
       muted: false,
       volume: 0.6,
 
-      activeSpinSystemId: 'spin-drop',
+      activeSpinSystemId: 'spin-reel',
       activeWinPresentationId: 'sequential-ways-reveal',
       soundSet: 'full',
 
@@ -140,12 +140,13 @@ export const useStudio = create<StudioState>()(
     }),
     {
       name: 'chain-slot-preview-studio',
-      version: 2, // removed police/siren effects + renamed sweat→anticipation
+      version: 3, // v2: removed police/siren + sweat→anticipation; v3: spec strip-reel spin is default
       storage: createJSONStorage(() => localStorage),
-      // keep custom entries/presets across the v2 shape change; just fix effects + the renamed param
+      // keep custom entries/presets across shape changes; fix effects + renamed param + spin default
       migrate: (persisted: unknown) => {
         const s = persisted as Record<string, unknown> | null;
         if (!s) return s as never;
+        if (s.activeSpinSystemId === 'spin-drop') s.activeSpinSystemId = 'spin-reel';
         const fixEffects = (e: Record<string, unknown> | undefined) =>
           e
             ? {

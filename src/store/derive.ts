@@ -18,6 +18,7 @@ export interface DerivedConfig {
   spinSystem: SpinSystemEntry;
   winReveal: WinRevealMode;
   soundSet: SoundSet;
+  backgroundImage: string;
 }
 
 export function useDerivedConfig(): DerivedConfig {
@@ -28,6 +29,7 @@ export function useDerivedConfig(): DerivedConfig {
   const activeWinPresentationId = useStudio((s) => s.activeWinPresentationId);
   const soundSet = useStudio((s) => s.soundSet);
   const turbo = useStudio((s) => s.turbo);
+  const backgroundImage = useStudio((s) => s.backgroundImage);
 
   const registries = useMemo(() => mergeRegistries(DEFAULT_REGISTRIES, customEntries), [customEntries]);
 
@@ -60,5 +62,5 @@ export function useDerivedConfig(): DerivedConfig {
     return p;
   }, [working, turbo]);
 
-  return { registries, theme, symbolMeta, params, spinSystem, winReveal, soundSet };
+  return { registries, theme, symbolMeta, params, spinSystem, winReveal, soundSet, backgroundImage };
 }

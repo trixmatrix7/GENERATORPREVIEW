@@ -180,6 +180,9 @@ export function Controls() {
       <Section title="Grid · Theme · Bet">
         <GridThemeBet />
       </Section>
+      <Section title="Background">
+        <Background />
+      </Section>
       <Section title="Settings" defaultOpen={false}>
         <Settings />
       </Section>
@@ -407,6 +410,48 @@ function Effects() {
           <span>{it.label}</span>
         </label>
       ))}
+    </div>
+  );
+}
+
+function Background() {
+  const backgroundImage = useStudio((s) => s.backgroundImage);
+  const setBackgroundImage = useStudio((s) => s.setBackgroundImage);
+  const [url, setUrl] = useState('');
+
+  const onFile = (file?: File) => {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => setBackgroundImage(String(reader.result));
+    reader.readAsDataURL(file);
+  };
+
+  return (
+    <div className="stack">
+      <p className="hint">
+        Full-canvas background behind the reels (16:9). Placeholder until you add one. Use a 16:9 image so it isn't
+        stretched. Saved with your studio state.
+      </p>
+      <label className="btn" style={{ textAlign: 'center' }}>
+        Upload image…
+        <input type="file" accept="image/*" style={{ display: 'none' }} onChange={(e) => onFile(e.target.files?.[0])} />
+      </label>
+      <div className="row gap">
+        <input className="full" placeholder="…or paste an image URL" value={url} onChange={(e) => setUrl(e.target.value)} />
+        <button className="btn" disabled={!url.trim()} onClick={() => setBackgroundImage(url.trim())}>
+          Set
+        </button>
+      </div>
+      {backgroundImage && (
+        <div className="row gap">
+          <span className="hint" style={{ margin: 0, flex: 1 }}>
+            {backgroundImage.startsWith('data:') ? 'Uploaded image active' : 'URL image active'}
+          </span>
+          <button className="btn ghost danger" onClick={() => { setBackgroundImage(''); setUrl(''); }}>
+            Clear
+          </button>
+        </div>
+      )}
     </div>
   );
 }

@@ -20,7 +20,7 @@ export function StageCanvas() {
   const working = useStudio((s) => s.working);
   const muted = useStudio((s) => s.muted);
   const volume = useStudio((s) => s.volume);
-  const { registries, theme, symbolMeta, params, spinSystem, winReveal, soundSet } = useDerivedConfig();
+  const { registries, theme, symbolMeta, params, spinSystem, winReveal, soundSet, backgroundImage } = useDerivedConfig();
 
   // init once
   useEffect(() => {
@@ -40,6 +40,7 @@ export function StageCanvas() {
       spinSystem,
       winReveal,
       soundSet,
+      backgroundImage: useStudio.getState().backgroundImage,
       onWinUpdate: (x) => useRuntime.getState().setWin(x),
       onPhase: (p) => useRuntime.getState().setPhase(p),
     };
@@ -55,8 +56,8 @@ export function StageCanvas() {
 
   // push config updates
   useEffect(() => {
-    appRef.current?.setConfig({ grid, theme, symbolMeta, preset: working, params, registries, spinSystem, winReveal, soundSet });
-  }, [grid, theme, symbolMeta, working, params, registries, spinSystem, winReveal, soundSet]);
+    appRef.current?.setConfig({ grid, theme, symbolMeta, preset: working, params, registries, spinSystem, winReveal, soundSet, backgroundImage });
+  }, [grid, theme, symbolMeta, working, params, registries, spinSystem, winReveal, soundSet, backgroundImage]);
 
   // audio
   useEffect(() => {

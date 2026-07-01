@@ -40,7 +40,7 @@ export function Studio() {
       </header>
       <main className="workspace">
         <section className="stage-wrap">
-          <div className="stage-column">
+          <div className="stage-16x9">
             <StageCanvas />
             <GameHud />
           </div>

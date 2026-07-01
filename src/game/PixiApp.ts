@@ -3,7 +3,7 @@
 // Layer order (back→front): 1 background · 2 reel frame · 3 backdrop+grid ·
 // 4 symbols · 6/8 effects · particles · 7/9/10 banners/win-screens. Sound = 11.
 
-import { Application, Container, Graphics, Text, type TextStyleOptions } from 'pixi.js';
+import { Application, Container, Graphics, Sprite, Texture, Text, type TextStyleOptions } from 'pixi.js';
 import { gsap } from 'gsap';
 import { ReelSet } from './ReelSet';
 import type { SymbolRenderCtx } from './AnimatedSymbol';
@@ -35,6 +35,7 @@ export interface RenderConfig {
   spinSystem: SpinSystemEntry;
   winReveal: WinRevealMode;
   soundSet: SoundSet;
+  backgroundImage?: string; // full-canvas background (URL/dataURL); empty → placeholder
   onWinUpdate?: (winX: number) => void;
   onPhase?: (phase: string) => void;
 }
@@ -42,8 +43,14 @@ export interface RenderConfig {
 // cues kept when the sound set is "minimal"
 const MINIMAL_CUES = new Set(['spin-start', 'reel-stop', 'win-small', 'win-normal', 'win-big', 'win-mega', 'free-spin-trigger']);
 
-const PAD = 54;
-const TOP = 70;
+// 16:9 design stage — the reel grid floats centered over a full-canvas
+// background (see the GIFT BONANZA reference for the grid-to-background sizing).
+const STAGE_W = 1280;
+const STAGE_H = 720;
+const GRID_MAX_W_FRAC = 0.5; // grid ≤ 50% of stage width
+const GRID_MAX_H_FRAC = 0.74; // grid ≤ 74% of stage height
+const GRID_BAND_TOP = 0.03;
+const GRID_BAND_BOTTOM = 0.85; // reserve the bottom for the HUD overlay
 
 const sleep = (ms: number) => new Promise<void>((r) => gsap.delayedCall(ms / 1000, r));
 
@@ -53,14 +60,20 @@ export class PixiApp {
   private busy = false;
   private token = 0;
 
-  private bgLayer = new Container();
-  private frameLayer = new Container();
+  private bgLayer = new Container(); // full-canvas background (placeholder or image)
+  private frameLayer = new Container(); // reel frame (stage coords, around the board)
+  private board = new Container(); // scaled + centered group holding everything grid-relative
   private backdropLayer = new Container();
   private reelArea = new Container(); // holds the reel symbols (rotated by FS transition)
   private fxBelow = new Container(); // anticipation columns (below symbols)
   private fxAbove = new Container(); // scatter orbit (above symbols)
   private burstLayer = new Container();
   private overlay = new Container();
+
+  // board transform (layout coords → stage coords)
+  private gx = 0;
+  private gy = 0;
+  private gscale = 1;
 
   private reels!: ReelSet;
   private banners!: Banners;
@@ -74,30 +87,22 @@ export class PixiApp {
   async init(parent: HTMLElement, cfg: RenderConfig): Promise<void> {
     this.cfg = cfg;
     this.layout = computeLayout(GRIDS[cfg.grid]);
-    const { w, h } = this.designSize();
     await this.app.init({
       background: cfg.theme.background,
       antialias: true,
       resolution: Math.min(2, window.devicePixelRatio || 1),
       autoDensity: true,
-      width: w,
-      height: h,
+      width: STAGE_W,
+      height: STAGE_H,
     });
     parent.appendChild(this.app.canvas);
     this.app.canvas.style.width = '100%';
     this.app.canvas.style.height = '100%';
     this.app.canvas.style.display = 'block';
 
-    this.app.stage.addChild(
-      this.bgLayer,
-      this.frameLayer,
-      this.backdropLayer,
-      this.fxBelow,
-      this.reelArea,
-      this.fxAbove,
-      this.burstLayer,
-      this.overlay,
-    );
+    // z-order: background → frame → board(grid) → particles → overlay
+    this.app.stage.addChild(this.bgLayer, this.frameLayer, this.board, this.burstLayer, this.overlay);
+    this.board.addChild(this.backdropLayer, this.fxBelow, this.reelArea, this.fxAbove);
 
     this.reels = new ReelSet(this.layout, this.symbolCtx());
     this.reelArea.addChild(this.reels.symbolsLayer);
@@ -106,7 +111,7 @@ export class PixiApp {
     this.counter.anchor.set(0.5, 0);
     this.overlay.addChild(this.counter);
 
-    this.banners = new Banners(this.overlay, this.burstLayer, w, h, cfg.theme);
+    this.banners = new Banners(this.overlay, this.burstLayer, STAGE_W, STAGE_H, cfg.theme);
 
     this.ready = true;
     this.relayout();
@@ -114,7 +119,12 @@ export class PixiApp {
   }
 
   private designSize(): { w: number; h: number } {
-    return { w: this.layout.width + PAD * 2, h: this.layout.height + TOP + PAD };
+    return { w: STAGE_W, h: STAGE_H };
+  }
+
+  /** Map a board-local (layout) point to stage coordinates. */
+  private toStage(x: number, y: number): { x: number; y: number } {
+    return { x: this.gx + x * this.gscale, y: this.gy + y * this.gscale };
   }
 
   private symbolCtx(): SymbolRenderCtx {
@@ -126,53 +136,97 @@ export class PixiApp {
   }
 
   // ── layout / decoration ────────────────────────────────────────────────────
+  private computeBoard(): void {
+    const maxW = STAGE_W * GRID_MAX_W_FRAC;
+    const maxH = STAGE_H * GRID_MAX_H_FRAC;
+    this.gscale = Math.min(maxW / this.layout.width, maxH / this.layout.height);
+    const gridW = this.layout.width * this.gscale;
+    const gridH = this.layout.height * this.gscale;
+    const bandTop = STAGE_H * GRID_BAND_TOP;
+    const bandH = STAGE_H * (GRID_BAND_BOTTOM - GRID_BAND_TOP);
+    this.gx = (STAGE_W - gridW) / 2;
+    this.gy = bandTop + (bandH - gridH) / 2;
+  }
+
   private relayout(): void {
-    const { w, h } = this.designSize();
-    this.app.renderer.resize(w, h);
-    const ox = (w - this.layout.width) / 2;
-    const oy = TOP;
-    this.reelArea.position.set(ox, oy);
+    this.app.renderer.resize(STAGE_W, STAGE_H);
+    this.computeBoard();
+    this.board.position.set(this.gx, this.gy);
+    this.board.scale.set(this.gscale);
+    this.reelArea.position.set(0, 0);
     this.reelArea.pivot.set(0, 0);
     this.reelArea.scale.set(1);
     this.reelArea.rotation = 0;
     this.reelArea.alpha = 1;
-    this.fxBelow.position.set(ox, oy);
-    this.fxAbove.position.set(ox, oy);
-    this.counter.position.set(w / 2, 14);
-    this.banners?.resize(w, h);
-    this.drawDecoration(ox, oy);
+    this.fxBelow.position.set(0, 0);
+    this.fxAbove.position.set(0, 0);
+    this.counter.position.set(STAGE_W / 2, Math.max(6, this.gy - 44));
+    this.banners?.resize(STAGE_W, STAGE_H);
+    this.drawBackground();
+    this.drawFrame();
+    this.drawBackdrop();
   }
 
-  private drawDecoration(ox: number, oy: number): void {
+  /** Full-canvas background: the user's image (stretched to the 16:9 stage) or a
+   *  themed placeholder that clearly reads as "drop a background here". */
+  private drawBackground(): void {
     const t = this.cfg.theme;
-    const { width: gw, height: gh } = this.layout;
-    const { w, h } = this.designSize();
-
     this.bgLayer.removeChildren();
-    const bg = new Graphics();
-    bg.rect(0, 0, w, h).fill({ color: t.background });
-    bg.rect(0, 0, w, h).fill({ color: t.backgroundVignette, alpha: 0.0 });
-    // soft vignette frame
-    bg.roundRect(8, 8, w - 16, h - 16, 24).stroke({ width: 2, color: t.frameInner, alpha: 0.12 });
-    this.bgLayer.addChild(bg);
+    if (this.cfg.backgroundImage) {
+      try {
+        const sp = new Sprite(Texture.from(this.cfg.backgroundImage));
+        sp.width = STAGE_W;
+        sp.height = STAGE_H;
+        this.bgLayer.addChild(sp);
+        return;
+      } catch {
+        /* fall through to placeholder */
+      }
+    }
+    const g = new Graphics();
+    g.rect(0, 0, STAGE_W, STAGE_H).fill({ color: t.background });
+    g.rect(0, 0, STAGE_W, STAGE_H).fill({ color: t.backgroundVignette, alpha: 0.35 });
+    // placeholder marker — a dashed inset frame + label
+    g.roundRect(24, 24, STAGE_W - 48, STAGE_H - 48, 20).stroke({ width: 2, color: t.frameInner, alpha: 0.25 });
+    this.bgLayer.addChild(g);
+    const label = new Text({
+      text: 'BACKGROUND — add an image in the sidebar',
+      style: { fontFamily: 'Poppins, sans-serif', fontWeight: '800', fontSize: 22, fill: t.frameInner, align: 'center' },
+    });
+    label.anchor.set(0.5);
+    label.alpha = 0.28;
+    label.position.set(STAGE_W / 2, STAGE_H * 0.93);
+    this.bgLayer.addChild(label);
+  }
 
+  /** Reel frame — drawn in stage coords so its thickness stays constant. */
+  private drawFrame(): void {
+    const t = this.cfg.theme;
+    const gridW = this.layout.width * this.gscale;
+    const gridH = this.layout.height * this.gscale;
+    const m = 16;
     this.frameLayer.removeChildren();
     const frame = new Graphics();
-    frame.roundRect(ox - 14, oy - 14, gw + 28, gh + 28, 22).fill({ color: t.frame, alpha: 1 });
-    frame.roundRect(ox - 14, oy - 14, gw + 28, gh + 28, 22).stroke({ width: 3, color: t.frameInner, alpha: 0.85 });
+    frame.roundRect(this.gx - m, this.gy - m, gridW + 2 * m, gridH + 2 * m, 20).fill({ color: t.frame, alpha: 1 });
+    frame.roundRect(this.gx - m, this.gy - m, gridW + 2 * m, gridH + 2 * m, 20).stroke({ width: 4, color: t.frameInner, alpha: 0.9 });
     this.frameLayer.addChild(frame);
+  }
 
+  /** Reel backdrop + cell grid — inside the board, in layout coords. */
+  private drawBackdrop(): void {
+    const t = this.cfg.theme;
+    const gw = this.layout.width;
+    const gh = this.layout.height;
     this.backdropLayer.removeChildren();
     const back = new Graphics();
-    back.roundRect(ox - 2, oy - 2, gw + 4, gh + 4, 12).fill({ color: t.reelBackdrop, alpha: t.reelBackdropAlpha });
-    // cell grid
+    back.roundRect(-4, -4, gw + 8, gh + 8, 10).fill({ color: t.reelBackdrop, alpha: t.reelBackdropAlpha });
     for (let r = 1; r < this.layout.spec.cols; r++) {
-      const x = ox + this.layout.reelX(r) - this.layout.cellW * 0 - 2;
-      back.rect(x, oy, 1, gh).fill({ color: t.cellGrid, alpha: t.cellGridAlpha });
+      const x = this.layout.reelX(r) - 2;
+      back.rect(x, 0, 2, gh).fill({ color: t.cellGrid, alpha: t.cellGridAlpha });
     }
     for (let row = 1; row < this.layout.spec.rows; row++) {
-      const y = oy + this.layout.rowY(row) - 1;
-      back.rect(ox, y, gw, 1).fill({ color: t.cellGrid, alpha: t.cellGridAlpha });
+      const y = this.layout.rowY(row) - 1;
+      back.rect(0, y, gw, 2).fill({ color: t.cellGrid, alpha: t.cellGridAlpha });
     }
     this.backdropLayer.addChild(back);
   }
@@ -185,6 +239,8 @@ export class PixiApp {
     }
     const gridChanged = partial.grid && partial.grid !== this.cfg.grid;
     const themeChanged = partial.theme && partial.theme !== this.cfg.theme;
+    const bgChanged = 'backgroundImage' in partial && partial.backgroundImage !== undefined && partial.backgroundImage !== this.cfg.backgroundImage;
+    const prevBg = this.cfg.backgroundImage;
     this.cfg = { ...this.cfg, ...partial };
     if (gridChanged) {
       this.layout = computeLayout(GRIDS[this.cfg.grid]);
@@ -194,6 +250,8 @@ export class PixiApp {
     } else if (themeChanged) {
       this.relayout();
       this.showIdle();
+    } else if (bgChanged || this.cfg.backgroundImage !== prevBg) {
+      this.drawBackground();
     }
   }
 
@@ -409,12 +467,13 @@ export class PixiApp {
 
   private spawnValueText(c: Cell, text: string, jackpot: boolean): void {
     const center = this.layout.cellCenter(c.reel, c.row);
+    const p = this.toStage(center.x, center.y); // board-local → stage (overlay coords)
     const t = new Text({
       text,
       style: { fontFamily: 'Poppins, sans-serif', fontStyle: 'italic', fontWeight: '900', fontSize: jackpot ? 26 : 20, fill: jackpot ? 0xffd633 : 0xffffff, stroke: { color: 0x000000, width: 3 } },
     });
     t.anchor.set(0.5);
-    t.position.set(this.reelArea.x + center.x, this.reelArea.y + center.y);
+    t.position.set(p.x, p.y);
     this.overlay.addChild(t);
     gsap.timeline({ onComplete: () => t.destroy() })
       .fromTo(t, { alpha: 0 }, { alpha: 1, duration: 0.15 })
@@ -423,10 +482,9 @@ export class PixiApp {
   }
 
   private relayoutReelAreaAfterTransition(): void {
-    const { w } = this.designSize();
-    const ox = (w - this.layout.width) / 2;
+    // reelArea lives inside the board group at the origin now
     this.reelArea.pivot.set(0, 0);
-    this.reelArea.position.set(ox, TOP);
+    this.reelArea.position.set(0, 0);
     this.reelArea.scale.set(1);
   }
 

@@ -1,74 +1,80 @@
-// canvasTheme.ts — color tokens for the Pixi canvas (Layer 1/2/3/12).
-// GridEffectEntry has no color fields in the dev spec, so effects pull their
-// palette from here (the "secondary recurring gap: no home for color" note in
-// the export README — resolved via a theme ref).
+// Canvas theme — single source of truth for all colors/text used by the PixiJS scene.
+// Reskins should copy this file, change the values, and swap imports in PixiApp/ReelSet/Reel.
+// Grid dimensions live in reels.ts; paytable in paytable.ts; symbol art in symbols.ts.
 
-export interface CanvasTheme {
-  id: string;
-  name: string;
-  background: number; // stage background
-  backgroundVignette: number;
-  reelBackdrop: number; // dark frosted reel area
-  reelBackdropAlpha: number;
-  frame: number; // reel-frame chrome
-  frameInner: number;
-  cellGrid: number; // grid divider lines
-  cellGridAlpha: number;
-
-  // effect palette
-  goldFrame: number;
-  warmFlash: number;
-  spotlightBackdrop: number;
-  glow: number;
-
-  // symbol placeholder text + tile
-  symbolTile: number;
-  symbolTileBorder: number;
-  text: number;
-  textDim: number;
+export interface CanvasThemeMode {
+  /** Renderer clear color (full canvas background). */
+  rendererBg: number;
+  /** Reel machine frame fill. */
+  frameFill: number;
+  /** Outer frame border. */
+  borderOuter: number;
+  /** Inner frame border (sits inside outer). */
+  borderInner: number;
+  /** Highlight sheen color on top of frame. */
+  sheenColor: number;
+  sheenAlpha: number;
+  /** Column separator + row indicator dot color. */
+  separatorColor: number;
+  dotColor: number;
+  /** Ambient glow alphas behind machine. */
+  ambientAlpha1: number;
+  ambientAlpha2: number;
+  /** Game title text color. */
+  titleColor: number;
 }
 
-export const DARK_THEME: CanvasTheme = {
-  id: 'fantasy-dark',
-  name: 'Fantasy — Dark',
-  background: 0x0e0c16,
-  backgroundVignette: 0x05040a,
-  reelBackdrop: 0x110e1c,
-  reelBackdropAlpha: 0.72,
-  frame: 0x2a2440,
-  frameInner: 0x4b3f7a,
-  cellGrid: 0x2e2748,
-  cellGridAlpha: 0.5,
+export interface CanvasTheme {
+  /** Title text shown above the reels. */
+  title: string;
+  /** Primary brand accent (ambient glow, title drop shadow). */
+  accent: number;
+  /** Secondary accent (inner ambient glow). */
+  accent2: number;
+  /** Win banner background color. */
+  winBanner: number;
+  /** Tile outer border drawn on every symbol. */
+  tileOuterBorder: number;
+  /** Dark / light mode palettes. */
+  modes: {
+    dark: CanvasThemeMode;
+    light: CanvasThemeMode;
+  };
+}
 
-  goldFrame: 0xffd633,
-  warmFlash: 0xfff0cf,
-  spotlightBackdrop: 0x06050a,
-  glow: 0xffe168,
-
-  symbolTile: 0x1b1730,
-  symbolTileBorder: 0x3a3160,
-  text: 0xffffff,
-  textDim: 0xb9b2d6,
+/** Default theme — chain.wtf branded blue. */
+export const CANVAS_THEME: CanvasTheme = {
+  title: 'CHAIN  SLOTS',
+  accent: 0x0231C5,
+  accent2: 0x0843E8,
+  winBanner: 0x34D399,
+  tileOuterBorder: 0x07090E,
+  modes: {
+    dark: {
+      rendererBg: 0x0D1117,
+      frameFill: 0x111822,
+      borderOuter: 0x1E2630,
+      borderInner: 0x2A3440,
+      sheenColor: 0xffffff,
+      sheenAlpha: 0.025,
+      separatorColor: 0x1E2630,
+      dotColor: 0x2A3440,
+      ambientAlpha1: 0.04,
+      ambientAlpha2: 0.03,
+      titleColor: 0xffffff,
+    },
+    light: {
+      rendererBg: 0xF0F2F5,
+      frameFill: 0xFFFFFF,
+      borderOuter: 0xD8DCE3,
+      borderInner: 0xC4CBD6,
+      sheenColor: 0x000000,
+      sheenAlpha: 0.04,
+      separatorColor: 0xD8DCE3,
+      dotColor: 0xB0BAC8,
+      ambientAlpha1: 0.07,
+      ambientAlpha2: 0.05,
+      titleColor: 0x0D1117,
+    },
+  },
 };
-
-export const NEON_THEME: CanvasTheme = {
-  ...DARK_THEME,
-  id: 'fantasy-neon',
-  name: 'Fantasy — Neon',
-  background: 0x0a0f1a,
-  reelBackdrop: 0x0b1322,
-  frame: 0x123a4a,
-  frameInner: 0x1fd0ff,
-  cellGrid: 0x14506a,
-  glow: 0x49e6ff,
-  goldFrame: 0x49e6ff,
-  symbolTile: 0x0e1c2c,
-  symbolTileBorder: 0x1a4a66,
-};
-
-export const THEMES: Record<string, CanvasTheme> = {
-  [DARK_THEME.id]: DARK_THEME,
-  [NEON_THEME.id]: NEON_THEME,
-};
-
-export const DEFAULT_THEME_ID = DARK_THEME.id;

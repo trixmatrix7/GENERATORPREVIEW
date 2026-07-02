@@ -13,3 +13,6 @@ npm-debug.log*
 
 .vercel
 .env*
+
+# dev generator source (reference only — not part of the preview app)
+/devgen

@@ -1,147 +1,82 @@
-// registries/types.ts — the typed-registry contract. Shapes mirror the dev
-// generator's interfaces so entries authored/tuned in this preview copy-paste
-// straight into the real generator. winPresentation + gridEffects use the dev's
-// EXACT interface; the rest are the proposed shapes from the export, confirmable.
+// Registry type infrastructure for the Slot Generator.
+// Each registry is a typed array of entries that the generator agents reference
+// to compose new games without writing code.
 
-export type GridTag = '5x5' | '5x3';
-export type ModelTag = 'ways' | 'payline';
+/** Grid ids defined in src/config/gridConfig.ts. V2 ships '5x3' and '5x5';
+ *  Stage 3 widens to the 3–7 × 3–5 envelope. Kept as a plain string union
+ *  here (rather than importing the GridConfig type) so the registry layer
+ *  stays decoupled from the engine layer. */
+export type GridId = '5x3' | '5x5';
 
-/** Base every registry entry extends. */
 export interface RegistryEntry {
   id: string;
   name: string;
   description: string;
   version: string;
-  implemented: boolean; // false = inert (never renders) — the dev invariant
-  compatibleGrids: GridTag[];
-  compatibleModels: ModelTag[];
+  implemented: boolean;
+  /** Grid shapes this entry can be composed onto.
+   *  - Omitted / undefined → compatible with every shipped grid (grid-agnostic
+   *    entries like sounds, themes, text animations).
+   *  - Explicit array → entry is grid-specific (e.g., slot-type ways-243 only
+   *    applies to 5×3). Empty array means the entry ships no grid yet
+   *    (unimplemented stubs).
+   *
+   *  Generator agents read this when composing a game to filter compatible
+   *  entries against the requested grid. */
+  compatibleGrids?: readonly GridId[];
 }
 
-// ── Layer 1/2/3 — canvas layers (background · frame · backdrop) ──────────────
-export interface CanvasLayerEntry extends RegistryEntry {
-  layer: 'background' | 'reel-frame' | 'reel-backdrop';
-  z: number; // 1..3
-  params?: Record<string, number | string | boolean>;
+/** True when `entry` can be composed onto a game running on `grid`.
+ *  Omitted compatibleGrids means "all grids" (grid-agnostic).
+ *  Empty array means "no grids yet" (unimplemented stub). */
+export function isCompatibleWithGrid(entry: RegistryEntry, grid: GridId): boolean {
+  if (entry.compatibleGrids === undefined) return true;
+  return entry.compatibleGrids.includes(grid);
 }
 
-// ── Layer 4 — per-cell symbol animations (the 4 states) ─────────────────────
-export type SymbolState = 'idle' | 'landing' | 'win' | 'reset';
-export interface SymbolAnimationEntry extends RegistryEntry {
-  state: SymbolState;
-  trigger: string; // 'symbol-land' | 'cell:winning' | 'scatterCount >= 2' | 'win-clear'
-  scope: 'cell';
-  anchor: 'cell:self' | 'cell:winning';
-  duration: number; // seconds
-  loop: boolean;
-  easing?: string;
-  baseScalePerKind?: Record<string, number>;
-  popFactorPerKind?: Record<string, number>;
+export interface ConstraintSet {
+  min?: number;
+  max?: number;
+  enum?: string[];
+  dependencies?: string[];
 }
 
-// ── Layer 5/6 — win presentation (EXACT interface) ──────────────────────────
-export type WinRevealMode = 'sequential' | 'all-at-once';
-export interface WinPresentationEntry extends RegistryEntry {
-  trigger: string; // 'any win'
-  duration: number; // seconds (per single presentation; the chain is cancellable)
-  components: string[]; // ids resolved from other registries (gridEffects/sound/text)
-  mode?: WinRevealMode; // how the winning connections are revealed
+export interface FileBinding {
+  file: string;
+  field: string;
+  transform?: string;
 }
 
-// ── Spin system (the visual spin/fill style — an OVERLAY category) ───────────
-// The spin ENGINE (fill→drop→evaluate→present) and the math are SPEC and frozen;
-// this only changes how the board animates IN. Swappable + code-addable.
-export type SpinStyle = 'drop' | 'reel-spin' | 'slam' | 'fade';
-export interface SpinSystemEntry extends RegistryEntry {
-  style: SpinStyle;
-  params?: Record<string, number>;
+export type RegistryIndex<T extends RegistryEntry> = {
+  readonly entries: readonly T[];
+  get(id: string): T | undefined;
+  list(): readonly T[];
+  listImplemented(): readonly T[];
+};
+
+/** Registry-level defaults applied to every entry that doesn't override them.
+ *  Currently scoped to `compatibleGrids`: registries whose entries are all
+ *  grid-agnostic (sounds, themes, animations, etc.) declare it once here
+ *  instead of repeating on every entry. Per-entry values always win. */
+export interface RegistryDefaults {
+  compatibleGrids?: readonly GridId[];
 }
 
-// ── Layer 6/8 — grid effects (EXACT interface) ──────────────────────────────
-export interface EffectStyle {
-  colors?: number[]; // hex
-  blend?: 'normal' | 'add';
-  gradientStops?: { offset: number; color: number; alpha: number }[];
-}
-export interface GridEffectEntry extends RegistryEntry {
-  trigger: string;
-  scope: 'cell' | 'specific-cells' | 'reel' | 'full-grid';
-  duration: number; // seconds
-  intensity: 'subtle' | 'medium' | 'strong';
-  loop?: boolean;
-  cancellable?: boolean;
-  style?: EffectStyle;
-  params?: Record<string, number>;
-}
-
-// ── Layer 7 — win screens (tiered celebrations) ─────────────────────────────
-export interface WinScreenTierEntry extends RegistryEntry {
-  tier: 'big' | 'mega' | 'epic';
-  thresholdX: number; // ×bet at/above which this screen plays
-  duration: number; // seconds (mega/cancellable carve-out)
-  params?: Record<string, number>;
-}
-
-// ── Layer 9 — transitions (FS intro/outro) ──────────────────────────────────
-export interface TransitionAnimationEntry extends RegistryEntry {
-  trigger: string; // 'scatterCount >= 3' | 'free spins start' | 'free spins end'
-  duration: number;
-  params?: Record<string, number>;
-}
-
-// ── Layer 10 — banner / counter text ────────────────────────────────────────
-export interface TextAnimationEntry extends RegistryEntry {
-  trigger: string;
-  duration: number;
-  params?: Record<string, number | string>;
-}
-
-// ── Layer 11 — sound cues (procedural Web-Audio) ────────────────────────────
-export interface SoundEventEntry extends RegistryEntry {
-  trigger: string;
-  loop: boolean;
-  volume: number;
-  synth: {
-    type: 'tone' | 'noise' | 'chime' | 'sweep' | 'thud' | 'riser' | 'wobble';
-    freq?: number;
-    freqTo?: number;
-    durationMs?: number;
-    decay?: number;
+export function createRegistry<T extends RegistryEntry>(
+  entries: readonly T[],
+  defaults?: RegistryDefaults,
+): RegistryIndex<T> {
+  const enriched: readonly T[] = defaults
+    ? entries.map(e => ({
+        ...e,
+        compatibleGrids: e.compatibleGrids ?? defaults.compatibleGrids,
+      }))
+    : entries;
+  const map = new Map(enriched.map(e => [e.id, e]));
+  return {
+    entries: enriched,
+    get: (id: string) => map.get(id),
+    list: () => enriched,
+    listImplemented: () => enriched.filter(e => e.implemented),
   };
 }
-
-// ── Layer 12 — theme + symbol set ───────────────────────────────────────────
-export interface ThemeSymbol {
-  id: number; // SymbolId
-  label: string;
-  placeholderColor: number; // hex
-  tex?: string; // asset filename for later swap (renders placeholder if absent)
-}
-export interface ThemeEntry extends RegistryEntry {
-  themeId: string; // -> canvasTheme.ts
-  symbols: ThemeSymbol[];
-}
-
-/** Union of everything for the generic store. */
-export type AnyEntry =
-  | CanvasLayerEntry
-  | SymbolAnimationEntry
-  | WinPresentationEntry
-  | GridEffectEntry
-  | WinScreenTierEntry
-  | TransitionAnimationEntry
-  | TextAnimationEntry
-  | SoundEventEntry
-  | ThemeEntry
-  | SpinSystemEntry;
-
-export type RegistryName =
-  | 'canvasLayers'
-  | 'symbolAnimations'
-  | 'winPresentation'
-  | 'gridEffects'
-  | 'winScreenTiers'
-  | 'transitionAnimations'
-  | 'textAnimations'
-  | 'soundEvents'
-  | 'themes'
-  | 'spinSystems';

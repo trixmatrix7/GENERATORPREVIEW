@@ -1,0 +1,156 @@
+import { RegistryEntry, createRegistry } from './types.js';
+
+// All sound events are now wired through src/audio/SoundManager.ts (Howler.js)
+// and fired by:
+//   - src/audio/useSoundLayer.ts        — state-driven sounds (spin, win tiers,
+//                                          free-spin trigger, ambient music)
+//   - src/game/ReelSet.ts audioHooks    — per-reel-stop and scatter-land
+//
+// Default audio files ship in public/audio/<id>.ogg sourced from Kenney.nl
+// (CC0). See docs/SOUND_PACK_SOURCES.md for full attribution. Generated games
+// inherit the same wiring; the assembler emits the import + hook setup
+// (Checkpoint 4d).
+
+export interface SoundEventEntry extends RegistryEntry {
+  event: string;
+  trigger: string;
+  loop: boolean;
+  priority: 'high' | 'medium' | 'low';
+}
+
+const entries: readonly SoundEventEntry[] = [
+  {
+    id: 'spin-start',
+    name: 'Spin Start',
+    description: 'Short whoosh sound when reels begin spinning.',
+    version: '0.1.0',
+    implemented: true,
+    event: 'spin:start',
+    trigger: 'spin button click',
+    loop: false,
+    priority: 'high',
+  },
+  {
+    id: 'reel-stop',
+    name: 'Reel Stop',
+    description: 'Thud/click when each reel lands. Played 5 times per spin with stagger.',
+    version: '0.1.0',
+    implemented: true,
+    event: 'reel:stop',
+    trigger: 'each reel landing',
+    loop: false,
+    priority: 'high',
+  },
+  {
+    id: 'win-small',
+    name: 'Small Win',
+    description: 'Brief chime for wins under 2× bet.',
+    version: '0.1.0',
+    implemented: true,
+    event: 'win:small',
+    trigger: 'win < 2× bet',
+    loop: false,
+    priority: 'medium',
+  },
+  {
+    id: 'win-big',
+    name: 'Big Win',
+    description: 'Escalating fanfare for wins 10×–50× bet.',
+    version: '0.1.0',
+    implemented: true,
+    event: 'win:big',
+    trigger: 'win 10×–50× bet',
+    loop: false,
+    priority: 'high',
+  },
+  {
+    id: 'win-mega',
+    name: 'Mega Win',
+    description: 'Epic celebration for wins 50×+ bet.',
+    version: '0.1.0',
+    implemented: true,
+    event: 'win:mega',
+    trigger: 'win >= 50× bet',
+    loop: false,
+    priority: 'high',
+  },
+  {
+    id: 'scatter-land',
+    name: 'Scatter Land',
+    description: 'Distinctive sound when a scatter symbol becomes visible.',
+    version: '0.1.0',
+    implemented: true,
+    event: 'scatter:land',
+    trigger: 'scatter visible on reel stop',
+    loop: false,
+    priority: 'high',
+  },
+  {
+    id: 'free-spin-trigger',
+    name: 'Free Spin Trigger',
+    description: 'Triumphant sound when 3+ scatters trigger the bonus.',
+    version: '0.1.0',
+    implemented: true,
+    event: 'freespin:trigger',
+    trigger: 'scatterCount >= 3',
+    loop: false,
+    priority: 'high',
+  },
+  {
+    id: 'near-miss-tease',
+    name: 'Near-Miss Tease',
+    description: 'Rising tension tone when a reel enters its near-miss slowdown phase.',
+    version: '0.1.0',
+    implemented: true,
+    event: 'nearmiss:tease',
+    trigger: 'reel entering near-miss deceleration',
+    loop: false,
+    priority: 'high',
+  },
+  {
+    id: 'win-normal',
+    name: 'Normal Win',
+    description: 'Mid-tier chime for wins 2×–10× bet. Bridges small and big win stings.',
+    version: '0.1.0',
+    implemented: true,
+    event: 'win:normal',
+    trigger: 'win 2×-10× bet',
+    loop: false,
+    priority: 'medium',
+  },
+  {
+    id: 'reel-spin-loop',
+    name: 'Reel Spin Loop',
+    description: 'Looping mechanical whir while reels are in motion. Stops when all reels land.',
+    version: '0.1.0',
+    implemented: true,
+    event: 'reel:spinning',
+    trigger: 'reels spinning',
+    loop: true,
+    priority: 'low',
+  },
+  {
+    id: 'coin-chime',
+    name: 'Coin Chime',
+    description: 'Short coin impact accent used during big+ win celebrations.',
+    version: '0.1.0',
+    implemented: true,
+    event: 'celebration:coin',
+    trigger: 'big/mega win celebration timeline',
+    loop: false,
+    priority: 'medium',
+  },
+  {
+    id: 'ambient-music',
+    name: 'Background Music',
+    description: 'Looping ambient music during gameplay. Separate tracks for base and bonus.',
+    version: '0.1.0',
+    implemented: true,
+    event: 'music:ambient',
+    trigger: 'game load',
+    loop: true,
+    priority: 'low',
+  },
+] as const;
+
+export const soundEventRegistry = createRegistry(entries, { compatibleGrids: ['5x3', '5x5'] });

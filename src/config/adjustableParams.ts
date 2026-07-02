@@ -1,133 +1,146 @@
-// adjustableParams.ts — the whitelist of params that are live-tunable in the
-// studio (in the dev generator these are the params the NL parser may change at
-// generation time). Each maps to a knob the renderers read at runtime.
+// Adjustable-params schema — the machine-readable "chat-config whitelist".
+//
+// This is the contract the natural-language chat-config enforces: ONLY params
+// declared here can be changed by a user prompt, and only within the declared
+// options/ranges. It mirrors the "Adjustable parameters (chat-config
+// whitelist)" section of each per-layer spec in docs/layer-specs/.
+//
+// The (future) NL parser maps a prompt → { paramId, value } using each param's
+// `description`; PixiApp.applyVisualParam(paramId, value) applies it live.
+// NOTE: on-chain math params (base/bonus split, free-spins, max-payout, RTP)
+// are intentionally NOT here — those are generation-time/on-chain, never a live
+// or chat-adjustable knob (see Refs/architecture_v2/math-and-config-constraints).
+
+/** Win-line colour presets — the line has two shades (core + underlay/dots). */
+export const WIN_LINE_PRESETS: Record<string, { line: number; frame: number; label: string }> = {
+  gold:   { line: 0xFFC53D, frame: 0xFFF1B0, label: 'Gold' },
+  blue:   { line: 0x3DA5FF, frame: 0xBFE3FF, label: 'Blue' },
+  green:  { line: 0x3DDC84, frame: 0xC9F7DC, label: 'Green' },
+  purple: { line: 0xB14DFF, frame: 0xE6C9FF, label: 'Purple' },
+  red:    { line: 0xFF5D5D, frame: 0xFFC9C9, label: 'Red' },
+  white:  { line: 0xCFD6E6, frame: 0xFFFFFF, label: 'White' },
+};
+
+/** Win-coin colour presets — the celebration coins burst in these shades
+ *  (3 tints each: base, deep, highlight). Applied live via spawnCoinsFrom. */
+export const WIN_COIN_PRESETS: Record<string, { colors: number[]; label: string }> = {
+  gold:   { colors: [0xFFD23F, 0xFFC107, 0xFFE082], label: 'Gold' },
+  silver: { colors: [0xE6EAF0, 0xC0C8D4, 0xFFFFFF], label: 'Silver' },
+  rose:   { colors: [0xFF8FB1, 0xFF5D8F, 0xFFD2E0], label: 'Rose' },
+  blue:   { colors: [0x5BB8FF, 0x2E8BE6, 0xC9E8FF], label: 'Blue' },
+};
+
+/** Single-colour accent presets — shared by the title + win-banner colour
+ *  params (each maps to one hue). */
+export const ACCENT_PRESETS: Record<string, { color: number; label: string }> = {
+  gold:   { color: 0xFFD23F, label: 'Gold' },
+  blue:   { color: 0x3DA5FF, label: 'Blue' },
+  green:  { color: 0x3DDC84, label: 'Green' },
+  purple: { color: 0xB14DFF, label: 'Purple' },
+  red:    { color: 0xFF5D5D, label: 'Red' },
+  silver: { color: 0xE6EAF0, label: 'Silver' },
+  white:  { color: 0xFFFFFF, label: 'White' },
+};
+
+export type AdjustableParamType = 'enum' | 'number' | 'boolean';
 
 export interface AdjustableParam {
-  key: string;
+  /** Stable id — the key PixiApp.applyVisualParam switches on. */
+  id: string;
+  /** Human label (UI). */
   label: string;
-  group: 'spin' | 'symbol' | 'win' | 'anticipation' | 'celebration';
-  min: number;
-  max: number;
-  step: number;
-  default: number;
-  unit?: string;
+  /** Which per-layer spec this belongs to (docs/layer-specs/<layer>.md). */
+  layer: string;
+  type: AdjustableParamType;
+  /** enum: allowed option ids. */
+  options?: string[];
+  /** number: inclusive range + step. */
+  min?: number;
+  max?: number;
+  step?: number;
+  default: string | number | boolean;
+  /** Plain-language description — used by the NL parser to map a prompt to
+   *  this param (e.g. "make the win line blue" → winLineColor='blue'). */
   description: string;
+  /** Words in a prompt that indicate this param. The deterministic parser
+   *  requires at least one before it will match an option. */
+  keywords?: string[];
 }
 
-export const ADJUSTABLE_PARAMS: AdjustableParam[] = [
+/** The whitelist. Extend as more layers expose live setters. */
+export const ADJUSTABLE_PARAMS: readonly AdjustableParam[] = [
   {
-    key: 'spinSpeed',
-    label: 'Spin speed',
-    group: 'spin',
-    min: 0.4,
-    max: 2.5,
-    step: 0.1,
-    default: 1,
-    unit: '×',
-    description: 'Turbo factor — scales all drop + tween durations.',
+    id: 'winLineColor',
+    label: 'Win-line colour',
+    layer: 'win-presentation',
+    type: 'enum',
+    options: Object.keys(WIN_LINE_PRESETS),
+    default: 'gold',
+    description: 'Hue of the winning pay-line, node dots, and the 5-of-a-kind light sweep. Phrases: "make the win line blue / gold / purple / green / red / white".',
+    keywords: ['line', 'win line', 'winline', 'payline', 'pay line'],
   },
   {
-    key: 'dropDurationMs',
-    label: 'Drop duration',
-    group: 'spin',
-    min: 150,
-    max: 800,
-    step: 10,
-    default: 400,
-    unit: 'ms',
-    description: 'Fall duration per symbol column.',
+    id: 'winCoinColor',
+    label: 'Win-coin colour',
+    layer: 'win-screens',
+    type: 'enum',
+    options: Object.keys(WIN_COIN_PRESETS),
+    default: 'gold',
+    description: 'Colour of the celebration coins that burst from winning symbols. Phrases: "make the coins silver / gold / rose / blue".',
+    keywords: ['coin', 'coins'],
   },
   {
-    key: 'dropStaggerMs',
-    label: 'Column stagger',
-    group: 'spin',
-    min: 0,
-    max: 200,
-    step: 5,
-    default: 60,
-    unit: 'ms',
-    description: 'Delay between reels starting their drop (left→right).',
+    id: 'ambientMotes',
+    label: 'Ambient motes',
+    layer: 'canvas-layers',
+    type: 'enum',
+    options: ['on', 'off'],
+    default: 'on',
+    description: 'Toggle the ambient floating dust motes drifting over the reels. Phrases: "turn off the ambient dust", "turn on the floating motes".',
+    keywords: ['ambient', 'dust', 'motes', 'atmosphere'],
   },
   {
-    key: 'landingSquash',
-    label: 'Landing squash',
-    group: 'symbol',
-    min: 0,
-    max: 1.5,
-    step: 0.05,
-    default: 1,
-    unit: '×',
-    description: 'Intensity of the squash & stretch impact on reel-stop.',
+    id: 'reelSpeed',
+    label: 'Reel speed',
+    layer: 'canvas-layers',
+    type: 'enum',
+    options: ['relaxed', 'normal', 'snappy'],
+    default: 'normal',
+    description: 'How fast the reels roll while spinning — animation only, does NOT change the odds. Phrases: "spin faster", "snappier reels", "slow / relaxed spin".',
+    keywords: ['reel', 'reels', 'spin', 'speed', 'fast', 'slow'],
   },
   {
-    key: 'idlePulseSpeed',
-    label: 'Idle pulse speed',
-    group: 'symbol',
-    min: 0.3,
-    max: 2.5,
-    step: 0.1,
-    default: 1,
-    unit: '×',
-    description: 'Scatter-tension breathing rate (idle-glow-pulse).',
+    id: 'backgroundMood',
+    label: 'Background mood',
+    layer: 'canvas-layers',
+    type: 'enum',
+    options: ['subtle', 'balanced', 'vivid'],
+    default: 'balanced',
+    description: 'Intensity of the ambient glow + spotlight behind the reels. Phrases: "more vivid background", "calmer / subtle background", "brighter glow".',
+    keywords: ['background', 'glow', 'backdrop', 'mood'],
   },
   {
-    key: 'winPopIntensity',
-    label: 'Win pop intensity',
-    group: 'win',
-    min: 0.3,
-    max: 2,
-    step: 0.05,
-    default: 1,
-    unit: '×',
-    description: 'Per-cell win overshoot (scales the per-kind pop factor).',
+    id: 'titleColor',
+    label: 'Title colour',
+    layer: 'text-animations',
+    type: 'enum',
+    options: Object.keys(ACCENT_PRESETS),
+    default: 'gold',
+    description: 'Colour of the game title wordmark above the reels. Phrases: "make the title blue / silver / gold".',
+    keywords: ['title', 'logo', 'header', 'name'],
   },
   {
-    key: 'glowIntensity',
-    label: 'Glow intensity',
-    group: 'win',
-    min: 0,
-    max: 2,
-    step: 0.05,
-    default: 1,
-    unit: '×',
-    description: 'Radial glow flare strength on win + anticipation.',
-  },
-  {
-    key: 'shockwaveScale',
-    label: 'Shockwave size',
-    group: 'win',
-    min: 1,
-    max: 3,
-    step: 0.05,
-    default: 1.9,
-    unit: '×cell',
-    description: 'Final scale of the expanding win shockwave ring.',
-  },
-  {
-    key: 'anticipationSlowFactor',
-    label: 'Anticipation slow-mo',
-    group: 'anticipation',
-    min: 1,
-    max: 3,
-    step: 0.1,
-    default: 1.6,
-    unit: '×',
-    description: 'How much slower remaining reels fall during scatter anticipation.',
-  },
-  {
-    key: 'celebrationIntensity',
-    label: 'Celebration intensity',
-    group: 'celebration',
-    min: 0.3,
-    max: 2,
-    step: 0.05,
-    default: 1,
-    unit: '×',
-    description: 'Big/Mega win-screen particle + shake strength.',
+    id: 'winBannerColor',
+    label: 'Win-banner colour',
+    layer: 'win-screens',
+    type: 'enum',
+    options: Object.keys(ACCENT_PRESETS),
+    default: 'gold',
+    description: 'Accent colour of the big-win / mega-win banner plaque + rays. Phrases: "make the big-win banner purple", "gold win banner".',
+    keywords: ['banner', 'plaque', 'big win', 'big-win', 'mega'],
   },
 ];
 
-export type ParamValues = Record<string, number>;
-
-export const defaultParamValues = (): ParamValues =>
-  Object.fromEntries(ADJUSTABLE_PARAMS.map((p) => [p.key, p.default]));
+export function getAdjustableParam(id: string): AdjustableParam | undefined {
+  return ADJUSTABLE_PARAMS.find(p => p.id === id);
+}

@@ -1,0 +1,90 @@
+// Default sound configuration — maps each entry in the soundEvents registry
+// to its default audio file under /public/audio/.
+//
+// Generated games that ship their own sound packs override this map at
+// build time by replacing this file (or by reading a manifest from
+// public/audio/manifest.json).
+//
+// File format: each event has both .ogg and .mp3 candidates so Howler
+// picks whichever the browser supports best.
+
+import { soundEventRegistry } from '@/registries';
+import { SoundManager, type SoundEventBinding, type SoundManagerConfig } from './SoundManager';
+
+// Per-event default volumes. SFX usually sit lower than ambient music to
+// avoid masking; win presentations are tuned to feel impactful. Values are
+// 0–1 and are multiplied by the user's master volume.
+const DEFAULT_VOLUMES: Record<string, number> = {
+  'spin-start': 0.7,
+  'reel-stop': 0.7,
+  'win-small': 0.85,
+  'win-normal': 0.9,
+  'win-big': 1.0,
+  'win-mega': 1.0,
+  'scatter-land': 0.8,
+  'free-spin-trigger': 1.0,
+  'near-miss-tease': 0.6,
+  'reel-spin-loop': 0.25,
+  'coin-chime': 0.75,
+  'ambient-music': 0.35,
+};
+
+// Per-event flags. Ambient music is loop + exclusive (only one can play).
+const LOOP_EVENTS = new Set<string>(['ambient-music', 'reel-spin-loop']);
+const EXCLUSIVE_EVENTS = new Set<string>(['ambient-music']);
+
+const AUDIO_DIR = '/audio';
+
+function bindingForEvent(id: string): SoundEventBinding {
+  return {
+    id,
+    // Howler tries each format in order. WAV is the primary format (Mixkit
+    // CC-free assets); .ogg and .mp3 kept as fallbacks for legacy packs.
+    src: [`${AUDIO_DIR}/${id}.wav`, `${AUDIO_DIR}/${id}.ogg`, `${AUDIO_DIR}/${id}.mp3`],
+    volume: DEFAULT_VOLUMES[id] ?? 0.7,
+    loop: LOOP_EVENTS.has(id),
+    exclusive: EXCLUSIVE_EVENTS.has(id),
+  };
+}
+
+/**
+ * Build the default sound-manager config from the registry. All registered
+ * events are wired (even those marked implemented:false in the registry):
+ * the SoundManager will try to load each one, log a warning if the file is
+ * missing, and silently no-op when the event fires. This means dropping a
+ * new audio file under public/audio/<id>.ogg "just works" without touching
+ * registries.
+ */
+export function defaultSoundConfig(): SoundManagerConfig {
+  const events: SoundEventBinding[] = soundEventRegistry
+    .list()
+    .map(entry => bindingForEvent(entry.id));
+
+  return {
+    events,
+    initialVolume: 0.85,
+    initialMuted: false,
+  };
+}
+
+// ── Module-level singleton ──────────────────────────────────────────────────
+// React 18+ StrictMode (Vite dev default) double-invokes useMemo factories
+// and re-runs effect cleanups, which would construct/destroy multiple
+// SoundManagers in quick succession. That race causes Howler to log
+// spurious "Decoding audio data failed" warnings (because in-flight
+// decodes complete after the first instance's `unload()` clears its
+// `_sounds` array, so Howler's internal success-path guard rejects them).
+// Keeping a single page-lifetime instance avoids the race entirely; the
+// page tab unload is the only real teardown point.
+//
+// Lazily initialised so server-side / Node imports of this module never
+// touch the browser-only Howler globals.
+
+let cachedManager: SoundManager | null = null;
+
+export function getSharedSoundManager(): SoundManager {
+  if (!cachedManager) {
+    cachedManager = new SoundManager(defaultSoundConfig());
+  }
+  return cachedManager;
+}

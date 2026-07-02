@@ -1,99 +1,159 @@
-/* globals.css — brand fonts + design tokens.
- * Per dev contract: Poppins (display, italic 900) + Rubik (body) ONLY.
- * Palette follows the chain.wtf design kit (#121212, brand-yellow #FFE168). */
+/* chain.wtf brand fonts (spec §3.3): Poppins (display/headers/buttons, italic),
+   Rubik (body/values/captions). Mandatory per the V1 spec. */
+@import url('https://fonts.googleapis.com/css2?family=Poppins:ital,wght@0,400;0,500;0,600;0,700;0,800;1,600;1,700;1,800&family=Rubik:wght@400;500;600;700&display=swap');
+@import "tailwindcss";
 
+/* ─── Tailwind theme tokens (reference the CSS vars below for theming support) ─── */
+@theme inline {
+  --color-brand-bg: var(--color-bg);
+  --color-brand-surface: var(--color-surface);
+  --color-brand-raised: var(--color-surface-raised);
+  --color-brand-hover: var(--color-surface-hover);
+  --color-brand-border: var(--color-border);
+  --color-brand-border-subtle: var(--color-border-subtle);
+  --color-brand-text: var(--color-text-primary);
+  --color-brand-muted: var(--color-text-secondary);
+  --color-brand-disabled: var(--color-text-disabled);
+  --color-brand-blue: var(--color-blue);
+  --color-brand-green: var(--color-green);
+  --color-brand-aqua: var(--color-aqua);
+  --color-brand-red: var(--color-red);
+  --color-brand-yellow: var(--color-yellow);
+  --font-display: var(--font-display);
+  --font-body: var(--font-body);
+  --radius-pill: var(--radius-pill);
+  --radius-sm: var(--radius-sm);
+  --radius-md: var(--radius-md);
+  --radius-lg: var(--radius-lg);
+  --radius-xl: var(--radius-xl);
+}
+
+/* ─── chain.wtf Design Tokens ─────────────────────────────────────────────── */
 :root {
-  /* Fonts — the ONLY two allowed (dev invariant). */
-  --font-display: 'Poppins', system-ui, sans-serif;
-  --font-body: 'Rubik', system-ui, sans-serif;
+  /* Brand */
+  --color-red: #D53222;
+  --color-yellow: #F8FA5E;
+  --color-blue: #0231C5;
+  --color-aqua: #8BF7F9;
+  --color-green: #34D399;
+  --color-green-dim: rgba(52, 211, 153, 0.12);
 
-  /* chain.wtf brand palette */
-  --bg: #121212;
-  --bg-elevated: #1a1a1d;
-  --bg-panel: #161618;
-  --bg-input: #0e0e10;
-  --line: #2a2a2e;
-  --line-soft: #232327;
-  --text: #f4f4f5;
-  --text-dim: #a1a1aa;
-  --text-faint: #6b6b73;
+  /* Surfaces */
+  --color-bg: #0D1117;
+  --color-surface: #161C24;
+  --color-surface-raised: #1E2630;
+  --color-surface-hover: #242E3A;
+  --color-border: #2A3440;
+  --color-border-subtle: rgba(255, 255, 255, 0.06);
 
-  --brand: #ffe168;        /* primary yellow CTA */
-  --brand-deep: #ffcf33;
-  --brand-ink: #1a1500;    /* text on yellow */
-  --accent: #7c5cff;
-  --good: #46d17a;
-  --bad: #ff5a5a;
-  --warn: #ff9f43;
+  /* Text */
+  --color-text-primary: #FFFFFF;
+  --color-text-secondary: rgba(255, 255, 255, 0.55);
+  --color-text-disabled: rgba(255, 255, 255, 0.25);
 
-  --radius: 12px;
-  --radius-sm: 8px;
-  --radius-lg: 18px;
-  --shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+  /* Typography */
+  --font-display: 'Poppins', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-body: 'Rubik', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 
-  color-scheme: dark;
+  /* Radius */
+  --radius-xs: 4px;
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 18px;
+  --radius-pill: 999px;
+
+  /* Spacing */
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 12px;
+  --space-lg: 16px;
+  --space-xl: 24px;
+  --space-2xl: 32px;
+
+  /* Shadows */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.5);
+  --shadow-glow-blue: 0 0 20px rgba(2, 49, 197, 0.4);
+  --shadow-glow-green: 0 0 16px rgba(52, 211, 153, 0.3);
+  --shadow-glow-yellow: 0 0 16px rgba(248, 250, 94, 0.3);
+
+  /* Sidebar */
+  --sidebar-width: 260px;
 }
 
-* {
-  box-sizing: border-box;
+/* ─── Light theme ─────────────────────────────────────────────────────────── */
+[data-theme="light"] {
+  --color-bg: #F0F2F5;
+  --color-surface: #FFFFFF;
+  --color-surface-raised: #F7F8FA;
+  --color-surface-hover: #ECEEF1;
+  --color-border: #D8DCE3;
+  --color-border-subtle: rgba(0, 0, 0, 0.06);
+  --color-text-primary: #0D1117;
+  --color-text-secondary: rgba(13, 17, 23, 0.55);
+  --color-text-disabled: rgba(13, 17, 23, 0.3);
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.08);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.10);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.12);
 }
 
-html,
-body,
-#root {
-  height: 100%;
-  margin: 0;
+/* ─── Base (inside @layer so utilities can override) ─────────────────────── */
+@layer base {
+  *, *::before, *::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
+
+  html, body, #root {
+    height: 100%;
+    width: 100%;
+    overflow: hidden;
+  }
+
+  body {
+    background: var(--color-bg);
+    color: var(--color-text-primary);
+    font-family: var(--font-body);
+    font-size: 16px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  button {
+    font-family: inherit;
+  }
 }
 
-body {
-  font-family: var(--font-body);
-  background: radial-gradient(1200px 700px at 50% -10%, #1d1d22 0%, var(--bg) 60%);
-  color: var(--text);
-  -webkit-font-smoothing: antialiased;
-  text-rendering: optimizeLegibility;
-  overflow: hidden;
-}
-
-h1,
-h2,
-h3,
-h4,
-.display {
-  font-family: var(--font-display);
-  font-weight: 800;
-  letter-spacing: -0.01em;
-  margin: 0;
-}
-
-.italic-black {
-  font-style: italic;
-  font-weight: 900;
-}
-
-button {
-  font-family: var(--font-body);
-  cursor: pointer;
-}
-
+/* ─── Scrollbar ───────────────────────────────────────────────────────────── */
 ::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
-}
-::-webkit-scrollbar-thumb {
-  background: #2e2e33;
-  border-radius: 8px;
-  border: 2px solid var(--bg-panel);
+  width: 4px;
 }
 ::-webkit-scrollbar-track {
   background: transparent;
 }
-
-.tabular {
-  font-variant-numeric: tabular-nums;
+::-webkit-scrollbar-thumb {
+  background: var(--color-border);
+  border-radius: var(--radius-pill);
 }
 
-code,
-pre,
-textarea.code {
-  font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
+/* ─── Shared component utilities (pseudo-elements, keyframes) ─────────────── */
+@keyframes tw-spin {
+  to { transform: rotate(360deg); }
+}
+
+.btn-spin-sheen::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(255,255,255,0.08) 0%, transparent 50%);
+  border-radius: inherit;
+  pointer-events: none;
+}
+
+.animate-spin-fast {
+  animation: tw-spin 0.7s linear infinite;
 }

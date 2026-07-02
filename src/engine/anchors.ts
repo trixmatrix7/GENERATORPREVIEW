@@ -1,59 +1,98 @@
-// engine/anchors.ts — grid-relative anchor system. HARD INVARIANT: renderers
-// position everything via anchors resolved against the current grid, never raw
-// pixels, so one registry entry works on both 5x5 and 5x3. Mirrors the dev
-// generator's src/engine/anchors.ts surface (cell / reel / grid / resolveAnchor).
+// Anchor-point coordinate system.
+//
+// V1 animations hardcoded pixel coordinates inline (e.g., `i * (SYMBOL_WIDTH +
+// REEL_GAP)`). V2 needs animations to declare *what* they target (a cell, a
+// reel column, the whole grid, a whole row) and let the engine resolve to
+// pixels for the active grid. This file is the resolver.
+//
+// The Anchor union exposes five variants:
+//
+//   V1-equivalent shapes (resolve to a Rect):
+//     - cell(reel, row)         → single symbol cell
+//     - reel(reel)              → full reel column
+//     - grid                    → entire visible grid
+//     - row(row)                → full horizontal strip across all reels
+//
+//   Forward-compat shape (declared, V3-deferred — throws on resolve):
+//     - path(from, to)          → diagonal payline trace
+//
+// The resolver returns a { x, y, w, h } rect. Consumers add scene offsets
+// (PixiApp grid container x/y) themselves — anchors are *grid-local* so
+// they stay portable across canvas layouts.
 
-import { computeLayout, type GridSpec, type GridLayout } from '../config/gridConfig';
+import {
+  buildLayout,
+  DEFAULT_CELL_METRICS,
+  getActiveGrid,
+  type CellMetrics,
+  type GridConfig,
+  type Rect,
+} from '@/config/gridConfig';
 
-export interface Rect {
-  x: number; // center x
-  y: number; // center y
-  w: number;
-  h: number;
+/** Cell coordinate referenced by `path` anchors. */
+export interface CellCoord {
+  readonly reel: number;
+  readonly row: number;
 }
 
 export type Anchor =
-  | { kind: 'cell'; reel: number; row: number }
-  | { kind: 'reel'; reel: number }
-  | { kind: 'row'; row: number }
-  | { kind: 'grid' } // grid:center, full grid rect
-  | { kind: 'line'; a: { reel: number; row: number }; b: { reel: number; row: number } };
+  | { readonly kind: 'cell'; readonly reel: number; readonly row: number }
+  | { readonly kind: 'reel'; readonly reel: number }
+  | { readonly kind: 'row'; readonly row: number }
+  | { readonly kind: 'grid' }
+  | { readonly kind: 'path'; readonly from: CellCoord; readonly to: CellCoord };
 
-export const cellAnchor = (reel: number, row: number): Anchor => ({ kind: 'cell', reel, row });
-export const reelAnchor = (reel: number): Anchor => ({ kind: 'reel', reel });
-export const rowAnchor = (row: number): Anchor => ({ kind: 'row', row });
-export const gridAnchor = (): Anchor => ({ kind: 'grid' });
-export const lineAnchor = (
-  a: { reel: number; row: number },
-  b: { reel: number; row: number },
-): Anchor => ({ kind: 'line', a, b });
+/** Resolve an anchor to a grid-local pixel rect.
+ *  Defaults to the active grid + default cell metrics; pass a grid/metrics
+ *  override for non-active resolution (e.g., previewing a 5×5 game while
+ *  a 5×3 game is active).
+ *
+ *  Throws when handed a `path` anchor — payline-trace resolution lands with
+ *  the payline mechanic (V2 Stage 3). Declared here so the type union is
+ *  stable across the V2 stages; runtime support arrives with payline. */
+export function resolveAnchor(
+  anchor: Anchor,
+  grid: GridConfig = getActiveGrid(),
+  metrics: CellMetrics = DEFAULT_CELL_METRICS,
+): Rect {
+  const layout = buildLayout(grid, metrics);
 
-export function resolveAnchor(anchor: Anchor, grid: GridSpec, layout?: GridLayout): Rect {
-  const L = layout ?? computeLayout(grid);
   switch (anchor.kind) {
-    case 'cell': {
-      const c = L.cellCenter(anchor.reel, anchor.row);
-      return { x: c.x, y: c.y, w: L.cellW, h: L.cellH };
-    }
-    case 'reel': {
-      const x = L.reelX(anchor.reel) + L.cellW / 2;
-      return { x, y: L.height / 2, w: L.cellW, h: L.height };
-    }
+    case 'cell':
+      return layout.cellRect(anchor.reel, anchor.row);
+    case 'reel':
+      return layout.reelRect(anchor.reel);
     case 'row': {
-      const y = L.rowY(anchor.row) + L.cellH / 2;
-      return { x: L.width / 2, y, w: L.width, h: L.cellH };
+      // Full horizontal strip at the given row index. Y matches a cell's Y at
+      // that row (`row * cellHeight`); height is a single symbol's height
+      // (not cellHeight — we don't include the trailing gap inside the strip,
+      // so back-to-back row anchors don't visually overlap).
+      const firstCell = layout.cellRect(0, anchor.row);
+      return {
+        x: 0,
+        y: firstCell.y,
+        w: layout.width,
+        h: firstCell.h,
+      };
     }
     case 'grid':
-      return { x: L.width / 2, y: L.height / 2, w: L.width, h: L.height };
-    case 'line': {
-      const ca = L.cellCenter(anchor.a.reel, anchor.a.row);
-      const cb = L.cellCenter(anchor.b.reel, anchor.b.row);
-      return { x: (ca.x + cb.x) / 2, y: (ca.y + cb.y) / 2, w: Math.abs(cb.x - ca.x), h: Math.abs(cb.y - ca.y) };
-    }
+      return layout.gridRect();
+    case 'path':
+      throw new Error(
+        `[anchors] 'path' anchors are V3 (payline-trace) work — not implemented in V2. ` +
+        `Received path from (reel=${anchor.from.reel}, row=${anchor.from.row}) ` +
+        `to (reel=${anchor.to.reel}, row=${anchor.to.row}).`,
+      );
   }
 }
 
-/** Cell rect convenience used everywhere by the renderers. */
-export function cellRect(reel: number, row: number, grid: GridSpec, layout?: GridLayout): Rect {
-  return resolveAnchor(cellAnchor(reel, row), grid, layout);
-}
+// ── Convenience constructors ───────────────────────────────────────────────
+//
+// Registries declare anchors as data; the constructors make call-sites
+// readable without importing the discriminated-union literal each time.
+
+export const cell = (reel: number, row: number): Anchor => ({ kind: 'cell', reel, row });
+export const reel = (r: number): Anchor => ({ kind: 'reel', reel: r });
+export const row = (r: number): Anchor => ({ kind: 'row', row: r });
+export const grid: Anchor = { kind: 'grid' };
+export const path = (from: CellCoord, to: CellCoord): Anchor => ({ kind: 'path', from, to });

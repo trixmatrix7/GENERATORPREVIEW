@@ -1,571 +1,1895 @@
-// game/PixiApp.ts — the renderer core. Owns the Pixi Application + the 12-layer
-// compose stack and runs the animated spin lifecycle off a deterministic Outcome.
-// Layer order (back→front): 1 background · 2 reel frame · 3 backdrop+grid ·
-// 4 symbols · 6/8 effects · particles · 7/9/10 banners/win-screens. Sound = 11.
+// PixiJS Application — initialises the WebGL canvas and manages the game scene.
+// Lifecycle is owned by the GameCanvas React component via useEffect.
 
-import { Application, Container, Graphics, Sprite, Texture, Text, type TextStyleOptions } from 'pixi.js';
+import { Application, Assets, BlurFilter, Container, Graphics, Sprite, Text, TextStyle, Texture } from 'pixi.js';
 import { gsap } from 'gsap';
-import { ReelSet } from './ReelSet';
-import type { SymbolRenderCtx } from './AnimatedSymbol';
-import { AnticipationColumns, orbitScatter, fsSpinOut, fsSpinIn, type OrbitHandle } from './effects';
-import { spawnCoinBurst } from './particles';
-import { Banners } from './banners';
-import { computeLayout, GRIDS, type GridId, type GridLayout } from '../config/gridConfig';
-import { HOLD_WIN } from '../config/gameConfig';
-import { SymbolId, isScatter } from '../config/symbols';
-import { REEL_COUNT } from '../engine/reels';
-import type { CanvasTheme } from '../config/canvasTheme';
-import type { ThemeSymbol, SoundEventEntry, SpinSystemEntry, WinRevealMode } from '../registries/types';
-import type { Registries } from '../registries';
-import type { AnimationPreset } from '../registries/presets';
-import type { ParamValues } from '../config/adjustableParams';
-import type { Outcome, Board, Cell } from '../engine/types';
-import type { SoundManager } from '../audio/SoundManager';
+import { ReelSet, type ReelSetAudioHooks } from './ReelSet';
+import { setActiveGrid, type GridConfig } from '@/config/gridConfig';
+import { WIN_LINE_PRESETS, WIN_COIN_PRESETS, ACCENT_PRESETS } from '@/config/adjustableParams';
+import { CANVAS_THEME } from '@/config/canvasTheme';
+import type { SpinOutcome } from '@/engine/SlotEngine';
+import { DEFAULT_GAME_CONFIG, type GameConfig, type GameTheme } from '@/engine/GameConfig';
+import { playDeterministicHoldAndWin, HW_TRIGGER_MIN } from '@/engine/holdAndWin';
+import { loadSymbolAtlases, type SymbolAtlasMap } from './SymbolAtlasLoader';
+import {
+  preloadLucideTextures,
+  createLucideTextureCache,
+  disposeLucideTextureCache,
+  type LucideTextureCache,
+} from './lucideIcon';
+import { resolveWinTier } from './WinTierResolver';
 
-export type SoundSet = 'full' | 'minimal' | 'off';
+const prefersReducedMotion = () =>
+  typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-export interface RenderConfig {
-  grid: GridId;
-  theme: CanvasTheme;
-  symbolMeta: Map<number, ThemeSymbol>;
-  preset: AnimationPreset;
-  params: ParamValues;
-  registries: Registries;
-  sound: SoundManager;
-  spinSystem: SpinSystemEntry;
-  winReveal: WinRevealMode;
-  soundSet: SoundSet;
-  backgroundImage?: string; // full-canvas background (URL/dataURL); empty → placeholder
-  onWinUpdate?: (winX: number) => void;
-  onPhase?: (phase: string) => void;
+/** Linear blend between two 0xRRGGBB colours (t: 0 = a, 1 = b). */
+function blendHex(a: number, b: number, t: number): number {
+  const ar = (a >> 16) & 0xFF, ag = (a >> 8) & 0xFF, ab = a & 0xFF;
+  const br = (b >> 16) & 0xFF, bg = (b >> 8) & 0xFF, bb = b & 0xFF;
+  return (Math.round(ar + (br - ar) * t) << 16)
+    | (Math.round(ag + (bg - ag) * t) << 8)
+    | Math.round(ab + (bb - ab) * t);
 }
 
-// cues kept when the sound set is "minimal"
-const MINIMAL_CUES = new Set(['spin-start', 'reel-stop', 'win-small', 'win-normal', 'win-big', 'win-mega', 'free-spin-trigger']);
+const FRAME_PAD = 28;
+const HEADER_H = 52;
+const FOOTER_H = 20;
+const SCENE_MARGIN = 40;
 
-// 16:9 design stage — the reel grid floats centered over a full-canvas
-// background (see the GIFT BONANZA reference for the grid-to-background sizing).
-const STAGE_W = 1280;
-const STAGE_H = 720;
-const GRID_MAX_W_FRAC = 0.5; // grid ≤ 50% of stage width
-const GRID_MAX_H_FRAC = 0.74; // grid ≤ 74% of stage height
-const GRID_BAND_TOP = 0.03;
-const GRID_BAND_BOTTOM = 0.85; // reserve the bottom for the HUD overlay
+type Theme = 'dark' | 'light';
 
-const sleep = (ms: number) => new Promise<void>((r) => gsap.delayedCall(ms / 1000, r));
+const THEMES = CANVAS_THEME.modes;
+
+/** Clone a GameTheme so per-instance Texture maps (iconTextures,
+ *  userAssetTextures) live on a private object instead of being mutated
+ *  onto a module-level theme singleton (themes.ts exports FANTASY,
+ *  CYBERPUNK etc. as shared instances). Without this clone, two PixiApps
+ *  share textures from each other's destroyed GL contexts. */
+function cloneTheme(theme: GameTheme): GameTheme {
+  return {
+    ...theme,
+    // Force fresh texture maps — never inherit from the source.
+    iconTextures: undefined,
+    userAssetTextures: undefined,
+  };
+}
 
 export class PixiApp {
-  private app = new Application();
-  private ready = false;
-  private busy = false;
-  private token = 0;
+  private app: Application;
+  private reelSet!: ReelSet;
+  private sceneRoot: Container;
+  private gameContainer: Container;
+  private winBanner: Container;
+  private transitionCard: Container | null = null;
+  private transitionCardTl: ReturnType<typeof gsap.timeline> | null = null;
+  private ambientLayer: Container | null = null;
+  private ambientTweens: ReturnType<typeof gsap.timeline>[] = [];
+  /** Celebration coin tints (base, deep, highlight) — live-adjustable via the
+   *  chat-config `winCoinColor` param. */
+  private winCoinColors: number[] = [0xFFD23F, 0xFFC107, 0xFFE082];
+  /** Big central win-amount number that counts up over the grid (coin-win
+   *  ceremony) — the focal point, separate from the sidebar WIN box. */
+  private winNumberText!: Text;
+  // Per-win celebration FX (sparks, coin shower, glow, dim overlay).
+  // Replaced fresh on every win — children destroyed when the banner exits.
+  private celebrationFx!: Container;
+  // Standalone tween targets that are NOT celebrationFx children (e.g. the
+  // ballistic `state` proxies driving spark motion). killTweensOf(children)
+  // can't reach these, so we track them explicitly and kill them on
+  // clearCelebrationFx()/destroy() — otherwise they keep ticking and write
+  // into Graphics that have already been destroyed.
+  private fxStateTargets: object[] = [];
+  private _ready = false;
+  private _initialized = false;
+  /** Set when destroy() runs. init()'s async continuation checks this
+   *  after every await to abort cleanly if React unmounted us mid-flight
+   *  (StrictMode or fast nav). */
+  private _aborted = false;
+  turbo = false;
 
-  private bgLayer = new Container(); // full-canvas background (placeholder or image)
-  private frameLayer = new Container(); // reel frame (stage coords, around the board)
-  private board = new Container(); // scaled + centered group holding everything grid-relative
-  private backdropLayer = new Container();
-  private reelArea = new Container(); // holds the reel symbols (rotated by FS transition)
-  private fxBelow = new Container(); // anticipation columns (below symbols)
-  private fxAbove = new Container(); // scatter orbit (above symbols)
-  private burstLayer = new Container();
-  private overlay = new Container();
+  // Theme-sensitive Graphics — redrawn by setTheme()
+  private backdropGraphic!: Graphics;
+  private ambientGraphic!: Graphics;
+  private ambient2Graphic!: Graphics;
+  private frameGraphic!: Graphics;
+  private borderOuterGraphic!: Graphics;
+  private borderInnerGraphic!: Graphics;
+  private sheenGraphic!: Graphics;
+  private rowDots: Graphics[] = [];
+  private titleText!: Text;
+  private currentTheme: Theme = 'dark';
+  /** Ambient glow + spotlight intensity multiplier (chat-config 'backgroundMood'). */
+  private ambientScale = 1;
+  /** Title foil colour override (chat-config 'titleColor'); undefined = default. */
+  private titleColorOverride?: number;
+  /** Win-banner accent colour override (chat-config 'winBannerColor'). */
+  private winBannerColorOverride?: number;
 
-  // board transform (layout coords → stage coords)
-  private gx = 0;
-  private gy = 0;
-  private gscale = 1;
+  private atlases: SymbolAtlasMap = {};
+  /** Per-game config — passed through to ReelSet. Theme tokens (accent, title,
+   *  win-banner colour) drive PixiApp's own ambient glow + title rendering.
+   *  Theme is cloned in the constructor so per-instance texture maps don't
+   *  leak into the singleton. */
+  private readonly config: GameConfig;
+  /** Per-instance grid shape (5×3 or 5×5). Defaults to the active singleton
+   *  at construction time so existing call sites get V1 behaviour for free.
+   *  The wizard preview passes an explicit grid when launching 5×5 games. */
+  private readonly grid: GridConfig;
 
-  private reels!: ReelSet;
-  private banners!: Banners;
-  private counter!: Text;
-  private layout!: GridLayout;
-  private cfg!: RenderConfig;
+  /** Audio hooks set before init() completed; applied once reelSet exists. */
+  private _pendingAudioHooks: ReelSetAudioHooks | null = null;
 
-  private orbits: OrbitHandle[] = [];
-  private columns?: AnticipationColumns;
+  /** Instance-level lucide texture cache. Destroyed on app teardown so
+   *  textures from past PixiApps never live on a different GL context. */
+  private lucideCache: LucideTextureCache = createLucideTextureCache();
 
-  async init(parent: HTMLElement, cfg: RenderConfig): Promise<void> {
-    this.cfg = cfg;
-    this.layout = computeLayout(GRIDS[cfg.grid]);
-    await this.app.init({
-      background: cfg.theme.background,
-      antialias: true,
-      resolution: Math.min(2, window.devicePixelRatio || 1),
-      autoDensity: true,
-      width: STAGE_W,
-      height: STAGE_H,
-    });
-    parent.appendChild(this.app.canvas);
-    this.app.canvas.style.width = '100%';
-    this.app.canvas.style.height = '100%';
-    this.app.canvas.style.display = 'block';
+  /** Monotonic counter for setUserAssetTextures calls. Only the commit
+   *  whose token matches `userAssetToken` at completion is allowed to
+   *  publish — protects against out-of-order Promise resolution when the
+   *  user re-uploads quickly. */
+  private userAssetToken = 0;
 
-    // z-order: background → frame → board(grid) → particles → overlay
-    this.app.stage.addChild(this.bgLayer, this.frameLayer, this.board, this.burstLayer, this.overlay);
-    this.board.addChild(this.backdropLayer, this.fxBelow, this.reelArea, this.fxAbove);
+  /** Optional full-canvas background image (uploaded via the asset-swap UI).
+   *  Sits behind the machine scene; cover-fit to the renderer and re-fit on
+   *  resize. Token guards rapid swaps the same way userAssetTextures does. */
+  private bgSprite: Sprite | null = null;
+  private bgTexture: Texture | null = null;
+  private bgToken = 0;
+  /** Reel backdrop: a static vignette (depth, always shown) + an optional
+   *  frosted blurred copy of the background (when a bg image is set), both
+   *  clipped to the reel window and sitting just behind the symbols. */
+  private reelBackdropContainer: Container | null = null;
+  private reelVignette: Graphics | null = null;
+  private reelFrosted: Sprite | null = null;
 
-    this.reels = new ReelSet(this.layout, this.symbolCtx());
-    this.reelArea.addChild(this.reels.symbolsLayer);
-
-    this.counter = new Text({ text: '', style: this.counterStyle() });
-    this.counter.anchor.set(0.5, 0);
-    this.overlay.addChild(this.counter);
-
-    this.banners = new Banners(this.overlay, this.burstLayer, STAGE_W, STAGE_H, cfg.theme);
-
-    this.ready = true;
-    this.relayout();
-    this.showIdle();
+  constructor(config: GameConfig = DEFAULT_GAME_CONFIG, grid: GridConfig = config.gridConfig) {
+    this.config = { ...config, theme: cloneTheme(config.theme) };
+    this.grid = grid;
+    // Sync the active-grid singleton so any fallback consumer (anchors / a Reel
+    // built without an explicit visibleRows) matches this game's grid. Without
+    // this, `new PixiApp()` for a 5×5 build left the singleton at 5×3.
+    setActiveGrid(grid);
+    this.app = new Application();
+    this.sceneRoot = new Container();
+    this.gameContainer = new Container();
+    this.winBanner = new Container();
+    // Placeholder so destroy()/onResize() (which can run before buildScene on a
+    // StrictMode mount→cleanup→mount) never touch an undefined winNumberText.
+    this.winNumberText = new Text({ text: '', style: new TextStyle({ fontSize: 1 }) });
   }
 
-  private designSize(): { w: number; h: number } {
-    return { w: STAGE_W, h: STAGE_H };
-  }
+  async init(canvas: HTMLCanvasElement): Promise<void> {
+    // Yield one microtask before claiming the canvas. React StrictMode
+    // (dev) runs effects as mount → cleanup → mount synchronously, so an
+    // immediate-remount sequence calls destroy() between the two mounts.
+    // Without this yield, the first PixiApp synchronously hits
+    // `this.app.init({ canvas })` and claims the canvas before cleanup
+    // gets a chance to flip `_aborted`. With this yield, the abort check
+    // below runs before the renderer touches the DOM, and the canvas is
+    // free for the surviving second PixiApp.
+    await Promise.resolve();
+    if (this._aborted) return;
 
-  /** Map a board-local (layout) point to stage coordinates. */
-  private toStage(x: number, y: number): { x: number; y: number } {
-    return { x: this.gx + x * this.gscale, y: this.gy + y * this.gscale };
-  }
+    // Load symbol atlases AND rasterise themed Lucide icons in parallel with
+    // Pixi's renderer init. Atlases take precedence (real art); Lucide icons
+    // are the placeholder upgrade for themed games.
+    const themeIcons = this.config.theme.iconComponents;
+    const iconEntries = themeIcons
+      ? Object.entries(themeIcons).map(([id, icon]) => ({
+          id: Number(id),
+          icon: icon as NonNullable<typeof icon>,
+          // Render every Lucide as solid white — high contrast on every tile
+          // colour. Reading better than tinted icons that fight the tile bg.
+          color: 0xFFFFFF,
+        }))
+      : [];
 
-  private symbolCtx(): SymbolRenderCtx {
-    return { cellW: this.layout.cellW, cellH: this.layout.cellH, theme: this.cfg.theme, symbolMeta: this.cfg.symbolMeta };
-  }
+    const [, atlases, iconTextures] = await Promise.all([
+      this.app.init({
+        canvas,
+        resizeTo: canvas.parentElement ?? canvas,
+        background: CANVAS_THEME.modes.dark.rendererBg,
+        antialias: true,
+        resolution: window.devicePixelRatio ?? 1,
+        autoDensity: true,
+      }),
+      loadSymbolAtlases(),
+      iconEntries.length > 0
+        ? preloadLucideTextures(iconEntries, this.lucideCache, 96)
+        : Promise.resolve(new Map<number, Texture>()),
+    ]);
 
-  private counterStyle(): TextStyleOptions {
-    return { fontFamily: 'Poppins, sans-serif', fontStyle: 'italic', fontWeight: '900', fontSize: 34, fill: this.cfg.theme.glow, align: 'center', stroke: { color: 0x000000, width: 3 } };
-  }
-
-  // ── layout / decoration ────────────────────────────────────────────────────
-  private computeBoard(): void {
-    const maxW = STAGE_W * GRID_MAX_W_FRAC;
-    const maxH = STAGE_H * GRID_MAX_H_FRAC;
-    this.gscale = Math.min(maxW / this.layout.width, maxH / this.layout.height);
-    const gridW = this.layout.width * this.gscale;
-    const gridH = this.layout.height * this.gscale;
-    const bandTop = STAGE_H * GRID_BAND_TOP;
-    const bandH = STAGE_H * (GRID_BAND_BOTTOM - GRID_BAND_TOP);
-    this.gx = (STAGE_W - gridW) / 2;
-    this.gy = bandTop + (bandH - gridH) / 2;
-  }
-
-  private relayout(): void {
-    this.app.renderer.resize(STAGE_W, STAGE_H);
-    this.computeBoard();
-    this.board.position.set(this.gx, this.gy);
-    this.board.scale.set(this.gscale);
-    this.reelArea.position.set(0, 0);
-    this.reelArea.pivot.set(0, 0);
-    this.reelArea.scale.set(1);
-    this.reelArea.rotation = 0;
-    this.reelArea.alpha = 1;
-    this.fxBelow.position.set(0, 0);
-    this.fxAbove.position.set(0, 0);
-    this.counter.position.set(STAGE_W / 2, Math.max(6, this.gy - 44));
-    this.banners?.resize(STAGE_W, STAGE_H);
-    this.drawBackground();
-    this.drawFrame();
-    this.drawBackdrop();
-  }
-
-  /** Full-canvas background: the user's image (stretched to the 16:9 stage) or a
-   *  themed placeholder that clearly reads as "drop a background here". */
-  private drawBackground(): void {
-    const t = this.cfg.theme;
-    this.bgLayer.removeChildren();
-    if (this.cfg.backgroundImage) {
+    // If destroy() ran while these resources were loading, drop everything
+    // and exit cleanly. The renderer was successfully attached to the
+    // canvas during Promise.all — tear it down so a re-mount can claim it.
+    if (this._aborted) {
       try {
-        const sp = new Sprite(Texture.from(this.cfg.backgroundImage));
-        sp.width = STAGE_W;
-        sp.height = STAGE_H;
-        this.bgLayer.addChild(sp);
-        return;
+        this.app.destroy({ removeView: false }, { children: true });
       } catch {
-        /* fall through to placeholder */
+        /* renderer may have failed to fully attach */
       }
-    }
-    const g = new Graphics();
-    g.rect(0, 0, STAGE_W, STAGE_H).fill({ color: t.background });
-    g.rect(0, 0, STAGE_W, STAGE_H).fill({ color: t.backgroundVignette, alpha: 0.35 });
-    // placeholder marker — a dashed inset frame + label
-    g.roundRect(24, 24, STAGE_W - 48, STAGE_H - 48, 20).stroke({ width: 2, color: t.frameInner, alpha: 0.25 });
-    this.bgLayer.addChild(g);
-    const label = new Text({
-      text: 'BACKGROUND — add an image in the sidebar',
-      style: { fontFamily: 'Poppins, sans-serif', fontWeight: '800', fontSize: 22, fill: t.frameInner, align: 'center' },
-    });
-    label.anchor.set(0.5);
-    label.alpha = 0.28;
-    label.position.set(STAGE_W / 2, STAGE_H * 0.93);
-    this.bgLayer.addChild(label);
-  }
-
-  /** Reel frame — drawn in stage coords so its thickness stays constant. */
-  private drawFrame(): void {
-    const t = this.cfg.theme;
-    const gridW = this.layout.width * this.gscale;
-    const gridH = this.layout.height * this.gscale;
-    const m = 16;
-    this.frameLayer.removeChildren();
-    const frame = new Graphics();
-    frame.roundRect(this.gx - m, this.gy - m, gridW + 2 * m, gridH + 2 * m, 20).fill({ color: t.frame, alpha: 1 });
-    frame.roundRect(this.gx - m, this.gy - m, gridW + 2 * m, gridH + 2 * m, 20).stroke({ width: 4, color: t.frameInner, alpha: 0.9 });
-    this.frameLayer.addChild(frame);
-  }
-
-  /** Reel backdrop + cell grid — inside the board, in layout coords. */
-  private drawBackdrop(): void {
-    const t = this.cfg.theme;
-    const gw = this.layout.width;
-    const gh = this.layout.height;
-    this.backdropLayer.removeChildren();
-    const back = new Graphics();
-    back.roundRect(-4, -4, gw + 8, gh + 8, 10).fill({ color: t.reelBackdrop, alpha: t.reelBackdropAlpha });
-    for (let r = 1; r < this.layout.spec.cols; r++) {
-      const x = this.layout.reelX(r) - 2;
-      back.rect(x, 0, 2, gh).fill({ color: t.cellGrid, alpha: t.cellGridAlpha });
-    }
-    for (let row = 1; row < this.layout.spec.rows; row++) {
-      const y = this.layout.rowY(row) - 1;
-      back.rect(0, y, gw, 2).fill({ color: t.cellGrid, alpha: t.cellGridAlpha });
-    }
-    this.backdropLayer.addChild(back);
-  }
-
-  // ── config updates ───────────────────────────────────────────────────────
-  setConfig(partial: Partial<RenderConfig>): void {
-    if (!this.ready) {
-      this.cfg = { ...this.cfg, ...partial };
+      this.releaseLoadedResources(atlases, iconTextures);
       return;
     }
-    const gridChanged = partial.grid && partial.grid !== this.cfg.grid;
-    const themeChanged = partial.theme && partial.theme !== this.cfg.theme;
-    const bgChanged = 'backgroundImage' in partial && partial.backgroundImage !== undefined && partial.backgroundImage !== this.cfg.backgroundImage;
-    const prevBg = this.cfg.backgroundImage;
-    this.cfg = { ...this.cfg, ...partial };
-    if (gridChanged) {
-      this.layout = computeLayout(GRIDS[this.cfg.grid]);
-      this.reels.rebuild(this.layout, this.symbolCtx());
-      this.relayout();
-      this.showIdle();
-    } else if (themeChanged) {
-      this.relayout();
-      this.showIdle();
-    } else if (bgChanged || this.cfg.backgroundImage !== prevBg) {
-      this.drawBackground();
+
+    this.atlases = atlases;
+    if (iconTextures.size > 0) {
+      this.config.theme.iconTextures = iconTextures;
+    }
+    // Load brand fonts (Poppins/Rubik) before any canvas Text is created — Pixi
+    // rasterizes text once and won't re-render if the web font arrives later.
+    await this.ensureFontsLoaded();
+    if (this._aborted) return;
+    this.reelSet = new ReelSet(this.atlases, this.config, this.grid);
+    this._initialized = true;
+    this.buildScene();
+    this._ready = true;
+    // Apply any theme/audio hooks set before init completed
+    this.setTheme(this.currentTheme);
+    if (this._pendingAudioHooks) {
+      this.reelSet.audioHooks = this._pendingAudioHooks;
+      this._pendingAudioHooks = null;
     }
   }
 
-  // ── sound helper ───────────────────────────────────────────────────────────
-  private soundAllowed(id: string): boolean {
-    if (this.cfg.soundSet === 'off') return false;
-    if (this.cfg.soundSet === 'minimal') return MINIMAL_CUES.has(id);
-    return true;
-  }
-  private sfx(id: string, pitchMul = 1): void {
-    if (!this.soundAllowed(id)) return;
-    const e = this.cfg.registries.soundEvents.find((s) => s.id === id) as SoundEventEntry | undefined;
-    if (e && e.implemented) this.cfg.sound.play(e, pitchMul);
-  }
-  private loop(id: string): void {
-    if (!this.soundAllowed(id)) return;
-    const e = this.cfg.registries.soundEvents.find((s) => s.id === id) as SoundEventEntry | undefined;
-    if (e && e.implemented) this.cfg.sound.startLoop(e);
-  }
-  private stopLoop(id: string): void {
-    this.cfg.sound.stopLoop(id);
-  }
-
-  // ── idle / static board ──────────────────────────────────────────────────
-  showIdle(): void {
-    const rows = this.layout.spec.rows;
-    const filler: Board = Array.from({ length: rows }, (_, row) =>
-      Array.from({ length: REEL_COUNT }, (_, reel) => ((row + reel) % 7) + 2),
-    );
-    this.reels.setBoardInstant(filler);
-    this.counter.text = '';
-  }
-
-  showBoardInstant(o: Outcome): void {
-    this.clearAnticipation();
-    this.reels.setBoardInstant(o.base.board);
-  }
-
-  // ── the full spin ──────────────────────────────────────────────────────────
-  async spin(o: Outcome): Promise<void> {
-    if (!this.ready) return;
-    const my = ++this.token;
-    this.busy = true;
-    this.clearAnticipation();
-    this.overlay.removeChildren();
-    this.overlay.addChild(this.counter);
-    this.counter.text = '';
-    let shownWinX = 0;
-    const setWin = (x: number) => {
-      shownWinX = x;
-      this.counter.text = x > 0 ? `${x.toFixed(2)}× bet` : '';
-      this.cfg.onWinUpdate?.(x);
-    };
-
-    this.cfg.onPhase?.('spin');
-    this.sfx('spin-start');
-    this.loop('reel-spin-loop');
-
-    const plan = this.sweatPlan(o.base.board);
-    let scattersLanded = 0;
-
-    // spin SYSTEM is overlay (visual): its params seed the drop, sliders override.
-    const sp = this.cfg.spinSystem.params ?? {};
-    await this.reels.dropBoard(
-      o.base.board,
-      {
-        style: this.cfg.spinSystem.style,
-        dropDurationMs: sp.dropDurationMs ?? sp.spinMs ?? sp.fadeMs ?? this.cfg.params.dropDurationMs,
-        staggerMs: sp.staggerMs ?? this.cfg.params.dropStaggerMs,
-        rowGapMs: sp.rowGapMs ?? 30,
-        spinSpeed: this.cfg.params.spinSpeed,
-        stops: o.base.stops, // spec strip-reel spin lands on seed%40
-        sweatFromReel: plan.sweatFromReel,
-        sweatSlowFactor: this.cfg.params.anticipationSlowFactor,
-      },
-      (reel) => {
-        if (my !== this.token) return;
-        this.sfx('reel-stop');
-        // landing squash on the reel's cells
-        for (let row = 0; row < this.layout.spec.rows; row++) {
-          void this.reels.cell(reel, row).playLanding(this.cfg.preset.states.landing, this.cfg.params);
-        }
-        // scatter landing → anticipation
-        const reelScatters = plan.scatterCells.filter((c) => c.reel === reel);
-        if (reelScatters.length) {
-          this.sfx('scatter-land');
-          scattersLanded += reelScatters.length;
-          if (scattersLanded >= 2) this.startAnticipation(plan, reel);
-          for (const c of reelScatters) {
-            if (scattersLanded >= 2 && this.cfg.preset.effects.scatterOrbit) this.addOrbit(c);
-            if (scattersLanded >= 2) this.reels.cell(c.reel, c.row).startIdlePulse(this.cfg.preset.states.idle, this.cfg.params);
-          }
-        }
-      },
-    );
-    if (my !== this.token) return;
-    this.stopLoop('reel-spin-loop');
-
-    // near-miss tease: exactly 2 scatters, no trigger
-    if (o.base.scatterCount === 2 && !o.freeSpins.triggered) {
-      this.sfx('near-miss-tease');
-      await sleep(700);
-      await this.banners.flashBanner('SO CLOSE!', this.cfg.theme.warmFlash);
-    }
-
-    // ── base win reveal (mode = overlay; the wins themselves are SPEC) ──
-    this.cfg.onPhase?.('reveal');
-    if (o.base.scatterWinX > 0) setWin(shownWinX + o.base.scatterWinX);
-    if (this.cfg.winReveal === 'all-at-once') {
-      if (o.base.connections.length) {
-        const total = o.base.connections.reduce((s, c) => s + c.winX, 0);
-        setWin(shownWinX + total);
-        this.sfx('win-connect-sound', 1.3);
-        const cells = o.base.connections.flatMap((c) => c.cells);
-        await Promise.all(cells.map((c) => this.reels.cell(c.reel, c.row).playWin(this.cfg.preset.states.win, this.cfg.params)));
-      }
-    } else {
-      for (let i = 0; i < o.base.connections.length; i++) {
-        if (my !== this.token) return;
-        const conn = o.base.connections[i];
-        this.sfx('win-connect-sound', 1 + i * 0.12);
-        setWin(shownWinX + conn.winX);
-        await Promise.all(conn.cells.map((c) => this.reels.cell(c.reel, c.row).playWin(this.cfg.preset.states.win, this.cfg.params)));
-        await sleep(150);
+  /** Release textures + spritesheets loaded by an aborted init() so they
+   *  don't leak when the parent unmounted before scene construction. */
+  private releaseLoadedResources(
+    atlases: SymbolAtlasMap,
+    iconTextures: Map<number, Texture>,
+  ): void {
+    for (const tex of iconTextures.values()) {
+      try {
+        tex.destroy(true);
+      } catch {
+        /* texture may already be partially destroyed */
       }
     }
-    if (o.base.connections.length && !o.freeSpins.triggered) {
-      this.sfx(o.base.baseWinX >= 10 ? 'win-big' : o.base.baseWinX >= 2 ? 'win-normal' : 'win-small');
-    }
-
-    // ── free spins ──
-    if (o.freeSpins.triggered) {
-      if (my !== this.token) return;
-      await this.runFreeSpins(o, my, setWin, () => shownWinX);
-    }
-
-    // ── hold & win ──
-    if (o.holdWin.triggered) {
-      if (my !== this.token) return;
-      await this.runHoldAndWin(o, my, setWin, () => shownWinX);
-    }
-
-    this.clearAnticipation();
-
-    // ── celebration ──
-    if (this.cfg.preset.effects.winScreens && (o.tier === 'big' || o.tier === 'mega')) {
-      await this.banners.winScreen(o.tier, o.totalWinX, this.cfg.params.celebrationIntensity);
-    }
-    setWin(o.totalWinX);
-    this.cfg.onPhase?.('idle');
-    this.busy = false;
-  }
-
-  private async runFreeSpins(o: Outcome, my: number, setWin: (x: number) => void, getWin: () => number): Promise<void> {
-    this.sfx('free-spin-trigger');
-    spawnCoinBurst(this.burstLayer, { x: this.designSize().w / 2, y: this.designSize().h / 2 }, { count: 40, color: this.cfg.theme.goldFrame });
-    this.clearAnticipation();
-    await fsSpinOut(this.reelArea, this.layout);
-    if (my !== this.token) return;
-    await this.banners.fsIntro(o.freeSpins.spins.length || 18, o.freeSpins.multiplier);
-    this.relayoutReelAreaAfterTransition();
-    await fsSpinIn(this.reelArea);
-    if (my !== this.token) return;
-
-    const shown = Math.min(o.freeSpins.spins.length, 10);
-    for (let i = 0; i < shown; i++) {
-      if (my !== this.token) return;
-      const fs = o.freeSpins.spins[i];
-      this.reels.setBoardInstant(fs.board);
-      for (const cell of this.reels.cellsFlat()) void cell.playLanding(this.cfg.preset.states.landing, this.cfg.params);
-      this.sfx('reel-stop');
-      if (fs.winX > 0) {
-        setWin(getWin() + fs.winX);
-        this.sfx('win-connect-sound', 1.2 + i * 0.05);
-      }
-      await sleep(260 / Math.max(0.5, this.cfg.params.spinSpeed));
-    }
-    // fold any FS spins beyond the shown montage into the counter at once
-    const shownSum = o.freeSpins.spins.slice(0, shown).reduce((s, f) => s + f.winX, 0);
-    const rest = o.freeSpins.totalWinX - shownSum;
-    if (rest > 0.0001) setWin(getWin() + rest);
-    await this.banners.fsOutro(o.freeSpins.totalWinX);
-    // restore base board
-    this.reels.setBoardInstant(o.base.board);
-  }
-
-  private async runHoldAndWin(o: Outcome, my: number, setWin: (x: number) => void, getWin: () => number): Promise<void> {
-    this.cfg.onPhase?.('hold-win');
-    // place coins on the board
-    this.reels.setBoardInstant(o.base.board);
-    await this.banners.flashBanner('HOLD & WIN', this.cfg.theme.goldFrame);
-    let running = getWin(); // base/FS win accumulated so far
-    for (const step of o.holdWin.steps) {
-      if (my !== this.token) return;
-      for (let k = 0; k < step.landed.length; k++) {
-        const c = step.landed[k];
-        const cell = this.reels.cell(c.reel, c.row);
-        cell.setSymbol(SymbolId.COIN);
-        void cell.playWin(this.cfg.preset.states.win, this.cfg.params);
-        this.sfx('coin-chime', 1 + Math.min(1, step.values[k] / 10));
-        this.spawnValueText(c, step.isJackpot[k] ? `${step.values[k]}×` : `${step.values[k]}`, step.isJackpot[k]);
-      }
-      running += step.values.reduce((s, v) => s + v, 0);
-      setWin(running);
-      await sleep(360 / Math.max(0.5, this.cfg.params.spinSpeed));
-    }
-    if (o.holdWin.grand) {
-      await this.banners.flashBanner('GRAND!', 0xffd633);
-      running += HOLD_WIN.grandValue;
-      setWin(running);
-    }
-  }
-
-  private spawnValueText(c: Cell, text: string, jackpot: boolean): void {
-    const center = this.layout.cellCenter(c.reel, c.row);
-    const p = this.toStage(center.x, center.y); // board-local → stage (overlay coords)
-    const t = new Text({
-      text,
-      style: { fontFamily: 'Poppins, sans-serif', fontStyle: 'italic', fontWeight: '900', fontSize: jackpot ? 26 : 20, fill: jackpot ? 0xffd633 : 0xffffff, stroke: { color: 0x000000, width: 3 } },
-    });
-    t.anchor.set(0.5);
-    t.position.set(p.x, p.y);
-    this.overlay.addChild(t);
-    gsap.timeline({ onComplete: () => t.destroy() })
-      .fromTo(t, { alpha: 0 }, { alpha: 1, duration: 0.15 })
-      .to(t, { y: t.y - 24, duration: 0.6 }, '<')
-      .to(t, { alpha: 0, duration: 0.3 });
-  }
-
-  private relayoutReelAreaAfterTransition(): void {
-    // reelArea lives inside the board group at the origin now
-    this.reelArea.pivot.set(0, 0);
-    this.reelArea.position.set(0, 0);
-    this.reelArea.scale.set(1);
-  }
-
-  // ── anticipation ───────────────────────────────────────────────────────────
-  private sweatPlan(board: Board): { sweatFromReel?: number; scatterCells: Cell[] } {
-    const scatterCells: Cell[] = [];
-    let count = 0;
-    let sweatFromReel: number | undefined;
-    for (let reel = 0; reel < REEL_COUNT; reel++) {
-      for (let row = 0; row < board.length; row++) {
-        if (isScatter(board[row][reel])) {
-          scatterCells.push({ reel, row });
-          count++;
-          if (count === 2 && sweatFromReel === undefined) sweatFromReel = reel + 1;
-        }
+    iconTextures.clear();
+    for (const sheet of Object.values(atlases)) {
+      try {
+        sheet?.destroy?.(true);
+      } catch {
+        /* atlas may already be partially destroyed */
       }
     }
-    if (count < 2) return { scatterCells: [] };
-    return { sweatFromReel: sweatFromReel !== undefined && sweatFromReel < REEL_COUNT ? sweatFromReel : undefined, scatterCells };
+    void disposeLucideTextureCache(this.lucideCache);
   }
 
-  private startAnticipation(plan: { sweatFromReel?: number; scatterCells: Cell[] }, fromReel: number): void {
-    if (this.cfg.preset.effects.anticipationColumns) {
-      if (!this.columns) this.columns = new AnticipationColumns(this.fxBelow, this.layout, this.cfg.theme);
-      const pending: number[] = [];
-      for (let r = fromReel + 1; r < REEL_COUNT; r++) pending.push(r);
-      if (pending.length) this.columns.setPending(pending, pending[0]);
-    }
+  get ready(): boolean {
+    return this._ready;
   }
 
-  private addOrbit(c: Cell): void {
-    const center = this.layout.cellCenter(c.reel, c.row);
-    this.orbits.push(orbitScatter(this.fxAbove, center, this.layout.cellW, this.cfg.theme));
-  }
-
-  private clearAnticipation(): void {
-    for (const o of this.orbits) o.stop();
-    this.orbits = [];
-    this.columns?.clear();
-    this.columns = undefined;
-    for (const cell of this.reels?.cellsFlat() ?? []) cell.stopIdlePulse();
-  }
-
-  // ── single-state preview (for the state buttons) ─────────────────────────
-  async previewState(state: 'idle' | 'landing' | 'win' | 'reset'): Promise<void> {
-    if (!this.ready) return;
-    const cells = this.reels.cellsFlat();
-    if (state === 'idle') {
-      for (const c of cells) c.startIdlePulse(this.cfg.preset.states.idle, this.cfg.params);
-      await sleep(2000);
-      for (const c of cells) c.stopIdlePulse();
-    } else if (state === 'landing') {
-      await Promise.all(cells.map((c, i) => sleep(i * 12).then(() => c.playLanding(this.cfg.preset.states.landing, this.cfg.params))));
-    } else if (state === 'win') {
-      await Promise.all(cells.map((c) => c.playWin(this.cfg.preset.states.win, this.cfg.params)));
-    } else {
-      for (const c of cells) c.resetWin(this.cfg.preset.states.reset);
-    }
-  }
-
-  stop(): void {
-    this.token++;
-    this.busy = false;
-    this.clearAnticipation();
-    this.cfg.sound.stopAllLoops();
-    gsap.globalTimeline.getChildren().forEach((t) => t.progress(1));
-  }
-
-  isBusy(): boolean {
-    return this.busy;
-  }
-
-  destroy(): void {
-    this.token++;
-    this.clearAnticipation();
-    this.cfg?.sound.stopAllLoops();
-    this.reels?.destroy();
+  /** Best-effort preload of the brand fonts (Poppins/Rubik) so canvas text is
+   *  rasterized in the correct face, not a fallback. Resolves fast once cached. */
+  private async ensureFontsLoaded(): Promise<void> {
+    if (typeof document === 'undefined' || !document.fonts?.load) return;
     try {
-      this.app.destroy(true, { children: true });
+      await Promise.all([
+        document.fonts.load("800 italic 40px 'Poppins'"),
+        document.fonts.load("700 16px 'Poppins'"),
+        document.fonts.load("400 16px 'Rubik'"),
+        document.fonts.load("700 16px 'Rubik'"),
+      ]);
     } catch {
-      /* */
+      /* best-effort — fall back to system fonts if loading fails */
     }
   }
+
+  private buildScene() {
+    const stage = this.app.stage;
+    stage.addChild(this.sceneRoot);
+
+    const rw = this.reelSet.totalWidth + FRAME_PAD * 2;
+    const rh = this.reelSet.totalHeight + FRAME_PAD * 2;
+    const totalH = HEADER_H + rh + FOOTER_H;
+
+    // ── Ambient background: gradient "stage" + soft radial glows ─────────
+    // (replaces two flat hard-edged ellipses that read as a near-black void).
+    this.backdropGraphic = new Graphics();
+    this.sceneRoot.addChild(this.backdropGraphic);
+    this.ambientGraphic = new Graphics();
+    this.sceneRoot.addChild(this.ambientGraphic);
+    this.ambient2Graphic = new Graphics();
+    this.sceneRoot.addChild(this.ambient2Graphic);
+    this.redrawAmbient(
+      rw, totalH,
+      CANVAS_THEME.modes.dark.ambientAlpha1,
+      CANVAS_THEME.modes.dark.ambientAlpha2,
+      CANVAS_THEME.modes.dark.rendererBg,
+    );
+
+    // Scene vignette — darken the stage edges so the light pools on the reels.
+    const sceneVignette = new Graphics();
+    sceneVignette.rect(0, 0, rw, totalH);
+    sceneVignette.stroke({ color: 0x000000, width: 90, alpha: 0.45 });
+    sceneVignette.filters = [new BlurFilter({ strength: 34, quality: 3 })];
+    this.sceneRoot.addChild(sceneVignette);
+
+    // ── Game title — logo-style wordmark (foil fill + outline + accent glow) ──
+    this.titleText = new Text({ text: this.config.theme.title, style: new TextStyle({}) });
+    this.titleText.anchor.set(0.5, 0);
+    this.titleText.x = rw / 2;
+    this.titleText.y = 0;
+    this.styleTitle();
+    this.sceneRoot.addChild(this.titleText);
+
+    // ── Reel frame assembly ──────────────────────────────────────────────
+    this.gameContainer.y = HEADER_H;
+    this.sceneRoot.addChild(this.gameContainer);
+
+    // Outer glow ring (multiple layers for depth)
+    for (let i = 3; i >= 1; i--) {
+      const glow = new Graphics();
+      const offset = i * 4;
+      glow.roundRect(-offset, -offset, rw + offset * 2, rh + offset * 2, 18 + i * 2);
+      glow.fill({ color: this.config.theme.accent, alpha: 0.02 * i });
+      this.gameContainer.addChild(glow);
+    }
+
+    // Main frame background
+    this.frameGraphic = new Graphics();
+    this.frameGraphic.roundRect(0, 0, rw, rh, 16);
+    this.frameGraphic.fill({ color: CANVAS_THEME.modes.dark.frameFill });
+    this.gameContainer.addChild(this.frameGraphic);
+
+    // Frame border — filled shapes, not stroke() which flickers at non-integer scale
+    this.borderOuterGraphic = new Graphics();
+    const darkTheme = CANVAS_THEME.modes.dark;
+    this.borderOuterGraphic.roundRect(0, 0, rw, rh, 16);
+    this.borderOuterGraphic.fill({ color: darkTheme.borderOuter });
+    this.borderOuterGraphic.roundRect(2, 2, rw - 4, rh - 4, 14);
+    this.borderOuterGraphic.fill({ color: darkTheme.frameFill });
+    this.gameContainer.addChild(this.borderOuterGraphic);
+
+    this.borderInnerGraphic = new Graphics();
+    this.borderInnerGraphic.roundRect(2, 2, rw - 4, rh - 4, 14);
+    this.borderInnerGraphic.fill({ color: darkTheme.borderInner });
+    this.borderInnerGraphic.roundRect(3, 3, rw - 6, rh - 6, 13);
+    this.borderInnerGraphic.fill({ color: darkTheme.frameFill });
+    this.gameContainer.addChild(this.borderInnerGraphic);
+
+    // Top highlight sheen
+    this.sheenGraphic = new Graphics();
+    this.sheenGraphic.roundRect(3, 3, rw - 6, 32, 13);
+    this.sheenGraphic.fill({ color: darkTheme.sheenColor, alpha: darkTheme.sheenAlpha });
+    this.gameContainer.addChild(this.sheenGraphic);
+
+    // Cabinet detail — faint top-lit outer edge + four corner rivets (hardware).
+    const frameDetail = new Graphics();
+    frameDetail.roundRect(1, 1, rw - 2, rh - 2, 15);
+    frameDetail.stroke({ color: 0xFFFFFF, width: 1, alpha: 0.10 });
+    const rivetInset = 11;
+    const rivetPts: Array<[number, number]> = [
+      [rivetInset, rivetInset], [rw - rivetInset, rivetInset],
+      [rivetInset, rh - rivetInset], [rw - rivetInset, rh - rivetInset],
+    ];
+    for (const [cx, cy] of rivetPts) {
+      frameDetail.circle(cx, cy, 3.2).fill({ color: blendHex(this.config.theme.accent, 0x000000, 0.15) });
+      frameDetail.circle(cx - 0.8, cy - 0.8, 1.1).fill({ color: 0xFFFFFF, alpha: 0.5 });
+    }
+    this.gameContainer.addChild(frameDetail);
+
+    // Reel backdrop: a static vignette (depth, always) + a frosted blurred copy
+    // of the background (added by updateReelBackdrop when a bg image is set).
+    // Clipped to the reel window, sits just behind the reels.
+    const bdW = this.reelSet.totalWidth;
+    const bdH = this.reelSet.totalHeight;
+    this.reelBackdropContainer = new Container();
+    const bdMask = new Graphics();
+    bdMask.roundRect(FRAME_PAD, FRAME_PAD, bdW, bdH, 10).fill(0xffffff);
+    this.reelBackdropContainer.addChild(bdMask);
+    this.reelBackdropContainer.mask = bdMask;
+    this.gameContainer.addChild(this.reelBackdropContainer);
+
+    // Strong dark overlay over the whole reel window so symbols pop against a
+    // much darker backdrop (and the frosted bg copy stays subdued).
+    const reelDarken = new Graphics();
+    reelDarken.roundRect(FRAME_PAD, FRAME_PAD, bdW, bdH, 10);
+    reelDarken.fill({ color: 0x000000, alpha: 0.62 });
+    this.reelBackdropContainer.addChild(reelDarken);
+
+    // Vignette / inner shadow — a thick dark stroke on the window edge, blurred
+    // inward; the container mask clips its outer half. Gives the reel area depth
+    // even with NO background image.
+    this.reelVignette = new Graphics();
+    this.reelVignette.roundRect(FRAME_PAD, FRAME_PAD, bdW, bdH, 10);
+    this.reelVignette.stroke({ color: 0x000000, width: 56, alpha: 0.65 });
+    this.reelVignette.filters = [new BlurFilter({ strength: 18, quality: 3 })];
+    this.reelBackdropContainer.addChild(this.reelVignette);
+
+    // Reel set
+    this.reelSet.container.x = FRAME_PAD;
+    this.reelSet.container.y = FRAME_PAD;
+    this.gameContainer.addChild(this.reelSet.container);
+    this.spawnAmbientMotes();
+
+    // Row indicator dots on left and right sides
+    this.rowDots = [];
+    for (let row = 0; row < this.grid.visibleRows; row++) {
+      const cy = FRAME_PAD + this.reelSet.cellHeight * row + this.reelSet.cellHeight / 2;
+
+      const dotL = new Graphics();
+      dotL.circle(10, cy, 3);
+      dotL.fill({ color: darkTheme.dotColor });
+      this.gameContainer.addChild(dotL);
+      this.rowDots.push(dotL);
+
+      const dotR = new Graphics();
+      dotR.circle(rw - 10, cy, 3);
+      dotR.fill({ color: darkTheme.dotColor });
+      this.gameContainer.addChild(dotR);
+      this.rowDots.push(dotR);
+    }
+
+    // ── Win Banner container (kept as a z-marker for celebration FX) ──
+    this.winBanner.visible = false;
+    this.winBanner.alpha = 0;
+
+    // FX layer sits just below the banner so sparks, glow, and dim render
+    // behind it while coin sprites can sit on the same plane (added per win).
+    this.celebrationFx = new Container();
+    this.sceneRoot.addChild(this.celebrationFx);
+    this.sceneRoot.addChild(this.winBanner);
+
+    // Central win-amount number (coin-win ceremony) — bold gold with a dark
+    // edge + glow, multi-line (optional tier label above the amount). On top so
+    // it stays readable over the dim + flying coins.
+    this.winNumberText = new Text({
+      text: '',
+      style: new TextStyle({
+        fontFamily: "'Poppins', ui-sans-serif, system-ui, sans-serif",
+        fontSize: 40,
+        fontWeight: '800',
+        fontStyle: 'italic',
+        align: 'center',
+        fill: 0xFFD24A,
+        stroke: { color: 0x3A1500, width: 6 },
+        dropShadow: { color: 0x000000, blur: 9, distance: 3, alpha: 0.6 },
+      }),
+    });
+    this.winNumberText.anchor.set(0.5, 0.5);
+    this.winNumberText.alpha = 0;
+    this.sceneRoot.addChild(this.winNumberText);
+
+    this.onResize();
+    this.app.renderer.on('resize', () => this.onResize());
+  }
+
+  private onResize() {
+    // app.screen returns logical CSS-pixel dimensions, regardless of devicePixelRatio.
+    // app.renderer.width/height returns PHYSICAL pixels and breaks layout on HiDPI.
+    const { width, height } = this.app.screen;
+
+    const rw = this.reelSet.totalWidth + FRAME_PAD * 2;
+    const rh = this.reelSet.totalHeight + FRAME_PAD * 2;
+    const totalH = HEADER_H + rh + FOOTER_H;
+    const totalW = rw;
+
+    // Scale scene to fit viewport with margin
+    const availW = width - SCENE_MARGIN * 2;
+    const availH = height - SCENE_MARGIN * 2;
+    const scaleX = availW / totalW;
+    const scaleY = availH / totalH;
+    const scale = Math.min(scaleX, scaleY, 1.3);
+
+    this.sceneRoot.scale.set(scale);
+    this.sceneRoot.x = Math.round((width - totalW * scale) / 2);
+    this.sceneRoot.y = Math.round((height - totalH * scale) / 2);
+
+    // Centre win banner over reels
+    this.winBanner.x = rw / 2;
+    this.winBanner.y = HEADER_H + rh / 2;
+    this.winNumberText.x = rw / 2;
+    this.winNumberText.y = HEADER_H + rh / 2;
+
+    // Re-fit the optional background image to the new renderer size.
+    this.fitBackground();
+  }
+
+  /** Full-scene vertical gradient "stage" (themed tint up top → deep base),
+   *  drawn as stacked full-width bands so corners stay clean (no rounding). */
+  private drawBackdrop(g: Graphics, w: number, h: number, top: number, bottom: number): void {
+    g.clear();
+    const bands = 26;
+    const x = -w * 0.25, bw = w * 1.5;   // overscan sides
+    const y0 = -h * 0.2, bh = h * 1.4;   // overscan top/bottom
+    const step = bh / bands;
+    for (let i = 0; i < bands; i++) {
+      g.rect(x, y0 + step * i, bw, step + 1.5);
+      g.fill({ color: blendHex(top, bottom, i / (bands - 1)) });
+    }
+  }
+
+  /** Soft radial glow: stacked concentric ellipses (bright centre → faint
+   *  edge) — a real falloff, unlike a single flat-alpha ellipse. */
+  private drawSoftGlow(
+    g: Graphics, cx: number, cy: number, rx: number, ry: number, color: number, peakAlpha: number,
+  ): void {
+    const steps = 10;
+    for (let i = steps; i >= 1; i--) {
+      const f = i / steps; // 1 (outer) … 0.1 (inner)
+      g.ellipse(cx, cy, rx * f, ry * f);
+      g.fill({ color, alpha: peakAlpha / steps });
+    }
+  }
+
+  /** Redraw the background stage + both ambient glows for the current theme. */
+  private redrawAmbient(rw: number, totalH: number, a1: number, a2: number, baseBg: number): void {
+    const accent = this.config.theme.accent;
+    const accent2 = this.config.theme.accent2;
+    const top = blendHex(blendHex(baseBg, accent, 0.20), 0xffffff, 0.06);
+    const bottom = blendHex(baseBg, 0x000000, 0.40);
+    const s = this.ambientScale; // 'backgroundMood' intensity multiplier
+    this.drawBackdrop(this.backdropGraphic, rw, totalH, top, bottom);
+    this.ambientGraphic.clear();
+    this.drawSoftGlow(this.ambientGraphic, rw / 2, totalH * 0.40, rw * 0.82, totalH * 0.66, accent, a1 * 3.2 * s);
+    this.ambient2Graphic.clear();
+    this.drawSoftGlow(this.ambient2Graphic, rw / 2, totalH * 0.46, rw * 0.52, totalH * 0.42, accent2, a2 * 3.5 * s);
+    // Tight, brighter central spotlight → lifts the reel frame off the stage.
+    this.drawSoftGlow(this.ambient2Graphic, rw / 2, totalH * 0.43, rw * 0.34, totalH * 0.30, blendHex(accent, 0xffffff, 0.30), a2 * 4.0 * s);
+  }
+
+  /** Live intensity multiplier for the ambient glow + spotlight (chat-config
+   *  'backgroundMood'). Re-renders the glow layers at the current theme. */
+  public setAmbientIntensity(scale: number): void {
+    this.ambientScale = Math.max(0.1, scale);
+    if (!this._ready) return;
+    const rw = this.reelSet.totalWidth + FRAME_PAD * 2;
+    const rh = this.reelSet.totalHeight + FRAME_PAD * 2;
+    const totalH = HEADER_H + rh + FOOTER_H;
+    const t = THEMES[this.currentTheme];
+    this.redrawAmbient(rw, totalH, t.ambientAlpha1, t.ambientAlpha2, t.rendererBg);
+  }
+
+  /** Logo-style title: warm foil fill, dark outline for legibility on any
+   *  background, and a soft accent glow — reads as a wordmark, not caption text. */
+  private styleTitle(): void {
+    this.titleText.style = new TextStyle({
+      fontFamily: "'Poppins', ui-sans-serif, system-ui, sans-serif",
+      fontSize: 27,
+      fontWeight: '800',
+      fontStyle: 'italic',
+      fill: this.titleColorOverride ?? 0xFFF4D6,
+      letterSpacing: 3,
+      stroke: { color: 0x140B22, width: 4.5, join: 'round' },
+      dropShadow: { color: this.config.theme.accent, blur: 18, distance: 0, alpha: 0.6, angle: 0 },
+    });
+  }
+
+  setTheme(theme: Theme) {
+    this.currentTheme = theme;
+    if (!this._ready) return;
+
+    const t = THEMES[theme];
+    const rw = this.reelSet.totalWidth + FRAME_PAD * 2;
+    const rh = this.reelSet.totalHeight + FRAME_PAD * 2;
+    const totalH = HEADER_H + rh + FOOTER_H;
+
+    this.app.renderer.background.color = t.rendererBg;
+
+    this.redrawAmbient(rw, totalH, t.ambientAlpha1, t.ambientAlpha2, t.rendererBg);
+
+    this.frameGraphic.clear();
+    this.frameGraphic.roundRect(0, 0, rw, rh, 16);
+    this.frameGraphic.fill({ color: t.frameFill });
+
+    this.borderOuterGraphic.clear();
+    this.borderOuterGraphic.roundRect(0, 0, rw, rh, 16);
+    this.borderOuterGraphic.fill({ color: t.borderOuter });
+    this.borderOuterGraphic.roundRect(2, 2, rw - 4, rh - 4, 14);
+    this.borderOuterGraphic.fill({ color: t.frameFill });
+
+    this.borderInnerGraphic.clear();
+    this.borderInnerGraphic.roundRect(2, 2, rw - 4, rh - 4, 14);
+    this.borderInnerGraphic.fill({ color: t.borderInner });
+    this.borderInnerGraphic.roundRect(3, 3, rw - 6, rh - 6, 13);
+    this.borderInnerGraphic.fill({ color: t.frameFill });
+
+    this.sheenGraphic.clear();
+    this.sheenGraphic.roundRect(3, 3, rw - 6, 32, 13);
+    this.sheenGraphic.fill({ color: t.sheenColor, alpha: t.sheenAlpha });
+
+    for (let row = 0; row < this.grid.visibleRows; row++) {
+      const cy = FRAME_PAD + this.reelSet.cellHeight * row + this.reelSet.cellHeight / 2;
+      const dotL = this.rowDots[row * 2];
+      const dotR = this.rowDots[row * 2 + 1];
+      dotL.clear();
+      dotL.circle(10, cy, 3);
+      dotL.fill({ color: t.dotColor });
+      dotR.clear();
+      dotR.circle(rw - 10, cy, 3);
+      dotR.fill({ color: t.dotColor });
+    }
+
+    this.styleTitle();
+
+    this.reelSet.setTheme(theme);
+  }
+
+  /**
+   * Replace the user-uploaded PNG override map. Pass a map keyed by numeric
+   * SymbolId → data URL. Each entry is asynchronously decoded into a Pixi
+   * Texture; once all are ready (and the call hasn't been superseded by a
+   * later one), the theme's userAssetTextures are updated and visible reel
+   * cells are repainted in place. Pass an empty map to clear all overrides.
+   *
+   * Race-safe: a monotonically increasing token guards against out-of-order
+   * resolution — a slow-resolving early upload cannot clobber a fast-resolving
+   * later one. Leak-safe: textures replaced or removed are explicitly
+   * destroyed.
+   */
+  async setUserAssetTextures(byId: Map<number, string>): Promise<void> {
+    if (!this._ready || this._aborted) return;
+    const myToken = ++this.userAssetToken;
+
+    const next = new Map<number, Texture>();
+    await Promise.all(
+      Array.from(byId.entries()).map(async ([id, dataUrl]) => {
+        try {
+          // Downscale large images to prevent GPU memory exhaustion / GL context loss.
+          const safeUrl = await constrainImageSize(dataUrl, 512);
+          const tex = await Assets.load<Texture>(safeUrl);
+          next.set(id, tex);
+        } catch (err) {
+          console.warn('[PixiApp] failed to load user asset for symbol', id, err);
+        }
+      }),
+    );
+
+    // If a newer call has started (or destroy ran) while we were loading,
+    // abandon this batch. Destroy any textures we loaded — but NOT ones that
+    // are the same instance as a currently-committed texture: pixi's Assets
+    // cache returns the SAME Texture for an identical (URL/dataURL) key, so a
+    // cache hit would otherwise destroy a live, in-use texture.
+    if (myToken !== this.userAssetToken || this._aborted) {
+      const live = this.config.theme.userAssetTextures;
+      const liveSet = live ? new Set(live.values()) : null;
+      for (const tex of next.values()) {
+        if (liveSet?.has(tex)) continue; // shared with the live map — keep it
+        try {
+          tex.destroy(true);
+        } catch {
+          /* already torn down */
+        }
+      }
+      return;
+    }
+
+    // Destroy outgoing textures (replaced or removed) before swapping in the
+    // new map. CAUTION: Assets.load is cache-keyed by dataURL, and
+    // constrainImageSize returns the original URL unchanged for small images,
+    // so re-uploading the same PNG yields the SAME Texture instance in both
+    // prev and next. Only destroy an outgoing texture if it is NOT reused in
+    // the new map — otherwise we'd destroy the texture we're about to display.
+    const prev = this.config.theme.userAssetTextures;
+    if (prev) {
+      const nextSet = new Set(next.values());
+      for (const oldTex of prev.values()) {
+        if (nextSet.has(oldTex)) continue; // reused (cache hit) — keep alive
+        try {
+          oldTex.destroy(true);
+        } catch {
+          /* already torn down */
+        }
+      }
+    }
+
+    this.config.theme.userAssetTextures = next.size > 0 ? next : undefined;
+    this.reelSet.refreshAllTiles();
+  }
+
+  /**
+   * Set (or clear, with null) a full-canvas background image behind the
+   * machine. Cover-fits the renderer and re-fits on resize. Race-safe via a
+   * monotonic token; leak-safe — the previous texture is destroyed on swap.
+   */
+  async setBackgroundImage(dataUrl: string | null): Promise<void> {
+    if (!this._initialized || this._aborted) return;
+    const myToken = ++this.bgToken;
+
+    if (!dataUrl) {
+      this.clearBackgroundImage();
+      return;
+    }
+
+    let tex: Texture;
+    try {
+      tex = await Assets.load<Texture>(dataUrl);
+    } catch (err) {
+      console.warn('[PixiApp] failed to load background image:', err);
+      return;
+    }
+
+    // A newer call (or destroy) started while we were loading — abandon.
+    if (myToken !== this.bgToken || this._aborted) {
+      if (tex !== this.bgTexture) {
+        try { tex.destroy(true); } catch { /* already torn down */ }
+      }
+      return;
+    }
+
+    this.clearBackgroundImage();
+    this.bgTexture = tex;
+    this.bgSprite = new Sprite(tex);
+    this.bgSprite.anchor.set(0.5);
+    // Behind sceneRoot (added first in buildScene → currently at index 0).
+    this.app.stage.addChildAt(this.bgSprite, 0);
+    // The gradient "stage" backdrop is opaque and lives in sceneRoot (above
+    // bgSprite), so it would hide the user's background. The user bg and the
+    // gradient stage are mutually-exclusive background layers — hide the
+    // gradient while a bg image is shown (restored in clearBackgroundImage).
+    if (this.backdropGraphic) this.backdropGraphic.visible = false;
+    this.fitBackground();
+    this.updateReelBackdrop();
+  }
+
+  private clearBackgroundImage(): void {
+    // Tear down the frosted backdrop first — it references bgTexture.
+    this.teardownReelBackdrop();
+    if (this.bgSprite) {
+      this.bgSprite.parent?.removeChild(this.bgSprite);
+      try { this.bgSprite.destroy(); } catch { /* already torn down */ }
+      this.bgSprite = null;
+    }
+    if (this.bgTexture) {
+      try { this.bgTexture.destroy(true); } catch { /* already torn down */ }
+      this.bgTexture = null;
+    }
+    // Restore the gradient "stage" backdrop now that the user bg is gone.
+    if (this.backdropGraphic) this.backdropGraphic.visible = true;
+  }
+
+  /** Cover-fit the background sprite to the current renderer size. */
+  private fitBackground(): void {
+    if (!this.bgSprite || !this.bgTexture) return;
+    const { width, height } = this.app.screen;
+    this.bgSprite.position.set(width / 2, height / 2);
+    const tw = this.bgTexture.width || 1;
+    const th = this.bgTexture.height || 1;
+    this.bgSprite.scale.set(Math.max(width / tw, height / th));
+  }
+
+  private teardownReelBackdrop(): void {
+    // Only the frosted layer references bgTexture; the vignette + container are
+    // static and persist for the life of the scene.
+    if (this.reelFrosted) {
+      this.reelFrosted.parent?.removeChild(this.reelFrosted);
+      try { this.reelFrosted.destroy(); } catch { /* already torn down */ }
+      this.reelFrosted = null;
+    }
+  }
+
+  /** Build the frosted reel backdrop from the current background texture: a
+   *  blurred + darkened copy cover-fit to the reel window, placed below the
+   *  static vignette (so the vignette darkens its edges). No bg image → only
+   *  the vignette shows over the dark frame fill. Geometry is fixed, so it
+   *  scales with the scene and needs no resize rebuild. */
+  private updateReelBackdrop(): void {
+    this.teardownReelBackdrop();
+    if (!this.bgTexture || !this.reelSet || this._aborted || !this.reelBackdropContainer) return;
+
+    const innerW = this.reelSet.totalWidth;
+    const innerH = this.reelSet.totalHeight;
+    const tw = this.bgTexture.width || 1;
+    const th = this.bgTexture.height || 1;
+
+    const sprite = new Sprite(this.bgTexture);
+    sprite.anchor.set(0.5);
+    sprite.position.set(FRAME_PAD + innerW / 2, FRAME_PAD + innerH / 2);
+    // Cover-fit the reel window, slightly overscanned so the blur doesn't pull
+    // transparent edges into view.
+    sprite.scale.set(Math.max(innerW / tw, innerH / th) * 1.18);
+    // Darken via multiply tint so the symbols pop against it.
+    sprite.tint = 0x40434f;
+    sprite.filters = [new BlurFilter({ strength: 16, quality: 3 })];
+
+    // Index 1 = just above the mask (0) and below the vignette — clipped by the
+    // container's mask.
+    this.reelBackdropContainer.addChildAt(sprite, 1);
+    this.reelFrosted = sprite;
+  }
+
+  /**
+   * Set audio callbacks fired by the reel layer (per-reel stop, scatter visible).
+   * The React layer owns the SoundManager and wires it through here so the
+   * Pixi layer stays I/O-free.
+   */
+  setAudioHooks(hooks: ReelSetAudioHooks): void {
+    if (!this.reelSet) {
+      // Init not finished yet; defer.
+      this._pendingAudioHooks = hooks;
+      return;
+    }
+    this.reelSet.audioHooks = hooks;
+  }
+
+  /** True only between init() completion and destroy(). Use as a precondition
+   *  for every public method that touches the renderer or reelSet. */
+  private get isLive(): boolean {
+    return this._ready && !this._aborted && !!this.reelSet;
+  }
+
+  /** Bumped on every spin() to abort any in-flight sequential win reveal so it
+   *  can't keep drawing frames over the next spin's reels. */
+  private _winRevealId = 0;
+
+  spin() {
+    // Guard: caller may invoke before init() finishes or after destroy().
+    // Silent no-op is the safe answer — the React state machine handles
+    // these edges via the disabled-while-!ready button + unmount cleanup.
+    if (!this.isLive) return;
+    this._winRevealId++; // cancel any in-flight win reveal from the prior spin
+    gsap.killTweensOf(this.winBanner);
+    gsap.killTweensOf(this.winBanner.scale);
+    this.winBanner.visible = false;
+    this.winBanner.alpha = 0;
+    this.reelSet.clearHighlights();
+    this.reelSet.startSpin();
+  }
+
+  /**
+   * Resolves to the final board state. The returned promise settles as soon as
+   * the *reels* have stopped — the win banner then plays asynchronously and is
+   * interrupted by the next spin() call. This keeps the state machine free to
+   * move to idle the moment the reels are done, instead of waiting ~1.4s for
+   * the banner animation to finish.
+   *
+   * Re-checks `isLive` after every await so a mid-flight destroy() doesn't
+   * push the in-flight resolve into a torn-down scene graph.
+   */
+  async resolve(outcome: SpinOutcome, tokenSymbol: string, decimals: number): Promise<void> {
+    if (!this.isLive) return;
+    if (outcome.freeSpinsTriggered && outcome.freeSpinsPlayed > 0 && !this.turbo && !prefersReducedMotion()) {
+      // Gold flash + shock-wave punctuate the scatter trigger, then the card.
+      this.spawnFlash(0xFFD23F, 0.45, 0.5);
+      this.spawnShockwave();
+      await new Promise(r => setTimeout(r, 120));
+      if (!this.isLive) return;
+      await this.playTransitionCard('FREE SPINS', `×${outcome.freeSpinsPlayed}`, 1.1);
+      if (!this.isLive) return;
+      const fsOverlay = this.showFreeSpinOverlay(outcome.freeSpinsPlayed);
+
+      // Animate each free spin visually — intermediate stops are random (display only)
+      for (let i = 0; i < outcome.freeSpinsPlayed; i++) {
+        if (!this.isLive) break;
+        const isLast = i === outcome.freeSpinsPlayed - 1;
+        const stops = isLast
+          ? outcome.stops
+          // Display-only intermediate stops for the free-spin animation. NEVER
+          // feeds settlement (the final iteration uses outcome.stops), so the
+          // non-deterministic RNG here does not touch the outcome path.
+          : this.config.reelLengths.map(len => Math.floor(Math.random() * len));
+
+        // Update counter
+        if (fsOverlay.counter) {
+          fsOverlay.counter.text = `FREE SPIN ${i + 1} / ${outcome.freeSpinsPlayed}`;
+        }
+
+        this.reelSet.startSpin();
+        // Each free spin must read as a real spin, not a flicker. 150ms was
+        // too short and looked like a stutter ("stop then spin again"); ~500ms
+        // gives the reels time to visibly roll before decelerating.
+        await new Promise(r => setTimeout(r, 500));
+        if (!this.isLive) break;
+        await this.reelSet.stopOnStops(stops, false);
+        if (!this.isLive) break;
+        if (!isLast) {
+          this.reelSet.clearHighlights();
+          await new Promise(r => setTimeout(r, 200));
+        }
+      }
+
+      // Fade out the FS overlay
+      this.hideFreeSpinOverlay(fsOverlay);
+    } else {
+      await this.reelSet.stopOnStops(outcome.stops, this.turbo);
+    }
+
+    if (!this.isLive) return;
+
+    // Hold & Win bonus — coins lock on the board and respins auto-run, before the
+    // win ceremony tallies the payout. The round was derived deterministically
+    // from the spin randomness (authoritative win is already in outcome.winAmount).
+    if (outcome.holdWinTriggered && outcome.holdWin) {
+      await this.reelSet.playHoldAndWin(outcome.holdWin, {
+        accent: this.config.theme.accent,
+        turbo: this.turbo,
+        reduced: prefersReducedMotion(),
+        isLive: () => this.isLive,
+      });
+      if (!this.isLive) return;
+    }
+
+    if (outcome.winAmount > 0n) {
+      // Awaited: the spin HOLDS until the win ceremony (counting number + coins
+      // flying from the winning symbols) finishes, like the reference game.
+      await this.playWinSequence(outcome, tokenSymbol, decimals);
+    }
+
+    // Exit card — bookends the free-spins round (entry card shown above).
+    if (this.isLive && outcome.freeSpinsTriggered && !this.turbo && !prefersReducedMotion()) {
+      await this.playTransitionCard('FREE SPINS TOTAL', `${formatWin(outcome.winAmount, decimals)} ${tokenSymbol}`, 1.4);
+    }
+  }
+
+  /** Win presentation. With MULTIPLE winning patterns, cycle through them one
+   *  at a time (alternately — each pattern's symbols + line + sub-amount in
+   *  turn), then light all winners and play the grand-total coin ceremony.
+   *  Single win / turbo / reduced-motion skip straight to the total. Awaited so
+   *  the spin holds until it finishes. */
+  private async playWinSequence(
+    outcome: SpinOutcome,
+    symbol: string,
+    decimals: number,
+  ): Promise<void> {
+    const id = ++this._winRevealId;
+    const combos = outcome.winResult.combinations.filter(c => c.winAmount > 0n);
+    const multi = combos.length > 1 && !this.turbo && !prefersReducedMotion();
+    const ordered = multi
+      ? [...combos].sort((a, b) =>
+          a.winAmount < b.winAmount ? -1 : a.winAmount > b.winAmount ? 1 : 0,
+        )
+      : [];
+
+    // 1. Tally: alternate through each winning pattern once, smallest→largest,
+    //    floating its sub-amount.
+    if (multi) {
+      const stepMs = ordered.length > 5 ? 380 : 600;
+      for (let i = 0; i < ordered.length; i++) {
+        if (id !== this._winRevealId || !this.isLive) return; // aborted by next spin
+        this.reelSet.revealCombo(ordered[i], '+' + formatWin(ordered[i].winAmount, decimals));
+        this.reelSet.audioHooks.onWinStep?.(i, ordered.length);
+        await new Promise(r => setTimeout(r, stepMs));
+      }
+      if (id !== this._winRevealId || !this.isLive) return;
+    }
+
+    // 2. Finale: every winner lit + the grand-total coin ceremony (awaited → the
+    //    next spin holds until it finishes).
+    this.reelSet.highlightWins(outcome.winResult);
+    if (id !== this._winRevealId || !this.isLive) return;
+    const origins = this.reelSet.getWinningCellCenters(outcome.winResult);
+    await this.playCoinWin(outcome.winAmount, outcome.wager ?? 1n, symbol, decimals, origins);
+    if (id !== this._winRevealId || !this.isLive) return;
+
+    // 3. Resting display: keep cycling the patterns one at a time (alternating)
+    //    AFTER the total has shown, until the next spin. Fire-and-forget so the
+    //    state machine stays free; spin() bumps _winRevealId to stop the loop.
+    if (multi) void this.cyclePatternsLoop(ordered, id);
+  }
+
+  /** After the grand total is shown, loop the winning patterns one at a time
+   *  (the alternating "show each win" continues as the resting display) until a
+   *  new spin bumps _winRevealId. No floating amounts — just cycling highlights. */
+  private async cyclePatternsLoop(
+    ordered: SpinOutcome['winResult']['combinations'],
+    id: number,
+  ): Promise<void> {
+    while (id === this._winRevealId && this.isLive) {
+      for (const combo of ordered) {
+        if (id !== this._winRevealId || !this.isLive) return;
+        this.reelSet.revealCombo(combo); // resting loop: highlight only, no +amount
+        await new Promise(r => setTimeout(r, 800));
+      }
+    }
+  }
+
+  /** Coin-win ceremony (Fruit-Fortune style): dim the scene, count a big central
+   *  number up to the win, and burst coins from the winning symbols that fly
+   *  upward — then settle. Intensity scales with the win tier. `originsLocal` are
+   *  winning-cell centres in ReelSet-local coords (empty → coins from centre). */
+  /** A themed entry/exit card ("FREE SPINS ×N" / "FREE SPINS TOTAL: X"):
+   *  dim + gold-trimmed plaque + title/subtitle, pops in → holds → fades.
+   *  Awaited by resolve() so the spin holds through the bonus bookends. */
+  private playTransitionCard(title: string, subtitle: string, holdSec: number): Promise<void> {
+    if (!this.isLive) return Promise.resolve();
+    const rw = this.reelSet.totalWidth + FRAME_PAD * 2;
+    const rh = this.reelSet.totalHeight + FRAME_PAD * 2;
+    const totalH = HEADER_H + rh + FOOTER_H;
+    const cx = rw / 2, cy = HEADER_H + rh / 2;
+
+    const card = new Container();
+    card.x = cx; card.y = cy;
+
+    const dim = new Graphics();
+    dim.rect(-cx - 300, -cy - 300, rw + 600, totalH + 600);
+    dim.fill({ color: 0x000000, alpha: 0.5 });
+    card.addChild(dim);
+
+    const accent = this.config.theme.accent;
+    const gold = 0xFFD23F;
+    const w = 460, h = 180, r = 24;
+    const plaque = new Graphics();
+    for (let i = 4; i >= 1; i--) {
+      plaque.roundRect(-w / 2 - i * 4, -h / 2 - i * 4, w + i * 8, h + i * 8, r + i * 3);
+      plaque.fill({ color: gold, alpha: 0.05 });
+    }
+    plaque.roundRect(-w / 2, -h / 2, w, h, r);
+    plaque.fill({ color: blendHex(accent, 0x000000, 0.5) });
+    plaque.roundRect(-w / 2 + 4, -h / 2 + 4, w - 8, (h - 8) * 0.5, r - 2);
+    plaque.fill({ color: blendHex(accent, 0xffffff, 0.14), alpha: 0.55 });
+    plaque.roundRect(-w / 2, -h / 2, w, h, r);
+    plaque.stroke({ color: gold, width: 4, alpha: 0.92 });
+    card.addChild(plaque);
+
+    const titleText = new Text({
+      text: title,
+      style: new TextStyle({
+        fontFamily: "'Poppins', ui-sans-serif, sans-serif", fontSize: 40, fontWeight: '800',
+        fontStyle: 'italic', fill: 0xffffff, letterSpacing: 2,
+        dropShadow: { color: 0x000000, blur: 4, distance: 2, alpha: 0.5 },
+      }),
+    });
+    titleText.anchor.set(0.5); titleText.y = -26;
+    const subText = new Text({
+      text: subtitle,
+      style: new TextStyle({
+        fontFamily: "'Rubik', ui-sans-serif, sans-serif", fontSize: 34, fontWeight: '700',
+        fill: gold, letterSpacing: 1,
+      }),
+    });
+    subText.anchor.set(0.5); subText.y = 34;
+    card.addChild(titleText, subText);
+
+    card.alpha = 0; card.scale.set(0.8);
+    this.sceneRoot.addChild(card);
+    this.transitionCard = card;
+
+    return new Promise(resolve => {
+      const tl = gsap.timeline({
+        onComplete: () => {
+          gsap.killTweensOf(card);
+          gsap.killTweensOf(card.scale);
+          if (this.transitionCard === card) this.transitionCard = null;
+          if (this.transitionCardTl === tl) this.transitionCardTl = null;
+          try { card.destroy({ children: true }); } catch { /* already torn down */ }
+          resolve();
+        },
+      });
+      this.transitionCardTl = tl;
+      tl.to(card, { alpha: 1, duration: 0.25, ease: 'power2.out' }, 0)
+        .to(card.scale, { x: 1, y: 1, duration: 0.4, ease: 'back.out(2)' }, 0)
+        .to(card, { alpha: 0, duration: 0.3, ease: 'power1.in' }, 0.25 + holdSec);
+    });
+  }
+
+  /** Themed celebration banner drawn behind the count-up number for big+ wins:
+   *  a gold-trimmed plaque tinted to the theme accent; mega adds a light-ray
+   *  burst. Lives in winBanner (z: above dim/coins, below the number). */
+  private buildWinBanner(isMega: boolean): void {
+    const b = this.winBanner;
+    gsap.killTweensOf(b.children);
+    gsap.killTweensOf(b);
+    gsap.killTweensOf(b.scale);
+    for (const c of b.removeChildren()) c.destroy({ children: true });
+
+    const accent = this.config.theme.accent;
+    const gold = this.winBannerColorOverride ?? 0xFFD23F;
+    const w = isMega ? 480 : 380;
+    const h = isMega ? 170 : 132;
+    const r = 22;
+
+    // Mega: light-ray burst behind the plaque (scales in with the banner).
+    if (isMega) {
+      const rays = new Graphics();
+      const R = Math.max(w, h) * 1.6;
+      const n = 20;
+      for (let i = 0; i < n; i++) {
+        const a0 = (i / n) * Math.PI * 2;
+        const a1 = a0 + (Math.PI * 2 / n) * 0.5;
+        rays.moveTo(0, 0);
+        rays.lineTo(Math.cos(a0) * R, Math.sin(a0) * R);
+        rays.lineTo(Math.cos(a1) * R, Math.sin(a1) * R);
+        rays.closePath();
+      }
+      rays.fill({ color: gold, alpha: 0.12 });
+      b.addChild(rays);
+    }
+
+    const plaque = new Graphics();
+    // soft outer glow
+    for (let i = 4; i >= 1; i--) {
+      plaque.roundRect(-w / 2 - i * 4, -h / 2 - i * 4, w + i * 8, h + i * 8, r + i * 3);
+      plaque.fill({ color: gold, alpha: 0.05 });
+    }
+    // base body (deep) → top-lit upper half → bottom shaded band = vertical
+    // gradient with real depth.
+    plaque.roundRect(-w / 2, -h / 2, w, h, r);
+    plaque.fill({ color: blendHex(accent, 0x000000, 0.55) });
+    plaque.roundRect(-w / 2 + 4, -h / 2 + 4, w - 8, (h - 8) * 0.5, r - 2);
+    plaque.fill({ color: blendHex(accent, 0xffffff, 0.16), alpha: 0.6 });
+    plaque.roundRect(-w / 2 + 4, h * 0.10, w - 8, (h - 8) * 0.4, r - 2);
+    plaque.fill({ color: blendHex(accent, 0x000000, 0.35), alpha: 0.5 });
+    // gold border + inner highlight rim
+    plaque.roundRect(-w / 2, -h / 2, w, h, r);
+    plaque.stroke({ color: gold, width: isMega ? 4 : 3, alpha: 0.95 });
+    plaque.roundRect(-w / 2 + 5, -h / 2 + 5, w - 10, h - 10, r - 4);
+    plaque.stroke({ color: blendHex(gold, 0xffffff, 0.4), width: 1.5, alpha: 0.55 });
+    // corner studs (gold hardware with a specular dot) → premium plaque detail.
+    const sx = w / 2 - 12, sy = h / 2 - 12;
+    for (const [dx, dy] of [[-sx, -sy], [sx, -sy], [-sx, sy], [sx, sy]] as Array<[number, number]>) {
+      plaque.circle(dx, dy, 3.2).fill({ color: gold, alpha: 0.95 });
+      plaque.circle(dx - 0.8, dy - 0.8, 1.1).fill({ color: 0xFFFFFF, alpha: 0.6 });
+    }
+    b.addChild(plaque);
+  }
+
+  private playCoinWin(
+    winAmount: bigint,
+    wager: bigint,
+    symbol: string,
+    decimals: number,
+    originsLocal: Array<{ x: number; y: number }>,
+  ): Promise<void> {
+    if (!this.isLive) return Promise.resolve();
+
+    const tier = resolveWinTier(winAmount, wager > 0n ? wager : 1n);
+    const tierId = tier.id as string;
+    const isBigPlus = tierId === 'big-win' || tierId === 'mega-win' || tierId === 'super-mega-win' || tierId === 'epic-win';
+    const isMegaPlus = tierId === 'mega-win' || tierId === 'super-mega-win' || tierId === 'epic-win';
+    const isEpic = tierId === 'epic-win';
+    const label = isMegaPlus ? 'MEGA WIN!' : isBigPlus ? 'BIG WIN!' : '';
+    const finalVal = Number(winAmount) / Math.pow(10, decimals);
+    const dp = decimals > 4 ? 2 : decimals;
+    const fmt = (v: number) => `${label ? label + '\n' : ''}${v.toFixed(dp)} ${symbol}`;
+
+    this.winNumberText.style.fontSize = isMegaPlus ? 60 : isBigPlus ? 50 : 38;
+
+    // Themed celebration banner behind the number for big+ wins.
+    const showBanner = isBigPlus;
+    if (showBanner) this.buildWinBanner(isMegaPlus);
+    this.winBanner.visible = showBanner;
+    this.winBanner.alpha = 0;
+    this.winBanner.scale.set(showBanner ? 0.6 : 1);
+
+    // Reduced motion: show the final number (+ banner) briefly, no dim/coins.
+    if (prefersReducedMotion()) {
+      if (showBanner) { this.winBanner.visible = true; this.winBanner.alpha = 1; this.winBanner.scale.set(1); }
+      this.winNumberText.text = fmt(finalVal);
+      this.winNumberText.alpha = 1;
+      this.winNumberText.scale.set(1);
+      return new Promise(resolve => {
+        gsap.delayedCall(1.0, () => {
+          this.winNumberText.alpha = 0;
+          this.winBanner.alpha = 0;
+          this.winBanner.visible = false;
+          resolve();
+        });
+      });
+    }
+
+    // Coin launch origins in sceneRoot/celebrationFx coords.
+    const origins = originsLocal.length
+      ? originsLocal.map(o => ({ x: FRAME_PAD + o.x, y: HEADER_H + FRAME_PAD + o.y }))
+      : [{ x: this.winNumberText.x, y: this.winNumberText.y }];
+
+    const countDur = isMegaPlus ? 1.8 : isBigPlus ? 1.3 : 0.8;
+    const holdDur = isMegaPlus ? 1.0 : isBigPlus ? 0.6 : 0.35;
+    const waves = isMegaPlus ? 4 : isBigPlus ? 3 : 2;
+    const perOrigin = isMegaPlus ? 6 : isBigPlus ? 4 : 3;
+    const coinPower = isMegaPlus ? 720 : isBigPlus ? 620 : 520;
+
+    this.clearCelebrationFx();
+    this.spawnBackgroundDim(countDur + holdDur + 0.6, isMegaPlus ? 0.6 : isBigPlus ? 0.5 : 0.4);
+
+    this.winNumberText.text = fmt(0);
+    this.winNumberText.alpha = 0;
+    this.winNumberText.scale.set(0.6);
+
+    return new Promise(resolve => {
+      const tl = gsap.timeline({
+        onComplete: () => {
+          if (!this._aborted) this.clearCelebrationFx();
+          this.winNumberText.alpha = 0;
+          this.winNumberText.scale.set(1);
+          this.winBanner.visible = false;
+          this.winBanner.alpha = 0;
+          resolve();
+        },
+      });
+
+      // Number pops in.
+      tl.to(this.winNumberText, { alpha: 1, duration: 0.18, ease: 'power2.out' }, 0)
+        .to(this.winNumberText.scale, { x: 1, y: 1, duration: 0.3, ease: 'back.out(2.5)' }, 0);
+
+      // Banner pops in behind it (big+ only).
+      if (showBanner) {
+        tl.to(this.winBanner, { alpha: 1, duration: 0.2, ease: 'power2.out' }, 0)
+          .to(this.winBanner.scale, { x: 1, y: 1, duration: 0.34, ease: 'back.out(2.2)' }, 0);
+      }
+
+      // Big-win flourish: zoom punch (big) or screen shake (mega+).
+      if (isBigPlus && !isMegaPlus) {
+        this.addZoomPunch(tl, 0.05, 1.04);
+      } else if (isMegaPlus) {
+        tl.call(() => {
+          if (this._aborted) return;
+          // Epic (top tier ≈ jackpot): stronger flash + golden sparkle shower.
+          if (isEpic) this.spawnJackpotFlash();
+          else this.spawnFlash(0xffffff, 0.62, 0.4);
+        }, undefined, 0.02);
+        tl.to(this.sceneRoot, { x: '+=8', duration: 0.05, repeat: 11, yoyo: true, ease: 'none' }, 0.05);
+        tl.call(() => { if (!this._aborted) this.onResize(); }, undefined, 0.7);
+      }
+
+      // Count the number up.
+      const counter = { val: 0 };
+      tl.to(counter, {
+        val: finalVal,
+        duration: countDur,
+        ease: 'power1.out',
+        onUpdate: () => { if (!this._aborted) this.winNumberText.text = fmt(counter.val); },
+        onComplete: () => {
+          // Snap to the exact, bigint-safe amount — the rolling float can drift
+          // on large 18-decimal token values.
+          if (!this._aborted) {
+            this.winNumberText.text = `${label ? label + '\n' : ''}${formatWin(winAmount, decimals)} ${symbol}`;
+          }
+        },
+      }, 0.15);
+
+      // Coins burst from the winning symbols in waves during the count.
+      for (let w = 0; w < waves; w++) {
+        tl.call(
+          () => { if (!this._aborted) this.spawnCoinsFrom(origins, perOrigin, coinPower); },
+          undefined,
+          0.12 + w * (countDur / waves),
+        );
+      }
+
+      // Hold, then fade the number + banner.
+      tl.to(this.winNumberText, { alpha: 0, duration: 0.3, ease: 'power1.in' }, 0.15 + countDur + holdDur);
+      if (showBanner) {
+        tl.to(this.winBanner, { alpha: 0, duration: 0.3, ease: 'power1.in' }, 0.15 + countDur + holdDur);
+      }
+    });
+  }
+
+  /** Gold coins launched from given origins (celebrationFx coords), flying
+   *  upward with an arc + spin, fading near the end. Cosmetic randomness only. */
+  private spawnCoinsFrom(origins: Array<{ x: number; y: number }>, perOrigin: number, power: number): void {
+    const colors = this.winCoinColors;
+    for (const o of origins) {
+      for (let i = 0; i < perOrigin; i++) {
+        const coin = new Graphics();
+        const r = 7 + Math.random() * 5;
+        coin.ellipse(0, 0, r, r);
+        coin.fill({ color: colors[i % colors.length] });
+        coin.ellipse(-r * 0.25, -r * 0.3, r * 0.4, r * 0.55);
+        coin.fill({ color: 0xFFFFFF, alpha: 0.55 });
+        coin.x = o.x;
+        coin.y = o.y;
+        this.celebrationFx.addChild(coin);
+
+        const angle = -Math.PI / 2 + (Math.random() - 0.5) * 1.1; // upward + spread
+        const speed = power * (0.65 + Math.random() * 0.7);
+        const vx = Math.cos(angle) * speed;
+        const vy = Math.sin(angle) * speed;
+        const gravity = 760;
+        const lifetime = 0.85 + Math.random() * 0.5;
+        const state = { t: 0 };
+        this.fxStateTargets.push(state);
+        gsap.to(state, {
+          t: lifetime,
+          duration: lifetime,
+          ease: 'none',
+          onUpdate: () => {
+            if (this._aborted) return;
+            coin.x = o.x + vx * state.t;
+            coin.y = o.y + vy * state.t + 0.5 * gravity * state.t * state.t;
+            coin.scale.x = Math.abs(Math.cos(state.t * 11)) * 0.85 + 0.15; // spin/flip
+          },
+        });
+        gsap.to(coin, { alpha: 0, duration: lifetime * 0.4, delay: lifetime * 0.6, ease: 'power1.in' });
+      }
+    }
+  }
+
+  // Force a renderer resize to match the canvas's parent element. Pixi's own
+  // `resizeTo` uses a ResizeObserver, which only fires when the observed
+  // element's size *changes* — so if the parent renders at its final size
+  // before init runs, the observer never fires and the renderer stays at the
+  // default 300×150 backing buffer. Call this after init and on every layout
+  // change to keep the buffer in sync. Safe to call before init (no-op).
+  public resize(): void {
+    if (!this._ready) return;
+    const parent = this.app.canvas.parentElement;
+    if (!parent) return;
+    const w = parent.clientWidth;
+    const h = parent.clientHeight;
+    if (w <= 0 || h <= 0) return;
+    this.app.renderer.resize(w, h);
+  }
+
+  /** Apply a whitelisted visual param live — the chat-config apply path. The
+   *  NL parser maps a prompt → (id, value) from ADJUSTABLE_PARAMS, then calls
+   *  this. Only declared params take effect; unknown ids are ignored. */
+  /** Wire click-to-edit: fires with the tapped board symbol's id (delegated to
+   *  ReelSet, which owns the board geometry). Pass undefined to disable. */
+  public setSymbolPickHandler(cb?: (symbolId: number) => void): void {
+    this.reelSet?.setSymbolPickHandler(cb);
+  }
+
+  public applyVisualParam(id: string, value: string | number | boolean): void {
+    if (!this.isLive) return;
+    switch (id) {
+      case 'winLineColor': {
+        const preset = WIN_LINE_PRESETS[String(value)];
+        if (preset) this.reelSet.setWinColors(preset.line, preset.frame);
+        break;
+      }
+      case 'winCoinColor': {
+        const preset = WIN_COIN_PRESETS[String(value)];
+        if (preset) this.winCoinColors = preset.colors;
+        break;
+      }
+      case 'ambientMotes': {
+        this.setAmbientEnabled(String(value) !== 'off');
+        break;
+      }
+      case 'reelSpeed': {
+        const v = String(value);
+        const mul = v === 'snappy' ? 1.7 : v === 'relaxed' ? 0.6 : 1.0;
+        this.reelSet.setReelSpeed(mul);
+        break;
+      }
+      case 'backgroundMood': {
+        const v = String(value);
+        this.setAmbientIntensity(v === 'vivid' ? 1.6 : v === 'subtle' ? 0.5 : 1.0);
+        break;
+      }
+      case 'titleColor': {
+        const preset = ACCENT_PRESETS[String(value)];
+        if (preset) { this.titleColorOverride = preset.color; this.styleTitle(); }
+        break;
+      }
+      case 'winBannerColor': {
+        const preset = ACCENT_PRESETS[String(value)];
+        if (preset) this.winBannerColorOverride = preset.color; // applied on the next win
+        break;
+      }
+      default:
+        break;
+    }
+  }
+
+  // Test-only: fire the win ceremony directly. Used by the dev harness
+  // (`src/dev/WinTierTestPanel.tsx`) so QA can verify each tier without having
+  // to land a real spin in that band. Production wins go through resolve().
+  public __testWin(
+    winAmount: bigint,
+    symbol: string,
+    decimals: number,
+    _label: string,
+    wager: bigint,
+  ): void {
+    // Dev harness: fire the coin-win ceremony (centre origins — no real board).
+    void this.playCoinWin(winAmount, wager, symbol, decimals, []);
+  }
+
+  /** Test-only: reveal a synthetic full-board (5-of-a-kind) win on the current
+   *  board — exercises the win-line + node dots, the 5-of-a-kind light sweep,
+   *  symbol enlarge-pulse + rim-light, and the count-up + coin ceremony. */
+  public __testLineWin(symbol: string, decimals: number, wager: bigint): void {
+    if (!this.isLive) return;
+    const reelCount = this.config.reelLengths.length;
+    const cells: [number, number][] = [];
+    for (let r = 0; r < reelCount; r++) cells.push([1, r]);
+    const winAmount = wager * 25n;
+    const outcome: SpinOutcome = {
+      stops: this.config.reelLengths.map(() => 0),
+      board: [],
+      winAmount,
+      wager,
+      scatterCount: 0,
+      freeSpinsTriggered: false,
+      freeSpinsPlayed: 0,
+      holdWinTriggered: false,
+      holdWinWin: 0n,
+      holdWin: null,
+      winResult: {
+        totalWin: winAmount,
+        combinations: [{ symbolId: 2, matchCount: reelCount, ways: 1, payBps: 0, winAmount, cells }],
+        scatterCount: 0,
+        scatterPaid: false,
+      },
+    };
+    void this.playWinSequence(outcome, symbol, decimals);
+  }
+
+  /** Test-only: run the full free-spins presentation — entry card ("FREE SPINS
+   *  ×N"), per-spin replay, win ceremony, and exit card ("FREE SPINS TOTAL"). */
+  public __testFreeSpins(symbol: string, decimals: number, wager: bigint, count = 8): void {
+    if (!this.isLive) return;
+    const reelCount = this.config.reelLengths.length;
+    const cells: [number, number][] = [];
+    for (let r = 0; r < reelCount; r++) cells.push([1, r]);
+    const winAmount = wager * 30n;
+    const outcome: SpinOutcome = {
+      stops: this.config.reelLengths.map(() => 0),
+      board: [],
+      winAmount,
+      wager,
+      scatterCount: 3,
+      freeSpinsTriggered: true,
+      freeSpinsPlayed: count,
+      holdWinTriggered: false,
+      holdWinWin: 0n,
+      holdWin: null,
+      winResult: {
+        totalWin: winAmount,
+        combinations: [{ symbolId: 2, matchCount: reelCount, ways: 1, payBps: 0, winAmount, cells }],
+        scatterCount: 0,
+        scatterPaid: false,
+      },
+    };
+    void this.resolve(outcome, symbol, decimals);
+  }
+
+  /** Test-only: play a Hold & Win round on the board with a synthetic set of
+   *  trigger coins, so the debug panel can preview the lock/respin/collect
+   *  presentation regardless of whether the current reels carry coin symbols. */
+  public __testHoldAndWin(): void {
+    if (!this.isLive) return;
+    const size = this.grid.reelCount * this.grid.visibleRows;
+    const want = Math.min(Math.max(HW_TRIGGER_MIN, 6), size);
+    const idxs: number[] = [];
+    while (idxs.length < want) {
+      const i = Math.floor(Math.random() * size);
+      if (!idxs.includes(i)) idxs.push(i);
+    }
+    const rb = crypto.getRandomValues(new Uint8Array(32));
+    let seed = 0n;
+    for (const b of rb) seed = (seed << 8n) | BigInt(b);
+    const round = playDeterministicHoldAndWin(seed, idxs, size);
+    void this.reelSet.playHoldAndWin(round, {
+      accent: this.config.theme.accent,
+      turbo: this.turbo,
+      reduced: prefersReducedMotion(),
+      isLive: () => this.isLive,
+    });
+  }
+
+  /** Test-only: force a near-miss anticipation tease — lands a single scatter
+   *  on reels 0 and 1 (2 total → no FS trigger), so the remaining reels
+   *  decelerate dramatically. Exercises the anticipation slow-down + tease cue. */
+  public __testNearMiss(): void {
+    if (!this.isLive) return;
+    const SCATTER = 1;
+    const rows = this.grid.visibleRows;
+    const strips = this.config.reelStrips;
+    const lens = this.config.reelLengths;
+    const visibleScatters = (reel: number, stop: number): number => {
+      const strip = strips[reel];
+      const len = lens[reel];
+      let n = 0;
+      for (let r = 0; r < rows; r++) if (strip[(stop + r) % len] === SCATTER) n++;
+      return n;
+    };
+    const findStop = (reel: number, want: number): number => {
+      const len = lens[reel];
+      for (let s = 0; s < len; s++) if (visibleScatters(reel, s) === want) return s;
+      return 0;
+    };
+    const stops = lens.map((_, r) => findStop(r, r < 2 ? 1 : 0));
+    this.reelSet.startSpin();
+    void (async () => {
+      await new Promise(res => setTimeout(res, 400));
+      if (this.isLive) await this.reelSet.stopOnStops(stops, false, true); // force tease — a demo must show it regardless of the per-game gate
+    })();
+  }
+
+  /** Destroy and refresh the celebration FX container so sparks/coins/glow
+   *  from a previous win don't leak into the next one. */
+  private clearCelebrationFx(): void {
+    if (this.celebrationFx) {
+      gsap.killTweensOf(this.celebrationFx.children);
+      // Kill the off-graph spark-motion proxies too (not reachable via children).
+      for (const target of this.fxStateTargets) gsap.killTweensOf(target);
+      this.fxStateTargets.length = 0;
+      this.celebrationFx.destroy({ children: true });
+    }
+    this.celebrationFx = new Container();
+    // Re-insert just below the banner so banner stays on top.
+    const bannerIndex = this.sceneRoot.children.indexOf(this.winBanner);
+    if (bannerIndex >= 0) {
+      this.sceneRoot.addChildAt(this.celebrationFx, bannerIndex);
+    } else {
+      this.sceneRoot.addChild(this.celebrationFx);
+    }
+  }
+
+  /** Live toggle for the ambient mote layer (chat-config `ambientMotes`).
+   *  Idempotent: tears down any existing layer first, then optionally respawns.
+   *  Mirrors the ambient teardown in destroy(). */
+  private setAmbientEnabled(on: boolean): void {
+    for (const tl of this.ambientTweens) tl.kill();
+    this.ambientTweens.length = 0;
+    if (this.ambientLayer) {
+      try { this.ambientLayer.destroy({ children: true }); } catch { /* torn down */ }
+      this.ambientLayer = null;
+    }
+    if (on && this.isLive) this.spawnAmbientMotes();
+  }
+
+  /** Ambient drifting "dust" motes over the reel area — subtle atmosphere so
+   *  the idle board feels alive. Low count (~16) → GSAP-driven Graphics is the
+   *  right tool (native ParticleContainer is for high-count bursts). Gated by
+   *  reduced-motion; tweens tracked for teardown. */
+  private spawnAmbientMotes(): void {
+    if (!this.reelSet || prefersReducedMotion()) return;
+    const rw = this.reelSet.totalWidth + FRAME_PAD * 2;
+    const rh = this.reelSet.totalHeight + FRAME_PAD * 2;
+    const layer = new Container();
+    layer.eventMode = 'none';
+    this.ambientLayer = layer;
+    this.gameContainer.addChild(layer);
+
+    const tints = [0xFFE082, 0xFFFFFF, this.config.theme.accent];
+    const count = 16;
+    for (let i = 0; i < count; i++) {
+      const m = new Graphics();
+      const col = tints[i % tints.length];
+      const baseR = 2 + (i % 3);
+      for (let k = 4; k >= 1; k--) m.circle(0, 0, baseR * k * 0.7).fill({ color: col, alpha: 0.12 });
+      m.alpha = 0;
+      layer.addChild(m);
+      this.animateMote(m, rw, rh, i);
+    }
+
+    // Living background: a slow alpha breathe on the glow layers so the stage
+    // isn't static behind the reels (tracked in ambientTweens for teardown).
+    const breathe = gsap.timeline({ repeat: -1, yoyo: true });
+    breathe.to(this.ambientGraphic, { alpha: 0.78, duration: 4.5, ease: 'sine.inOut' }, 0);
+    breathe.to(this.ambient2Graphic, { alpha: 0.80, duration: 3.6, ease: 'sine.inOut' }, 0);
+    this.ambientTweens.push(breathe);
+  }
+
+  /** One drifting mote: rises bottom→top with a gentle sway, fading in then
+   *  out, looping forever with a per-mote offset. Display-only randomness via
+   *  the index (no Math.random in any path). */
+  private animateMote(m: Graphics, rw: number, rh: number, i: number): void {
+    const startX = (i * 53) % rw;
+    const dur = 7 + (i % 6);
+    const sway = 14 + (i % 4) * 8;
+    const tl = gsap.timeline({ repeat: -1, delay: (i % 9) * 0.6 });
+    tl.set(m, { x: startX, y: rh + 20, alpha: 0 })
+      .to(m, { alpha: 0.22, duration: dur * 0.3, ease: 'sine.in' }, 0)
+      .to(m, { y: -20, duration: dur, ease: 'none' }, 0)
+      .to(m, { x: startX + sway, duration: dur / 2, yoyo: true, repeat: 1, ease: 'sine.inOut' }, 0)
+      .to(m, { alpha: 0, duration: dur * 0.3, ease: 'sine.out' }, dur * 0.7);
+    this.ambientTweens.push(tl);
+  }
+
+  /** A quick full-scene flash (mega-win peak / free-spins trigger). Lives in
+   *  celebrationFx (above the reels), self-destructs, and is cleared with the
+   *  rest of the celebration FX on the next spin / destroy. */
+  private spawnFlash(color: number, maxAlpha: number, fadeSec: number): void {
+    if (!this.reelSet || !this.isLive) return;
+    const rw = this.reelSet.totalWidth + FRAME_PAD * 2;
+    const rh = this.reelSet.totalHeight + FRAME_PAD * 2;
+    const totalH = HEADER_H + rh + FOOTER_H;
+    const flash = new Graphics();
+    flash.rect(-rw, -totalH, rw * 3, totalH * 3);
+    flash.fill({ color, alpha: 1 });
+    flash.alpha = 0;
+    this.celebrationFx.addChild(flash);
+    gsap.to(flash, {
+      alpha: maxAlpha, duration: 0.06, ease: 'power2.out',
+      onComplete: () => {
+        gsap.to(flash, {
+          alpha: 0, duration: fadeSec, ease: 'power2.in',
+          onComplete: () => { try { flash.destroy(); } catch { /* torn down */ } },
+        });
+      },
+    });
+  }
+
+  /** Concentric shock-wave rings expanding from the grid centre — punctuates
+   *  the free-spins trigger (gridEffects: `fs-trigger-shock`). Centre-anchored
+   *  because the triggering board isn't displayed at the trigger instant (the
+   *  engine reveals the final board on the last free-spin step). Cosmetic;
+   *  lives in celebrationFx and is cleared with the rest of the FX. */
+  private spawnShockwave(): void {
+    if (!this.reelSet || !this.isLive || prefersReducedMotion()) return;
+    const rw = this.reelSet.totalWidth + FRAME_PAD * 2;
+    const rh = this.reelSet.totalHeight + FRAME_PAD * 2;
+    const cx = FRAME_PAD + this.reelSet.totalWidth / 2;
+    const cy = HEADER_H + FRAME_PAD + this.reelSet.totalHeight / 2;
+    const maxR = Math.hypot(rw, rh) / 2;
+    for (let k = 0; k < 3; k++) {
+      const ring = new Graphics();
+      ring.circle(0, 0, 1);
+      ring.stroke({ color: 0xFFD23F, width: 3, alpha: 1 });
+      ring.position.set(cx, cy);
+      ring.alpha = 0;
+      this.celebrationFx.addChild(ring);
+      const state = { t: 0 };
+      this.fxStateTargets.push(state);
+      gsap.to(state, {
+        t: 1,
+        duration: 0.7,
+        delay: k * 0.14,
+        ease: 'power2.out',
+        onUpdate: () => {
+          if (this._aborted || ring.destroyed) return;
+          ring.scale.set(Math.max(0.01, state.t * maxR));
+          ring.alpha = state.t < 0.12 ? (state.t / 0.12) * 0.85 : 0.85 * (1 - (state.t - 0.12) / 0.88);
+        },
+        onComplete: () => { try { ring.destroy(); } catch { /* torn down */ } },
+      });
+    }
+  }
+
+  /** Jackpot punctuation (gridEffects: `jackpot-full-flash`) — a strong
+   *  full-grid white flash plus a shower of golden sparkles, layered over the
+   *  mega treatment for the top (epic) win tier only. Cosmetic, self-cleaning.
+   *  Index-driven placement (no Math.random in any path). */
+  private spawnJackpotFlash(): void {
+    if (!this.reelSet || !this.isLive || prefersReducedMotion()) return;
+    this.spawnFlash(0xFFFFFF, 0.7, 0.6);
+    const rw = this.reelSet.totalWidth + FRAME_PAD * 2;
+    const rh = this.reelSet.totalHeight + FRAME_PAD * 2;
+    const top = HEADER_H + FRAME_PAD;
+    const colors = [0xFFD23F, 0xFFE082, 0xFFFFFF];
+    const count = 36;
+    for (let i = 0; i < count; i++) {
+      const star = new Graphics();
+      const r = 3 + (i % 4);
+      star.star(0, 0, 5, r, r * 0.45);
+      star.fill({ color: colors[i % colors.length] });
+      const sx = FRAME_PAD + (i * 97) % rw;
+      const sy = top + (i * 53) % Math.max(1, Math.floor(rh * 0.45));
+      star.position.set(sx, sy);
+      star.alpha = 0;
+      this.celebrationFx.addChild(star);
+      const state = { t: 0 };
+      this.fxStateTargets.push(state);
+      const fall = rh * (0.45 + (i % 5) * 0.1);
+      const dur = 1.0 + (i % 5) * 0.18;
+      gsap.to(state, {
+        t: 1,
+        duration: dur,
+        delay: (i % 6) * 0.05,
+        ease: 'power1.in',
+        onUpdate: () => {
+          if (this._aborted || star.destroyed) return;
+          star.y = sy + state.t * fall;
+          star.alpha = state.t < 0.1 ? state.t / 0.1 : Math.max(0, (1 - state.t) * 1.1);
+          star.rotation = state.t * 6;
+        },
+        onComplete: () => { try { star.destroy(); } catch { /* torn down */ } },
+      });
+    }
+  }
+
+  /** Full-scene dim overlay that fades in at win start and out at exit.
+   *  Drops everything behind the banner to ~35% brightness so the
+   *  celebration reads against the reels. Sized to cover the reel + frame
+   *  area generously — it lives in sceneRoot, so it shares the scene scale. */
+  private spawnBackgroundDim(holdSeconds: number, maxAlpha = 0.55): void {
+    if (!this.reelSet) return;
+    const rw = this.reelSet.totalWidth + FRAME_PAD * 2;
+    const rh = this.reelSet.totalHeight + FRAME_PAD * 2;
+    const totalH = HEADER_H + rh + FOOTER_H;
+
+    const dim = new Graphics();
+    // Drawn 2× the scene to overhang the edges even after shake offsets.
+    dim.rect(-rw, -totalH, rw * 3, totalH * 3);
+    dim.fill({ color: 0x000000, alpha: 1 });
+    dim.alpha = 0;
+    this.celebrationFx.addChild(dim);
+
+    gsap.to(dim, { alpha: maxAlpha, duration: 0.3 });
+    gsap.to(dim, {
+      alpha: 0,
+      duration: 0.4,
+      delay: Math.max(holdSeconds - 0.4, 0.4),
+    });
+  }
+
+  /** Center-anchored "punch" zoom on the whole scene — a quick scale-up that
+   *  springs back, for big-win impact. The responsive sceneRoot carries a base
+   *  scale + centering offset (see onResize), so we scale relative to that base
+   *  AND re-derive the centering position at each keyframe; scaling naively
+   *  would drift the scene toward a corner. A final onResize() restores exact
+   *  layout in case the viewport changed mid-punch. */
+  private addZoomPunch(tl: gsap.core.Timeline, atTime: number, factor: number): void {
+    if (!this.reelSet) return;
+    const { width, height } = this.app.screen;
+    const totalW = this.reelSet.totalWidth + FRAME_PAD * 2;
+    const totalH = HEADER_H + this.reelSet.totalHeight + FRAME_PAD * 2 + FOOTER_H;
+    const base = this.sceneRoot.scale.x;
+    const punched = base * factor;
+    const xAt = (s: number) => Math.round((width - totalW * s) / 2);
+    const yAt = (s: number) => Math.round((height - totalH * s) / 2);
+    tl.to(this.sceneRoot.scale, { x: punched, y: punched, duration: 0.12, ease: 'power2.out' }, atTime)
+      .to(this.sceneRoot, { x: xAt(punched), y: yAt(punched), duration: 0.12, ease: 'power2.out' }, atTime)
+      .to(this.sceneRoot.scale, { x: base, y: base, duration: 0.55, ease: 'elastic.out(1, 0.55)' }, atTime + 0.12)
+      .to(this.sceneRoot, { x: xAt(base), y: yAt(base), duration: 0.55, ease: 'elastic.out(1, 0.55)' }, atTime + 0.12)
+      .call(() => { if (!this._aborted) this.onResize(); }, undefined, atTime + 0.72);
+  }
+
+  /** Show a free-spin visual overlay: tinted ambient glow shift + counter badge.
+   *  Returns a handle so the caller can update the counter and hide it. */
+  private showFreeSpinOverlay(totalSpins: number): { container: Container; counter: Text } {
+    const rw = this.reelSet.totalWidth + FRAME_PAD * 2;
+    const rh = this.reelSet.totalHeight + FRAME_PAD * 2;
+
+    const fsContainer = new Container();
+    this.sceneRoot.addChild(fsContainer);
+
+    // Tinted glow behind the frame — purple/gold free-spin aura
+    const aura = new Graphics();
+    aura.ellipse(rw / 2, HEADER_H + rh / 2, rw * 0.6, rh * 0.7);
+    aura.fill({ color: 0xFFD700, alpha: 0.06 });
+    aura.ellipse(rw / 2, HEADER_H + rh / 2, rw * 0.4, rh * 0.5);
+    aura.fill({ color: 0x9C27B0, alpha: 0.05 });
+    fsContainer.addChild(aura);
+
+    // Counter badge at top
+    const counter = new Text({
+      text: `FREE SPIN 1 / ${totalSpins}`,
+      style: new TextStyle({
+        fontFamily: "'Rubik', ui-sans-serif, system-ui, sans-serif",
+        fontSize: 14,
+        fontWeight: '700',
+        fill: 0xFFD700,
+        letterSpacing: 2,
+        dropShadow: { color: 0x000000, blur: 4, distance: 0, alpha: 0.6 },
+      }),
+    });
+    counter.anchor.set(0.5, 0);
+    counter.x = rw / 2;
+    counter.y = HEADER_H - 20;
+    fsContainer.addChild(counter);
+
+    // Animate in
+    fsContainer.alpha = 0;
+    gsap.to(fsContainer, { alpha: 1, duration: 0.3 });
+
+    // Pulse the aura gently
+    gsap.to(aura, {
+      alpha: 0.03,
+      duration: 0.8,
+      ease: 'sine.inOut',
+      yoyo: true,
+      repeat: -1,
+    });
+
+    return { container: fsContainer, counter };
+  }
+
+  private hideFreeSpinOverlay(overlay: { container: Container; counter: Text }): void {
+    gsap.killTweensOf(overlay.container.children);
+    gsap.to(overlay.container, {
+      alpha: 0,
+      duration: 0.4,
+      onComplete: () => {
+        overlay.container.destroy({ children: true });
+      },
+    });
+  }
+
+  snapToOutcome(outcome: SpinOutcome) {
+    if (!this.isLive) return;
+    this.reelSet.snapToStops(outcome.stops);
+    if (outcome.winAmount > 0n) {
+      this.reelSet.highlightWins(outcome.winResult);
+    }
+  }
+
+  skip() {
+    if (!this.isLive) return;
+    this.reelSet.skipSpin();
+  }
+
+  destroy() {
+    this._aborted = true;
+    this._ready = false;
+
+    // Kill outstanding banner / win-number tweens before tearing the stage down.
+    gsap.killTweensOf(this.winBanner);
+    gsap.killTweensOf(this.winBanner.scale);
+    gsap.killTweensOf(this.winNumberText);
+    gsap.killTweensOf(this.winNumberText.scale);
+    gsap.killTweensOf(this.sceneRoot);
+
+    // Kill any in-flight celebration FX tweens — including the off-graph
+    // spark-motion proxies — so nothing keeps ticking against the destroyed
+    // scene graph after app.destroy().
+    if (this.celebrationFx) gsap.killTweensOf(this.celebrationFx.children);
+    for (const target of this.fxStateTargets) gsap.killTweensOf(target);
+    this.fxStateTargets.length = 0;
+
+    // Kill an in-flight transition card (FREE SPINS entry/exit) before teardown.
+    if (this.transitionCardTl) { this.transitionCardTl.kill(); this.transitionCardTl = null; }
+    if (this.transitionCard) {
+      gsap.killTweensOf(this.transitionCard);
+      gsap.killTweensOf(this.transitionCard.scale);
+      try { this.transitionCard.destroy({ children: true }); } catch { /* already torn down */ }
+      this.transitionCard = null;
+    }
+
+    // Stop the ambient mote loops + drop the layer.
+    for (const tl of this.ambientTweens) tl.kill();
+    this.ambientTweens.length = 0;
+    if (this.ambientLayer) {
+      try { this.ambientLayer.destroy({ children: true }); } catch { /* already torn down */ }
+      this.ambientLayer = null;
+    }
+
+    // If reelSet was constructed, dispose its tweens + cancel pending
+    // callbacks before destroying the Pixi scene graph — otherwise GSAP
+    // keeps ticking on destroyed containers.
+    if (this.reelSet) {
+      this.reelSet.dispose();
+    }
+
+    // Destroy the background image (sprite + texture).
+    this.clearBackgroundImage();
+
+    // Destroy user-asset textures we created.
+    const userAssets = this.config.theme.userAssetTextures;
+    if (userAssets) {
+      for (const tex of userAssets.values()) {
+        try {
+          tex.destroy(true);
+        } catch {
+          /* already torn down */
+        }
+      }
+      this.config.theme.userAssetTextures = undefined;
+    }
+    // Destroy lucide cache textures (also clears the cache).
+    void disposeLucideTextureCache(this.lucideCache);
+    this.config.theme.iconTextures = undefined;
+
+    if (this._initialized) {
+      this._initialized = false;
+      // children: true → recursively destroy scene-graph containers/sprites
+      // (catches anything not torn down explicitly above).
+      this.app.destroy({ removeView: false }, { children: true });
+    }
+  }
+}
+
+/** Downscale a data-URL image if either dimension exceeds `max` pixels.
+ *  Returns the original URL if already within bounds. Uses an offscreen
+ *  canvas to resize — this keeps GPU texture uploads small and prevents
+ *  GL context loss on constrained devices. */
+async function constrainImageSize(dataUrl: string, max: number): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      if (img.width <= max && img.height <= max) {
+        resolve(dataUrl);
+        return;
+      }
+      const scale = max / Math.max(img.width, img.height);
+      const w = Math.round(img.width * scale);
+      const h = Math.round(img.height * scale);
+      const canvas = document.createElement('canvas');
+      canvas.width = w;
+      canvas.height = h;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) { resolve(dataUrl); return; }
+      ctx.drawImage(img, 0, 0, w, h);
+      resolve(canvas.toDataURL('image/png'));
+    };
+    img.onerror = () => reject(new Error('Failed to decode uploaded image'));
+    img.src = dataUrl;
+  });
+}
+
+function formatWin(amount: bigint, decimals: number): string {
+  const divisor = 10n ** BigInt(decimals);
+  const whole = amount / divisor;
+  const frac = amount % divisor;
+  // Round to 2 decimal places
+  const scale = 10n ** BigInt(decimals - 2);
+  const rounded = (frac + scale / 2n) / scale;
+  const fracStr = rounded.toString().padStart(2, '0');
+  return `${whole}.${fracStr}`;
 }

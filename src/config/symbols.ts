@@ -1,76 +1,118 @@
-// symbols.ts — canonical symbol IDs. MUST match the SymbolId enum used by the
-// on-chain contract (SlotGame.sol) and the dev generator's src/config/symbols.ts.
-// IDs are frozen: WILD=0 … COIN=9.
-
-export enum SymbolId {
-  WILD = 0,
-  SCATTER = 1,
-  HIGH_A = 2,
-  HIGH_B = 3,
-  MID_C = 4,
-  MID_D = 5,
-  LOW_E = 6,
-  LOW_F = 7,
-  LOW_G = 8,
-  COIN = 9, // Hold & Win money symbol
-}
+// Symbol definitions — IDs must match the Solidity contract exactly.
+// Art assets are placeholders until the creative team delivers finals.
 
 export const SYMBOL_COUNT = 10;
 
-export type SymbolKind = 'wild' | 'scatter' | 'high' | 'mid' | 'royal' | 'coin';
+export const SymbolId = {
+  WILD:    0,
+  SCATTER: 1,
+  HIGH_A:  2, // highest paying regular
+  HIGH_B:  3,
+  MID_C:   4,
+  MID_D:   5,
+  LOW_E:   6,
+  LOW_F:   7,
+  LOW_G:   8, // lowest paying regular
+  COIN:    9, // money symbol — inert in the base game, triggers Hold & Win at 6+
+} as const;
 
-/** Kind per symbol — drives per-kind base scale + win-pop factor. */
-export const SYMBOL_KIND: Record<SymbolId, SymbolKind> = {
-  [SymbolId.WILD]: 'wild',
-  [SymbolId.SCATTER]: 'scatter',
-  [SymbolId.HIGH_A]: 'high',
-  [SymbolId.HIGH_B]: 'high',
-  [SymbolId.MID_C]: 'mid',
-  [SymbolId.MID_D]: 'mid',
-  [SymbolId.LOW_E]: 'royal',
-  [SymbolId.LOW_F]: 'royal',
-  [SymbolId.LOW_G]: 'royal',
-  [SymbolId.COIN]: 'coin',
+export type SymbolIdType = (typeof SymbolId)[keyof typeof SymbolId];
+
+export interface SymbolDef {
+  id: SymbolIdType;
+  key: string;
+  label: string;
+  /** Placeholder hex color until art assets are provided */
+  placeholderColor: number;
+  isWild: boolean;
+  isScatter: boolean;
+  /** Money/coin symbol — counts toward the Hold & Win trigger (6+ on board),
+   *  inert for line wins otherwise. */
+  isMoney?: boolean;
+}
+
+export const SYMBOLS: Record<SymbolIdType, SymbolDef> = {
+  [SymbolId.WILD]: {
+    id: SymbolId.WILD,
+    key: 'wild',
+    label: 'W',
+    placeholderColor: 0xF8D84C,
+    isWild: true,
+    isScatter: false,
+  },
+  [SymbolId.SCATTER]: {
+    id: SymbolId.SCATTER,
+    key: 'scatter',
+    label: 'S',
+    placeholderColor: 0x5BE8F0,
+    isWild: false,
+    isScatter: true,
+  },
+  [SymbolId.HIGH_A]: {
+    id: SymbolId.HIGH_A,
+    key: 'high_a',
+    label: 'A',
+    placeholderColor: 0xE8443A,
+    isWild: false,
+    isScatter: false,
+  },
+  [SymbolId.HIGH_B]: {
+    id: SymbolId.HIGH_B,
+    key: 'high_b',
+    label: 'B',
+    placeholderColor: 0xF08C38,
+    isWild: false,
+    isScatter: false,
+  },
+  [SymbolId.MID_C]: {
+    id: SymbolId.MID_C,
+    key: 'mid_c',
+    label: 'C',
+    placeholderColor: 0x8B7CF6,
+    isWild: false,
+    isScatter: false,
+  },
+  [SymbolId.MID_D]: {
+    id: SymbolId.MID_D,
+    key: 'mid_d',
+    label: 'D',
+    placeholderColor: 0x6252CC,
+    isWild: false,
+    isScatter: false,
+  },
+  [SymbolId.LOW_E]: {
+    id: SymbolId.LOW_E,
+    key: 'low_e',
+    label: 'E',
+    placeholderColor: 0x34D399,
+    isWild: false,
+    isScatter: false,
+  },
+  [SymbolId.LOW_F]: {
+    id: SymbolId.LOW_F,
+    key: 'low_f',
+    label: 'F',
+    placeholderColor: 0x4A9EF5,
+    isWild: false,
+    isScatter: false,
+  },
+  [SymbolId.LOW_G]: {
+    id: SymbolId.LOW_G,
+    key: 'low_g',
+    label: 'G',
+    placeholderColor: 0x4A5568,
+    isWild: false,
+    isScatter: false,
+  },
+  [SymbolId.COIN]: {
+    id: SymbolId.COIN,
+    key: 'coin',
+    label: '$',
+    placeholderColor: 0xFFC93C,
+    isWild: false,
+    isScatter: false,
+    isMoney: true,
+  },
 };
 
-/** Base render scale (× cell) per kind — neutral generator defaults. Tune via a
- *  theme/animation preset; nothing here is tuned to any specific game. */
-export const BASE_SCALE_PER_KIND: Record<SymbolKind, number> = {
-  royal: 0.92,
-  mid: 1.0,
-  high: 1.0,
-  wild: 1.0,
-  scatter: 1.1,
-  coin: 1.0,
-};
-
-/** Win-pop overshoot factor per kind — neutral defaults (premiums pop a touch harder). */
-export const POP_FACTOR_PER_KIND: Record<SymbolKind, number> = {
-  scatter: 1.28,
-  wild: 1.26,
-  high: 1.25,
-  mid: 1.22,
-  royal: 1.2,
-  coin: 1.24,
-};
-
-export const ALL_SYMBOL_IDS: SymbolId[] = [
-  SymbolId.WILD,
-  SymbolId.SCATTER,
-  SymbolId.HIGH_A,
-  SymbolId.HIGH_B,
-  SymbolId.MID_C,
-  SymbolId.MID_D,
-  SymbolId.LOW_E,
-  SymbolId.LOW_F,
-  SymbolId.LOW_G,
-  SymbolId.COIN,
-];
-
-export const isWild = (s: number): boolean => s === SymbolId.WILD;
-export const isScatter = (s: number): boolean => s === SymbolId.SCATTER;
-export const isCoin = (s: number): boolean => s === SymbolId.COIN;
-
-export const kindOf = (s: number): SymbolKind => SYMBOL_KIND[s as SymbolId] ?? 'mid';
-export const baseScaleOf = (s: number): number => BASE_SCALE_PER_KIND[kindOf(s)];
-export const popFactorOf = (s: number): number => POP_FACTOR_PER_KIND[kindOf(s)];
+export const SYMBOL_LIST = Object.values(SYMBOLS);

@@ -1,173 +1,244 @@
-// audio/SoundManager.ts — Layer 11. Procedural Web-Audio synth for every cue in
-// the registry (no asset files needed; auto-upgrades to OGG later if wired).
-// Browsers block audio until a gesture → call unlock() on first click.
+// SoundManager — thin wrapper around Howler.js mapping our sound-event
+// registry IDs to playable Howl instances.
+//
+// Design goals:
+//   - Single audio context shared across all events (Howler's default).
+//   - Per-event default volume + master volume + mute, all persisted.
+//   - Graceful degradation: missing files log but never throw, so the engine
+//     still runs silent if audio assets aren't present.
+//   - Web Audio gesture gate handled by Howler automatically; we don't try
+//     to play anything until the player presses Spin (which counts as a
+//     gesture in every browser).
+//
+// Sound paths are configured per-game via SoundManagerConfig so generated
+// games (with their own asset packs) can swap them without code changes.
 
-import type { SoundEventEntry } from '../registries/types';
+import { Howl } from 'howler';
+
+export interface SoundEventBinding {
+  /** Sound-event registry ID (e.g. 'spin-start'). */
+  id: string;
+  /** Source URL(s). Howler picks the first format the browser supports. */
+  src: string[];
+  /** Per-event default volume 0–1 (multiplied by master volume). */
+  volume: number;
+  /** Whether to loop. Use for ambient music. */
+  loop?: boolean;
+  /**
+   * If true, calling play() while already playing replaces the previous
+   * sound (useful for ambient music). Defaults to false (overlap).
+   */
+  exclusive?: boolean;
+}
+
+export interface SoundManagerConfig {
+  events: SoundEventBinding[];
+  initialVolume: number;
+  initialMuted: boolean;
+}
+
+const STORAGE_KEY = 'slot:audio-prefs';
+
+interface PersistedPrefs {
+  volume: number;
+  muted: boolean;
+}
+
+function loadPrefs(): PersistedPrefs | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = window.localStorage.getItem(STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Partial<PersistedPrefs>;
+    if (typeof parsed.volume === 'number' && typeof parsed.muted === 'boolean') {
+      return { volume: parsed.volume, muted: parsed.muted };
+    }
+  } catch {
+    /* ignore corrupt prefs */
+  }
+  return null;
+}
+
+function savePrefs(prefs: PersistedPrefs): void {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(prefs));
+  } catch {
+    /* ignore quota errors */
+  }
+}
 
 export class SoundManager {
-  private ctx: AudioContext | null = null;
-  private master: GainNode | null = null;
-  private loops = new Map<string, { stop: () => void }>();
-  private _muted = false;
-  private _volume = 0.6;
+  private howls = new Map<string, Howl>();
+  private bindings = new Map<string, SoundEventBinding>();
+  private exclusivePlaying = new Map<string, number>(); // eventId → soundId
+  private _volume: number;
+  private _muted: boolean;
+  private listeners = new Set<() => void>();
 
-  unlock(): void {
-    if (!this.ctx) {
+  constructor(config: SoundManagerConfig) {
+    const prefs = loadPrefs();
+    this._volume = prefs?.volume ?? config.initialVolume;
+    this._muted = prefs?.muted ?? config.initialMuted;
+
+    for (const binding of config.events) {
+      this.bindings.set(binding.id, binding);
       try {
-        const Ctor = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-        this.ctx = new Ctor();
-        this.master = this.ctx.createGain();
-        this.master.gain.value = this._muted ? 0 : this._volume;
-        this.master.connect(this.ctx.destination);
-      } catch {
-        this.ctx = null;
+        const howl = new Howl({
+          src: binding.src,
+          loop: binding.loop ?? false,
+          volume: binding.volume * this._volume,
+          mute: this._muted,
+          onloaderror: (_id, err) => {
+            // Do not throw — game must keep running silently.
+            console.warn(`[audio] failed to load '${binding.id}':`, err);
+          },
+        });
+        this.howls.set(binding.id, howl);
+      } catch (err) {
+        console.warn(`[audio] failed to construct Howl for '${binding.id}':`, err);
       }
     }
-    if (this.ctx?.state === 'suspended') void this.ctx.resume();
   }
 
-  setMuted(m: boolean): void {
-    this._muted = m;
-    if (this.master) this.master.gain.value = m ? 0 : this._volume;
+  /** Play a sound by registry ID. No-op if the binding is missing. */
+  play(eventId: string): void {
+    const howl = this.howls.get(eventId);
+    const binding = this.bindings.get(eventId);
+    if (!howl || !binding) return;
+
+    if (binding.exclusive) {
+      const prev = this.exclusivePlaying.get(eventId);
+      if (prev !== undefined && howl.playing(prev)) {
+        // Already playing — leave it alone.
+        return;
+      }
+      const id = howl.play();
+      this.exclusivePlaying.set(eventId, id);
+    } else {
+      howl.play();
+    }
   }
-  isMuted(): boolean {
+
+  /** Stop a sound (typically used for looping ambient music). */
+  stop(eventId: string): void {
+    const howl = this.howls.get(eventId);
+    if (!howl) return;
+    howl.stop();
+    this.exclusivePlaying.delete(eventId);
+  }
+
+  /**
+   * Swap the source URL(s) of an existing event at runtime. Used by the
+   * sound-swap UI to preview / commit user-uploaded replacements without
+   * rebuilding the manager. The previous Howl is unloaded; the new one
+   * inherits the same volume / loop / exclusive flags from the original
+   * binding. Returns false if the event ID is unknown.
+   */
+  replaceSource(eventId: string, src: string[]): boolean {
+    const binding = this.bindings.get(eventId);
+    if (!binding) return false;
+
+    const prev = this.howls.get(eventId);
+    if (prev) {
+      try {
+        prev.stop();
+        prev.unload();
+      } catch {
+        /* ignore */
+      }
+    }
+
+    const nextBinding: SoundEventBinding = { ...binding, src };
+    this.bindings.set(eventId, nextBinding);
+    this.exclusivePlaying.delete(eventId);
+
+    try {
+      const howl = new Howl({
+        src,
+        loop: nextBinding.loop ?? false,
+        volume: nextBinding.volume * this._volume,
+        mute: this._muted,
+        onloaderror: (_id, err) => {
+          console.warn(`[audio] failed to load '${eventId}':`, err);
+        },
+      });
+      this.howls.set(eventId, howl);
+      return true;
+    } catch (err) {
+      console.warn(`[audio] failed to construct Howl for '${eventId}':`, err);
+      this.howls.delete(eventId);
+      return false;
+    }
+  }
+
+  stopAll(): void {
+    for (const howl of this.howls.values()) {
+      howl.stop();
+    }
+    this.exclusivePlaying.clear();
+  }
+
+  /** Set master volume 0–1. Persists to localStorage. */
+  setVolume(v: number): void {
+    const clamped = Math.max(0, Math.min(1, v));
+    this._volume = clamped;
+    for (const [id, howl] of this.howls) {
+      const binding = this.bindings.get(id);
+      if (!binding) continue;
+      howl.volume(binding.volume * clamped);
+    }
+    this.persist();
+    this.notify();
+  }
+
+  setMuted(muted: boolean): void {
+    this._muted = muted;
+    for (const howl of this.howls.values()) {
+      howl.mute(muted);
+    }
+    this.persist();
+    this.notify();
+  }
+
+  toggleMuted(): void {
+    this.setMuted(!this._muted);
+  }
+
+  get volume(): number {
+    return this._volume;
+  }
+
+  get muted(): boolean {
     return this._muted;
   }
-  setVolume(v: number): void {
-    this._volume = v;
-    if (this.master && !this._muted) this.master.gain.value = v;
+
+  /** Subscribe to state changes (volume/muted). Returns an unsubscribe. */
+  subscribe(listener: () => void): () => void {
+    this.listeners.add(listener);
+    return () => this.listeners.delete(listener);
   }
 
-  play(entry: SoundEventEntry, pitchMul = 1): void {
-    if (!this.ctx || !this.master || this._muted) return;
-    if (entry.loop) {
-      this.startLoop(entry);
-      return;
-    }
-    const now = this.ctx.currentTime;
-    this.oneShot(entry, entry.synth.freq ? entry.synth.freq * pitchMul : undefined, now);
-  }
-
-  private oneShot(entry: SoundEventEntry, freqOverride: number | undefined, t0: number): void {
-    const ctx = this.ctx!;
-    const dur = (entry.synth.durationMs ?? 200) / 1000;
-    const gain = ctx.createGain();
-    gain.connect(this.master!);
-    const vol = entry.volume;
-    const f = freqOverride ?? entry.synth.freq ?? 440;
-
-    switch (entry.synth.type) {
-      case 'noise':
-      case 'thud': {
-        const osc = ctx.createOscillator();
-        osc.type = entry.synth.type === 'thud' ? 'sine' : 'square';
-        osc.frequency.setValueAtTime(f, t0);
-        if (entry.synth.type === 'thud') osc.frequency.exponentialRampToValueAtTime(Math.max(40, f * 0.4), t0 + dur);
-        gain.gain.setValueAtTime(vol, t0);
-        gain.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
-        osc.connect(gain);
-        osc.start(t0);
-        osc.stop(t0 + dur + 0.02);
-        break;
-      }
-      case 'sweep':
-      case 'riser':
-      case 'wobble': {
-        const osc = ctx.createOscillator();
-        osc.type = entry.synth.type === 'riser' ? 'sawtooth' : 'triangle';
-        const to = entry.synth.freqTo ?? f * 2;
-        osc.frequency.setValueAtTime(f, t0);
-        osc.frequency.exponentialRampToValueAtTime(Math.max(40, to), t0 + dur);
-        gain.gain.setValueAtTime(0.0001, t0);
-        gain.gain.exponentialRampToValueAtTime(vol, t0 + dur * 0.2);
-        gain.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
-        osc.connect(gain);
-        osc.start(t0);
-        osc.stop(t0 + dur + 0.02);
-        break;
-      }
-      case 'chime':
-      case 'tone':
-      default: {
-        const osc = ctx.createOscillator();
-        osc.type = entry.synth.type === 'chime' ? 'triangle' : 'sine';
-        osc.frequency.setValueAtTime(f, t0);
-        gain.gain.setValueAtTime(0.0001, t0);
-        gain.gain.exponentialRampToValueAtTime(vol, t0 + 0.01);
-        gain.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
-        // soft second partial for chime
-        if (entry.synth.type === 'chime') {
-          const osc2 = ctx.createOscillator();
-          osc2.type = 'sine';
-          osc2.frequency.setValueAtTime(f * 2, t0);
-          const g2 = ctx.createGain();
-          g2.gain.setValueAtTime(0.0001, t0);
-          g2.gain.exponentialRampToValueAtTime(vol * 0.4, t0 + 0.01);
-          g2.gain.exponentialRampToValueAtTime(0.0001, t0 + dur * 0.7);
-          osc2.connect(g2);
-          g2.connect(this.master!);
-          osc2.start(t0);
-          osc2.stop(t0 + dur);
-        }
-        osc.connect(gain);
-        osc.start(t0);
-        osc.stop(t0 + dur + 0.02);
-        break;
+  /** Tear down all Howl instances. Call on app unmount. */
+  destroy(): void {
+    for (const howl of this.howls.values()) {
+      try {
+        howl.unload();
+      } catch {
+        /* ignore */
       }
     }
+    this.howls.clear();
+    this.bindings.clear();
+    this.exclusivePlaying.clear();
+    this.listeners.clear();
   }
 
-  startLoop(entry: SoundEventEntry): void {
-    if (!this.ctx || !this.master || this.loops.has(entry.id) || this._muted) return;
-    const ctx = this.ctx;
-    const gain = ctx.createGain();
-    gain.gain.value = entry.volume * 0.6;
-    gain.connect(this.master);
-
-    if (entry.synth.type === 'noise') {
-      const buffer = ctx.createBuffer(1, ctx.sampleRate * 1, ctx.sampleRate);
-      const data = buffer.getChannelData(0);
-      for (let i = 0; i < data.length; i++) data[i] = (Math.random() * 2 - 1) * 0.4;
-      const src = ctx.createBufferSource();
-      src.buffer = buffer;
-      src.loop = true;
-      const lp = ctx.createBiquadFilter();
-      lp.type = 'lowpass';
-      lp.frequency.value = 900;
-      src.connect(lp);
-      lp.connect(gain);
-      src.start();
-      this.loops.set(entry.id, { stop: () => { try { src.stop(); } catch { /* */ } gain.disconnect(); } });
-    } else {
-      // wobble / tone loop with an LFO
-      const osc = ctx.createOscillator();
-      osc.type = 'triangle';
-      const f = entry.synth.freq ?? 440;
-      const to = entry.synth.freqTo ?? f * 1.5;
-      osc.frequency.value = f;
-      const lfo = ctx.createOscillator();
-      const lfoGain = ctx.createGain();
-      lfo.frequency.value = 2;
-      lfoGain.gain.value = (to - f) / 2;
-      lfo.connect(lfoGain);
-      lfoGain.connect(osc.frequency);
-      osc.connect(gain);
-      osc.start();
-      lfo.start();
-      this.loops.set(entry.id, { stop: () => { try { osc.stop(); lfo.stop(); } catch { /* */ } gain.disconnect(); } });
-    }
+  private notify(): void {
+    for (const fn of this.listeners) fn();
   }
 
-  stopLoop(id: string): void {
-    const l = this.loops.get(id);
-    if (l) {
-      l.stop();
-      this.loops.delete(id);
-    }
-  }
-
-  stopAllLoops(): void {
-    for (const [, l] of this.loops) l.stop();
-    this.loops.clear();
+  private persist(): void {
+    savePrefs({ volume: this._volume, muted: this._muted });
   }
 }

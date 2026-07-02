@@ -1,90 +1,47 @@
-// registries/index.ts — the registry store. Default entries ship here; the
-// studio overlays user-authored/tuned entries (from the code panel) by id.
+// Central export for all module registries.
+// The generator agents import from here to discover available modules.
 
-import type { AnyEntry, RegistryName } from './types';
-import { canvasLayers } from './entries/canvasLayers';
-import { symbolAnimations } from './entries/symbolAnimations';
-import { winPresentation } from './entries/winPresentation';
-import { gridEffects } from './entries/gridEffects';
-import { winScreenTiers } from './entries/winScreenTiers';
-import { transitionAnimations } from './entries/transitionAnimations';
-import { textAnimations } from './entries/textAnimations';
-import { soundEvents } from './entries/soundEvents';
-import { themes } from './entries/themes';
-import { spinSystems } from './entries/spinSystems';
+export { createRegistry } from './types.js';
+export type { RegistryEntry, ConstraintSet, FileBinding, RegistryIndex } from './types.js';
 
-export * from './types';
+export { slotTypeRegistry } from './slotTypes.js';
+export type { SlotTypeEntry } from './slotTypes.js';
 
-export type Registries = Record<RegistryName, AnyEntry[]>;
+export { baseFeatureRegistry } from './baseFeatures.js';
+export type { BaseFeatureEntry } from './baseFeatures.js';
 
-export const DEFAULT_REGISTRIES: Registries = {
-  canvasLayers,
-  symbolAnimations,
-  winPresentation,
-  gridEffects,
-  winScreenTiers,
-  transitionAnimations,
-  textAnimations,
-  soundEvents,
-  themes,
-  spinSystems,
-};
+export { bonusMechanicRegistry } from './bonusMechanics.js';
+export type { BonusMechanicEntry } from './bonusMechanics.js';
 
-export const REGISTRY_NAMES: RegistryName[] = [
-  'canvasLayers',
-  'symbolAnimations',
-  'winPresentation',
-  'gridEffects',
-  'winScreenTiers',
-  'transitionAnimations',
-  'textAnimations',
-  'soundEvents',
-  'themes',
-  'spinSystems',
-];
+export { reelTemplateRegistry } from './reelTemplates.js';
+export type { ReelTemplateEntry } from './reelTemplates.js';
 
-/** A user-authored entry override, keyed by registry + id. */
-export interface CustomEntry {
-  registry: RegistryName;
-  entry: AnyEntry;
-  /** raw code the user pasted (kept so it can be copied back out verbatim). */
-  source?: string;
-  createdAt: number;
-  author?: string;
-}
+export { paytableTemplateRegistry } from './paytableTemplates.js';
+export type { PaytableTemplateEntry } from './paytableTemplates.js';
 
-/** Overlay custom entries onto the defaults (by id; same id replaces). */
-export function mergeRegistries(defaults: Registries, custom: CustomEntry[]): Registries {
-  const out: Registries = {
-    canvasLayers: [...defaults.canvasLayers],
-    symbolAnimations: [...defaults.symbolAnimations],
-    winPresentation: [...defaults.winPresentation],
-    gridEffects: [...defaults.gridEffects],
-    winScreenTiers: [...defaults.winScreenTiers],
-    transitionAnimations: [...defaults.transitionAnimations],
-    textAnimations: [...defaults.textAnimations],
-    soundEvents: [...defaults.soundEvents],
-    themes: [...defaults.themes],
-    spinSystems: [...defaults.spinSystems],
-  };
-  for (const c of custom) {
-    const arr = out[c.registry];
-    if (!arr) continue;
-    const idx = arr.findIndex((e) => e.id === c.entry.id);
-    if (idx >= 0) arr[idx] = c.entry;
-    else arr.push(c.entry);
-  }
-  return out;
-}
+export { symbolAnimationRegistry } from './symbolAnimations.js';
+export type { SymbolAnimationEntry } from './symbolAnimations.js';
 
-export function getEntry<T extends AnyEntry = AnyEntry>(
-  registries: Registries,
-  name: RegistryName,
-  id: string,
-): T | undefined {
-  return registries[name].find((e) => e.id === id) as T | undefined;
-}
+export { canvasLayerRegistry } from './canvasLayers.js';
+export type { CanvasLayerEntry } from './canvasLayers.js';
 
-export function implementedEntries(registries: Registries, name: RegistryName): AnyEntry[] {
-  return registries[name].filter((e) => e.implemented);
-}
+export { winPresentationRegistry } from './winPresentation.js';
+export type { WinPresentationEntry } from './winPresentation.js';
+
+export { uiConfigRegistry } from './uiConfigs.js';
+export type { UIConfigEntry } from './uiConfigs.js';
+
+export { soundEventRegistry } from './soundEvents.js';
+export type { SoundEventEntry } from './soundEvents.js';
+
+export { textAnimationRegistry } from './textAnimations.js';
+export type { TextAnimationEntry, TextAnimationTarget } from './textAnimations.js';
+
+export { transitionAnimationRegistry } from './transitionAnimations.js';
+export type { TransitionAnimationEntry, GamePhase } from './transitionAnimations.js';
+
+export { gridEffectRegistry } from './gridEffects.js';
+export type { GridEffectEntry, GridEffectScope } from './gridEffects.js';
+
+export { winScreenTierRegistry } from './winScreenTiers.js';
+export type { WinScreenTierEntry } from './winScreenTiers.js';

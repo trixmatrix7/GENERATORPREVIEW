@@ -1,227 +1,676 @@
-// game/AnimatedSymbol.ts — Layer 4 render path. One cell symbol with the 4
-// states: idle-glow-pulse, landing-squash, win-juice, win-reset. Positioned by
-// ReelSet at the cell center (anchor-resolved); all motion is on an inner
-// container so the world position stays put.
+// A single symbol cell with pluggable animation states.
+//
+// Rendering modes (chosen per symbol, automatically):
+//   - Sprite mode:  an atlas was loaded for this symbol → plays named clips
+//                   from a PixiJS AnimatedSprite.
+//   - Static mode:  no atlas → placeholder tile (coloured Graphics + labels),
+//                   animation states play as programmatic GSAP tweens on the
+//                   tile itself.
+//
+// Public contract — all other game code talks to this through:
+//   setSymbol(id)           — swap which symbol this cell displays
+//   play(state)             — transition to an animation state
+//   highlight(isWinning)    — dim non-winning cells during a win reveal
+//   clearState()            — return to 'static' and reset any visual tweens
+//
+// This file is the only place that needs to change when a new animation style
+// is introduced (e.g. Spine, particles). Reel/ReelSet never touch tween code.
 
-import { Container, Graphics, Sprite, Text, type TextStyleOptions } from 'pixi.js';
+import { AnimatedSprite, Container, Graphics, Sprite, Spritesheet, Text, TextStyle } from 'pixi.js';
+import { OutlineFilter } from 'pixi-filters';
 import { gsap } from 'gsap';
-import { glowTexture, ringTexture, backdropTexture } from './textures';
-import { baseScaleOf, popFactorOf } from '../config/symbols';
-import type { CanvasTheme } from '../config/canvasTheme';
-import type { ThemeSymbol } from '../registries/types';
-import type { SymbolStateConfig } from '../registries/presets';
-import type { ParamValues } from '../config/adjustableParams';
+import { SYMBOLS, type SymbolIdType } from '@/config/symbols';
+import {
+  FALLBACK_TIMINGS,
+  SYMBOL_ANIMATIONS,
+  type SymbolState,
+} from '@/config/symbolAnimations';
+import type { SymbolAtlasMap } from './SymbolAtlasLoader';
+import type { GameTheme } from '@/engine/GameConfig';
+import { SYMBOL_HEIGHT, SYMBOL_WIDTH } from './symbolMetrics';
 
-export interface SymbolRenderCtx {
-  cellW: number;
-  cellH: number;
-  theme: CanvasTheme;
-  symbolMeta: Map<number, ThemeSymbol>;
+// Re-export so existing consumers (Reel, tests) can keep their
+// `from './AnimatedSymbol'` import paths working. The canonical source is
+// `./symbolMetrics`, which mirrors `DEFAULT_CELL_METRICS` in gridConfig.
+export { SYMBOL_HEIGHT, SYMBOL_WIDTH };
+
+const prefersReducedMotion = () =>
+  typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+/** Bright colour for the outline traced around a WINNING symbol's silhouette. */
+const WIN_OUTLINE_COLOR = 0xFFF4C0;
+
+function luminance(hex: number): number {
+  return ((hex >> 16) & 0xFF) * 0.299
+    + ((hex >> 8) & 0xFF) * 0.587
+    + (hex & 0xFF) * 0.114;
 }
 
-export class AnimatedSymbol {
-  readonly view: Container; // world-positioned by ReelSet
-  private inner: Container; // animated (scale / rotation / y)
-  private backdrop: Sprite;
-  private glow: Sprite;
-  private flash: Sprite;
-  private tile: Graphics;
-  private label: Text;
-  private ctx: SymbolRenderCtx;
-  private idle?: gsap.core.Tween;
-  private tweens: gsap.core.Animation[] = [];
+function darken(hex: number, factor: number): number {
+  const r = Math.round(((hex >> 16) & 0xFF) * factor);
+  const g = Math.round(((hex >> 8) & 0xFF) * factor);
+  const b = Math.round((hex & 0xFF) * factor);
+  return (r << 16) | (g << 8) | b;
+}
 
-  symbolId = -1;
-  reel: number;
-  row: number;
-  private baseScale = 1;
+/** Move each channel toward white by `factor` (0 = unchanged, 1 = white). */
+function lighten(hex: number, factor: number): number {
+  const ch = (c: number) => Math.round(c + (255 - c) * factor);
+  return (ch((hex >> 16) & 0xFF) << 16) | (ch((hex >> 8) & 0xFF) << 8) | ch(hex & 0xFF);
+}
 
-  constructor(ctx: SymbolRenderCtx, reel: number, row: number) {
-    this.ctx = ctx;
-    this.reel = reel;
-    this.row = row;
-    this.view = new Container();
+export class AnimatedSymbol extends Container {
+  private readonly atlases: SymbolAtlasMap;
+  /** Optional per-game theme — overrides placeholder colour + label per symbol.
+   *  Atlas-driven sprites ignore this; only the static-mode tile uses it. */
+  private readonly theme: GameTheme | undefined;
+  /** Inner container — holds all visuals, pivoted so scale tweens stay centred. */
+  private readonly inner: Container;
+  private readonly bg: Graphics;
+  private readonly bigLabel: Text;
+  private readonly nameLabel: Text;
+  private sprite: AnimatedSprite | null = null;
+  /** Lucide vector icon sprite, rendered when theme.iconTextures has a hit
+   *  for the current symbolId. Replaces bigLabel as the dominant glyph. */
+  private iconSprite: Sprite | null = null;
+  /** Dark offset copy of the icon, behind it — a cast shadow that lifts the
+   *  glyph off the gem (molded object, not a flat decal). Themed icons only. */
+  private iconShadow: Sprite | null = null;
+
+  private symbolId: SymbolIdType = 0 as SymbolIdType;
+  private activeState: SymbolState = 'static';
+  private tween: gsap.core.Tween | gsap.core.Timeline | null = null;
+  /** Bright outline traced around the symbol's silhouette while it's winning. */
+  private outline: OutlineFilter | null = null;
+
+  constructor(atlases: SymbolAtlasMap, theme?: GameTheme) {
+    super();
+    this.atlases = atlases;
+    this.theme = theme;
+
+    // Static tile backdrop — a DIRECT child (behind `inner`), never scaled.
+    // The cell background stays put; only the object on top of it animates.
+    this.bg = new Graphics();
+    this.bg.x = 0;
+    this.bg.y = 0;
+    this.addChild(this.bg);
+
+    // Object layer — ONLY this is scaled by win/landing/idle, so the symbol art
+    // grows WITHIN the cell while the tile stays put. Mirrors real slots and the
+    // studio's transparent-object sprite sheets (120×110 cell, Spec v1.0): the
+    // tile is the cell, the object lives inside it.
     this.inner = new Container();
-    this.view.addChild(this.inner);
+    this.inner.x = SYMBOL_WIDTH / 2;
+    this.inner.y = SYMBOL_HEIGHT / 2;
+    this.addChild(this.inner);
 
-    const g = Math.max(ctx.cellW, ctx.cellH) * 1.7;
-    this.backdrop = new Sprite(backdropTexture(ctx.theme.spotlightBackdrop));
-    this.backdrop.anchor.set(0.5);
-    this.backdrop.width = this.backdrop.height = g;
-    this.backdrop.alpha = 0;
-
-    this.glow = new Sprite(glowTexture(ctx.theme.glow));
-    this.glow.anchor.set(0.5);
-    this.glow.width = this.glow.height = g;
-    this.glow.blendMode = 'add';
-    this.glow.alpha = 0;
-
-    this.tile = new Graphics();
-    this.label = new Text({ text: '', style: this.labelStyle() });
-    this.label.anchor.set(0.5);
-
-    this.flash = new Sprite(glowTexture(ctx.theme.warmFlash));
-    this.flash.anchor.set(0.5);
-    this.flash.width = this.flash.height = ctx.cellW * 1.15;
-    this.flash.blendMode = 'add';
-    this.flash.alpha = 0;
-
-    this.inner.addChild(this.backdrop, this.glow, this.tile, this.label, this.flash);
-  }
-
-  private labelStyle(): TextStyleOptions {
-    return {
-      fontFamily: 'Poppins, sans-serif',
-      fontWeight: '800',
-      fontStyle: 'italic',
-      fontSize: Math.round(this.ctx.cellH * 0.3),
-      fill: this.ctx.theme.text,
-      align: 'center',
-    };
-  }
-
-  setSymbol(id: number): void {
-    this.symbolId = id;
-    this.baseScale = baseScaleOf(id);
-    const meta = this.ctx.symbolMeta.get(id);
-    const color = meta?.placeholderColor ?? 0x444444;
-    const w = this.ctx.cellW * 0.82;
-    const h = this.ctx.cellH * 0.82;
-    const r = Math.min(w, h) * 0.22;
-
-    this.tile.clear();
-    this.tile.roundRect(-w / 2, -h / 2, w, h, r);
-    this.tile.fill({ color: this.ctx.theme.symbolTile, alpha: 1 });
-    this.tile.roundRect(-w / 2 + 4, -h / 2 + 4, w - 8, h - 8, r * 0.8);
-    this.tile.fill({ color, alpha: 0.22 });
-    this.tile.roundRect(-w / 2, -h / 2, w, h, r);
-    this.tile.stroke({ width: 3, color, alpha: 0.95 });
-
-    this.label.text = meta?.label ?? String(id);
-    this.label.style.fill = color;
-
-    this.inner.scale.set(this.baseScale);
-    this.inner.rotation = 0;
-    this.inner.y = 0;
-    this.inner.alpha = 1;
-    this.glow.alpha = 0;
-    this.backdrop.alpha = 0;
-    this.flash.alpha = 0;
-  }
-
-  private track<T extends gsap.core.Animation>(t: T): T {
-    this.tweens.push(t);
-    return t;
-  }
-
-  // ── State 2: landing squash & stretch ──
-  playLanding(cfg: SymbolStateConfig, params: ParamValues): Promise<void> {
-    if (!cfg.enabled) return Promise.resolve();
-    const b = this.baseScale;
-    const amt = 0.18 * params.landingSquash * cfg.intensity;
-    const ds = cfg.durationScale;
-    return new Promise((resolve) => {
-      const tl = gsap.timeline({ onComplete: resolve });
-      this.inner.scale.set(b * (1 + amt), b * (1 - amt));
-      this.inner.y = this.ctx.cellH * 0.06 * params.landingSquash;
-      tl.to(this.inner.scale, { x: b * (1 - amt * 0.6), y: b * (1 + amt * 0.6), duration: 0.07 * ds, ease: 'power1.out' })
-        .to(this.inner, { y: 0, duration: 0.095 * ds, ease: 'power1.out' }, '<')
-        .to(this.inner.scale, { x: b, y: b, duration: 0.16 * ds, ease: cfg.easing });
-      this.track(tl);
-    });
-  }
-
-  // ── State 3: win juice (dip → pop → glow/flash/ring/wobble → settle → hold → reset) ──
-  playWin(cfg: SymbolStateConfig, params: ParamValues): Promise<void> {
-    if (!cfg.enabled) return Promise.resolve();
-    const b = this.baseScale;
-    const pop = b * popFactorOf(this.symbolId) * params.winPopIntensity * cfg.intensity;
-    const glowMax = Math.min(1, 0.85 * params.glowIntensity);
-    const ds = cfg.durationScale;
-    this.spawnRing(params);
-    return new Promise((resolve) => {
-      const tl = gsap.timeline({ onComplete: resolve });
-      // dip
-      tl.to(this.inner.scale, { x: b * 0.88, y: b * 0.88, duration: 0.085 * ds, ease: 'power2.out' });
-      // pop + juice
-      tl.to(this.inner.scale, { x: pop, y: pop, duration: 0.21 * ds, ease: cfg.easing });
-      tl.to(this.glow, { alpha: glowMax, duration: 0.15 * ds }, '<');
-      tl.to(this.backdrop, { alpha: 0.5, duration: 0.13 * ds }, '<');
-      tl.fromTo(this.flash, { alpha: 0.49 }, { alpha: 0, duration: 0.18 * ds }, '<');
-      tl.to(this.inner, { rotation: 0.05, duration: 0.09 * ds, ease: 'sine.inOut' }, '<');
-      tl.to(this.inner, { rotation: -0.03, duration: 0.1 * ds, ease: 'sine.inOut' });
-      tl.to(this.inner, { rotation: 0, duration: 0.095 * ds, ease: 'sine.inOut' });
-      // settle
-      tl.to(this.inner.scale, { x: b * 1.08, y: b * 1.08, duration: 0.12 * ds, ease: 'power2.out' }, '<');
-      // hold
-      tl.to({}, { duration: 0.24 });
-      // reset
-      tl.to(this.inner.scale, { x: b, y: b, duration: 0.17 * ds, ease: 'power2.out' });
-      tl.to([this.glow, this.backdrop], { alpha: 0, duration: 0.17 * ds }, '<');
-      this.track(tl);
-    });
-  }
-
-  // ── State 4: explicit reset (for externally-orchestrated holds) ──
-  resetWin(cfg: SymbolStateConfig): void {
-    const b = this.baseScale;
-    this.track(gsap.to(this.inner.scale, { x: b, y: b, duration: 0.17 * cfg.durationScale, ease: cfg.easing }));
-    this.track(gsap.to([this.glow, this.backdrop, this.flash], { alpha: 0, duration: 0.17 }));
-    this.track(gsap.to(this.inner, { rotation: 0, duration: 0.12 }));
-  }
-
-  private spawnRing(params: ParamValues): void {
-    const ring = new Sprite(ringTexture(this.ctx.theme.glow));
-    ring.anchor.set(0.5);
-    ring.blendMode = 'add';
-    const start = this.ctx.cellW * 0.85;
-    ring.width = ring.height = start;
-    ring.alpha = 0.66;
-    this.inner.addChildAt(ring, 1);
-    const end = this.ctx.cellW * params.shockwaveScale;
-    this.track(
-      gsap.to(ring, {
-        width: end,
-        height: end,
-        alpha: 0,
-        duration: 0.33,
-        ease: 'power2.out',
-        onComplete: () => ring.destroy(),
+    this.bigLabel = new Text({
+      text: '?',
+      style: new TextStyle({
+        fontFamily: "'Poppins', ui-sans-serif, system-ui, sans-serif",
+        fontSize: 34,
+        fontWeight: '800',
+        fontStyle: 'italic',
+        fill: 0xffffff,
       }),
-    );
+    });
+    this.bigLabel.anchor.set(0.5);
+    this.bigLabel.y = -SYMBOL_HEIGHT * 0.1;
+    this.inner.addChild(this.bigLabel);
+
+    // Caption (placeholder dev aid) — static DIRECT child, sits on top.
+    this.nameLabel = new Text({
+      text: '',
+      style: new TextStyle({
+        fontFamily: "'Rubik', ui-sans-serif, system-ui, sans-serif",
+        fontSize: 10,
+        fontWeight: '500',
+        fill: 0xffffff,
+        letterSpacing: 1.5,
+      }),
+    });
+    this.nameLabel.anchor.set(0.5);
+    this.nameLabel.x = SYMBOL_WIDTH / 2;
+    this.nameLabel.y = SYMBOL_HEIGHT * 0.74;
+    this.addChild(this.nameLabel);
   }
 
-  // ── State 1: idle glow pulse (looping anticipation breathing) ──
-  startIdlePulse(cfg: SymbolStateConfig, params: ParamValues): void {
-    if (!cfg.enabled || this.idle) return;
-    const b = this.baseScale;
-    const speed = params.idlePulseSpeed;
-    const tl = gsap.timeline({ repeat: -1, yoyo: true });
-    tl.to(this.inner.scale, { x: b * 1.12, y: b * 1.12, duration: (0.34 / speed) * cfg.durationScale, ease: cfg.easing }, 0);
-    tl.to(this.glow, { alpha: 0.85 * params.glowIntensity, duration: (0.34 / speed) * cfg.durationScale, ease: cfg.easing }, 0);
-    tl.to(this.backdrop, { alpha: 0.5, duration: (0.34 / speed) * cfg.durationScale, ease: cfg.easing }, 0);
-    this.idle = tl as unknown as gsap.core.Tween;
+  /** Swap which symbol is displayed in this cell. Idempotent. */
+  setSymbol(id: SymbolIdType) {
+    if (id === this.symbolId && this.hasRendered) return;
+    this.symbolId = id;
+    this.hasRendered = true;
+    this.resetVisuals();
+    this.applyMode(id);
   }
 
-  stopIdlePulse(): void {
-    if (this.idle) {
-      this.idle.kill();
-      this.idle = undefined;
+  /** Pick atlas vs static mode for this symbol, with user-asset uploads
+   *  taking precedence over atlas art — a user who uploads a custom PNG
+   *  expects to see it regardless of whether the bundled atlas exists. */
+  private applyMode(id: SymbolIdType): void {
+    const userAsset = this.theme?.userAssetTextures?.get(id);
+    const atlas = this.atlases[id];
+    if (atlas && !userAsset) {
+      this.enableSpriteMode(atlas);
+    } else {
+      this.enableStaticMode();
     }
-    const b = this.baseScale;
-    this.track(gsap.to(this.inner.scale, { x: b, y: b, duration: 0.2, ease: 'power2.out' }));
-    this.track(gsap.to([this.glow, this.backdrop], { alpha: 0, duration: 0.2 }));
   }
 
-  killTweens(): void {
-    this.idle?.kill();
-    this.idle = undefined;
-    for (const t of this.tweens) t.kill();
-    this.tweens = [];
+  /**
+   * Transition to a new animation state. No-op if already in that state.
+   * @param delay  Optional delay in seconds before the animation begins
+   *               (used for per-row stagger on landing, per-cell stagger on win).
+   */
+  play(state: SymbolState, delay = 0) {
+    if (state === this.activeState) return;
+    this.killTween();
+    this.resetVisuals();
+    this.activeState = state;
+
+    // Bright border highlight on the symbol's own silhouette while winning
+    // (applied even under reduced motion — it's a static highlight, not motion).
+    this.setWinOutline(state === 'win');
+
+    if (state === 'static' || prefersReducedMotion()) return;
+
+    const supported = this.supportedStates();
+    if (!supported.includes(state)) return;
+
+    if (this.sprite) {
+      this.playSpriteState(state);
+    } else {
+      this.playFallbackState(state, delay);
+    }
   }
 
-  destroy(): void {
-    this.killTweens();
-    this.view.destroy({ children: true });
+  /** Trace a bright outline around the symbol's silhouette (the object only —
+   *  `bg`/caption are static direct children, untouched). Outlines whatever the
+   *  object is: placeholder glyph, themed icon, uploaded PNG, or studio sprite.
+   *  The filter lives on `inner`, so it lifts above the win line with it. */
+  private setWinOutline(on: boolean): void {
+    if (on) {
+      if (!this.outline) {
+        this.outline = new OutlineFilter({ thickness: 3.5, color: WIN_OUTLINE_COLOR, quality: 0.3, alpha: 1 });
+      }
+      this.outline.alpha = 1; // full by default; the win pulse fades it with size
+      this.inner.filters = [this.outline];
+    } else {
+      this.inner.filters = [];
+    }
+  }
+
+  /** Dim to 25% alpha when the cell is not part of a winning combination. */
+  highlight(isWinning: boolean) {
+    this.alpha = isWinning ? 1.0 : 0.25;
+  }
+
+  clearHighlight() {
+    this.alpha = 1.0;
+  }
+
+  /** Stop any active state animation and return to neutral visuals. */
+  clearState() {
+    this.play('static');
+  }
+
+  private lifted = false;
+
+  /** Lift the OBJECT layer (`inner`) out into a higher container so the win
+   *  connecting line renders BEHIND the symbol. `x`/`y` are the cell centre in
+   *  the target container's coordinates. GSAP keeps animating `inner` (same
+   *  reference). Only used while a win is on screen (reels stopped). */
+  liftObject(target: Container, x: number, y: number): void {
+    if (this.lifted) return;
+    this.lifted = true;
+    this.inner.x = x;
+    this.inner.y = y;
+    target.addChild(this.inner);
+  }
+
+  /** Return the object layer to this cell and its normal z-order
+   *  (bg behind, object middle, caption on top). */
+  restoreObject(): void {
+    if (!this.lifted) return;
+    this.lifted = false;
+    this.inner.x = SYMBOL_WIDTH / 2;
+    this.inner.y = SYMBOL_HEIGHT / 2;
+    this.addChild(this.inner);
+    this.setChildIndex(this.inner, Math.min(1, this.children.length - 1));
+  }
+
+  /** One-shot squash→settle played on EVERY symbol when its reel stops, giving
+   *  each stop a tactile "thunk". Lighter than the 'landing' state (no rotation,
+   *  no idle follow-up) so it can run on the whole grid each spin without it
+   *  feeling busy. No-op under reduced motion or if a richer state is active. */
+  playLandBounce(delay = 0): void {
+    if (prefersReducedMotion()) return;
+    // Don't fight a richer active state (win / featured / full landing).
+    if (this.activeState !== 'static') return;
+    this.killTween();
+    this.activeState = 'landing';
+    this.inner.rotation = 0;
+    this.inner.scale.set(1);
+    const t = FALLBACK_TIMINGS.landBounce;
+    this.tween = gsap
+      .timeline({ delay })
+      .to(this.inner.scale, {
+        x: 1 / t.scaleSquashY, y: t.scaleSquashY,
+        duration: t.squashDuration, ease: 'power3.in',
+      })
+      .to(this.inner.scale, {
+        x: 1 / t.scaleStretchY, y: t.scaleStretchY,
+        duration: t.overshootDuration, ease: 'power2.out',
+      })
+      .to(this.inner.scale, {
+        x: 1, y: 1,
+        duration: t.settleDuration, ease: 'back.out(2)',
+      });
+  }
+
+  /** Re-render the cell — used when external state the cell reads
+   *  (theme.userAssetTextures, theme.iconTextures) has changed. Forces
+   *  re-evaluation of atlas-vs-static mode so a user-asset upload over a
+   *  symbol whose atlas was loaded correctly switches to static mode. */
+  refreshTile() {
+    if (!this.hasRendered) return;
+    this.applyMode(this.symbolId);
+  }
+
+  /** Dispose of GSAP tweens and owned sprites before Pixi tears down the
+   *  scene graph. Container itself is destroyed by the parent's recursive
+   *  `app.destroy({ children: true })`; this method exists purely to stop
+   *  tweens from ticking on destroyed containers. */
+  dispose(): void {
+    this.killTween();
+    if (this.sprite) {
+      try {
+        this.sprite.destroy();
+      } catch {
+        /* sprite may already be partially destroyed */
+      }
+      this.sprite = null;
+    }
+    // iconSprite/iconShadow share textures owned by PixiApp's lucideCache or
+    // userAssetTextures map. Don't destroy the texture here — PixiApp
+    // does that. Just drop our references.
+    this.iconSprite = null;
+    this.iconShadow = null;
+    this.inner.filters = [];
+    this.outline?.destroy();
+    this.outline = null;
+  }
+
+  get currentState(): SymbolState {
+    return this.activeState;
+  }
+
+  /** The symbol id this cell currently displays (for click-to-edit hit tests). */
+  get symbol(): SymbolIdType {
+    return this.symbolId;
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  // Internal
+  // ─────────────────────────────────────────────────────────────
+  private hasRendered = false;
+
+  private supportedStates(): readonly SymbolState[] {
+    return SYMBOL_ANIMATIONS[this.symbolId]?.states ?? [];
+  }
+
+  private enableSpriteMode(atlas: Spritesheet) {
+    this.bg.visible = false;
+    this.bigLabel.visible = false;
+    this.nameLabel.visible = false;
+    if (this.iconSprite) this.iconSprite.visible = false;
+    if (this.iconShadow) this.iconShadow.visible = false;
+
+    const initialClip =
+      atlas.animations.idle ??
+      atlas.animations.landing ??
+      Object.values(atlas.animations)[0];
+
+    if (!initialClip || initialClip.length === 0) {
+      // Atlas present but no usable clips — fall back.
+      this.enableStaticMode();
+      return;
+    }
+
+    if (this.sprite) {
+      this.inner.removeChild(this.sprite);
+      this.sprite.destroy();
+    }
+
+    this.sprite = new AnimatedSprite(initialClip);
+    this.sprite.anchor.set(0.5);
+    this.sprite.width = SYMBOL_WIDTH;
+    this.sprite.height = SYMBOL_HEIGHT;
+    this.sprite.loop = true;
+    this.sprite.animationSpeed = 0.25;
+    this.sprite.play();
+    this.inner.addChild(this.sprite);
+  }
+
+  private enableStaticMode() {
+    if (this.sprite) {
+      this.inner.removeChild(this.sprite);
+      this.sprite.destroy();
+      this.sprite = null;
+    }
+    this.bg.visible = true;
+    this.bigLabel.visible = true;
+    this.nameLabel.visible = true;
+    this.drawStaticTile();
+  }
+
+  private drawStaticTile() {
+    const def = SYMBOLS[this.symbolId];
+    const isSpecial = def.isWild || def.isScatter;
+    // Rarity hierarchy — highs/specials read brighter + larger, lows recede.
+    const isHigh = def.key.startsWith('high');
+    const isLow = def.key.startsWith('low');
+    // Theme overrides per-symbol colour. Lucide vector textures (when
+    // present in theme.iconTextures) replace the big text glyph for
+    // proper game-style iconography; otherwise fall back to the themed
+    // emoji glyph or the production single-letter code.
+    const color = this.theme?.symbolColors[this.symbolId] ?? def.placeholderColor;
+    const themedGlyph = this.theme?.symbolLabels[this.symbolId];
+    const userAssetTexture = this.theme?.userAssetTextures?.get(this.symbolId);
+    const iconTexture = userAssetTexture ?? this.theme?.iconTextures?.get(this.symbolId);
+    const isUserAsset = !!userAssetTexture;
+    const bigText = themedGlyph ?? def.label;
+
+    const g = this.bg;
+    g.clear();
+    const w = SYMBOL_WIDTH;
+    const h = SYMBOL_HEIGHT;
+    const r = 16;
+
+    if (!isUserAsset) {
+      // Themed "gem" tile — placeholder visual when no user art is set.
+      // Skipped entirely for user-uploaded PNGs so transparent backgrounds
+      // show the parent frame fill through the cell instead of bleeding the
+      // per-symbol colour through the alpha channel.
+      // Premium recipe (all rounded rects → clean corners, no banding):
+      // beveled metallic frame → inner colour panel → bottom inner shadow →
+      // stacked top gloss → bright top-lit rim. Specials get a gold rim.
+      const mid = color;
+      const frameDark = darken(mid, 0.34);
+      const topTint = lighten(mid, 0.40);   // lit top face
+      const bottom = darken(mid, 0.30);     // shaded base
+      const rim = isSpecial ? 0xFFE08A : lighten(mid, 0.62);
+      const shade = darken(mid, 0.58);
+
+      // Beveled outer frame (dark) — reads as a raised metallic edge.
+      g.roundRect(0, 0, w, h, r);
+      g.fill({ color: frameDark });
+
+      // Inner panel: base = shaded bottom colour…
+      const bx = 3, by = 3, bw = w - 6, bh = h - 6, br = r - 3;
+      g.roundRect(bx, by, bw, bh, br);
+      g.fill({ color: bottom });
+      // …lit top face (~62%) → a real vertical light-to-dark gem gradient…
+      g.roundRect(bx, by, bw, bh * 0.62, br);
+      g.fill({ color: topTint, alpha: 0.92 });
+      // …mid band so the two stops meet without a hard seam.
+      g.roundRect(bx, by + bh * 0.40, bw, bh * 0.30, br - 1);
+      g.fill({ color: mid, alpha: 0.65 });
+
+      // Deep bottom inner shadow → seats the gem in its frame.
+      g.roundRect(bx + 2, by + bh * 0.68, bw - 4, bh * 0.30, br - 1);
+      g.fill({ color: shade, alpha: 0.55 });
+
+      // Crisp top specular — stronger on highs/specials, softer on lows, so
+      // rarity reads through shine as well as colour.
+      const gloss1 = isSpecial ? 0.30 : isHigh ? 0.24 : isLow ? 0.13 : 0.20;
+      const gloss2 = isSpecial ? 0.46 : isHigh ? 0.40 : isLow ? 0.24 : 0.34;
+      g.roundRect(bx + 4, by + 3, bw - 8, bh * 0.30, br - 2);
+      g.fill({ color: 0xffffff, alpha: gloss1 });
+      g.roundRect(bx + 6, by + 4, bw - 12, bh * 0.14, br - 3);
+      g.fill({ color: 0xffffff, alpha: gloss2 });
+
+      // Bright top-lit rim on the panel edge + a faint outer frame highlight.
+      g.roundRect(bx, by, bw, bh, br);
+      g.stroke({ color: rim, width: isSpecial ? 2.5 : isHigh ? 1.9 : 1.4, alpha: isLow ? 0.5 : 0.7 });
+      g.roundRect(1, 1, w - 2, h - 2, r - 1);
+      g.stroke({ color: lighten(frameDark, 0.4), width: 1, alpha: 0.55 });
+    }
+
+    const textColor = luminance(color) > 160 ? 0x000000 : 0xffffff;
+
+    if (iconTexture) {
+      // Vector icon path — hide bigLabel, show the icon as a molded object.
+      this.bigLabel.visible = false;
+      if (!this.iconSprite) {
+        this.iconSprite = new Sprite(iconTexture);
+        this.iconSprite.anchor.set(0.5);
+        this.inner.addChild(this.iconSprite);
+      } else {
+        this.iconSprite.texture = iconTexture;
+      }
+      // User PNGs render near-full-bleed, untinted; themed glyphs sit slightly
+      // up and a touch larger now there's no caption competing for space.
+      const iy = isUserAsset ? 0 : -SYMBOL_HEIGHT * 0.04;
+      const targetSize = isUserAsset
+        // Uploaded PNGs are transparent OBJECTS placed inside the cell with
+        // padding (~72%), so the win enlarge-pulse grows them within the cell.
+        ? Math.round(Math.min(SYMBOL_WIDTH, SYMBOL_HEIGHT) * 0.72)
+        : (isSpecial ? 64 : isHigh ? 58 : isLow ? 48 : 53);
+      this.iconSprite.y = iy;
+      this.iconSprite.width = targetSize;
+      this.iconSprite.height = targetSize;
+      // Off-white (not flat #FFF) reads as polished enamel; specials get a warm
+      // gold-white; dark glyphs on light tiles stay near-black for contrast.
+      this.iconSprite.tint = isUserAsset
+        ? 0xFFFFFF
+        : (textColor === 0x000000 ? 0x1B1F27 : (isSpecial ? 0xFFF1C8 : 0xF3F6FF));
+      this.iconSprite.visible = true;
+
+      // Cast shadow — a dark, offset copy BEHIND the icon. Themed glyphs only
+      // (user PNGs carry their own depth). A sprite, not a filter: ~free.
+      if (!isUserAsset) {
+        if (!this.iconShadow) {
+          this.iconShadow = new Sprite(iconTexture);
+          this.iconShadow.anchor.set(0.5);
+          this.inner.addChildAt(this.iconShadow, 0);
+        } else {
+          this.iconShadow.texture = iconTexture;
+        }
+        this.iconShadow.width = targetSize;
+        this.iconShadow.height = targetSize;
+        this.iconShadow.x = 1.5;
+        this.iconShadow.y = iy + 3;
+        this.iconShadow.tint = 0x000000;
+        this.iconShadow.alpha = textColor === 0x000000 ? 0.18 : 0.36;
+        this.iconShadow.visible = true;
+        this.inner.setChildIndex(this.iconShadow, 0); // stay directly behind
+      } else if (this.iconShadow) {
+        this.iconShadow.visible = false;
+      }
+    } else {
+      // Text/emoji fallback path — hide icon + shadow, show bigLabel.
+      if (this.iconSprite) this.iconSprite.visible = false;
+      if (this.iconShadow) this.iconShadow.visible = false;
+      this.bigLabel.visible = true;
+      this.bigLabel.text = bigText;
+      this.bigLabel.style.fill = textColor;
+      this.bigLabel.style.fontSize = themedGlyph ? 60 : (isSpecial ? 40 : isHigh ? 38 : isLow ? 30 : 34);
+      // Soft drop shadow lifts the glyph off the panel (depth, not flat ink).
+      this.bigLabel.style.dropShadow = {
+        alpha: 0.5, angle: Math.PI / 2, blur: 2, color: 0x000000, distance: 2,
+      };
+    }
+
+    // No caption. Real slots never print the symbol code ("LOW G") on a tile —
+    // the gem colour, the icon, and the special gold rim carry identity (the
+    // Gift Bonanza / Fruit Fortune convention). Caption stays hidden by default.
+    this.nameLabel.visible = false;
+  }
+
+  private playSpriteState(state: SymbolState) {
+    if (!this.sprite) return;
+    const atlas = this.atlases[this.symbolId];
+    if (!atlas) return;
+    const clip = atlas.animations[state];
+    if (!clip || clip.length === 0) {
+      this.resetVisuals();
+      return;
+    }
+    this.sprite.textures = clip;
+    this.sprite.loop = state === 'idle' || state === 'featured';
+    this.sprite.onComplete =
+      state === 'landing' ? () => this.transitionAfterLanding() : undefined;
+    this.sprite.gotoAndPlay(0);
+  }
+
+  private playFallbackState(state: SymbolState, delay = 0) {
+    switch (state) {
+      case 'landing':
+        this.playFallbackLanding(delay);
+        return;
+      case 'win':
+        this.playFallbackWin(delay);
+        return;
+      case 'idle':
+        this.playFallbackIdle();
+        return;
+      case 'featured':
+        this.playFallbackFeatured();
+        return;
+    }
+  }
+
+  private playFallbackLanding(delay = 0) {
+    const t = FALLBACK_TIMINGS.landing;
+    this.inner.scale.set(1);
+    this.inner.rotation = 0;
+    const rotRad = (t.rotationKick * Math.PI) / 180;
+    this.tween = gsap
+      .timeline({ delay, onComplete: () => this.transitionAfterLanding() })
+      // Squash down
+      .to(this.inner.scale, {
+        x: 1 / t.scaleCompress, // horizontal stretch during vertical squash
+        y: t.scaleCompress,
+        duration: t.downDuration,
+        ease: 'power3.in',
+      })
+      // Stretch up (overshoot) with rotation kick
+      .to(this.inner.scale, {
+        x: t.scaleCompress, // narrow on stretch
+        y: t.scaleOvershoot,
+        duration: t.upDuration,
+        ease: 'back.out(3)',
+      })
+      .to(this.inner, {
+        rotation: rotRad,
+        duration: t.upDuration * 0.5,
+        ease: 'power2.out',
+      }, '<')
+      // Settle back to rest
+      .to(this.inner.scale, {
+        x: 1,
+        y: 1,
+        duration: t.settleDuration,
+        ease: 'elastic.out(1.2, 0.5)',
+      })
+      .to(this.inner, {
+        rotation: 0,
+        duration: t.settleDuration,
+        ease: 'power2.out',
+      }, '<');
+  }
+
+  /**
+   * When landing finishes, transition to 'idle' if this symbol supports it
+   * (typically wilds and scatters). Otherwise drop back to neutral 'static'.
+   */
+  private transitionAfterLanding() {
+    if (this.activeState !== 'landing') return;
+    if (this.supportedStates().includes('idle')) {
+      this.activeState = 'static'; // reset so play('idle') proceeds
+      this.play('idle');
+    } else {
+      this.activeState = 'static';
+      this.resetVisuals();
+    }
+  }
+
+  private playFallbackWin(delay = 0) {
+    const t = FALLBACK_TIMINGS.win;
+    this.inner.scale.set(1);
+    this.inner.rotation = 0;
+    this.inner.alpha = 1;
+
+    // Clean repeating enlarge pulse (no rotation): grow big, hold, shrink back,
+    // pause. The bright border highlight (outline) fades IN as the symbol grows
+    // and OUT as it shrinks — so the symbol is only highlighted while bigger.
+    const o = this.outline;
+    if (o) o.alpha = 0;
+    const tl = gsap.timeline({ delay, repeat: -1 });
+    tl.to(this.inner.scale, { x: t.scalePeak, y: t.scalePeak, duration: t.pulseUp, ease: 'back.out(2)' }, 0);
+    if (o) tl.to(o, { alpha: 1, duration: t.pulseUp, ease: 'power2.out' }, 0);
+    tl.to(this.inner.scale, { x: t.scalePeak, y: t.scalePeak, duration: t.pulseHold }, t.pulseUp);
+    tl.to(this.inner.scale, { x: 1, y: 1, duration: t.pulseDown, ease: 'power2.inOut' }, t.pulseUp + t.pulseHold);
+    if (o) tl.to(o, { alpha: 0, duration: t.pulseDown, ease: 'power2.in' }, t.pulseUp + t.pulseHold);
+    tl.to({}, { duration: t.pulsePause }, t.pulseUp + t.pulseHold + t.pulseDown);
+    this.tween = tl;
+  }
+
+  private playFallbackIdle() {
+    const t = FALLBACK_TIMINGS.idle;
+    this.inner.scale.set(1);
+    const baseY = this.inner.y;
+    // Gentle breathe: scale pulse + vertical float for a living feel
+    this.tween = gsap.timeline({ repeat: -1, yoyo: true })
+      .to(this.inner.scale, {
+        x: t.scalePeak,
+        y: t.scalePeak,
+        duration: t.breatheDuration / 2,
+        ease: 'sine.inOut',
+      }, 0)
+      .to(this.inner, {
+        y: baseY - t.floatAmplitude,
+        duration: t.breatheDuration / 2,
+        ease: 'sine.inOut',
+      }, 0);
+  }
+
+  private playFallbackFeatured() {
+    const t = FALLBACK_TIMINGS.featured;
+    this.inner.alpha = 1;
+    this.inner.scale.set(1);
+    this.inner.rotation = 0;
+    const rotRad = (t.rotationSwing * Math.PI) / 180;
+    // Aggressive alpha + scale + rotation pulse — impossible to miss.
+    this.tween = gsap
+      .timeline({ repeat: -1, yoyo: true })
+      .to(this.inner, {
+        alpha: t.alphaMin,
+        duration: t.glowDuration / 2,
+        ease: 'power2.inOut',
+      }, 0)
+      .to(this.inner.scale, {
+        x: t.scalePeak,
+        y: t.scalePeak,
+        duration: t.glowDuration / 2,
+        ease: 'back.out(2)',
+      }, 0)
+      .to(this.inner, {
+        rotation: rotRad,
+        duration: t.glowDuration / 2,
+        ease: 'sine.inOut',
+      }, 0);
+  }
+
+  private resetVisuals() {
+    this.inner.scale.set(1);
+    this.inner.alpha = 1;
+    this.inner.rotation = 0;
+  }
+
+  private killTween() {
+    this.tween?.kill();
+    this.tween = null;
   }
 }

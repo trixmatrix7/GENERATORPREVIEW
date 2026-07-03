@@ -16,9 +16,18 @@ interface Props {
   pixiApp: PixiApp | null;
 }
 
+type Tab = 'features' | 'params' | 'background' | 'add' | 'export';
+const TAB_LABELS: Record<Tab, string> = {
+  features: 'Features',
+  params: 'Params',
+  background: 'Background',
+  add: 'Add (code)',
+  export: 'Export',
+};
+
 export function StudioDrawer({ pixiApp }: Props) {
   const [open, setOpen] = useState(false);
-  const [tab, setTab] = useState<'params' | 'background' | 'add' | 'export'>('params');
+  const [tab, setTab] = useState<Tab>('features');
 
   return (
     <>
@@ -33,19 +42,20 @@ export function StudioDrawer({ pixiApp }: Props) {
 
       {open && (
         <div className="fixed top-0 right-0 h-full w-[340px] z-[290] bg-[#141417] border-l border-[#2a2a2e] flex flex-col text-[#f4f4f5] font-[var(--font-body)]">
-          <div className="flex items-center gap-1 p-2 border-b border-[#2a2a2e]">
-            {(['params', 'background', 'add', 'export'] as const).map(t => (
+          <div className="flex items-center gap-1 p-2 border-b border-[#2a2a2e] flex-wrap">
+            {(['features', 'params', 'background', 'add', 'export'] as const).map(t => (
               <button
                 key={t}
                 type="button"
                 onClick={() => setTab(t)}
-                className={`px-3 py-1.5 rounded-md text-[12px] font-medium cursor-pointer ${tab === t ? 'bg-[#FFE168] text-black' : 'bg-[#1c1c20] text-[#a1a1aa]'}`}
+                className={`px-2.5 py-1.5 rounded-md text-[12px] font-medium cursor-pointer ${tab === t ? 'bg-[#FFE168] text-black' : 'bg-[#1c1c20] text-[#a1a1aa]'}`}
               >
-                {t === 'params' ? 'Params' : t === 'background' ? 'Background' : t === 'add' ? 'Add (code)' : 'Export'}
+                {TAB_LABELS[t]}
               </button>
             ))}
           </div>
           <div className="flex-1 overflow-y-auto p-3">
+            {tab === 'features' && <FeaturesTab pixiApp={pixiApp} />}
             {tab === 'params' && <ParamsTab pixiApp={pixiApp} />}
             {tab === 'background' && <BackgroundTab pixiApp={pixiApp} />}
             {tab === 'add' && <AddTab />}
@@ -57,6 +67,119 @@ export function StudioDrawer({ pixiApp }: Props) {
         </div>
       )}
     </>
+  );
+}
+
+/* ── Features: pick win-line (win-presentation) features → added to the slot.
+ *  Mirrors the generator's FeatureSelection.winPresentation (a list of registry
+ *  ids). Ticking a runtime-live feature (e.g. ways-light-comet) applies it to
+ *  the slot immediately via the dev's applyVisualParam. ── */
+const WINLINE_RUNTIME: Record<string, string> = { 'ways-light-comet': 'waysLight' };
+const WAYS_SUB_PARAMS = ['waysLightColor', 'waysLightSpeed', 'waysLightWidth'];
+const FEATURE_STORAGE = 'slot:feature-selection';
+
+function loadSelection(defaults: string[]): Set<string> {
+  try {
+    const raw = localStorage.getItem(FEATURE_STORAGE);
+    if (raw) return new Set(JSON.parse(raw) as string[]);
+  } catch { /* ignore */ }
+  return new Set(defaults);
+}
+function saveSelection(s: Set<string>): void {
+  try { localStorage.setItem(FEATURE_STORAGE, JSON.stringify([...s])); } catch { /* ignore */ }
+}
+
+function FeaturesTab({ pixiApp }: { pixiApp: PixiApp | null }) {
+  const winline = REGISTRIES.winPresentation.list();
+  const defaults = winline.filter(e => e.implemented).map(e => e.id);
+  const [selected, setSelected] = useState<Set<string>>(() => loadSelection(defaults));
+  const [subVals, setSubVals] = useState<Record<string, string>>(() =>
+    Object.fromEntries(
+      ADJUSTABLE_PARAMS.filter(p => WAYS_SUB_PARAMS.includes(p.id)).map(p => [p.id, String(p.default)]),
+    ),
+  );
+
+  // Re-apply the current selection + sub-settings whenever the PixiApp (re)mounts.
+  useEffect(() => {
+    if (!pixiApp) return;
+    for (const [id, param] of Object.entries(WINLINE_RUNTIME)) {
+      pixiApp.applyVisualParam(param, selected.has(id) ? 'on' : 'off');
+    }
+    for (const id of WAYS_SUB_PARAMS) pixiApp.applyVisualParam(id, subVals[id]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pixiApp]);
+
+  const toggle = (id: string) => {
+    const next = new Set(selected);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    setSelected(next);
+    saveSelection(next);
+    const param = WINLINE_RUNTIME[id];
+    if (param) pixiApp?.applyVisualParam(param, next.has(id) ? 'on' : 'off');
+  };
+  const setSub = (id: string, v: string) => {
+    setSubVals(s => ({ ...s, [id]: v }));
+    pixiApp?.applyVisualParam(id, v);
+  };
+
+  const subParams = ADJUSTABLE_PARAMS.filter(p => WAYS_SUB_PARAMS.includes(p.id));
+  const featureSelection = JSON.stringify({ winPresentation: [...selected] }, null, 2);
+
+  return (
+    <div className="flex flex-col gap-3 text-[12px]">
+      <p className="text-[11px] text-[#6b6b73] leading-relaxed">
+        <span className="text-[#a1a1aa]">Win-line features.</span> Tick one to add it to the slot — a{' '}
+        <span className="text-[#FFE168]">● live</span> feature applies instantly; <em className="not-italic">baseline</em>{' '}
+        features are the runtime default. This is your <code className="text-[#FFE168]">FeatureSelection.winPresentation</code>.
+      </p>
+
+      {winline.map(e => {
+        const live = e.id in WINLINE_RUNTIME;
+        const on = selected.has(e.id);
+        return (
+          <div key={e.id} className={`rounded-md border p-2 ${on ? 'border-[#3a3a20] bg-[#1a1a12]' : 'border-[#232327] bg-[#0e0e10]'}`}>
+            <label className="flex items-start gap-2 cursor-pointer">
+              <input type="checkbox" checked={on} onChange={() => toggle(e.id)} className="mt-0.5 accent-[#FFE168]" />
+              <span className="flex flex-col">
+                <span className="flex items-center gap-2">
+                  <span className="font-medium">{e.name}</span>
+                  {live ? <span className="text-[9px] text-[#FFE168]">● live</span> : <span className="text-[9px] text-[#6b6b73] uppercase">baseline</span>}
+                </span>
+                <span className="text-[10px] text-[#6b6b73] leading-snug">{e.description}</span>
+              </span>
+            </label>
+
+            {/* inline settings for the ways-light comet when it's selected */}
+            {e.id === 'ways-light-comet' && on && (
+              <div className="mt-2 ml-6 flex flex-col gap-1.5">
+                {subParams.map(p => (
+                  <label key={p.id} className="flex items-center justify-between gap-2 text-[11px]">
+                    <span className="text-[#a1a1aa]">{p.label.replace('Ways-light ', '')}</span>
+                    <select
+                      value={subVals[p.id]}
+                      onChange={ev => setSub(p.id, ev.target.value)}
+                      className="bg-[#0e0e10] border border-[#2a2a2e] rounded px-2 py-1 text-[11px]"
+                    >
+                      {(p.options ?? []).map(o => <option key={o} value={o}>{o}</option>)}
+                    </select>
+                  </label>
+                ))}
+              </div>
+            )}
+          </div>
+        );
+      })}
+
+      <div className="mt-1">
+        <div className="flex items-center justify-between">
+          <span className="text-[10px] uppercase tracking-wider text-[#6b6b73]">FeatureSelection (for the dev)</span>
+          <button type="button" className="text-[11px] text-[#FFE168] cursor-pointer" onClick={() => void navigator.clipboard?.writeText(featureSelection)}>
+            copy
+          </button>
+        </div>
+        <pre className="mt-1 bg-[#0e0e10] border border-[#232327] rounded-md p-2 font-mono text-[10px] text-[#d8e0c8] whitespace-pre-wrap">{featureSelection}</pre>
+      </div>
+    </div>
   );
 }
 

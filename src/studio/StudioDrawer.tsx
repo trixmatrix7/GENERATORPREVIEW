@@ -16,11 +16,11 @@ interface Props {
   pixiApp: PixiApp | null;
 }
 
-type Tab = 'features' | 'params' | 'background' | 'add' | 'export';
+type Tab = 'features' | 'params' | 'assets' | 'add' | 'export';
 const TAB_LABELS: Record<Tab, string> = {
   features: 'Features',
   params: 'Params',
-  background: 'Background',
+  assets: 'Assets',
   add: 'Add (code)',
   export: 'Export',
 };
@@ -43,7 +43,7 @@ export function StudioDrawer({ pixiApp }: Props) {
       {open && (
         <div className="fixed top-0 right-0 h-full w-[340px] z-[290] bg-[#141417] border-l border-[#2a2a2e] flex flex-col text-[#f4f4f5] font-[var(--font-body)]">
           <div className="flex items-center gap-1 p-2 border-b border-[#2a2a2e] flex-wrap">
-            {(['features', 'params', 'background', 'add', 'export'] as const).map(t => (
+            {(['features', 'params', 'assets', 'add', 'export'] as const).map(t => (
               <button
                 key={t}
                 type="button"
@@ -57,7 +57,7 @@ export function StudioDrawer({ pixiApp }: Props) {
           <div className="flex-1 overflow-y-auto p-3">
             {tab === 'features' && <FeaturesTab pixiApp={pixiApp} />}
             {tab === 'params' && <ParamsTab pixiApp={pixiApp} />}
-            {tab === 'background' && <BackgroundTab pixiApp={pixiApp} />}
+            {tab === 'assets' && <AssetsTab pixiApp={pixiApp} />}
             {tab === 'add' && <AddTab />}
             {tab === 'export' && <ExportTab />}
           </div>
@@ -235,58 +235,122 @@ function ParamsTab({ pixiApp }: { pixiApp: PixiApp | null }) {
   );
 }
 
-/* ── Background: PixiApp.setBackgroundImage (dev API) ── */
-function BackgroundTab({ pixiApp }: { pixiApp: PixiApp | null }) {
-  const [url, setUrl] = useState('');
-  const [active, setActive] = useState(false);
-  const fileRef = useRef<HTMLInputElement>(null);
+/* ── Assets: reskin the slot like the generator's Asset-Swap — per-symbol PNGs
+ *  (setUserAssetTextures), a full-canvas background (setBackgroundImage), and a
+ *  frame overlay (setFrameImage). All the dev's real runtime APIs. ── */
+const SYMBOL_SLOTS: { id: number; label: string }[] = [
+  { id: 0, label: 'Wild' }, { id: 1, label: 'Scatter' }, { id: 2, label: 'High A' },
+  { id: 3, label: 'High B' }, { id: 4, label: 'Mid C' }, { id: 5, label: 'Mid D' },
+  { id: 6, label: 'Low E' }, { id: 7, label: 'Low F' }, { id: 8, label: 'Low G' },
+  { id: 9, label: 'Coin' },
+];
 
-  const set = async (src: string | null) => {
-    await pixiApp?.setBackgroundImage(src);
-    setActive(!!src);
-  };
+const readDataUrl = (file: File, cb: (url: string) => void) => {
+  const r = new FileReader();
+  r.onload = () => cb(String(r.result));
+  r.readAsDataURL(file);
+};
 
-  const onFile = (file?: File) => {
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => void set(String(reader.result));
-    reader.readAsDataURL(file);
+function AssetsTab({ pixiApp }: { pixiApp: PixiApp | null }) {
+  const [symbols, setSymbols] = useState<Record<number, string>>({});
+  const [bg, setBg] = useState<string | null>(null);
+  const [frame, setFrame] = useState<string | null>(null);
+
+  const applySymbols = (next: Record<number, string>) => {
+    setSymbols(next);
+    const map = new Map<number, string>(Object.entries(next).map(([k, v]) => [Number(k), v]));
+    void pixiApp?.setUserAssetTextures(map);
   };
 
   return (
-    <div className="flex flex-col gap-3 text-[12px]">
+    <div className="flex flex-col gap-4 text-[12px]">
       <p className="text-[11px] text-[#6b6b73] leading-relaxed">
-        Full-canvas background behind the reels — the generator's own{' '}
-        <code className="text-[#FFE168]">setBackgroundImage</code> (cover-fit, frosted reel backdrop).
+        Reskin the slot — the generator's real asset APIs. Drop PNGs (transparent background works best).
+        The <span className="text-[#a1a1aa]">spec/math never changes</span>; these are render-only swaps.
       </p>
-      <button
-        type="button"
-        className="bg-[#1c1c20] border border-[#2a2a2e] rounded-md px-3 py-2 cursor-pointer"
-        onClick={() => fileRef.current?.click()}
-      >
-        Upload image…
-      </button>
-      <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={e => onFile(e.target.files?.[0])} />
-      <div className="flex gap-2">
-        <input
-          className="flex-1 bg-[#0e0e10] border border-[#2a2a2e] rounded-md px-2 py-1.5"
-          placeholder="…or paste an image URL"
-          value={url}
-          onChange={e => setUrl(e.target.value)}
-        />
-        <button
-          type="button"
-          disabled={!url.trim()}
-          className="bg-[#1c1c20] border border-[#2a2a2e] rounded-md px-3 cursor-pointer disabled:opacity-40"
-          onClick={() => void set(url.trim())}
-        >
-          Set
-        </button>
+
+      {/* Symbols */}
+      <div>
+        <div className="text-[10px] uppercase tracking-wider text-[#6b6b73] mb-1.5">Symbols · setUserAssetTextures</div>
+        <div className="grid grid-cols-2 gap-1.5">
+          {SYMBOL_SLOTS.map(s => (
+            <label
+              key={s.id}
+              className={`flex items-center gap-2 rounded-md border px-2 py-1.5 cursor-pointer ${symbols[s.id] ? 'border-[#3a3a20] bg-[#1a1a12]' : 'border-[#232327] bg-[#0e0e10]'}`}
+              title={`Upload art for ${s.label}`}
+            >
+              {symbols[s.id] ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={symbols[s.id]} alt="" className="w-6 h-6 object-contain rounded" />
+              ) : (
+                <span className="w-6 h-6 grid place-items-center text-[10px] text-[#6b6b73] border border-[#232327] rounded">{s.id}</span>
+              )}
+              <span className="flex-1 text-[11px]">{s.label}</span>
+              {symbols[s.id] && (
+                <span
+                  role="button"
+                  className="text-[#ff5a5a] text-[11px]"
+                  onClick={ev => { ev.preventDefault(); const n = { ...symbols }; delete n[s.id]; applySymbols(n); }}
+                >
+                  ✕
+                </span>
+              )}
+              <input type="file" accept="image/*" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) readDataUrl(f, url => applySymbols({ ...symbols, [s.id]: url })); }} />
+            </label>
+          ))}
+        </div>
+        {Object.keys(symbols).length > 0 && (
+          <button type="button" className="mt-1.5 text-[#ff5a5a] text-[11px] cursor-pointer" onClick={() => applySymbols({})}>
+            Reset all symbols
+          </button>
+        )}
       </div>
-      {active && (
-        <button type="button" className="text-[#ff5a5a] text-left cursor-pointer" onClick={() => void set(null)}>
-          Clear background
+
+      {/* Background */}
+      <AssetSlot
+        title="Background · setBackgroundImage"
+        note="Full-canvas image behind the reels (cover-fit, frosted reel backdrop). Use a 16:9 image."
+        active={bg}
+        onPick={url => { setBg(url); void pixiApp?.setBackgroundImage(url); }}
+        onClear={() => { setBg(null); void pixiApp?.setBackgroundImage(null); }}
+        allowUrl
+      />
+
+      {/* Frame */}
+      <AssetSlot
+        title="Frame · setFrameImage (preview)"
+        note="Overlay a custom frame PNG over the procedural reel frame — use one with a transparent centre window so the reels show through. (Frame is procedural in the generator; this overlay is preview-only.)"
+        active={frame}
+        onPick={url => { setFrame(url); void pixiApp?.setFrameImage(url); }}
+        onClear={() => { setFrame(null); void pixiApp?.setFrameImage(null); }}
+      />
+    </div>
+  );
+}
+
+function AssetSlot({ title, note, active, onPick, onClear, allowUrl }: {
+  title: string; note: string; active: string | null;
+  onPick: (url: string) => void; onClear: () => void; allowUrl?: boolean;
+}) {
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [url, setUrl] = useState('');
+  return (
+    <div>
+      <div className="text-[10px] uppercase tracking-wider text-[#6b6b73] mb-1.5">{title}</div>
+      <p className="text-[10px] text-[#6b6b73] leading-snug mb-1.5">{note}</p>
+      <div className="flex gap-2 items-center">
+        <button type="button" className="bg-[#1c1c20] border border-[#2a2a2e] rounded-md px-3 py-1.5 cursor-pointer" onClick={() => fileRef.current?.click()}>
+          Upload…
         </button>
+        {active && <button type="button" className="text-[#ff5a5a] text-[11px] cursor-pointer" onClick={onClear}>Clear</button>}
+        {active && <img src={active} alt="" className="w-8 h-8 object-contain rounded border border-[#232327]" />}
+      </div>
+      <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) readDataUrl(f, onPick); }} />
+      {allowUrl && (
+        <div className="flex gap-2 mt-1.5">
+          <input className="flex-1 bg-[#0e0e10] border border-[#2a2a2e] rounded-md px-2 py-1.5 text-[11px]" placeholder="…or paste an image URL" value={url} onChange={e => setUrl(e.target.value)} />
+          <button type="button" disabled={!url.trim()} className="bg-[#1c1c20] border border-[#2a2a2e] rounded-md px-3 cursor-pointer disabled:opacity-40" onClick={() => onPick(url.trim())}>Set</button>
+        </div>
       )}
     </div>
   );

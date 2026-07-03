@@ -596,7 +596,9 @@ export class ReelSet {
       }
 
       // Bold gold connecting line: a solid wider underlay + a thick bright core.
-      if (pts.length >= 2) {
+      // Skipped when the ways-light comet is the selected win-line feature — it
+      // owns the connection then (the contributor's design: nothing stays).
+      if (pts.length >= 2 && !waysLightConfig.enabled) {
         const line = new Graphics();
         line.moveTo(pts[0].x, pts[0].y);
         for (let i = 1; i < pts.length; i++) line.lineTo(pts[i].x, pts[i].y);
@@ -646,7 +648,8 @@ export class ReelSet {
     this.winFxTweens.push(sweep);
 
     // Full-board win (matched across every reel) → a light band sweeps the line.
-    if (combos.some(c => c.matchCount >= this.grid.reelCount)) {
+    // Suppressed when the ways-light comet owns the win-line.
+    if (!waysLightConfig.enabled && combos.some(c => c.matchCount >= this.grid.reelCount)) {
       this.spawnLightSweep(group, minX - 30, maxX + 30, minY - 60, maxY + 60);
     }
   }

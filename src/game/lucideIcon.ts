@@ -81,7 +81,9 @@ export function loadLucideTexture(
     size,
     weight: 'fill',
     strokeWidth: 2.5,
-    absoluteStrokeWidth: true,
+    // NOTE: `absoluteStrokeWidth` (a lucide-only prop) is intentionally omitted —
+    // Phosphor icons (used by the Fantasy theme) spread unknown props onto the
+    // <svg>, which floods the console with React unknown-DOM-attribute warnings.
   });
   const svgString = renderToStaticMarkup(element);
   const promise = rasteriseSvg(svgString, size).then(bitmap => Texture.from(bitmap));

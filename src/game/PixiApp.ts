@@ -96,6 +96,13 @@ export class PixiApp {
   private borderOuterGraphic!: Graphics;
   private borderInnerGraphic!: Graphics;
   private sheenGraphic!: Graphics;
+  // Preview-only frame-image overlay (the generator renders the frame
+  // procedurally; this lets the studio drop a custom frame PNG over it).
+  private frameImageSprite: Sprite | null = null;
+  private frameTexture: Texture | null = null;
+  private frameW = 0;
+  private frameH = 0;
+  private frameToken = 0;
   private rowDots: Graphics[] = [];
   private titleText!: Text;
   private currentTheme: Theme = 'dark';
@@ -333,6 +340,8 @@ export class PixiApp {
     this.frameGraphic.roundRect(0, 0, rw, rh, 16);
     this.frameGraphic.fill({ color: CANVAS_THEME.modes.dark.frameFill });
     this.gameContainer.addChild(this.frameGraphic);
+    this.frameW = rw;
+    this.frameH = rh;
 
     // Frame border — filled shapes, not stroke() which flickers at non-integer scale
     this.borderOuterGraphic = new Graphics();
@@ -685,6 +694,48 @@ export class PixiApp {
    * machine. Cover-fits the renderer and re-fits on resize. Race-safe via a
    * monotonic token; leak-safe — the previous texture is destroyed on swap.
    */
+  /** Preview-only: overlay a custom frame PNG over the procedural reel frame.
+   *  Use a frame image with a transparent centre window so the reels show
+   *  through. Sized to the frame bounds; scales with the scene. `null` clears. */
+  async setFrameImage(dataUrl: string | null): Promise<void> {
+    if (!this._initialized || this._aborted) return;
+    const myToken = ++this.frameToken;
+    if (!dataUrl) {
+      this.clearFrameImage();
+      return;
+    }
+    let tex: Texture;
+    try {
+      tex = await Assets.load<Texture>(dataUrl);
+    } catch (err) {
+      console.warn('[PixiApp] failed to load frame image:', err);
+      return;
+    }
+    if (myToken !== this.frameToken || this._aborted) {
+      try { tex.destroy(true); } catch { /* torn down */ }
+      return;
+    }
+    this.clearFrameImage();
+    this.frameTexture = tex;
+    const sp = new Sprite(tex);
+    sp.width = this.frameW;
+    sp.height = this.frameH;
+    this.frameImageSprite = sp;
+    this.gameContainer.addChild(sp); // topmost child → border sits over the reels
+  }
+
+  private clearFrameImage(): void {
+    if (this.frameImageSprite) {
+      this.frameImageSprite.parent?.removeChild(this.frameImageSprite);
+      try { this.frameImageSprite.destroy(); } catch { /* torn down */ }
+      this.frameImageSprite = null;
+    }
+    if (this.frameTexture) {
+      try { this.frameTexture.destroy(true); } catch { /* torn down */ }
+      this.frameTexture = null;
+    }
+  }
+
   async setBackgroundImage(dataUrl: string | null): Promise<void> {
     if (!this._initialized || this._aborted) return;
     const myToken = ++this.bgToken;

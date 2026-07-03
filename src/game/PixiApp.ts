@@ -6,6 +6,7 @@ import { gsap } from 'gsap';
 import { ReelSet, type ReelSetAudioHooks } from './ReelSet';
 import { setActiveGrid, type GridConfig } from '@/config/gridConfig';
 import { WIN_LINE_PRESETS, WIN_COIN_PRESETS, ACCENT_PRESETS } from '@/config/adjustableParams';
+import { waysLightConfig, WAYS_LIGHT_PRESETS, WAYS_LIGHT_SPEED_MS, WAYS_LIGHT_WIDTH_PX } from './effects/WaysLightComet';
 import { CANVAS_THEME } from '@/config/canvasTheme';
 import type { SpinOutcome } from '@/engine/SlotEngine';
 import { DEFAULT_GAME_CONFIG, type GameConfig, type GameTheme } from '@/engine/GameConfig';
@@ -1347,6 +1348,23 @@ export class PixiApp {
       case 'winBannerColor': {
         const preset = ACCENT_PRESETS[String(value)];
         if (preset) this.winBannerColorOverride = preset.color; // applied on the next win
+        break;
+      }
+      case 'waysLight': {
+        waysLightConfig.enabled = String(value) !== 'off';
+        break;
+      }
+      case 'waysLightColor': {
+        const preset = WAYS_LIGHT_PRESETS[String(value)];
+        if (preset) waysLightConfig.color = preset.color;
+        break;
+      }
+      case 'waysLightSpeed': {
+        waysLightConfig.stepMs = WAYS_LIGHT_SPEED_MS[String(value)] ?? waysLightConfig.stepMs;
+        break;
+      }
+      case 'waysLightWidth': {
+        waysLightConfig.width = WAYS_LIGHT_WIDTH_PX[String(value)] ?? waysLightConfig.width;
         break;
       }
       default:

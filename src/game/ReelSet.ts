@@ -21,6 +21,7 @@ import type { WinResult, WinCombination } from '@/engine/WinEvaluator';
 import { HW_START_RESPINS, type HwRound } from '@/engine/holdAndWin';
 import { DEFAULT_GAME_CONFIG, type GameConfig } from '@/engine/GameConfig';
 import type { SymbolAtlasMap } from './SymbolAtlasLoader';
+import { playWaysLight, clearAllWaysLight, waysLightConfig } from './effects/WaysLightComet';
 
 /** Cap on the number of reels we apply the near-miss tease to. Each teased
  *  reel after the first compounds its delay and duration. We tease every
@@ -83,6 +84,8 @@ export class ReelSet {
    *  below the win line. Cleared on spin start / tease end / skip. */
   private readonly teaseGlowContainer: Container;
   private readonly winLinesContainer: Container;
+  /** Ways-light comet fx — topmost, self-cleaning per connection. */
+  private readonly waysLightContainer: Container = new Container();
   /** Floating per-combo "+amount" labels. Separate from winLinesContainer so a
    *  reveal step can clear the previous frame/line WITHOUT killing amounts that
    *  are still floating up from earlier steps. */
@@ -169,6 +172,9 @@ export class ReelSet {
     });
     this.container.addChild(this.winObjectsContainer);  // lifted winning objects — above line
     this.container.addChild(this.winAmountsContainer);  // floating amounts — top
+    this.container.addChild(this.waysLightContainer);   // ways-light comet — topmost fx
+    // scale the comet head to this grid's cell size
+    waysLightConfig.cellSize = resolveAnchor(cellAnchor(0, 0), grid).w;
 
     // Separator at the centre of each inter-reel gap. Anchor gives us the
     // left edge of reel `i`; subtract half the gap to land on the midline.
@@ -426,8 +432,24 @@ export class ReelSet {
     this.applyCellHighlight(combo.cells); // enlarge-pulse this combo
     this.buildDecoration([combo]);
     this.liftWinningObjects(combo.cells); // raise this combo's objects above the line
+    this.fireWaysLight(combo);            // thin white comet shoots through the ways
     // amount shown during the one-time tally; omitted in the resting loop.
     if (amountText) this.spawnComboAmount(combo, amountText);
+  }
+
+  /** Winning cells grouped left→right by reel → comet through the connection.
+   *  Purely visual; self-cleaning (winPresentation `ways-light-comet`). */
+  private fireWaysLight(combo: WinCombination): void {
+    if (!waysLightConfig.enabled) return;
+    const byReel = new Map<number, Array<{ x: number; y: number }>>();
+    for (const [row, reel] of combo.cells) {
+      const r = resolveAnchor(cellAnchor(reel, row), this.grid);
+      const arr = byReel.get(reel) ?? [];
+      arr.push({ x: r.x + r.w / 2, y: r.y + r.h / 2 });
+      byReel.set(reel, arr);
+    }
+    const reels = [...byReel.keys()].sort((a, b) => a - b).map(k => byReel.get(k)!);
+    if (reels.length >= 2) void playWaysLight(this.waysLightContainer, reels);
   }
 
   clearHighlights() {
@@ -438,6 +460,7 @@ export class ReelSet {
     }
     this.clearWinLines();
     this.clearWinAmounts();
+    clearAllWaysLight(); // kill any in-flight comet
   }
 
   /** Lift each winning cell's object layer above the win line. */

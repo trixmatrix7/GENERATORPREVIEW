@@ -43,6 +43,8 @@ export function App() {
 
   const handlePixiReady = useCallback((app: PixiApp) => {
     setPixiAppRef(app);
+    // dev/studio debugging handle (harmless in prod)
+    (window as unknown as { __pixi?: PixiApp }).__pixi = app;
   }, []);
 
   const {

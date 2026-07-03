@@ -37,6 +37,17 @@ const entries: readonly WinPresentationEntry[] = [
     duration: 3.0,
     components: ['scatter-highlight', 'free-spin-banner'],
   },
+  {
+    id: 'ways-light-comet',
+    name: 'Ways-Light Comet',
+    description:
+      'A thin white light streak shoots THROUGH each winning ways-connection like a comet — the line grows toward the next symbol at the front while it dissolves at the back, so nothing stays behind. Between two reels every symbol connection (bipartite = ways) gets its own thin beam. Fires per combination during the sequential win reveal. Purely visual/additive — no logic/RTP change. Live-tunable via waysLight/waysLightColor/waysLightSpeed/waysLightWidth. Implemented in src/game/effects/WaysLightComet.ts, fired from ReelSet.revealCombo().',
+    version: '1.0.0',
+    implemented: true,
+    trigger: 'any win (per connection)',
+    duration: 1.0,
+    components: [],
+  },
 ] as const;
 
 export const winPresentationRegistry = createRegistry(entries, { compatibleGrids: ['5x3', '5x5'] });

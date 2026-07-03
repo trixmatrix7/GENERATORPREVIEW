@@ -386,6 +386,8 @@ export class ReelSet {
     this.applyCellHighlight(allCells);
     this.buildDecoration(winResult.combinations);
     this.liftWinningObjects(allCells);
+    // ways-light comet through every winning connection (single + multi wins).
+    for (const combo of winResult.combinations) this.fireWaysLight(combo);
   }
 
   /** Reveal ONE combination: dim everything else, light this combo's cells,
@@ -432,7 +434,6 @@ export class ReelSet {
     this.applyCellHighlight(combo.cells); // enlarge-pulse this combo
     this.buildDecoration([combo]);
     this.liftWinningObjects(combo.cells); // raise this combo's objects above the line
-    this.fireWaysLight(combo);            // thin white comet shoots through the ways
     // amount shown during the one-time tally; omitted in the resting loop.
     if (amountText) this.spawnComboAmount(combo, amountText);
   }

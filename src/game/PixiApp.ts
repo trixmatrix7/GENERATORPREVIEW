@@ -1121,13 +1121,14 @@ export class PixiApp {
     });
   }
 
-  /** AAA "Looney-Tunes" iris-wipe into free spins. A screen-space overlay
-   *  (added to app.stage, so it's immune to sceneRoot letterbox scaling) closes
-   *  a circular hole on the LIVE board, punches the "FREE SPINS ×N" title in at
-   *  the pinch, then opens on the free-spins round. The hole is punched with the
-   *  Pixi-v8 .cut() op (NOT even-odd fill, which unions in v8) against an
-   *  OVERSIZED field rect so the cut circle is always fully contained. Awaited:
-   *  the caller holds until the iris is fully open. */
+  /** AAA "Looney-Tunes" free-spins entry: the live board is sucked into a
+   *  shrinking BLACK circle (iris close), then the black circle irises back
+   *  OPEN onto a free-spins INTRO SCREEN (themed splash — "FREE SPINS / N SPINS
+   *  / GOOD LUCK"), which holds a beat and dismisses into the round. Screen-
+   *  space overlay on app.stage (immune to sceneRoot letterbox scaling). The
+   *  black hole is punched with the Pixi-v8 .cut() op (NOT even-odd fill, which
+   *  unions in v8) against an OVERSIZED field rect so the cut is always fully
+   *  contained. Awaited: the caller holds until the intro is dismissed. */
   private playFreeSpinsIris(count: number): Promise<void> {
     if (!this.isLive) return Promise.resolve();
 
@@ -1145,8 +1146,7 @@ export class PixiApp {
 
     const accent = this.config.theme.accent;
     const gold = 0xFFD23F;
-    // Looney sky-blue pull, themeable: accent nudged 35% toward sky-blue.
-    const field = blendHex(accent, 0x2FA8E0, 0.35);
+    const field = 0x000000; // BLACK iris circle (client: "schwarzer kreis")
 
     // Overlay: LAST child of app.stage => top of draw order, SCREEN pixels.
     const overlay = new Container();
@@ -1154,36 +1154,72 @@ export class PixiApp {
     overlay.eventMode = 'none';
     this.irisOverlay = overlay;
 
-    const iris = new Graphics();      // opaque field with the animated circular hole
-    const rim = new Graphics();       // concentric rings + radial glow at the hole edge
-    const sparkles = new Graphics();  // orbiting gold star motes
-    overlay.addChild(iris, rim, sparkles);
+    // ── Free-spins INTRO SCREEN (revealed as the black iris opens). Built now,
+    //    hidden until the pinch, sitting BELOW the iris field so the opening
+    //    hole reveals it. ─────────────────────────────────────────────────────
+    const intro = new Container();
+    intro.alpha = 0;
+    const introBg = new Graphics();
+    introBg.rect(0, 0, sw, sh).fill({ color: 0x07060e, alpha: 1 }); // opaque screen
+    // Soft accent radial glow behind the wordmark.
+    for (let k = 7; k >= 1; k--) {
+      introBg.ellipse(cx, cy, sw * 0.6 * (k / 7), sh * 0.34 * (k / 7));
+      introBg.fill({ color: accent, alpha: 0.05 });
+    }
+    intro.addChild(introBg);
 
-    // Title group (screen-centred), matching the existing card typography.
-    const titleGroup = new Container();
-    const titleText = new Text({
+    // Pop-in content group (rays + wordmark), centred so it scales from middle.
+    const introContent = new Container();
+    introContent.position.set(cx, cy);
+    const rays = new Graphics();
+    const RB = Math.max(sw, sh) * 0.85, nR = 24;
+    for (let i = 0; i < nR; i++) {
+      const a0 = (i / nR) * Math.PI * 2;
+      const a1 = a0 + (Math.PI * 2 / nR) * 0.5;
+      rays.moveTo(0, 0);
+      rays.lineTo(Math.cos(a0) * RB, Math.sin(a0) * RB);
+      rays.lineTo(Math.cos(a1) * RB, Math.sin(a1) * RB);
+      rays.closePath();
+    }
+    rays.fill({ color: gold, alpha: 0.05 });
+    introContent.addChild(rays);
+    const fsTitle = new Text({
       text: 'FREE SPINS',
       style: new TextStyle({
-        fontFamily: "'Poppins', ui-sans-serif, sans-serif", fontSize: 54, fontWeight: '800',
-        fontStyle: 'italic', fill: 0xffffff, letterSpacing: 3,
-        dropShadow: { color: 0x000000, blur: 5, distance: 2, alpha: 0.55 },
+        fontFamily: "'Poppins', ui-sans-serif, sans-serif", fontSize: 64, fontWeight: '800',
+        fontStyle: 'italic', fill: 0xffffff, letterSpacing: 5,
+        dropShadow: { color: 0x000000, blur: 6, distance: 3, alpha: 0.6 },
       }),
     });
-    titleText.anchor.set(0.5); titleText.y = -30;
-    const subText = new Text({
-      text: `×${count}`,
+    fsTitle.anchor.set(0.5); fsTitle.y = -48;
+    const divider = new Graphics();
+    divider.rect(-120, -6, 240, 2).fill({ color: gold, alpha: 0.85 });
+    const fsCount = new Text({
+      text: `${count} SPINS`,
       style: new TextStyle({
-        fontFamily: "'Rubik', ui-sans-serif, sans-serif", fontSize: 46, fontWeight: '700',
-        fill: gold, letterSpacing: 2,
+        fontFamily: "'Rubik', ui-sans-serif, sans-serif", fontSize: 42, fontWeight: '800',
+        fill: gold, letterSpacing: 3,
         dropShadow: { color: 0x000000, blur: 4, distance: 2, alpha: 0.5 },
       }),
     });
-    subText.anchor.set(0.5); subText.y = 34;
-    titleGroup.addChild(titleText, subText);
-    titleGroup.position.set(cx, cy);
-    titleGroup.alpha = 0;
-    titleGroup.scale.set(0.55);
-    overlay.addChild(titleGroup);
+    fsCount.anchor.set(0.5); fsCount.y = 26;
+    const fsLuck = new Text({
+      text: 'GOOD LUCK!',
+      style: new TextStyle({
+        fontFamily: "'Rubik', ui-sans-serif, sans-serif", fontSize: 20, fontWeight: '700',
+        fill: 0xEDE0B4, letterSpacing: 6,
+      }),
+    });
+    fsLuck.anchor.set(0.5); fsLuck.y = 78;
+    introContent.addChild(fsTitle, divider, fsCount, fsLuck);
+    introContent.scale.set(0.72);
+    intro.addChild(introContent);
+    overlay.addChild(intro);
+
+    const iris = new Graphics();      // black field with the animated circular hole
+    const rim = new Graphics();       // concentric rings + radial glow at the hole edge
+    const sparkles = new Graphics();  // gold star motes swirling the hole edge
+    overlay.addChild(iris, rim, sparkles);
 
     this.app.stage.addChild(overlay); // appended last => renders above sceneRoot
 
@@ -1207,7 +1243,7 @@ export class PixiApp {
       if (!this.isLive) return; // never draw into a torn-down GraphicsContext
       const r = Math.max(0, st.r);
 
-      // Opaque field with the circular hole punched via .cut() (v8-correct).
+      // Black field with the circular hole punched via .cut() (v8-correct).
       iris.clear();
       iris.rect(ox, oy, outer, outer);
       iris.fill({ color: field, alpha: st.tint });
@@ -1229,7 +1265,7 @@ export class PixiApp {
       rim.circle(cx, cy, Math.max(1, rr - 7));
       rim.stroke({ color: accent, width: 2, alpha: st.rim * 0.6 });
 
-      // Sparkle motes orbit the hole edge; radius+alpha driven by st.sparkle.
+      // Sparkle motes swirl the hole edge; radius+alpha driven by st.sparkle.
       sparkles.clear();
       if (st.sparkle > 0.001) {
         const orbit = Math.max(24, rr) + 18;
@@ -1247,7 +1283,9 @@ export class PixiApp {
     return new Promise<void>((resolve) => {
       const finish = () => {
         gsap.killTweensOf(st);
-        gsap.killTweensOf(titleGroup); gsap.killTweensOf(titleGroup.scale);
+        gsap.killTweensOf(overlay);
+        gsap.killTweensOf(intro);
+        gsap.killTweensOf(introContent); gsap.killTweensOf(introContent.scale);
         if (this.irisTl === tl) this.irisTl = null;
         if (this.irisState === st) this.irisState = null;
         if (this.irisOverlay === overlay) this.irisOverlay = null;
@@ -1262,27 +1300,29 @@ export class PixiApp {
       // idempotent, so a later finish()/destroy() call is harmless.
       this.irisResolve = () => resolve();
 
-      // Phase 1 CLOSE (0.00 -> 0.42): hole shrinks on the LIVE board; field ramps.
+      // Phase 1 CLOSE (0.00 -> 0.44): the live board is sucked into a shrinking
+      // BLACK circle; the rim/glow/sparkles swirl in as it pinches shut.
       tl.to(st, {
-        r: 0, tint: 1, rim: 1, glow: 0.6, sparkle: 1,
-        duration: 0.42, ease: 'power2.in', onUpdate: redraw,
+        r: 0, tint: 1, rim: 1, glow: 0.7, sparkle: 1,
+        duration: 0.44, ease: 'power2.in', onUpdate: redraw,
       }, 0);
+      // At full black, arm the intro screen behind the field (invisible for now).
+      tl.set(intro, { alpha: 1 }, 0.46);
 
-      // Phase 2 PINCH (0.42 -> 0.66): title punches in; rings pulse; glow flashes.
-      tl.to(titleGroup, { alpha: 1, duration: 0.12, ease: 'power2.out' }, 0.42);
-      tl.fromTo(titleGroup.scale, { x: 0.55, y: 0.55 },
-        { x: 1.12, y: 1.12, duration: 0.18, ease: 'back.out(2.6)' }, 0.42);
-      tl.to(titleGroup.scale, { x: 1, y: 1, duration: 0.10, ease: 'power2.out' }, 0.60);
-      tl.to(st, { ringPulse: 1.06, glow: 1.0, duration: 0.12, ease: 'power2.out', onUpdate: redraw }, 0.42);
-      tl.to(st, { ringPulse: 1.0, glow: 0.5, duration: 0.12, ease: 'power2.in', onUpdate: redraw }, 0.54);
-
-      // Phase 3 OPEN (0.66 -> 1.08): MONOTONIC expand (no overshoot => no corner
-      // re-flash), reveal the FS board; field/rim/glow/sparkle + title fade out.
+      // Phase 2 OPEN (0.52 -> 0.98): the black circle irises back open, revealing
+      // the intro screen; the wordmark pops in as the hole widens.
       tl.to(st, {
         r: rDiag, tint: 0, rim: 0, glow: 0, sparkle: 0,
-        duration: 0.42, ease: 'power2.out', onUpdate: redraw,
-      }, 0.66);
-      tl.to(titleGroup, { alpha: 0, duration: 0.18, ease: 'power2.in' }, 0.66);
+        duration: 0.46, ease: 'power2.out', onUpdate: redraw,
+      }, 0.52);
+      tl.fromTo(introContent.scale, { x: 0.72, y: 0.72 },
+        { x: 1, y: 1, duration: 0.42, ease: 'back.out(2.2)' }, 0.54);
+
+      // Phase 3 HOLD (0.98 -> 2.18): sit on the intro screen; a gentle count pulse.
+      tl.to(fsCount.scale, { x: 1.06, y: 1.06, duration: 0.5, yoyo: true, repeat: 1, ease: 'sine.inOut' }, 1.05);
+
+      // Phase 4 DISMISS (2.18 -> 2.62): fade the intro out, revealing the round.
+      tl.to(overlay, { alpha: 0, duration: 0.44, ease: 'power2.inOut' }, 2.18);
     });
   }
 

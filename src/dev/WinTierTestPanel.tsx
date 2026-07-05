@@ -119,6 +119,31 @@ export function WinTierTestPanel({ pixiApp, snapshot, soundManager }: Props) {
       >
         ✦ Sticky Wilds
       </button>
+      <button
+        onClick={() => {
+          // Force turbo off for the demo so the iris transition always plays
+          // (the free-spins entry is skipped in turbo/reduced-motion).
+          const wasTurbo = pixiApp.turbo;
+          pixiApp.turbo = false;
+          pixiApp.__testFreeSpins(symbol, decimals, wager, 8);
+          window.setTimeout(() => { pixiApp.turbo = wasTurbo; }, 1600);
+        }}
+        style={{
+          background: '#160a24',
+          color: '#C79BFF',
+          border: '1px solid #5a3a8a',
+          borderRadius: 4,
+          padding: '4px 8px',
+          fontSize: 11,
+          fontFamily: 'monospace',
+          cursor: 'pointer',
+          textAlign: 'left',
+          marginTop: 4,
+        }}
+        title="Scatter trigger → Looney-Tunes iris transition into the free-spins round"
+      >
+        ✺ Free Spins (iris)
+      </button>
     </div>
   );
 }

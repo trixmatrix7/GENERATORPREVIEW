@@ -25,6 +25,7 @@ import {
   SYMBOL_ANIMATIONS,
   type SymbolState,
 } from '@/config/symbolAnimations';
+import { symbolSizing } from '@/config/symbolSizing';
 import type { SymbolAtlasMap } from './SymbolAtlasLoader';
 import type { GameTheme } from '@/engine/GameConfig';
 import { SYMBOL_HEIGHT, SYMBOL_WIDTH } from './symbolMetrics';
@@ -460,11 +461,13 @@ export class AnimatedSymbol extends Container {
       // User PNGs render near-full-bleed, untinted; themed glyphs sit slightly
       // up and a touch larger now there's no caption competing for space.
       const iy = isUserAsset ? 0 : -SYMBOL_HEIGHT * 0.04;
-      const targetSize = isUserAsset
+      const baseTargetSize = isUserAsset
         // Uploaded PNGs are transparent OBJECTS placed inside the cell with
         // padding (~72%), so the win enlarge-pulse grows them within the cell.
         ? Math.round(Math.min(SYMBOL_WIDTH, SYMBOL_HEIGHT) * 0.72)
         : (isSpecial ? 64 : isHigh ? 58 : isLow ? 48 : 53);
+      // Preview 'symbolSize' preset scales the object bigger/smaller in the cell.
+      const targetSize = Math.round(baseTargetSize * symbolSizing.objectScale);
       this.iconSprite.y = iy;
       this.iconSprite.width = targetSize;
       this.iconSprite.height = targetSize;
@@ -503,7 +506,9 @@ export class AnimatedSymbol extends Container {
       this.bigLabel.visible = true;
       this.bigLabel.text = bigText;
       this.bigLabel.style.fill = textColor;
-      this.bigLabel.style.fontSize = themedGlyph ? 60 : (isSpecial ? 40 : isHigh ? 38 : isLow ? 30 : 34);
+      const baseFont = themedGlyph ? 60 : (isSpecial ? 40 : isHigh ? 38 : isLow ? 30 : 34);
+      // Preview 'symbolSize' preset scales text glyphs (e.g. WILD) too.
+      this.bigLabel.style.fontSize = Math.round(baseFont * symbolSizing.objectScale);
       // Soft drop shadow lifts the glyph off the panel (depth, not flat ink).
       this.bigLabel.style.dropShadow = {
         alpha: 0.5, angle: Math.PI / 2, blur: 2, color: 0x000000, distance: 2,

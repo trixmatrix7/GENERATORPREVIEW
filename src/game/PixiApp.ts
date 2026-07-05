@@ -8,6 +8,7 @@ import { setActiveGrid, type GridConfig } from '@/config/gridConfig';
 import { WIN_LINE_PRESETS, WIN_COIN_PRESETS, ACCENT_PRESETS } from '@/config/adjustableParams';
 import { waysLightConfig, WAYS_LIGHT_PRESETS, WAYS_LIGHT_SPEED_MS, WAYS_LIGHT_WIDTH_PX } from './effects/WaysLightComet';
 import { stickyWildConfig, STICKY_WILD_PRESETS, STICKY_WILD_SPEED_MS } from './effects/StickyWildShine';
+import { symbolSizing, SYMBOL_SIZE_PRESETS } from '@/config/symbolSizing';
 import { CANVAS_THEME } from '@/config/canvasTheme';
 import type { SpinOutcome } from '@/engine/SlotEngine';
 import { DEFAULT_GAME_CONFIG, type GameConfig, type GameTheme } from '@/engine/GameConfig';
@@ -1435,6 +1436,14 @@ export class PixiApp {
       }
       case 'stickyWildSpeed': {
         stickyWildConfig.speedMs = STICKY_WILD_SPEED_MS[String(value)] ?? stickyWildConfig.speedMs;
+        this.reelSet.refreshStickyWilds();
+        break;
+      }
+      case 'symbolSize': {
+        // Preview preset: scale every symbol's object bigger/smaller in its
+        // cell. Re-draws all tiles so the new size takes effect immediately.
+        symbolSizing.objectScale = SYMBOL_SIZE_PRESETS[String(value)] ?? symbolSizing.objectScale;
+        this.reelSet.refreshAllTiles();
         this.reelSet.refreshStickyWilds();
         break;
       }

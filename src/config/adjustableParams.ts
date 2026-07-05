@@ -180,6 +180,16 @@ export const ADJUSTABLE_PARAMS: readonly AdjustableParam[] = [
     keywords: ['ways light', 'comet', 'thickness', 'width', 'thin', 'bold'],
   },
   {
+    id: 'symbolSize',
+    label: 'Symbol size',
+    layer: 'symbols',
+    type: 'enum',
+    options: ['normal', 'large', 'xl'],
+    default: 'large',
+    description: 'How big the symbol art (icon / glyph) is drawn inside each cell — the tile stays the same, only the art scales. normal = the dev default; large/xl fill the cell more. Phrases: "bigger symbols", "make symbols fill the cell", "smaller symbols".',
+    keywords: ['symbol', 'symbols', 'size', 'bigger', 'larger', 'small', 'fill'],
+  },
+  {
     id: 'stickyWild',
     label: 'Sticky wild (shine)',
     layer: 'symbols',

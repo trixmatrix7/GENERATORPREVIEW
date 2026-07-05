@@ -15,7 +15,7 @@ import { CELL_HEIGHT, REEL_GAP } from './symbolMetrics';
 import { getActiveGrid, type GridConfig } from '@/config/gridConfig';
 import { resolveAnchor, cell as cellAnchor, reel as reelAnchor, grid as gridAnchor } from '@/engine/anchors';
 import { CANVAS_THEME } from '@/config/canvasTheme';
-import { SymbolId } from '@/config/symbols';
+import { SymbolId, type SymbolIdType } from '@/config/symbols';
 import { FALLBACK_TIMINGS } from '@/config/symbolAnimations';
 import type { WinResult, WinCombination } from '@/engine/WinEvaluator';
 import { HW_START_RESPINS, type HwRound } from '@/engine/holdAndWin';
@@ -1216,6 +1216,14 @@ export class ReelSet {
    *  swap is visible without waiting for the next spin. */
   refreshAllTiles() {
     for (const reel of this.reels) reel.refreshAllTiles();
+  }
+
+  /** Demo helper: force the visible cell (reel,row) to display a given symbol —
+   *  so a synthetic ways win actually shows the SAME symbol on the connecting
+   *  cells (a real connection, not fake lines over random symbols). Persists
+   *  until the next spin. */
+  forceVisibleSymbol(reel: number, row: number, symbolId: number): void {
+    this.reels[reel]?.getVisibleCell(row)?.setSymbol(symbolId as SymbolIdType);
   }
 
   /** Stop all reel motion, cancel pending scheduled callbacks, and

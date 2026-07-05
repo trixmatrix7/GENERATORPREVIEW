@@ -1617,25 +1617,33 @@ export class PixiApp {
     void this.playWinSequence(outcome, symbol, decimals);
   }
 
-  /** Test-only: SPIN, then reveal several WIN LINES that run through the board
-   *  ONE AFTER ANOTHER (line by line) — the comet traverses line 1, then line 2,
-   *  then line 3 — so you see the sequential "line nach line" behaviour. */
+  /** Test-only: SPIN, then reveal a REAL ways win — the SAME symbol lands across
+   *  the first 3 reels (with a small fan on the middle reel), and those cells are
+   *  forced to that symbol so it's a genuine connection (like the generator's
+   *  243-ways math), not fake lines over random symbols. The ways-light then
+   *  flows through the real connection reel by reel. */
   public __testWaysWin(symbol: string, decimals: number, wager: bigint): void {
     if (!this.isLive) return;
-    const reelCount = this.config.reelLengths.length;
     const rows = this.grid.visibleRows;
-    // Up to 3 distinct straight lines spread across the visible rows. Each is a
-    // separate combo, so the sequential ways-light runs them line by line.
-    const lineRows = rows >= 3
-      ? [0, Math.floor(rows / 2), rows - 1]
-      : Array.from({ length: rows }, (_, i) => i);
-    const combinations = lineRows.map((row, i) => {
-      const cells: [number, number][] = [];
-      for (let reel = 0; reel < reelCount; reel++) cells.push([row, reel]);
-      return { symbolId: 2 + i, matchCount: reelCount, ways: 1, payBps: 0, winAmount: wager * 10n, cells };
-    });
-    const total = combinations.reduce((s, c) => s + c.winAmount, 0n);
-    const winResult = { totalWin: total, combinations, scatterCount: 0, scatterPaid: false };
+    const mid = Math.floor(rows / 2);
+    const clamp = (r: number) => Math.max(0, Math.min(rows - 1, r));
+    const S = 3; // a regular high-pay symbol (not wild/scatter/coin)
+    // Real 3-of-a-kind ways: reel0 (1) → reel1 (2, a fan) → reel2 (1, converge).
+    const posByReel: number[][] = [
+      [mid],
+      [...new Set([clamp(mid - 1), clamp(mid + 1)])],
+      [mid],
+    ];
+    const cells: [number, number][] = [];
+    posByReel.forEach((positions, reel) => { for (const row of positions) cells.push([row, reel]); });
+    const ways = posByReel.reduce((a, p) => a * p.length, 1);
+    const winAmount = wager * 15n;
+    const winResult = {
+      totalWin: winAmount,
+      combinations: [{ symbolId: S, matchCount: posByReel.length, ways, payBps: 0, winAmount, cells }],
+      scatterCount: 0,
+      scatterPaid: false,
+    };
     const stops = this.config.reelLengths.map(len => Math.floor(Math.random() * len));
     this.reelSet.startSpin();
     void (async () => {
@@ -1643,7 +1651,9 @@ export class PixiApp {
       if (!this.isLive) return;
       await this.reelSet.stopOnStops(stops, false);
       if (!this.isLive) return;
-      this.reelSet.highlightWins(winResult); // ways-light now runs the lines sequentially
+      // Force the connecting cells to the SAME symbol → a real ways connection.
+      for (const [row, reel] of cells) this.reelSet.forceVisibleSymbol(reel, row, S);
+      this.reelSet.highlightWins(winResult);
     })();
   }
 

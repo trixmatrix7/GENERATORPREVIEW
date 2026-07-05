@@ -363,12 +363,36 @@ export class ReelSet {
     }
   }
 
-  /** Pop a single wild into a cell: the real WILD tile art grows in from the
-   *  centre with a soft flash, and the AAA shine is layered on top. */
+  /** Pop a single wild into a cell: an OPAQUE premium panel (so the still-
+   *  spinning reel never shows through) + the real WILD tile art both grow in
+   *  from the centre with a soft flash, and the AAA shine is layered on top. */
   private popOneStickyWild(reel: number, row: number): void {
     const rect = resolveAnchor(cellAnchor(reel, row), this.grid);
     const cx = rect.x + rect.w / 2;
     const cy = rect.y + rect.h / 2;
+    const rad = Math.min(rect.w, rect.h) * 0.16;
+    // Common pop: scale 0 → overshoot → settle, from the cell centre.
+    const popScale = (target: Container, to: { x: number; y: number }) => {
+      const tl = gsap.timeline();
+      tl.to(target, { alpha: 1, duration: 0.12, ease: 'power1.out' }, 0);
+      tl.to(target.scale, { x: to.x * 1.18, y: to.y * 1.18, duration: 0.16, ease: 'back.out(3)' }, 0);
+      tl.to(target.scale, { x: to.x, y: to.y, duration: 0.18, ease: 'power2.out' }, 0.16);
+      this.stickyRevealTweens.push(tl);
+    };
+
+    // OPAQUE backing panel — hides whatever is rolling on the reel beneath, so
+    // nothing "spins through" the locked wild. Dark base + faint top sheen for
+    // depth; sits directly under the wild art.
+    const back = new Graphics();
+    back.roundRect(-rect.w / 2, -rect.h / 2, rect.w, rect.h, rad).fill({ color: 0x0b0d14, alpha: 1 });
+    back.roundRect(-rect.w / 2 + 3, -rect.h / 2 + 3, rect.w - 6, rect.h * 0.44, rad * 0.8).fill({ color: 0xffffff, alpha: 0.05 });
+    back.position.set(cx, cy);
+    back.eventMode = 'none';
+    back.scale.set(0);
+    back.alpha = 0;
+    this.stickyContainer.addChild(back);
+    this.stickyRevealObjects.push(back);
+    popScale(back, { x: 1, y: 1 });
 
     // Real wild tile (matches on-reel art), centred so it pops from the middle.
     const tile = new AnimatedSymbol(this.atlases, this.config.theme);
@@ -382,11 +406,7 @@ export class ReelSet {
     tile.alpha = 0;
     this.stickyContainer.addChild(tile);
     this.stickyRevealObjects.push(tile);
-    const popTl = gsap.timeline();
-    popTl.to(tile, { alpha: 1, duration: 0.12, ease: 'power1.out' }, 0);
-    popTl.to(tile.scale, { x: sx * 1.18, y: sy * 1.18, duration: 0.16, ease: 'back.out(3)' }, 0);
-    popTl.to(tile.scale, { x: sx, y: sy, duration: 0.18, ease: 'power2.out' }, 0.16);
-    this.stickyRevealTweens.push(popTl);
+    popScale(tile, { x: sx, y: sy });
 
     // AAA shine border on top (its own pop-in + calm breath live in the effect).
     this.stickyHandles.push(applyStickyWild(this.stickyContainer, rect));

@@ -603,8 +603,9 @@ export class ReelSet {
     this.applyCellHighlight(allCells);
     this.buildDecoration(winResult.combinations);
     this.liftWinningObjects(allCells);
-    // ways-light comet through every winning connection (single + multi wins).
-    for (const combo of winResult.combinations) this.fireWaysLight(combo);
+    // ways-light comet through the winning connections — LINE BY LINE (each
+    // combo's comet runs through, then the next), matching the original.
+    void this.fireWaysLightSequential(winResult.combinations);
   }
 
   /** Reveal ONE combination: dim everything else, light this combo's cells,
@@ -657,8 +658,8 @@ export class ReelSet {
 
   /** Winning cells grouped left→right by reel → comet through the connection.
    *  Purely visual; self-cleaning (winPresentation `ways-light-comet`). */
-  private fireWaysLight(combo: WinCombination): void {
-    if (!waysLightConfig.enabled) return;
+  private fireWaysLight(combo: WinCombination): Promise<void> {
+    if (!waysLightConfig.enabled) return Promise.resolve();
     const byReel = new Map<number, Array<{ x: number; y: number }>>();
     for (const [row, reel] of combo.cells) {
       const r = resolveAnchor(cellAnchor(reel, row), this.grid);
@@ -667,7 +668,17 @@ export class ReelSet {
       byReel.set(reel, arr);
     }
     const reels = [...byReel.keys()].sort((a, b) => a - b).map(k => byReel.get(k)!);
-    if (reels.length >= 2) void playWaysLight(this.waysLightContainer, reels);
+    if (reels.length >= 2) return playWaysLight(this.waysLightContainer, reels);
+    return Promise.resolve();
+  }
+
+  /** Run each winning combo's comet ONE AFTER ANOTHER (line by line) instead of
+   *  all at once — matches the original wayslight "line nach line" behaviour. */
+  private async fireWaysLightSequential(combos: readonly WinCombination[]): Promise<void> {
+    for (const combo of combos) {
+      if (!waysLightConfig.enabled) return;
+      await this.fireWaysLight(combo);
+    }
   }
 
   clearHighlights() {

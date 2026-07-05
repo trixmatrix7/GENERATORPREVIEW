@@ -9,6 +9,7 @@ import type { PixiApp } from '@/game/PixiApp';
 import { ADJUSTABLE_PARAMS } from '@/config/adjustableParams';
 import { REGISTRIES, type StudioRegistryName } from './registryCatalog';
 import { loadCustomEntries, saveCustomEntries, type CustomEntry } from './persistence';
+import { loadAssets, saveAssets } from './assetPersistence';
 import { parseEntryCode } from './parseEntry';
 import { entrySnippet, sourceSnippet, download } from './exportEntry';
 
@@ -284,12 +285,14 @@ const readDataUrl = (file: File, cb: (url: string) => void) => {
 };
 
 function AssetsTab({ pixiApp }: { pixiApp: PixiApp | null }) {
-  const [symbols, setSymbols] = useState<Record<number, string>>({});
-  const [bg, setBg] = useState<string | null>(null);
-  const [frame, setFrame] = useState<string | null>(null);
+  const saved0 = loadAssets();
+  const [symbols, setSymbols] = useState<Record<number, string>>(() => saved0.symbols ?? {});
+  const [bg, setBg] = useState<string | null>(() => saved0.bg ?? null);
+  const [frame, setFrame] = useState<string | null>(() => saved0.frame ?? null);
 
   const applySymbols = (next: Record<number, string>) => {
     setSymbols(next);
+    saveAssets({ symbols: next }); // persist across reloads/deploys
     const map = new Map<number, string>(Object.entries(next).map(([k, v]) => [Number(k), v]));
     void pixiApp?.setUserAssetTextures(map);
   };
@@ -343,8 +346,8 @@ function AssetsTab({ pixiApp }: { pixiApp: PixiApp | null }) {
         title="Background · setBackgroundImage"
         note="Full-canvas image behind the reels (cover-fit, frosted reel backdrop). Use a 16:9 image."
         active={bg}
-        onPick={url => { setBg(url); void pixiApp?.setBackgroundImage(url); }}
-        onClear={() => { setBg(null); void pixiApp?.setBackgroundImage(null); }}
+        onPick={url => { setBg(url); saveAssets({ bg: url }); void pixiApp?.setBackgroundImage(url); }}
+        onClear={() => { setBg(null); saveAssets({ bg: null }); void pixiApp?.setBackgroundImage(null); }}
         allowUrl
       />
 
@@ -353,8 +356,8 @@ function AssetsTab({ pixiApp }: { pixiApp: PixiApp | null }) {
         title="Frame · setFrameImage (preview)"
         note="Overlay a custom frame PNG over the procedural reel frame — use one with a transparent centre window so the reels show through. (Frame is procedural in the generator; this overlay is preview-only.)"
         active={frame}
-        onPick={url => { setFrame(url); void pixiApp?.setFrameImage(url); }}
-        onClear={() => { setFrame(null); void pixiApp?.setFrameImage(null); }}
+        onPick={url => { setFrame(url); saveAssets({ frame: url }); void pixiApp?.setFrameImage(url); }}
+        onClear={() => { setFrame(null); saveAssets({ frame: null }); void pixiApp?.setFrameImage(null); }}
       />
     </div>
   );

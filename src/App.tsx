@@ -13,6 +13,8 @@ import { GameCanvas } from '@/ui/GameCanvas';
 import { StudioDrawer } from '@/studio/StudioDrawer';
 import { DEFAULT_GAME_CONFIG, type GameConfig } from '@/engine/GameConfig';
 import { getThemeByName } from '@/config/themes';
+import { viceSymbolMap, VICE_BACKGROUND_URL } from '@/config/viceAssets';
+import { loadAssets } from '@/studio/assetPersistence';
 import type { PixiApp } from '@/game/PixiApp';
 
 export function App() {
@@ -38,6 +40,21 @@ export function App() {
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', 'dark');
     pixiAppRef?.setTheme('dark');
+  }, [pixiAppRef]);
+
+  // Baked asset pack: on mount, apply the user's persisted swaps if any, else
+  // the baked "Vice" symbol art (public/theme/vice/) — so assets survive every
+  // deploy/reload and stay until the user swaps them in the Assets tab.
+  useEffect(() => {
+    if (!pixiAppRef) return;
+    const saved = loadAssets();
+    const symbols = saved.symbols && Object.keys(saved.symbols).length
+      ? new Map(Object.entries(saved.symbols).map(([k, v]) => [Number(k), v]))
+      : viceSymbolMap();
+    void pixiAppRef.setUserAssetTextures(symbols);
+    const bg = saved.bg ?? VICE_BACKGROUND_URL;
+    if (bg) void pixiAppRef.setBackgroundImage(bg);
+    if (saved.frame) void pixiAppRef.setFrameImage(saved.frame);
   }, [pixiAppRef]);
 
   const handlePixiReady = useCallback((app: PixiApp) => {

@@ -65,6 +65,13 @@ export class PixiApp {
   private winBanner: Container;
   private transitionCard: Container | null = null;
   private transitionCardTl: ReturnType<typeof gsap.timeline> | null = null;
+  // Looney-Tunes iris-wipe (free-spins entry): screen-space overlay on app.stage.
+  private irisOverlay: Container | null = null;
+  private irisTl: ReturnType<typeof gsap.timeline> | null = null;
+  private irisState: { r: number; tint: number; rim: number; glow: number; sparkle: number; ringPulse: number } | null = null;
+  // Resolver for the in-flight iris Promise — invoked by destroy() too, since a
+  // killed GSAP timeline never fires onComplete (else the awaited spin hangs).
+  private irisResolve: (() => void) | null = null;
   private ambientLayer: Container | null = null;
   private ambientTweens: ReturnType<typeof gsap.timeline>[] = [];
   /** Celebration coin tints (base, deep, highlight) — live-adjustable via the
@@ -895,12 +902,15 @@ export class PixiApp {
   async resolve(outcome: SpinOutcome, tokenSymbol: string, decimals: number): Promise<void> {
     if (!this.isLive) return;
     if (outcome.freeSpinsTriggered && outcome.freeSpinsPlayed > 0 && !this.turbo && !prefersReducedMotion()) {
-      // Gold flash + shock-wave punctuate the scatter trigger, then the card.
+      // Gold flash + shock-wave punctuate the scatter trigger, then the iris.
       this.spawnFlash(0xFFD23F, 0.45, 0.5);
       this.spawnShockwave();
       await new Promise(r => setTimeout(r, 120));
       if (!this.isLive) return;
-      await this.playTransitionCard('FREE SPINS', `×${outcome.freeSpinsPlayed}`, 1.1);
+      // Looney-Tunes iris entry: close on the live board, punch "FREE SPINS ×N"
+      // at the pinch, then open on the free-spins round. Show the FS counter
+      // AFTER the iris opens so it isn't buried under the opaque iris field.
+      await this.playFreeSpinsIris(outcome.freeSpinsPlayed);
       if (!this.isLive) return;
       const fsOverlay = this.showFreeSpinOverlay(outcome.freeSpinsPlayed);
 
@@ -1108,6 +1118,171 @@ export class PixiApp {
       tl.to(card, { alpha: 1, duration: 0.25, ease: 'power2.out' }, 0)
         .to(card.scale, { x: 1, y: 1, duration: 0.4, ease: 'back.out(2)' }, 0)
         .to(card, { alpha: 0, duration: 0.3, ease: 'power1.in' }, 0.25 + holdSec);
+    });
+  }
+
+  /** AAA "Looney-Tunes" iris-wipe into free spins. A screen-space overlay
+   *  (added to app.stage, so it's immune to sceneRoot letterbox scaling) closes
+   *  a circular hole on the LIVE board, punches the "FREE SPINS ×N" title in at
+   *  the pinch, then opens on the free-spins round. The hole is punched with the
+   *  Pixi-v8 .cut() op (NOT even-odd fill, which unions in v8) against an
+   *  OVERSIZED field rect so the cut circle is always fully contained. Awaited:
+   *  the caller holds until the iris is fully open. */
+  private playFreeSpinsIris(count: number): Promise<void> {
+    if (!this.isLive) return Promise.resolve();
+
+    const sw = this.app.screen.width;
+    const sh = this.app.screen.height;
+    const cx = sw / 2;
+    const cy = sh / 2;
+    // Half-diagonal covers all four corners on any aspect ratio.
+    const rDiag = 0.5 * Math.sqrt(sw * sw + sh * sh);
+    // Oversized field so the .cut() circle is ALWAYS fully contained even at
+    // r = rDiag (v8 cut() fails if the hole isn't completely inside the shape).
+    const outer = rDiag * 2.4;
+    const ox = cx - outer / 2;
+    const oy = cy - outer / 2;
+
+    const accent = this.config.theme.accent;
+    const gold = 0xFFD23F;
+    // Looney sky-blue pull, themeable: accent nudged 35% toward sky-blue.
+    const field = blendHex(accent, 0x2FA8E0, 0.35);
+
+    // Overlay: LAST child of app.stage => top of draw order, SCREEN pixels.
+    const overlay = new Container();
+    overlay.zIndex = 10000;
+    overlay.eventMode = 'none';
+    this.irisOverlay = overlay;
+
+    const iris = new Graphics();      // opaque field with the animated circular hole
+    const rim = new Graphics();       // concentric rings + radial glow at the hole edge
+    const sparkles = new Graphics();  // orbiting gold star motes
+    overlay.addChild(iris, rim, sparkles);
+
+    // Title group (screen-centred), matching the existing card typography.
+    const titleGroup = new Container();
+    const titleText = new Text({
+      text: 'FREE SPINS',
+      style: new TextStyle({
+        fontFamily: "'Poppins', ui-sans-serif, sans-serif", fontSize: 54, fontWeight: '800',
+        fontStyle: 'italic', fill: 0xffffff, letterSpacing: 3,
+        dropShadow: { color: 0x000000, blur: 5, distance: 2, alpha: 0.55 },
+      }),
+    });
+    titleText.anchor.set(0.5); titleText.y = -30;
+    const subText = new Text({
+      text: `×${count}`,
+      style: new TextStyle({
+        fontFamily: "'Rubik', ui-sans-serif, sans-serif", fontSize: 46, fontWeight: '700',
+        fill: gold, letterSpacing: 2,
+        dropShadow: { color: 0x000000, blur: 4, distance: 2, alpha: 0.5 },
+      }),
+    });
+    subText.anchor.set(0.5); subText.y = 34;
+    titleGroup.addChild(titleText, subText);
+    titleGroup.position.set(cx, cy);
+    titleGroup.alpha = 0;
+    titleGroup.scale.set(0.55);
+    overlay.addChild(titleGroup);
+
+    this.app.stage.addChild(overlay); // appended last => renders above sceneRoot
+
+    const MOTES = 10;
+    const moteAng: number[] = [];
+    for (let i = 0; i < MOTES; i++) moteAng.push((i / MOTES) * Math.PI * 2);
+
+    // Single state proxy => one gsap.killTweensOf target for teardown.
+    const st = { r: rDiag, tint: 0, rim: 0, glow: 0, sparkle: 0, ringPulse: 1 };
+    this.irisState = st;
+
+    const drawStar = (g: Graphics, x: number, y: number, s: number, a: number) => {
+      g.moveTo(x, y - s); g.lineTo(x + s * 0.28, y - s * 0.28);
+      g.lineTo(x + s, y); g.lineTo(x + s * 0.28, y + s * 0.28);
+      g.lineTo(x, y + s); g.lineTo(x - s * 0.28, y + s * 0.28);
+      g.lineTo(x - s, y); g.lineTo(x - s * 0.28, y - s * 0.28);
+      g.closePath(); g.fill({ color: gold, alpha: a });
+    };
+
+    const redraw = () => {
+      if (!this.isLive) return; // never draw into a torn-down GraphicsContext
+      const r = Math.max(0, st.r);
+
+      // Opaque field with the circular hole punched via .cut() (v8-correct).
+      iris.clear();
+      iris.rect(ox, oy, outer, outer);
+      iris.fill({ color: field, alpha: st.tint });
+      if (r > 0.5) { iris.circle(cx, cy, r); iris.cut(); }
+
+      // Rim: soft radial glow + gold edge rings at the hole boundary.
+      rim.clear();
+      const rr = Math.max(1, r) * st.ringPulse;
+      if (st.glow > 0.001) {
+        for (let k = 4; k >= 1; k--) {
+          rim.circle(cx, cy, rr + k * 14);
+          rim.stroke({ color: gold, width: 10, alpha: st.glow * 0.10 });
+        }
+      }
+      rim.circle(cx, cy, rr);
+      rim.stroke({ color: gold, width: 3.5, alpha: st.rim });
+      rim.circle(cx, cy, rr + 6);
+      rim.stroke({ color: blendHex(gold, 0xffffff, 0.4), width: 1.5, alpha: st.rim * 0.7 });
+      rim.circle(cx, cy, Math.max(1, rr - 7));
+      rim.stroke({ color: accent, width: 2, alpha: st.rim * 0.6 });
+
+      // Sparkle motes orbit the hole edge; radius+alpha driven by st.sparkle.
+      sparkles.clear();
+      if (st.sparkle > 0.001) {
+        const orbit = Math.max(24, rr) + 18;
+        for (let i = 0; i < MOTES; i++) {
+          const a = moteAng[i] + st.sparkle * 1.2;
+          const px = cx + Math.cos(a) * orbit;
+          const py = cy + Math.sin(a) * orbit;
+          drawStar(sparkles, px, py, 5 + st.sparkle * 4, st.sparkle * 0.9);
+        }
+      }
+    };
+
+    redraw();
+
+    return new Promise<void>((resolve) => {
+      const finish = () => {
+        gsap.killTweensOf(st);
+        gsap.killTweensOf(titleGroup); gsap.killTweensOf(titleGroup.scale);
+        if (this.irisTl === tl) this.irisTl = null;
+        if (this.irisState === st) this.irisState = null;
+        if (this.irisOverlay === overlay) this.irisOverlay = null;
+        this.irisResolve = null;
+        try { overlay.destroy({ children: true }); } catch { /* already torn down */ }
+        resolve();
+      };
+
+      const tl = gsap.timeline({ onComplete: finish });
+      this.irisTl = tl;
+      // destroy() can resolve this (kill() never fires onComplete) — resolve is
+      // idempotent, so a later finish()/destroy() call is harmless.
+      this.irisResolve = () => resolve();
+
+      // Phase 1 CLOSE (0.00 -> 0.42): hole shrinks on the LIVE board; field ramps.
+      tl.to(st, {
+        r: 0, tint: 1, rim: 1, glow: 0.6, sparkle: 1,
+        duration: 0.42, ease: 'power2.in', onUpdate: redraw,
+      }, 0);
+
+      // Phase 2 PINCH (0.42 -> 0.66): title punches in; rings pulse; glow flashes.
+      tl.to(titleGroup, { alpha: 1, duration: 0.12, ease: 'power2.out' }, 0.42);
+      tl.fromTo(titleGroup.scale, { x: 0.55, y: 0.55 },
+        { x: 1.12, y: 1.12, duration: 0.18, ease: 'back.out(2.6)' }, 0.42);
+      tl.to(titleGroup.scale, { x: 1, y: 1, duration: 0.10, ease: 'power2.out' }, 0.60);
+      tl.to(st, { ringPulse: 1.06, glow: 1.0, duration: 0.12, ease: 'power2.out', onUpdate: redraw }, 0.42);
+      tl.to(st, { ringPulse: 1.0, glow: 0.5, duration: 0.12, ease: 'power2.in', onUpdate: redraw }, 0.54);
+
+      // Phase 3 OPEN (0.66 -> 1.08): MONOTONIC expand (no overshoot => no corner
+      // re-flash), reveal the FS board; field/rim/glow/sparkle + title fade out.
+      tl.to(st, {
+        r: rDiag, tint: 0, rim: 0, glow: 0, sparkle: 0,
+        duration: 0.42, ease: 'power2.out', onUpdate: redraw,
+      }, 0.66);
+      tl.to(titleGroup, { alpha: 0, duration: 0.18, ease: 'power2.in' }, 0.66);
     });
   }
 
@@ -1919,6 +2094,19 @@ export class PixiApp {
       try { this.transitionCard.destroy({ children: true }); } catch { /* already torn down */ }
       this.transitionCard = null;
     }
+
+    // Kill an in-flight free-spins iris (timeline + off-graph state proxy + overlay).
+    if (this.irisTl) { this.irisTl.kill(); this.irisTl = null; }
+    if (this.irisState) { gsap.killTweensOf(this.irisState); this.irisState = null; }
+    if (this.irisOverlay) {
+      gsap.killTweensOf(this.irisOverlay);
+      gsap.killTweensOf(this.irisOverlay.children);
+      try { this.irisOverlay.destroy({ children: true }); } catch { /* already torn down */ }
+      this.irisOverlay = null;
+    }
+    // kill() above never fires the timeline's onComplete, so settle the awaited
+    // iris Promise here — otherwise resolve() would await it forever.
+    if (this.irisResolve) { this.irisResolve(); this.irisResolve = null; }
 
     // Stop the ambient mote loops + drop the layer.
     for (const tl of this.ambientTweens) tl.kill();

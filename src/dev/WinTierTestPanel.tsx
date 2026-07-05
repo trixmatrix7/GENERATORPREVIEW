@@ -1,6 +1,8 @@
 // Dev-only — buttons to trigger each implemented win tier's banner animation
-// without having to roll a real spin in that band. Only rendered by HarnessApp.
+// without having to roll a real spin in that band. Rendered inline in the left
+// Sidebar (under the Spin controls), collapsible so it never covers the HUD.
 
+import { useState } from 'react';
 import type { PixiApp } from '@/game/PixiApp';
 import type { SoundManager } from '@/audio/SoundManager';
 import type { HostSnapshotV1 } from '@/bridge/types';
@@ -27,6 +29,7 @@ export function WinTierTestPanel({ pixiApp, snapshot, soundManager }: Props) {
   const decimals = snapshot.token.decimals ?? 18;
   const symbol = snapshot.token.symbol ?? '$';
   const wager = 10n ** BigInt(decimals); // 1 whole token, regardless of player bet UI
+  const [open, setOpen] = useState(true);
 
   const trigger = (multiplier: number) => {
     const winAmount = wager * BigInt(multiplier);
@@ -48,23 +51,31 @@ export function WinTierTestPanel({ pixiApp, snapshot, soundManager }: Props) {
   return (
     <div
       style={{
-        position: 'fixed',
-        top: 36,
-        right: 8,
-        background: 'rgba(0,0,0,0.75)',
+        background: 'rgba(0,0,0,0.35)',
         color: '#fff',
-        borderRadius: 6,
+        border: '1px solid #2a2a2e',
+        borderRadius: 8,
         padding: 8,
         fontSize: 11,
         fontFamily: 'monospace',
-        zIndex: 999,
         display: 'flex',
         flexDirection: 'column',
         gap: 4,
-        minWidth: 130,
       }}
     >
-      <div style={{ color: '#F8FA5E', marginBottom: 2 }}>TEST WIN TIERS</div>
+      <button
+        type="button"
+        onClick={() => setOpen(o => !o)}
+        style={{
+          background: 'transparent', border: 'none', color: '#F8FA5E',
+          fontFamily: 'monospace', fontSize: 11, fontWeight: 700, letterSpacing: 0.5,
+          cursor: 'pointer', textAlign: 'left', padding: 0, marginBottom: 2,
+          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+        }}
+      >
+        <span>TEST FEATURES</span><span>{open ? '▾' : '▸'}</span>
+      </button>
+      {open && (<>
       {TIERS.map(tier => (
         <button
           key={tier.id}
@@ -168,6 +179,7 @@ export function WinTierTestPanel({ pixiApp, snapshot, soundManager }: Props) {
       >
         ⟶ Win Line (ways-light)
       </button>
+      </>)}
     </div>
   );
 }

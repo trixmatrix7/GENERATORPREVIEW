@@ -5,7 +5,6 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { MockHost } from '@/dev/mockHost';
-import { WinTierTestPanel } from '@/dev/WinTierTestPanel';
 import type { HostApiV1, HostSnapshotV1 } from '@/bridge/types';
 import { useGameState } from '@/hooks/useGameState';
 import { useSoundLayer } from '@/audio/useSoundLayer';
@@ -87,8 +86,6 @@ export function App() {
 
   return (
     <div className="flex h-full w-full overflow-hidden">
-      {pixiAppRef && <WinTierTestPanel pixiApp={pixiAppRef} snapshot={snapshot} soundManager={soundManager} />}
-
       <Sidebar
         gameState={state}
         snapshot={snapshot}
@@ -101,6 +98,7 @@ export function App() {
         turbo={turbo}
         onTurboToggle={handleTurboToggle}
         soundManager={soundManager}
+        pixiApp={pixiAppRef}
       />
       <GameCanvas
         lastOutcome={state.lastOutcome}

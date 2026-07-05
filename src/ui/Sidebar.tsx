@@ -8,9 +8,11 @@ import { RecentBets } from './components/RecentBets';
 import { AudioControl } from './components/AudioControl';
 import { previewWin } from '@/engine/SlotEngine';
 import { GAME_CONFIG } from '@/config/gameConfig';
+import { WinTierTestPanel } from '@/dev/WinTierTestPanel';
 import type { GameState } from '@/state/types';
 import type { HostSnapshotV1 } from '@/bridge/types';
 import type { SoundManager } from '@/audio/SoundManager';
+import type { PixiApp } from '@/game/PixiApp';
 
 interface Props {
   gameState: GameState;
@@ -24,13 +26,15 @@ interface Props {
   turbo: boolean;
   onTurboToggle: () => void;
   soundManager?: SoundManager;
+  /** When set, the dev "Test features" panel is rendered under the Spin controls. */
+  pixiApp?: PixiApp | null;
 }
 
 type Mode = 'manual' | 'auto';
 
 const section = 'px-3 py-3 border-t border-[var(--color-border-subtle)] first:border-t-0';
 
-export function Sidebar({ gameState, snapshot, onBetChange, onSpin, onSkip, onAutoSpin, onStopAuto, onBuyBonus, turbo, onTurboToggle, soundManager }: Props) {
+export function Sidebar({ gameState, snapshot, onBetChange, onSpin, onSkip, onAutoSpin, onStopAuto, onBuyBonus, turbo, onTurboToggle, soundManager, pixiApp }: Props) {
   const { t } = useTranslation();
   const [mode, setMode] = useState<Mode>('manual');
   const [autoCount, setAutoCount] = useState(10);
@@ -210,6 +214,14 @@ export function Sidebar({ gameState, snapshot, onBetChange, onSpin, onSkip, onAu
           </button>
         )}
       </div>
+
+      {/* Dev "Test features" panel — lives here in the left bar, under the Spin
+          controls, so it never overlaps the top-right HUD/menu. */}
+      {pixiApp && soundManager && (
+        <div className={section}>
+          <WinTierTestPanel pixiApp={pixiApp} snapshot={snapshot} soundManager={soundManager} />
+        </div>
+      )}
 
       {/* Win Chance & Profit on Win */}
       <div className={section}>

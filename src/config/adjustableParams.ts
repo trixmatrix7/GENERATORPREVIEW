@@ -179,6 +179,36 @@ export const ADJUSTABLE_PARAMS: readonly AdjustableParam[] = [
     description: 'Thickness of the ways-light comet line. Phrases: "thinner win light", "bolder comet beam".',
     keywords: ['ways light', 'comet', 'thickness', 'width', 'thin', 'bold'],
   },
+  {
+    id: 'stickyWild',
+    label: 'Sticky wild (shine)',
+    layer: 'symbols',
+    type: 'enum',
+    options: ['on', 'off'],
+    default: 'on',
+    description: 'Toggle the AAA sticky-wild treatment (glow border + shine sweep, no lock) on wild symbols. Phrases: "turn off sticky wilds", "enable the wild shine".',
+    keywords: ['sticky', 'sticky wild', 'wild shine', 'wild border'],
+  },
+  {
+    id: 'stickyWildColor',
+    label: 'Sticky-wild colour',
+    layer: 'symbols',
+    type: 'enum',
+    options: ['gold', 'ice', 'emerald', 'violet', 'magenta', 'white'],
+    default: 'gold',
+    description: 'Border/shine colour of the sticky-wild treatment. Phrases: "make sticky wilds ice / emerald / violet / magenta / gold / white".',
+    keywords: ['sticky', 'sticky wild', 'wild colour', 'wild border'],
+  },
+  {
+    id: 'stickyWildSpeed',
+    label: 'Sticky-wild motion',
+    layer: 'symbols',
+    type: 'enum',
+    options: ['calm', 'normal', 'lively'],
+    default: 'normal',
+    description: 'How lively the sticky-wild shine + orbit animate. Phrases: "calmer sticky wilds", "livelier wild shine".',
+    keywords: ['sticky', 'sticky wild', 'motion', 'speed', 'calm', 'lively'],
+  },
 ];
 
 export function getAdjustableParam(id: string): AdjustableParam | undefined {

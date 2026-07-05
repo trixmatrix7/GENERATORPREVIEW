@@ -62,6 +62,18 @@ const entries: readonly BaseFeatureEntry[] = [
     bindings: [],
     conflicts: ['wild-standard'],
   },
+  {
+    id: 'sticky-wild-shine',
+    name: 'Sticky Wild (Shine, AAA)',
+    description:
+      'AAA sticky-wild treatment: NO lock icon — a premium animated glow border + orbiting sheen node + diagonal shine sweep + subtle breath on every wild cell, so wilds read as special/locked-in. Visual-only preview treatment (the persist-across-free-spins mechanic is engine/contract work, so affectsMath stays false here). Implemented in src/game/effects/StickyWildShine.ts, applied from ReelSet.applyStickyWilds(). Live-tunable via stickyWild/stickyWildColor/stickyWildSpeed.',
+    version: '1.0.0',
+    implemented: true,
+    affectsMath: false,
+    category: 'symbol',
+    bindings: [{ file: 'src/game/effects/StickyWildShine.ts', field: 'applyStickyWild' }],
+    conflicts: [],
+  },
 ] as const;
 
 export const baseFeatureRegistry = createRegistry(entries, { compatibleGrids: ['5x3', '5x5'] });

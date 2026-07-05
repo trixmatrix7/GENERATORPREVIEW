@@ -22,6 +22,7 @@ import { HW_START_RESPINS, type HwRound } from '@/engine/holdAndWin';
 import { DEFAULT_GAME_CONFIG, type GameConfig } from '@/engine/GameConfig';
 import type { SymbolAtlasMap } from './SymbolAtlasLoader';
 import { playWaysLight, clearAllWaysLight, waysLightConfig } from './effects/WaysLightComet';
+import { applyStickyWild, clearAllStickyWild, stickyWildConfig, type StickyHandle } from './effects/StickyWildShine';
 
 /** Cap on the number of reels we apply the near-miss tease to. Each teased
  *  reel after the first compounds its delay and duration. We tease every
@@ -86,6 +87,10 @@ export class ReelSet {
   private readonly winLinesContainer: Container;
   /** Ways-light comet fx — topmost, self-cleaning per connection. */
   private readonly waysLightContainer: Container = new Container();
+  /** Sticky-wild AAA overlays (border + shine), per wild cell. */
+  private readonly stickyContainer: Container = new Container();
+  private stickyHandles: StickyHandle[] = [];
+  private lastStickyBoard: number[][] | null = null;
   /** Floating per-combo "+amount" labels. Separate from winLinesContainer so a
    *  reveal step can clear the previous frame/line WITHOUT killing amounts that
    *  are still floating up from earlier steps. */
@@ -172,6 +177,7 @@ export class ReelSet {
     });
     this.container.addChild(this.winObjectsContainer);  // lifted winning objects — above line
     this.container.addChild(this.winAmountsContainer);  // floating amounts — top
+    this.container.addChild(this.stickyContainer);      // sticky-wild overlays — above symbols
     this.container.addChild(this.waysLightContainer);   // ways-light comet — topmost fx
     // scale the comet head to this grid's cell size
     waysLightConfig.cellSize = resolveAnchor(cellAnchor(0, 0), grid).w;
@@ -218,7 +224,36 @@ export class ReelSet {
     // A new spin invalidates any post-landing callbacks still pending from
     // the previous one.
     this.clearScheduledCallbacks();
+    this.clearStickyWilds();
     for (const reel of this.reels) reel.startSpin();
+  }
+
+  /** AAA sticky-wild treatment on every WILD cell of the settled board.
+   *  Visual only (no persist-mechanic — that's engine/contract work). */
+  applyStickyWilds(board: number[][]): void {
+    this.lastStickyBoard = board;
+    this.clearStickyWilds();
+    if (!stickyWildConfig.enabled || !board) return;
+    for (let row = 0; row < board.length; row++) {
+      const cols = board[row];
+      if (!cols) continue;
+      for (let reel = 0; reel < cols.length; reel++) {
+        if (cols[reel] !== SymbolId.WILD) continue;
+        const rect = resolveAnchor(cellAnchor(reel, row), this.grid);
+        this.stickyHandles.push(applyStickyWild(this.stickyContainer, rect));
+      }
+    }
+  }
+
+  /** Re-apply to the last settled board (used by the live studio toggle). */
+  refreshStickyWilds(): void {
+    if (this.lastStickyBoard) this.applyStickyWilds(this.lastStickyBoard);
+  }
+
+  clearStickyWilds(): void {
+    for (const h of this.stickyHandles) h.destroy();
+    this.stickyHandles = [];
+    clearAllStickyWild();
   }
 
   /** Schedule a callback that can be cancelled together with all others

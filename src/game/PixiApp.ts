@@ -7,6 +7,7 @@ import { ReelSet, type ReelSetAudioHooks } from './ReelSet';
 import { setActiveGrid, type GridConfig } from '@/config/gridConfig';
 import { WIN_LINE_PRESETS, WIN_COIN_PRESETS, ACCENT_PRESETS } from '@/config/adjustableParams';
 import { waysLightConfig, WAYS_LIGHT_PRESETS, WAYS_LIGHT_SPEED_MS, WAYS_LIGHT_WIDTH_PX } from './effects/WaysLightComet';
+import { stickyWildConfig, STICKY_WILD_PRESETS, STICKY_WILD_SPEED_MS } from './effects/StickyWildShine';
 import { CANVAS_THEME } from '@/config/canvasTheme';
 import type { SpinOutcome } from '@/engine/SlotEngine';
 import { DEFAULT_GAME_CONFIG, type GameConfig, type GameTheme } from '@/engine/GameConfig';
@@ -940,6 +941,9 @@ export class PixiApp {
 
     if (!this.isLive) return;
 
+    // Sticky-wild AAA treatment on the settled board's wilds (visual feature).
+    this.reelSet.applyStickyWilds(outcome.board);
+
     // Hold & Win bonus — coins lock on the board and respins auto-run, before the
     // win ceremony tallies the payout. The round was derived deterministically
     // from the spin randomness (authoritative win is already in outcome.winAmount).
@@ -1418,6 +1422,22 @@ export class PixiApp {
         waysLightConfig.width = WAYS_LIGHT_WIDTH_PX[String(value)] ?? waysLightConfig.width;
         break;
       }
+      case 'stickyWild': {
+        stickyWildConfig.enabled = String(value) !== 'off';
+        if (stickyWildConfig.enabled) this.reelSet.refreshStickyWilds();
+        else this.reelSet.clearStickyWilds();
+        break;
+      }
+      case 'stickyWildColor': {
+        const preset = STICKY_WILD_PRESETS[String(value)];
+        if (preset) { stickyWildConfig.borderColor = preset.color; this.reelSet.refreshStickyWilds(); }
+        break;
+      }
+      case 'stickyWildSpeed': {
+        stickyWildConfig.speedMs = STICKY_WILD_SPEED_MS[String(value)] ?? stickyWildConfig.speedMs;
+        this.reelSet.refreshStickyWilds();
+        break;
+      }
       default:
         break;
     }
@@ -1844,6 +1864,7 @@ export class PixiApp {
   snapToOutcome(outcome: SpinOutcome) {
     if (!this.isLive) return;
     this.reelSet.snapToStops(outcome.stops);
+    this.reelSet.applyStickyWilds(outcome.board);
     if (outcome.winAmount > 0n) {
       this.reelSet.highlightWins(outcome.winResult);
     }

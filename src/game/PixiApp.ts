@@ -68,7 +68,7 @@ export class PixiApp {
   // Looney-Tunes iris-wipe (free-spins entry): screen-space overlay on app.stage.
   private irisOverlay: Container | null = null;
   private irisTl: ReturnType<typeof gsap.timeline> | null = null;
-  private irisState: { r: number; tint: number; rim: number; glow: number; sparkle: number; ringPulse: number } | null = null;
+  private irisState: { r: number; tint: number } | null = null;
   // Resolver for the in-flight iris Promise — invoked by destroy() too, since a
   // killed GSAP timeline never fires onComplete (else the awaited spin hangs).
   private irisResolve: (() => void) | null = null;
@@ -1121,14 +1121,15 @@ export class PixiApp {
     });
   }
 
-  /** AAA "Looney-Tunes" free-spins entry: the live board is sucked into a
-   *  shrinking BLACK circle (iris close), then the black circle irises back
-   *  OPEN onto a free-spins INTRO SCREEN (themed splash — "FREE SPINS / N SPINS
-   *  / GOOD LUCK"), which holds a beat and dismisses into the round. Screen-
-   *  space overlay on app.stage (immune to sceneRoot letterbox scaling). The
-   *  black hole is punched with the Pixi-v8 .cut() op (NOT even-odd fill, which
-   *  unions in v8) against an OVERSIZED field rect so the cut is always fully
-   *  contained. Awaited: the caller holds until the intro is dismissed. */
+  /** Free-spins entry: the live board is sucked into a shrinking BLACK circle
+   *  (iris close), then the black circle irises back OPEN onto a free-spins
+   *  INTRO SCREEN, which holds a beat and dismisses into the round. Kept
+   *  deliberately PLAIN — no sparkles/rings/rays; the real intro art is a
+   *  separate build ("our own variant"). Screen-space overlay on app.stage
+   *  (immune to sceneRoot letterbox scaling). The black hole is punched with the
+   *  Pixi-v8 .cut() op (NOT even-odd fill, which unions in v8) against an
+   *  OVERSIZED field rect so the cut is always fully contained. Awaited: the
+   *  caller holds until the intro is dismissed. */
   private playFreeSpinsIris(count: number): Promise<void> {
     if (!this.isLive) return Promise.resolve();
 
@@ -1144,138 +1145,62 @@ export class PixiApp {
     const ox = cx - outer / 2;
     const oy = cy - outer / 2;
 
-    const accent = this.config.theme.accent;
-    const gold = 0xFFD23F;
-    const field = 0x000000; // BLACK iris circle (client: "schwarzer kreis")
-
     // Overlay: LAST child of app.stage => top of draw order, SCREEN pixels.
     const overlay = new Container();
     overlay.zIndex = 10000;
     overlay.eventMode = 'none';
     this.irisOverlay = overlay;
 
-    // ── Free-spins INTRO SCREEN (revealed as the black iris opens). Built now,
-    //    hidden until the pinch, sitting BELOW the iris field so the opening
-    //    hole reveals it. ─────────────────────────────────────────────────────
+    // ── Free-spins INTRO SCREEN placeholder (revealed as the black iris opens).
+    //    Intentionally MINIMAL — a flat dark screen + a plain wordmark; the real
+    //    intro art ("our own variant") gets built here later. Sits BELOW the
+    //    iris field so the opening hole reveals it. ───────────────────────────
     const intro = new Container();
     intro.alpha = 0;
     const introBg = new Graphics();
-    introBg.rect(0, 0, sw, sh).fill({ color: 0x07060e, alpha: 1 }); // opaque screen
-    // Soft accent radial glow behind the wordmark.
-    for (let k = 7; k >= 1; k--) {
-      introBg.ellipse(cx, cy, sw * 0.6 * (k / 7), sh * 0.34 * (k / 7));
-      introBg.fill({ color: accent, alpha: 0.05 });
-    }
+    introBg.rect(0, 0, sw, sh).fill({ color: 0x050509, alpha: 1 }); // flat black screen
     intro.addChild(introBg);
 
-    // Pop-in content group (rays + wordmark), centred so it scales from middle.
     const introContent = new Container();
     introContent.position.set(cx, cy);
-    const rays = new Graphics();
-    const RB = Math.max(sw, sh) * 0.85, nR = 24;
-    for (let i = 0; i < nR; i++) {
-      const a0 = (i / nR) * Math.PI * 2;
-      const a1 = a0 + (Math.PI * 2 / nR) * 0.5;
-      rays.moveTo(0, 0);
-      rays.lineTo(Math.cos(a0) * RB, Math.sin(a0) * RB);
-      rays.lineTo(Math.cos(a1) * RB, Math.sin(a1) * RB);
-      rays.closePath();
-    }
-    rays.fill({ color: gold, alpha: 0.05 });
-    introContent.addChild(rays);
     const fsTitle = new Text({
       text: 'FREE SPINS',
       style: new TextStyle({
-        fontFamily: "'Poppins', ui-sans-serif, sans-serif", fontSize: 64, fontWeight: '800',
-        fontStyle: 'italic', fill: 0xffffff, letterSpacing: 5,
-        dropShadow: { color: 0x000000, blur: 6, distance: 3, alpha: 0.6 },
+        fontFamily: "'Poppins', ui-sans-serif, sans-serif", fontSize: 54, fontWeight: '800',
+        fontStyle: 'italic', fill: 0xffffff, letterSpacing: 4,
       }),
     });
-    fsTitle.anchor.set(0.5); fsTitle.y = -48;
-    const divider = new Graphics();
-    divider.rect(-120, -6, 240, 2).fill({ color: gold, alpha: 0.85 });
+    fsTitle.anchor.set(0.5); fsTitle.y = -20;
     const fsCount = new Text({
-      text: `${count} SPINS`,
+      text: `${count} FREE SPINS`,
       style: new TextStyle({
-        fontFamily: "'Rubik', ui-sans-serif, sans-serif", fontSize: 42, fontWeight: '800',
-        fill: gold, letterSpacing: 3,
-        dropShadow: { color: 0x000000, blur: 4, distance: 2, alpha: 0.5 },
+        fontFamily: "'Rubik', ui-sans-serif, sans-serif", fontSize: 24, fontWeight: '700',
+        fill: 0xFFD23F, letterSpacing: 2,
       }),
     });
-    fsCount.anchor.set(0.5); fsCount.y = 26;
-    const fsLuck = new Text({
-      text: 'GOOD LUCK!',
-      style: new TextStyle({
-        fontFamily: "'Rubik', ui-sans-serif, sans-serif", fontSize: 20, fontWeight: '700',
-        fill: 0xEDE0B4, letterSpacing: 6,
-      }),
-    });
-    fsLuck.anchor.set(0.5); fsLuck.y = 78;
-    introContent.addChild(fsTitle, divider, fsCount, fsLuck);
-    introContent.scale.set(0.72);
+    fsCount.anchor.set(0.5); fsCount.y = 30;
+    introContent.addChild(fsTitle, fsCount);
+    introContent.scale.set(0.9);
     intro.addChild(introContent);
     overlay.addChild(intro);
 
-    const iris = new Graphics();      // black field with the animated circular hole
-    const rim = new Graphics();       // concentric rings + radial glow at the hole edge
-    const sparkles = new Graphics();  // gold star motes swirling the hole edge
-    overlay.addChild(iris, rim, sparkles);
+    const iris = new Graphics(); // black field with the animated circular hole
+    overlay.addChild(iris);
 
     this.app.stage.addChild(overlay); // appended last => renders above sceneRoot
 
-    const MOTES = 10;
-    const moteAng: number[] = [];
-    for (let i = 0; i < MOTES; i++) moteAng.push((i / MOTES) * Math.PI * 2);
-
     // Single state proxy => one gsap.killTweensOf target for teardown.
-    const st = { r: rDiag, tint: 0, rim: 0, glow: 0, sparkle: 0, ringPulse: 1 };
+    const st = { r: rDiag, tint: 0 };
     this.irisState = st;
-
-    const drawStar = (g: Graphics, x: number, y: number, s: number, a: number) => {
-      g.moveTo(x, y - s); g.lineTo(x + s * 0.28, y - s * 0.28);
-      g.lineTo(x + s, y); g.lineTo(x + s * 0.28, y + s * 0.28);
-      g.lineTo(x, y + s); g.lineTo(x - s * 0.28, y + s * 0.28);
-      g.lineTo(x - s, y); g.lineTo(x - s * 0.28, y - s * 0.28);
-      g.closePath(); g.fill({ color: gold, alpha: a });
-    };
 
     const redraw = () => {
       if (!this.isLive) return; // never draw into a torn-down GraphicsContext
       const r = Math.max(0, st.r);
-
       // Black field with the circular hole punched via .cut() (v8-correct).
       iris.clear();
       iris.rect(ox, oy, outer, outer);
-      iris.fill({ color: field, alpha: st.tint });
+      iris.fill({ color: 0x000000, alpha: st.tint });
       if (r > 0.5) { iris.circle(cx, cy, r); iris.cut(); }
-
-      // Rim: soft radial glow + gold edge rings at the hole boundary.
-      rim.clear();
-      const rr = Math.max(1, r) * st.ringPulse;
-      if (st.glow > 0.001) {
-        for (let k = 4; k >= 1; k--) {
-          rim.circle(cx, cy, rr + k * 14);
-          rim.stroke({ color: gold, width: 10, alpha: st.glow * 0.10 });
-        }
-      }
-      rim.circle(cx, cy, rr);
-      rim.stroke({ color: gold, width: 3.5, alpha: st.rim });
-      rim.circle(cx, cy, rr + 6);
-      rim.stroke({ color: blendHex(gold, 0xffffff, 0.4), width: 1.5, alpha: st.rim * 0.7 });
-      rim.circle(cx, cy, Math.max(1, rr - 7));
-      rim.stroke({ color: accent, width: 2, alpha: st.rim * 0.6 });
-
-      // Sparkle motes swirl the hole edge; radius+alpha driven by st.sparkle.
-      sparkles.clear();
-      if (st.sparkle > 0.001) {
-        const orbit = Math.max(24, rr) + 18;
-        for (let i = 0; i < MOTES; i++) {
-          const a = moteAng[i] + st.sparkle * 1.2;
-          const px = cx + Math.cos(a) * orbit;
-          const py = cy + Math.sin(a) * orbit;
-          drawStar(sparkles, px, py, 5 + st.sparkle * 4, st.sparkle * 0.9);
-        }
-      }
     };
 
     redraw();
@@ -1284,7 +1209,6 @@ export class PixiApp {
       const finish = () => {
         gsap.killTweensOf(st);
         gsap.killTweensOf(overlay);
-        gsap.killTweensOf(intro);
         gsap.killTweensOf(introContent); gsap.killTweensOf(introContent.scale);
         if (this.irisTl === tl) this.irisTl = null;
         if (this.irisState === st) this.irisState = null;
@@ -1300,29 +1224,15 @@ export class PixiApp {
       // idempotent, so a later finish()/destroy() call is harmless.
       this.irisResolve = () => resolve();
 
-      // Phase 1 CLOSE (0.00 -> 0.44): the live board is sucked into a shrinking
-      // BLACK circle; the rim/glow/sparkles swirl in as it pinches shut.
-      tl.to(st, {
-        r: 0, tint: 1, rim: 1, glow: 0.7, sparkle: 1,
-        duration: 0.44, ease: 'power2.in', onUpdate: redraw,
-      }, 0);
-      // At full black, arm the intro screen behind the field (invisible for now).
-      tl.set(intro, { alpha: 1 }, 0.46);
-
-      // Phase 2 OPEN (0.52 -> 0.98): the black circle irises back open, revealing
-      // the intro screen; the wordmark pops in as the hole widens.
-      tl.to(st, {
-        r: rDiag, tint: 0, rim: 0, glow: 0, sparkle: 0,
-        duration: 0.46, ease: 'power2.out', onUpdate: redraw,
-      }, 0.52);
-      tl.fromTo(introContent.scale, { x: 0.72, y: 0.72 },
-        { x: 1, y: 1, duration: 0.42, ease: 'back.out(2.2)' }, 0.54);
-
-      // Phase 3 HOLD (0.98 -> 2.18): sit on the intro screen; a gentle count pulse.
-      tl.to(fsCount.scale, { x: 1.06, y: 1.06, duration: 0.5, yoyo: true, repeat: 1, ease: 'sine.inOut' }, 1.05);
-
-      // Phase 4 DISMISS (2.18 -> 2.62): fade the intro out, revealing the round.
-      tl.to(overlay, { alpha: 0, duration: 0.44, ease: 'power2.inOut' }, 2.18);
+      // CLOSE (0.00 -> 0.42): the live board is sucked into a shrinking black circle.
+      tl.to(st, { r: 0, tint: 1, duration: 0.42, ease: 'power2.in', onUpdate: redraw }, 0);
+      // At full black, arm the intro screen behind the field (still hidden by black).
+      tl.set(intro, { alpha: 1 }, 0.44);
+      // OPEN (0.50 -> 0.96): the black circle irises back open onto the intro screen.
+      tl.to(st, { r: rDiag, tint: 0, duration: 0.46, ease: 'power2.out', onUpdate: redraw }, 0.50);
+      tl.fromTo(introContent.scale, { x: 0.9, y: 0.9 }, { x: 1, y: 1, duration: 0.4, ease: 'power2.out' }, 0.52);
+      // HOLD, then DISMISS (1.85 -> 2.27): fade the intro out, revealing the round.
+      tl.to(overlay, { alpha: 0, duration: 0.42, ease: 'power2.inOut' }, 1.85);
     });
   }
 

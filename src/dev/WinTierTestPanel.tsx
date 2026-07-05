@@ -146,10 +146,11 @@ export function WinTierTestPanel({ pixiApp, snapshot, soundManager }: Props) {
       </button>
       <button
         onClick={() => {
-          // Preview the ways-light win-line: ensure it's on, then fire a synthetic
-          // 5-of-a-kind so the comet lights every connection across the row.
+          // Preview the ways-light win-line: ensure it's on, then spin into a
+          // win where several symbols connect (1→3→3→2→1 fan) so you can see the
+          // comet branch through multiple connections.
           pixiApp.applyVisualParam('waysLight', 'on');
-          pixiApp.__testLineWin(symbol, decimals, wager);
+          pixiApp.__testWaysWin(symbol, decimals, wager);
         }}
         style={{
           background: '#04171c',

@@ -1617,6 +1617,47 @@ export class PixiApp {
     void this.playWinSequence(outcome, symbol, decimals);
   }
 
+  /** Test-only: SPIN, then reveal a WAYS win where several symbols connect on
+   *  the inner reels (a 1→3→3→2→1 fan), so the ways-light comet branches through
+   *  many connections at once — "see how it looks when multiple connect". */
+  public __testWaysWin(symbol: string, decimals: number, wager: bigint): void {
+    if (!this.isLive) return;
+    const reelCount = this.config.reelLengths.length;
+    const rows = this.grid.visibleRows;
+    const mid = Math.floor(rows / 2);
+    // How many connecting cells per reel (clamped to the visible rows).
+    const rowsFor = (reel: number): number[] => {
+      const want = reel === 0 || reel === reelCount - 1 ? 1 : reel === reelCount - 2 ? 2 : 3;
+      const out: number[] = [];
+      for (let d = 0; out.length < want && d <= rows; d++) {
+        const lo = mid - d, hi = mid + d;
+        if (lo >= 0 && !out.includes(lo)) out.push(lo);
+        if (out.length < want && hi < rows && hi !== lo && !out.includes(hi)) out.push(hi);
+      }
+      return out.sort((a, b) => a - b);
+    };
+    const cells: [number, number][] = [];
+    for (let reel = 0; reel < reelCount; reel++) {
+      for (const row of rowsFor(reel)) cells.push([row, reel]);
+    }
+    const winAmount = wager * 20n;
+    const winResult = {
+      totalWin: winAmount,
+      combinations: [{ symbolId: 2, matchCount: reelCount, ways: 9, payBps: 0, winAmount, cells }],
+      scatterCount: 0,
+      scatterPaid: false,
+    };
+    const stops = this.config.reelLengths.map(len => Math.floor(Math.random() * len));
+    this.reelSet.startSpin();
+    void (async () => {
+      await new Promise(r => setTimeout(r, 450));
+      if (!this.isLive) return;
+      await this.reelSet.stopOnStops(stops, false);
+      if (!this.isLive) return;
+      this.reelSet.highlightWins(winResult);
+    })();
+  }
+
   /** Test-only: run the full free-spins presentation — entry card ("FREE SPINS
    *  ×N"), per-spin replay, win ceremony, and exit card ("FREE SPINS TOTAL"). */
   public __testFreeSpins(symbol: string, decimals: number, wager: bigint, count = 8): void {

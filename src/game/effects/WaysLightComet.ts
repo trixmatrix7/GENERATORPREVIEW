@@ -112,7 +112,9 @@ function makeEdge(
       head.anchor.set(0.5);
       head.tint = color;
       head.blendMode = 'add';
-      head.width = head.height = cellSize * 0.55;
+      // Small, tight comet tip — a bright glint, not a big blob. Capped so it
+      // never blows up on large cells (client: the head was "riesig").
+      head.width = head.height = Math.min(cellSize * 0.26, 26);
       head.position.set(a.x, a.y);
       headLayer.addChild(head);
       const t1 = gsap.to(inner.scale, { x: 1, duration: durSec, ease: 'none' });

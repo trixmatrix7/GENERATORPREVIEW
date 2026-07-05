@@ -395,8 +395,10 @@ export class ReelSet {
     popScale(back, { x: 1, y: 1 });
 
     // Real wild tile (matches on-reel art), centred so it pops from the middle.
+    // Enlarge the wild object within the cell — the default art reads too small.
     const tile = new AnimatedSymbol(this.atlases, this.config.theme);
     tile.setSymbol(SymbolId.WILD);
+    tile.enlargeObject(1.42);
     tile.eventMode = 'none';
     tile.pivot.set(SYMBOL_WIDTH / 2, SYMBOL_HEIGHT / 2);
     tile.position.set(cx, cy);

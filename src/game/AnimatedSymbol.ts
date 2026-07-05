@@ -214,6 +214,14 @@ export class AnimatedSymbol extends Container {
     this.play('static');
   }
 
+  /** Statically scale the OBJECT layer (icon/glyph) within the cell — the tile
+   *  backdrop stays put. Used to render a bigger symbol (e.g. the sticky-wild
+   *  reveal) when the default art reads too small in the cell. Call AFTER
+   *  setSymbol(); a subsequent play()/clearState() resets it back to 1. */
+  enlargeObject(mul: number): void {
+    this.inner.scale.set(mul);
+  }
+
   private lifted = false;
 
   /** Lift the OBJECT layer (`inner`) out into a higher container so the win

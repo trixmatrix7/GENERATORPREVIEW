@@ -101,6 +101,24 @@ export function WinTierTestPanel({ pixiApp, snapshot, soundManager }: Props) {
       >
         Hold &amp; Win
       </button>
+      <button
+        onClick={() => pixiApp.__testStickyWildReveal()}
+        style={{
+          background: '#1a1206',
+          color: '#FFD24A',
+          border: '1px solid #7a5c1e',
+          borderRadius: 4,
+          padding: '4px 8px',
+          fontSize: 11,
+          fontFamily: 'monospace',
+          cursor: 'pointer',
+          textAlign: 'left',
+          marginTop: 4,
+        }}
+        title="Screen dims, 3–25 wilds pop criss-cross with the AAA shine, then stay put"
+      >
+        ✦ Sticky Wilds
+      </button>
     </div>
   );
 }

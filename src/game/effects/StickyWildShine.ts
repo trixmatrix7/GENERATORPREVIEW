@@ -115,16 +115,21 @@ export function applyStickyWild(
   root.addChild(shineWrap);
   const bandW = w * 0.42;
   const shine = new Graphics();
-  shine.rect(-bandW * 0.5, -h, bandW * 0.34, h * 2).fill({ color: cfg.shineColor, alpha: 0.1 });
-  shine.rect(-bandW * 0.16, -h, bandW * 0.34, h * 2).fill({ color: cfg.shineColor, alpha: 0.3 });
+  // A touch stronger than a whisper — still barely there (client: "etwas
+  // stärker machen, kaum erkennbar"). Two stacked bands read as a soft edge
+  // + brighter core as the sweep crosses the cell.
+  shine.rect(-bandW * 0.5, -h, bandW * 0.34, h * 2).fill({ color: cfg.shineColor, alpha: 0.16 });
+  shine.rect(-bandW * 0.16, -h, bandW * 0.34, h * 2).fill({ color: cfg.shineColor, alpha: 0.42 });
   shine.rotation = -0.5;
   shine.blendMode = 'add';
   shineWrap.addChild(shine);
 
-  // animations
-  tweens.push(gsap.to(root, { alpha: 1, duration: 0.28, ease: 'power2.out' }));
+  // animations — pop in (scale + fade), then settle into the calm breath.
+  root.scale.set(0.72);
+  tweens.push(gsap.to(root, { alpha: 1, duration: 0.26, ease: 'power2.out' }));
+  tweens.push(gsap.to(root.scale, { x: 1, y: 1, duration: 0.4, ease: 'back.out(2.4)' }));
   tweens.push(gsap.to(outer, { alpha: 0.8, duration: speed * 0.5, yoyo: true, repeat: -1, ease: 'sine.inOut' }));
-  tweens.push(gsap.to(root.scale, { x: 1.03, y: 1.03, duration: speed * 0.6, yoyo: true, repeat: -1, ease: 'sine.inOut' }));
+  tweens.push(gsap.to(root.scale, { x: 1.03, y: 1.03, duration: speed * 0.6, yoyo: true, repeat: -1, ease: 'sine.inOut', delay: 0.42 }));
   const orbit = { t: 0 };
   tweens.push(
     gsap.to(orbit, {

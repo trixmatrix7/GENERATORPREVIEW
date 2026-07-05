@@ -10,7 +10,7 @@
 import { Container, Graphics, Text, TextStyle, Rectangle, Sprite } from 'pixi.js';
 import { gsap } from 'gsap';
 import { Reel } from './Reel';
-import type { AnimatedSymbol } from './AnimatedSymbol';
+import { AnimatedSymbol, SYMBOL_WIDTH, SYMBOL_HEIGHT } from './AnimatedSymbol';
 import { CELL_HEIGHT, REEL_GAP } from './symbolMetrics';
 import { getActiveGrid, type GridConfig } from '@/config/gridConfig';
 import { resolveAnchor, cell as cellAnchor, reel as reelAnchor, grid as gridAnchor } from '@/engine/anchors';
@@ -91,6 +91,17 @@ export class ReelSet {
   private readonly stickyContainer: Container = new Container();
   private stickyHandles: StickyHandle[] = [];
   private lastStickyBoard: number[][] | null = null;
+  /** Atlas map — kept so the sticky-wild reveal can render real WILD tiles. */
+  private readonly atlases: SymbolAtlasMap;
+  /** Extra display objects owned by the sticky-wild reveal (wild tiles +
+   *  pop flashes) — destroyed together with the shine handles on clear. */
+  private stickyRevealObjects: Container[] = [];
+  /** The momentary board-dim veil shown during a sticky-wild reveal. */
+  private stickyDimVeil: Graphics | null = null;
+  /** Tweens owned by the reveal (pop-ins, veil fades), killed on clear. */
+  private stickyRevealTweens: gsap.core.Animation[] = [];
+  /** Generation counter — bumping it cancels any in-flight staggered reveal. */
+  private stickyRevealGen = 0;
   /** Floating per-combo "+amount" labels. Separate from winLinesContainer so a
    *  reveal step can clear the previous frame/line WITHOUT killing amounts that
    *  are still floating up from earlier steps. */
@@ -132,6 +143,7 @@ export class ReelSet {
   ) {
     this.config = config;
     this.grid = grid;
+    this.atlases = atlases;
     this.container = new Container();
     this.clipContainer = new Container();
     this.teaseGlowContainer = new Container();
@@ -177,6 +189,7 @@ export class ReelSet {
     });
     this.container.addChild(this.winObjectsContainer);  // lifted winning objects — above line
     this.container.addChild(this.winAmountsContainer);  // floating amounts — top
+    this.stickyContainer.eventMode = 'none';            // overlays never eat click-to-edit taps
     this.container.addChild(this.stickyContainer);      // sticky-wild overlays — above symbols
     this.container.addChild(this.waysLightContainer);   // ways-light comet — topmost fx
     // scale the comet head to this grid's cell size
@@ -251,9 +264,156 @@ export class ReelSet {
   }
 
   clearStickyWilds(): void {
+    // Cancel any staggered reveal still in flight (its pop loop checks the gen).
+    this.stickyRevealGen++;
+    for (const t of this.stickyRevealTweens) t.kill();
+    this.stickyRevealTweens = [];
+    for (const obj of this.stickyRevealObjects) {
+      const disposable = obj as unknown as { dispose?: () => void };
+      disposable.dispose?.();
+      if (obj.parent) obj.parent.removeChild(obj);
+      obj.destroy({ children: true });
+    }
+    this.stickyRevealObjects = [];
+    if (this.stickyDimVeil) {
+      if (this.stickyDimVeil.parent) this.stickyDimVeil.parent.removeChild(this.stickyDimVeil);
+      this.stickyDimVeil.destroy();
+      this.stickyDimVeil = null;
+    }
     for (const h of this.stickyHandles) h.destroy();
     this.stickyHandles = [];
     clearAllStickyWild();
+  }
+
+  /** OUR sticky-wild showcase reveal. Honours the dev's `sticky-wild` rule
+   *  ("wilds remain in place for subsequent spins") as a PURELY VISUAL
+   *  treatment — it never rewrites the board or touches math. The screen dims
+   *  briefly, 3–25 wilds pop in criss-cross across the grid one after another
+   *  (each with the AAA shine), while the reels keep rolling in parallel; the
+   *  wilds then stay put until the next spin. Triggered from the test panel. */
+  async playStickyWildReveal(
+    opts: { isLive?: () => boolean; turbo?: boolean; min?: number; max?: number } = {},
+  ): Promise<void> {
+    const live = opts.isLive ?? (() => true);
+    const gridCells = this.grid.reelCount * this.grid.visibleRows;
+    const lo = Math.max(3, Math.min(opts.min ?? 3, gridCells));
+    const hi = Math.max(lo, Math.min(opts.max ?? 25, gridCells));
+    const count = lo + Math.floor(Math.random() * (hi - lo + 1));
+
+    // Every visible cell, then shuffle → a scattered "criss-cross" pop order.
+    const cells: Array<[number, number]> = [];
+    for (let row = 0; row < this.grid.visibleRows; row++) {
+      for (let reel = 0; reel < this.grid.reelCount; reel++) cells.push([reel, row]);
+    }
+    for (let i = cells.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [cells[i], cells[j]] = [cells[j], cells[i]];
+    }
+    const chosen = cells.slice(0, count);
+
+    // Reels roll in parallel. startSpin() clears any prior stickies (and bumps
+    // the reveal gen); capture the fresh gen AFTER it so our pops survive.
+    this.startSpin();
+    const gen = this.stickyRevealGen;
+
+    // Momentary board-dim veil — behind the popping wilds, above the reels.
+    const gr = resolveAnchor(gridAnchor, this.grid);
+    const veil = new Graphics();
+    veil.rect(gr.x - 10, gr.y - 10, gr.w + 20, gr.h + 20).fill({ color: 0x05070d, alpha: 1 });
+    veil.alpha = 0;
+    veil.eventMode = 'none';
+    this.stickyContainer.addChildAt(veil, 0);
+    this.stickyDimVeil = veil;
+    this.stickyRevealTweens.push(gsap.to(veil, { alpha: 0.44, duration: 0.28, ease: 'power2.out' }));
+
+    // Display-only stops for the parallel spin (the overlays cover the chosen
+    // cells, so whatever lands underneath is irrelevant).
+    const displayStops = this.config.reelLengths.map(len => Math.floor(Math.random() * len));
+    const stagger = opts.turbo ? 45 : 90;
+
+    // Stagger-pop the wilds while the reels are still rolling.
+    const popAll = (async () => {
+      for (let k = 0; k < chosen.length; k++) {
+        await new Promise(res => setTimeout(res, k === 0 ? 260 : stagger));
+        if (this.stickyRevealGen !== gen || !live()) return; // cancelled / torn down
+        this.popOneStickyWild(chosen[k][0], chosen[k][1]);
+      }
+    })();
+
+    // Let the reels visibly roll, then settle underneath (parallel to the pops).
+    await new Promise(res => setTimeout(res, opts.turbo ? 240 : 520));
+    if (this.stickyRevealGen === gen && live()) await this.stopOnStops(displayStops, !!opts.turbo);
+    await popAll;
+
+    // The dimming was momentary — ease it back out, leaving the wilds lit.
+    if (this.stickyRevealGen === gen && this.stickyDimVeil) {
+      const v = this.stickyDimVeil;
+      this.stickyRevealTweens.push(
+        gsap.to(v, {
+          alpha: 0,
+          duration: 0.5,
+          ease: 'power2.inOut',
+          onComplete: () => {
+            if (v.parent) v.parent.removeChild(v);
+            v.destroy();
+            if (this.stickyDimVeil === v) this.stickyDimVeil = null;
+          },
+        }),
+      );
+    }
+  }
+
+  /** Pop a single wild into a cell: the real WILD tile art grows in from the
+   *  centre with a soft flash, and the AAA shine is layered on top. */
+  private popOneStickyWild(reel: number, row: number): void {
+    const rect = resolveAnchor(cellAnchor(reel, row), this.grid);
+    const cx = rect.x + rect.w / 2;
+    const cy = rect.y + rect.h / 2;
+
+    // Real wild tile (matches on-reel art), centred so it pops from the middle.
+    const tile = new AnimatedSymbol(this.atlases, this.config.theme);
+    tile.setSymbol(SymbolId.WILD);
+    tile.eventMode = 'none';
+    tile.pivot.set(SYMBOL_WIDTH / 2, SYMBOL_HEIGHT / 2);
+    tile.position.set(cx, cy);
+    const sx = rect.w / SYMBOL_WIDTH;
+    const sy = rect.h / SYMBOL_HEIGHT;
+    tile.scale.set(0);
+    tile.alpha = 0;
+    this.stickyContainer.addChild(tile);
+    this.stickyRevealObjects.push(tile);
+    const popTl = gsap.timeline();
+    popTl.to(tile, { alpha: 1, duration: 0.12, ease: 'power1.out' }, 0);
+    popTl.to(tile.scale, { x: sx * 1.18, y: sy * 1.18, duration: 0.16, ease: 'back.out(3)' }, 0);
+    popTl.to(tile.scale, { x: sx, y: sy, duration: 0.18, ease: 'power2.out' }, 0.16);
+    this.stickyRevealTweens.push(popTl);
+
+    // AAA shine border on top (its own pop-in + calm breath live in the effect).
+    this.stickyHandles.push(applyStickyWild(this.stickyContainer, rect));
+
+    // A quick additive flash sells the "lock-in" moment, then self-clears.
+    const flash = new Graphics();
+    flash
+      .roundRect(rect.x, rect.y, rect.w, rect.h, Math.min(rect.w, rect.h) * 0.16)
+      .fill({ color: 0xffffff, alpha: 0.55 });
+    flash.blendMode = 'add';
+    flash.alpha = 0;
+    flash.eventMode = 'none';
+    this.stickyContainer.addChild(flash);
+    this.stickyRevealObjects.push(flash);
+    this.stickyRevealTweens.push(
+      gsap
+        .timeline()
+        .to(flash, { alpha: 0.6, duration: 0.08, ease: 'power2.out' })
+        .to(flash, {
+          alpha: 0,
+          duration: 0.3,
+          ease: 'power2.in',
+          onComplete: () => {
+            if (flash.parent) flash.parent.removeChild(flash);
+          },
+        }),
+    );
   }
 
   /** Schedule a callback that can be cancelled together with all others

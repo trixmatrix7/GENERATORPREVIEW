@@ -1540,6 +1540,15 @@ export class PixiApp {
     });
   }
 
+  /** Test-only: OUR sticky-wild showcase reveal. Honours the dev's `sticky-wild`
+   *  rule ("wilds remain in place") as a purely visual treatment — dims the
+   *  board, pops 3–25 wilds criss-cross one-by-one with the AAA shine while the
+   *  reels roll, then leaves them stuck. Never rewrites the board or the math. */
+  public __testStickyWildReveal(): void {
+    if (!this.isLive) return;
+    void this.reelSet.playStickyWildReveal({ isLive: () => this.isLive, turbo: this.turbo });
+  }
+
   /** Test-only: force a near-miss anticipation tease — lands a single scatter
    *  on reels 0 and 1 (2 total → no FS trigger), so the remaining reels
    *  decelerate dramatically. Exercises the anticipation slow-down + tease cue. */

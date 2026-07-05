@@ -74,6 +74,9 @@ export class PixiApp {
   // Resolver for the in-flight iris Promise — invoked by destroy() too, since a
   // killed GSAP timeline never fires onComplete (else the awaited spin hangs).
   private irisResolve: (() => void) | null = null;
+  // Optional custom free-spins INTRO SCREEN art (e.g. the Vice "BONUS" board),
+  // shown when the iris opens. Falls back to the plain placeholder if unset.
+  private fsIntroTexture: Texture | null = null;
   private ambientLayer: Container | null = null;
   private ambientTweens: ReturnType<typeof gsap.timeline>[] = [];
   /** Celebration coin tints (base, deep, highlight) — live-adjustable via the
@@ -787,6 +790,18 @@ export class PixiApp {
     this.updateReelBackdrop();
   }
 
+  /** Load a custom free-spins INTRO SCREEN image (shown when the iris opens).
+   *  Pass null to clear (falls back to the plain placeholder). */
+  async setFreeSpinsIntroImage(url: string | null): Promise<void> {
+    if (this._aborted) return;
+    if (!url) { this.fsIntroTexture = null; return; }
+    try {
+      this.fsIntroTexture = await Assets.load<Texture>(url);
+    } catch (err) {
+      console.warn('[PixiApp] failed to load free-spins intro image:', err);
+    }
+  }
+
   private clearBackgroundImage(): void {
     // Tear down the frosted backdrop first — it references bgTexture.
     this.teardownReelBackdrop();
@@ -1148,35 +1163,55 @@ export class PixiApp {
     overlay.eventMode = 'none';
     this.irisOverlay = overlay;
 
-    // ── Free-spins INTRO SCREEN placeholder (revealed as the black iris opens).
-    //    Intentionally MINIMAL — a flat dark screen + a plain wordmark; the real
-    //    intro art ("our own variant") gets built here later. Sits BELOW the
-    //    iris field so the opening hole reveals it. ───────────────────────────
+    // ── Free-spins INTRO SCREEN (revealed as the black iris opens). Uses the
+    //    custom Vice "BONUS" art if loaded (setFreeSpinsIntroImage), else a plain
+    //    placeholder. Sits BELOW the iris field so the opening hole reveals it. ─
     const intro = new Container();
     intro.alpha = 0;
     const introBg = new Graphics();
-    introBg.rect(0, 0, sw, sh).fill({ color: 0x050509, alpha: 1 }); // flat black screen
+    introBg.rect(0, 0, sw, sh).fill({ color: 0x050509, alpha: 1 }); // dark screen behind the art
     intro.addChild(introBg);
 
     const introContent = new Container();
     introContent.position.set(cx, cy);
-    const fsTitle = new Text({
-      text: 'FREE SPINS',
-      style: new TextStyle({
+    let introArt: Sprite | null = null;
+    if (this.fsIntroTexture) {
+      const tex = this.fsIntroTexture;
+      const k = Math.min(sw / tex.width, sh / tex.height) * 0.98; // contain-fit
+      introArt = new Sprite(tex);
+      introArt.anchor.set(0.5);
+      introArt.scale.set(k);
+      introContent.addChild(introArt);
+      const u = Math.min(sw, sh);
+      // "FREE SPINS / N SPINS" over the empty purple panel (image-fraction).
+      const px = (0.485 - 0.5) * tex.width * k;
+      const py = (0.685 - 0.5) * tex.height * k;
+      const t1 = new Text({ text: 'FREE SPINS', style: new TextStyle({
+        fontFamily: "'Poppins', ui-sans-serif, sans-serif", fontSize: Math.round(u * 0.05), fontWeight: '800',
+        fontStyle: 'italic', fill: 0xffffff, letterSpacing: 3,
+        dropShadow: { color: 0x000000, blur: 4, distance: 2, alpha: 0.6 },
+      }) });
+      t1.anchor.set(0.5); t1.position.set(px, py - u * 0.03);
+      const t2 = new Text({ text: `${count} SPINS`, style: new TextStyle({
+        fontFamily: "'Rubik', ui-sans-serif, sans-serif", fontSize: Math.round(u * 0.045), fontWeight: '800',
+        fill: 0xffffff, letterSpacing: 2,
+        dropShadow: { color: 0x000000, blur: 4, distance: 2, alpha: 0.6 },
+      }) });
+      t2.anchor.set(0.5); t2.position.set(px, py + u * 0.03);
+      introContent.addChild(t1, t2);
+    } else {
+      const fsTitle = new Text({ text: 'FREE SPINS', style: new TextStyle({
         fontFamily: "'Poppins', ui-sans-serif, sans-serif", fontSize: 54, fontWeight: '800',
         fontStyle: 'italic', fill: 0xffffff, letterSpacing: 4,
-      }),
-    });
-    fsTitle.anchor.set(0.5); fsTitle.y = -20;
-    const fsCount = new Text({
-      text: `${count} FREE SPINS`,
-      style: new TextStyle({
+      }) });
+      fsTitle.anchor.set(0.5); fsTitle.y = -20;
+      const fsCount = new Text({ text: `${count} FREE SPINS`, style: new TextStyle({
         fontFamily: "'Rubik', ui-sans-serif, sans-serif", fontSize: 24, fontWeight: '700',
         fill: 0xFFD23F, letterSpacing: 2,
-      }),
-    });
-    fsCount.anchor.set(0.5); fsCount.y = 30;
-    introContent.addChild(fsTitle, fsCount);
+      }) });
+      fsCount.anchor.set(0.5); fsCount.y = 30;
+      introContent.addChild(fsTitle, fsCount);
+    }
     introContent.scale.set(0.9);
     intro.addChild(introContent);
     overlay.addChild(intro);
@@ -1229,6 +1264,11 @@ export class PixiApp {
       // OPEN (0.82 -> 1.42): the black circle irises back open onto the intro screen.
       tl.to(st, { r: rDiag, tint: 0, duration: 0.60, ease: 'power2.out', onUpdate: redraw }, 0.82);
       tl.fromTo(introContent.scale, { x: 0.86, y: 0.86 }, { x: 1, y: 1, duration: 0.55, ease: 'power2.out' }, 0.84);
+      // Gentle "breeze" sway on the board art while the intro holds (a taste of
+      // Miami motion; true per-palm sway needs the palms as separate PNGs).
+      if (introArt) {
+        tl.to(introArt, { rotation: 0.012, duration: 0.9, yoyo: true, repeat: 1, ease: 'sine.inOut' }, 1.0);
+      }
       // HOLD on the intro (~1.3s), then DISMISS (2.7 -> 3.2): fade out into the round.
       tl.to(overlay, { alpha: 0, duration: 0.50, ease: 'power2.inOut' }, 2.70);
     });

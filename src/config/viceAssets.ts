@@ -23,6 +23,9 @@ export const VICE_SYMBOL_URLS: Record<number, string> = {
 /** Baked Vice background (Miami waterfront sunset), shipped in public/theme/vice/. */
 export const VICE_BACKGROUND_URL: string | null = `${BASE}background.jpg`;
 
+/** Baked Vice free-spins INTRO SCREEN art (the "BONUS" palms board). */
+export const VICE_INTRO_URL: string | null = `${BASE}bonus_intro.png`;
+
 /** Fresh Map<symbolId, url> for setUserAssetTextures. */
 export function viceSymbolMap(): Map<number, string> {
   return new Map(Object.entries(VICE_SYMBOL_URLS).map(([k, v]) => [Number(k), v]));

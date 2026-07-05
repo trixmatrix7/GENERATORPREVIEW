@@ -13,7 +13,7 @@ import { GameCanvas } from '@/ui/GameCanvas';
 import { StudioDrawer } from '@/studio/StudioDrawer';
 import { DEFAULT_GAME_CONFIG, type GameConfig } from '@/engine/GameConfig';
 import { getThemeByName } from '@/config/themes';
-import { viceSymbolMap, VICE_BACKGROUND_URL } from '@/config/viceAssets';
+import { viceSymbolMap, VICE_BACKGROUND_URL, VICE_INTRO_URL } from '@/config/viceAssets';
 import { loadAssets } from '@/studio/assetPersistence';
 import type { PixiApp } from '@/game/PixiApp';
 
@@ -55,6 +55,7 @@ export function App() {
     const bg = saved.bg ?? VICE_BACKGROUND_URL;
     if (bg) void pixiAppRef.setBackgroundImage(bg);
     if (saved.frame) void pixiAppRef.setFrameImage(saved.frame);
+    if (VICE_INTRO_URL) void pixiAppRef.setFreeSpinsIntroImage(VICE_INTRO_URL);
   }, [pixiAppRef]);
 
   const handlePixiReady = useCallback((app: PixiApp) => {

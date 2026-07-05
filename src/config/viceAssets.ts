@@ -20,9 +20,8 @@ export const VICE_SYMBOL_URLS: Record<number, string> = {
   [SymbolId.LOW_G]: `${BASE}symbol_low_g_landing.png`,
 };
 
-/** Baked background image URL, or null until one is dropped in public/theme/vice/.
- *  Set this to `${BASE}background.png` once the Vice background is added there. */
-export const VICE_BACKGROUND_URL: string | null = null;
+/** Baked Vice background (Miami waterfront sunset), shipped in public/theme/vice/. */
+export const VICE_BACKGROUND_URL: string | null = `${BASE}background.jpg`;
 
 /** Fresh Map<symbolId, url> for setUserAssetTextures. */
 export function viceSymbolMap(): Map<number, string> {

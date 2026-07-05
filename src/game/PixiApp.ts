@@ -10,7 +10,9 @@ import { waysLightConfig, WAYS_LIGHT_PRESETS, WAYS_LIGHT_SPEED_MS, WAYS_LIGHT_WI
 import { stickyWildConfig, STICKY_WILD_PRESETS, STICKY_WILD_SPEED_MS } from './effects/StickyWildShine';
 import { symbolSizing, SYMBOL_SIZE_PRESETS } from '@/config/symbolSizing';
 import { CANVAS_THEME } from '@/config/canvasTheme';
-import type { SpinOutcome } from '@/engine/SlotEngine';
+import { deriveStopsFromRandomness, type SpinOutcome } from '@/engine/SlotEngine';
+import { buildBoard } from '@/config/reels';
+import { evaluateWins, type WinResult } from '@/engine/WinEvaluator';
 import { DEFAULT_GAME_CONFIG, type GameConfig, type GameTheme } from '@/engine/GameConfig';
 import { playDeterministicHoldAndWin, HW_TRIGGER_MIN } from '@/engine/holdAndWin';
 import { loadSymbolAtlases, type SymbolAtlasMap } from './SymbolAtlasLoader';
@@ -1617,43 +1619,37 @@ export class PixiApp {
     void this.playWinSequence(outcome, symbol, decimals);
   }
 
-  /** Test-only: SPIN, then reveal a REAL ways win — the SAME symbol lands across
-   *  the first 3 reels (with a small fan on the middle reel), and those cells are
-   *  forced to that symbol so it's a genuine connection (like the generator's
-   *  243-ways math), not fake lines over random symbols. The ways-light then
-   *  flows through the real connection reel by reel. */
-  public __testWaysWin(symbol: string, decimals: number, wager: bigint): void {
+  /** Test-only: roll REAL engine outcomes (real reel strips + the dev's ways
+   *  WinEvaluator / paytable / RTP) until a genuine ways win lands — preferring
+   *  one with a fan (a reel carrying 2+ winning cells) so the connection reads
+   *  clearly — then spin and reveal that real outcome. Nothing is forced/faked;
+   *  the symbols on the board are the actual ways win. */
+  public __testWaysWin(_symbol: string, _decimals: number, wager: bigint): void {
     if (!this.isLive) return;
-    const rows = this.grid.visibleRows;
-    const mid = Math.floor(rows / 2);
-    const clamp = (r: number) => Math.max(0, Math.min(rows - 1, r));
-    const S = 3; // a regular high-pay symbol (not wild/scatter/coin)
-    // Real 3-of-a-kind ways: reel0 (1) → reel1 (2, a fan) → reel2 (1, converge).
-    const posByReel: number[][] = [
-      [mid],
-      [...new Set([clamp(mid - 1), clamp(mid + 1)])],
-      [mid],
-    ];
-    const cells: [number, number][] = [];
-    posByReel.forEach((positions, reel) => { for (const row of positions) cells.push([row, reel]); });
-    const ways = posByReel.reduce((a, p) => a * p.length, 1);
-    const winAmount = wager * 15n;
-    const winResult = {
-      totalWin: winAmount,
-      combinations: [{ symbolId: S, matchCount: posByReel.length, ways, payBps: 0, winAmount, cells }],
-      scatterCount: 0,
-      scatterPaid: false,
-    };
-    const stops = this.config.reelLengths.map(len => Math.floor(Math.random() * len));
+    let best: { stops: number[]; winResult: WinResult } | null = null;
+    let fan: { stops: number[]; winResult: WinResult } | null = null;
+    for (let i = 0; i < 1500 && !fan; i++) {
+      const stops = deriveStopsFromRandomness(randomBytes32());
+      const board = buildBoard(stops);
+      const winResult = evaluateWins(board, wager, this.config);
+      for (const c of winResult.combinations) {
+        if (c.winAmount <= 0n) continue;
+        const perReel = new Map<number, number>();
+        for (const [, reel] of c.cells) perReel.set(reel, (perReel.get(reel) ?? 0) + 1);
+        if (perReel.size < 2) continue; // needs a real cross-reel connection
+        best ??= { stops, winResult };
+        if ([...perReel.values()].some(n => n >= 2)) { fan = { stops, winResult }; break; }
+      }
+    }
+    const chosen = fan ?? best;
+    if (!chosen) return; // no ways win found (astronomically unlikely)
     this.reelSet.startSpin();
     void (async () => {
       await new Promise(r => setTimeout(r, 450));
       if (!this.isLive) return;
-      await this.reelSet.stopOnStops(stops, false);
+      await this.reelSet.stopOnStops(chosen.stops, false);
       if (!this.isLive) return;
-      // Force the connecting cells to the SAME symbol → a real ways connection.
-      for (const [row, reel] of cells) this.reelSet.forceVisibleSymbol(reel, row, S);
-      this.reelSet.highlightWins(winResult);
+      this.reelSet.highlightWins(chosen.winResult);
     })();
   }
 
@@ -2163,6 +2159,14 @@ async function constrainImageSize(dataUrl: string, max: number): Promise<string>
     img.onerror = () => reject(new Error('Failed to decode uploaded image'));
     img.src = dataUrl;
   });
+}
+
+/** A fresh random bytes32 hex — seeds a real dev-harness outcome (dev-only). */
+function randomBytes32(): `0x${string}` {
+  const b = crypto.getRandomValues(new Uint8Array(32));
+  let h = '0x';
+  for (const x of b) h += x.toString(16).padStart(2, '0');
+  return h as `0x${string}`;
 }
 
 function formatWin(amount: bigint, decimals: number): string {

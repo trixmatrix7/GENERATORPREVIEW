@@ -902,14 +902,9 @@ export class PixiApp {
   async resolve(outcome: SpinOutcome, tokenSymbol: string, decimals: number): Promise<void> {
     if (!this.isLive) return;
     if (outcome.freeSpinsTriggered && outcome.freeSpinsPlayed > 0 && !this.turbo && !prefersReducedMotion()) {
-      // Gold flash + shock-wave punctuate the scatter trigger, then the iris.
-      this.spawnFlash(0xFFD23F, 0.45, 0.5);
-      this.spawnShockwave();
-      await new Promise(r => setTimeout(r, 120));
-      if (!this.isLive) return;
-      // Looney-Tunes iris entry: close on the live board, punch "FREE SPINS ×N"
-      // at the pinch, then open on the free-spins round. Show the FS counter
-      // AFTER the iris opens so it isn't buried under the opaque iris field.
+      // Straight into the iris — NO gold flash / shock-wave "sun" first. The live
+      // board is pulled into a shrinking black circle, opens onto the intro
+      // screen, then dismisses into the round. Counter shows AFTER the iris.
       await this.playFreeSpinsIris(outcome.freeSpinsPlayed);
       if (!this.isLive) return;
       const fsOverlay = this.showFreeSpinOverlay(outcome.freeSpinsPlayed);
@@ -1224,15 +1219,16 @@ export class PixiApp {
       // idempotent, so a later finish()/destroy() call is harmless.
       this.irisResolve = () => resolve();
 
-      // CLOSE (0.00 -> 0.42): the live board is sucked into a shrinking black circle.
-      tl.to(st, { r: 0, tint: 1, duration: 0.42, ease: 'power2.in', onUpdate: redraw }, 0);
-      // At full black, arm the intro screen behind the field (still hidden by black).
-      tl.set(intro, { alpha: 1 }, 0.44);
-      // OPEN (0.50 -> 0.96): the black circle irises back open onto the intro screen.
-      tl.to(st, { r: rDiag, tint: 0, duration: 0.46, ease: 'power2.out', onUpdate: redraw }, 0.50);
-      tl.fromTo(introContent.scale, { x: 0.9, y: 0.9 }, { x: 1, y: 1, duration: 0.4, ease: 'power2.out' }, 0.52);
-      // HOLD, then DISMISS (1.85 -> 2.27): fade the intro out, revealing the round.
-      tl.to(overlay, { alpha: 0, duration: 0.42, ease: 'power2.inOut' }, 1.85);
+      // CLOSE (0.00 -> 0.70): the live board is slowly pulled into a shrinking
+      // black circle — power3.in accelerates the collapse for a "suck-in" feel.
+      tl.to(st, { r: 0, tint: 1, duration: 0.70, ease: 'power3.in', onUpdate: redraw }, 0);
+      // Brief full-black beat, then arm the intro behind the field (still hidden).
+      tl.set(intro, { alpha: 1 }, 0.74);
+      // OPEN (0.82 -> 1.42): the black circle irises back open onto the intro screen.
+      tl.to(st, { r: rDiag, tint: 0, duration: 0.60, ease: 'power2.out', onUpdate: redraw }, 0.82);
+      tl.fromTo(introContent.scale, { x: 0.86, y: 0.86 }, { x: 1, y: 1, duration: 0.55, ease: 'power2.out' }, 0.84);
+      // HOLD on the intro (~1.3s), then DISMISS (2.7 -> 3.2): fade out into the round.
+      tl.to(overlay, { alpha: 0, duration: 0.50, ease: 'power2.inOut' }, 2.70);
     });
   }
 

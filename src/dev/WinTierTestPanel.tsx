@@ -144,6 +144,29 @@ export function WinTierTestPanel({ pixiApp, snapshot, soundManager }: Props) {
       >
         ✺ Free Spins (iris)
       </button>
+      <button
+        onClick={() => {
+          // Preview the ways-light win-line: ensure it's on, then fire a synthetic
+          // 5-of-a-kind so the comet lights every connection across the row.
+          pixiApp.applyVisualParam('waysLight', 'on');
+          pixiApp.__testLineWin(symbol, decimals, wager);
+        }}
+        style={{
+          background: '#04171c',
+          color: '#8fe8ff',
+          border: '1px solid #2a6b7a',
+          borderRadius: 4,
+          padding: '4px 8px',
+          fontSize: 11,
+          fontFamily: 'monospace',
+          cursor: 'pointer',
+          textAlign: 'left',
+          marginTop: 4,
+        }}
+        title="Preview the ways-light win-line connection (synthetic 5-of-a-kind)"
+      >
+        ⟶ Win Line (ways-light)
+      </button>
     </div>
   );
 }

@@ -22,7 +22,7 @@ import {
   disposeLucideTextureCache,
   type LucideTextureCache,
 } from './lucideIcon';
-import { resolveWinTier } from './WinTierResolver';
+import { WinCelebration, WIN_CELEBRATION_CONFIG } from './WinCelebration';
 
 const prefersReducedMotion = () =>
   typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -82,6 +82,8 @@ export class PixiApp {
   /** Celebration coin tints (base, deep, highlight) — live-adjustable via the
    *  chat-config `winCoinColor` param. */
   private winCoinColors: number[] = [0xFFD23F, 0xFFC107, 0xFFE082];
+  /** AAA win celebration (owns its own app.stage overlay). */
+  private winCelebration: WinCelebration | null = null;
   /** Big central win-amount number that counts up over the grid (coin-win
    *  ceremony) — the focal point, separate from the sidebar WIN box. */
   private winNumberText!: Text;
@@ -245,6 +247,11 @@ export class PixiApp {
     this.reelSet = new ReelSet(this.atlases, this.config, this.grid);
     this._initialized = true;
     this.buildScene();
+    this.winCelebration = new WinCelebration(this.app, {
+      accent: this.config.theme.accent,
+      coinColors: this.winCoinColors,
+      fontFamily: "'Poppins', ui-sans-serif, sans-serif",
+    });
     this._ready = true;
     // Apply any theme/audio hooks set before init completed
     this.setTheme(this.currentTheme);
@@ -1342,127 +1349,28 @@ export class PixiApp {
     decimals: number,
     originsLocal: Array<{ x: number; y: number }>,
   ): Promise<void> {
-    if (!this.isLive) return Promise.resolve();
+    if (!this.isLive || !this.winCelebration) return Promise.resolve();
 
-    const tier = resolveWinTier(winAmount, wager > 0n ? wager : 1n);
-    const tierId = tier.id as string;
-    const isBigPlus = tierId === 'big-win' || tierId === 'mega-win' || tierId === 'super-mega-win' || tierId === 'epic-win';
-    const isMegaPlus = tierId === 'mega-win' || tierId === 'super-mega-win' || tierId === 'epic-win';
-    const isEpic = tierId === 'epic-win';
-    const label = isMegaPlus ? 'MEGA WIN!' : isBigPlus ? 'BIG WIN!' : '';
-    const finalVal = Number(winAmount) / Math.pow(10, decimals);
-    const dp = decimals > 4 ? 2 : decimals;
-    const fmt = (v: number) => `${label ? label + '\n' : ''}${v.toFixed(dp)} ${symbol}`;
+    // Visual tier: 3 CLEAN bands by win/wager multiplier (NICE ONE / INSANE /
+    // FABULOUS WIN). Decoupled from the 6-id audio tiers.
+    const r = wager > 0n ? Number(winAmount) / Number(wager) : Number(winAmount);
+    const B = WIN_CELEBRATION_CONFIG.bands;
+    const tier = r >= B.t3 ? 2 : r >= B.t2 ? 1 : 0;
 
-    this.winNumberText.style.fontSize = isMegaPlus ? 60 : isBigPlus ? 50 : 38;
+    // Screen-space centre + coin origins (real winning cells → global coords),
+    // since the celebration overlay lives on app.stage (screen pixels).
+    const rw = this.reelSet.totalWidth + FRAME_PAD * 2;
+    const rh = this.reelSet.totalHeight + FRAME_PAD * 2;
+    const centre = this.sceneRoot.toGlobal({ x: rw / 2, y: HEADER_H + rh / 2 });
+    const originPts = originsLocal.length
+      ? originsLocal.map(o => this.sceneRoot.toGlobal({ x: FRAME_PAD + o.x, y: HEADER_H + FRAME_PAD + o.y }))
+      : [this.sceneRoot.toGlobal({ x: rw / 2, y: HEADER_H + rh / 2 })];
 
-    // Themed celebration banner behind the number for big+ wins.
-    const showBanner = isBigPlus;
-    if (showBanner) this.buildWinBanner(isMegaPlus);
-    this.winBanner.visible = showBanner;
-    this.winBanner.alpha = 0;
-    this.winBanner.scale.set(showBanner ? 0.6 : 1);
-
-    // Reduced motion: show the final number (+ banner) briefly, no dim/coins.
-    if (prefersReducedMotion()) {
-      if (showBanner) { this.winBanner.visible = true; this.winBanner.alpha = 1; this.winBanner.scale.set(1); }
-      this.winNumberText.text = fmt(finalVal);
-      this.winNumberText.alpha = 1;
-      this.winNumberText.scale.set(1);
-      return new Promise(resolve => {
-        gsap.delayedCall(1.0, () => {
-          this.winNumberText.alpha = 0;
-          this.winBanner.alpha = 0;
-          this.winBanner.visible = false;
-          resolve();
-        });
-      });
-    }
-
-    // Coin launch origins in sceneRoot/celebrationFx coords.
-    const origins = originsLocal.length
-      ? originsLocal.map(o => ({ x: FRAME_PAD + o.x, y: HEADER_H + FRAME_PAD + o.y }))
-      : [{ x: this.winNumberText.x, y: this.winNumberText.y }];
-
-    const countDur = isMegaPlus ? 1.8 : isBigPlus ? 1.3 : 0.8;
-    const holdDur = isMegaPlus ? 1.0 : isBigPlus ? 0.6 : 0.35;
-    const waves = isMegaPlus ? 4 : isBigPlus ? 3 : 2;
-    const perOrigin = isMegaPlus ? 6 : isBigPlus ? 4 : 3;
-    const coinPower = isMegaPlus ? 720 : isBigPlus ? 620 : 520;
-
-    this.clearCelebrationFx();
-    this.spawnBackgroundDim(countDur + holdDur + 0.6, isMegaPlus ? 0.6 : isBigPlus ? 0.5 : 0.4);
-
-    this.winNumberText.text = fmt(0);
-    this.winNumberText.alpha = 0;
-    this.winNumberText.scale.set(0.6);
-
-    return new Promise(resolve => {
-      const tl = gsap.timeline({
-        onComplete: () => {
-          if (!this._aborted) this.clearCelebrationFx();
-          this.winNumberText.alpha = 0;
-          this.winNumberText.scale.set(1);
-          this.winBanner.visible = false;
-          this.winBanner.alpha = 0;
-          resolve();
-        },
-      });
-
-      // Number pops in.
-      tl.to(this.winNumberText, { alpha: 1, duration: 0.18, ease: 'power2.out' }, 0)
-        .to(this.winNumberText.scale, { x: 1, y: 1, duration: 0.3, ease: 'back.out(2.5)' }, 0);
-
-      // Banner pops in behind it (big+ only).
-      if (showBanner) {
-        tl.to(this.winBanner, { alpha: 1, duration: 0.2, ease: 'power2.out' }, 0)
-          .to(this.winBanner.scale, { x: 1, y: 1, duration: 0.34, ease: 'back.out(2.2)' }, 0);
-      }
-
-      // Big-win flourish: zoom punch (big) or screen shake (mega+).
-      if (isBigPlus && !isMegaPlus) {
-        this.addZoomPunch(tl, 0.05, 1.04);
-      } else if (isMegaPlus) {
-        tl.call(() => {
-          if (this._aborted) return;
-          // Epic (top tier ≈ jackpot): stronger flash + golden sparkle shower.
-          if (isEpic) this.spawnJackpotFlash();
-          else this.spawnFlash(0xffffff, 0.62, 0.4);
-        }, undefined, 0.02);
-        tl.to(this.sceneRoot, { x: '+=8', duration: 0.05, repeat: 11, yoyo: true, ease: 'none' }, 0.05);
-        tl.call(() => { if (!this._aborted) this.onResize(); }, undefined, 0.7);
-      }
-
-      // Count the number up.
-      const counter = { val: 0 };
-      tl.to(counter, {
-        val: finalVal,
-        duration: countDur,
-        ease: 'power1.out',
-        onUpdate: () => { if (!this._aborted) this.winNumberText.text = fmt(counter.val); },
-        onComplete: () => {
-          // Snap to the exact, bigint-safe amount — the rolling float can drift
-          // on large 18-decimal token values.
-          if (!this._aborted) {
-            this.winNumberText.text = `${label ? label + '\n' : ''}${formatWin(winAmount, decimals)} ${symbol}`;
-          }
-        },
-      }, 0.15);
-
-      // Coins burst from the winning symbols in waves during the count.
-      for (let w = 0; w < waves; w++) {
-        tl.call(
-          () => { if (!this._aborted) this.spawnCoinsFrom(origins, perOrigin, coinPower); },
-          undefined,
-          0.12 + w * (countDur / waves),
-        );
-      }
-
-      // Hold, then fade the number + banner.
-      tl.to(this.winNumberText, { alpha: 0, duration: 0.3, ease: 'power1.in' }, 0.15 + countDur + holdDur);
-      if (showBanner) {
-        tl.to(this.winBanner, { alpha: 0, duration: 0.3, ease: 'power1.in' }, 0.15 + countDur + holdDur);
-      }
+    return this.winCelebration.play({
+      winAmount, wager, symbol, decimals, tier,
+      centre: { x: centre.x, y: centre.y },
+      origins: originPts.map(pt => ({ x: pt.x, y: pt.y })),
+      reduced: prefersReducedMotion(),
     });
   }
 
@@ -1787,6 +1695,9 @@ export class PixiApp {
   /** Destroy and refresh the celebration FX container so sparks/coins/glow
    *  from a previous win don't leak into the next one. */
   private clearCelebrationFx(): void {
+    // The AAA win celebration owns a SEPARATE app.stage overlay — settle it here
+    // too (safe: play() re-cancels itself on start).
+    this.winCelebration?.cancel();
     if (this.celebrationFx) {
       gsap.killTweensOf(this.celebrationFx.children);
       // Kill the off-graph spark-motion proxies too (not reachable via children).
@@ -2129,6 +2040,10 @@ export class PixiApp {
     // kill() above never fires the timeline's onComplete, so settle the awaited
     // iris Promise here — otherwise resolve() would await it forever.
     if (this.irisResolve) { this.irisResolve(); this.irisResolve = null; }
+
+    // Tear down the win celebration (its overlay/ticker/coin texture live on
+    // app.stage + the renderer, outside the sceneRoot teardown).
+    if (this.winCelebration) { this.winCelebration.dispose(); this.winCelebration = null; }
 
     // Stop the ambient mote loops + drop the layer.
     for (const tl of this.ambientTweens) tl.kill();

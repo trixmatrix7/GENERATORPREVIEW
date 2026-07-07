@@ -18,11 +18,12 @@ interface Props {
 // (see src/registries/winScreenTiers.ts). The sound is resolved via the SAME
 // selectWinSound() the live game uses, so the panel exercises every sting —
 // including win-normal — instead of a stale parallel table.
+// The 3 AAA win-celebration tiers (multipliers land inside the celebration's
+// visual bands: tier2 at 15×, tier3 at 75× — see WIN_CELEBRATION_CONFIG.bands).
 const TIERS = [
-  { id: 'small',  label: 'Small Win',  multiplier: 1   },
-  { id: 'normal', label: 'Normal Win', multiplier: 5   },
-  { id: 'big',    label: 'Big Win',    multiplier: 25  },
-  { id: 'mega',   label: 'Mega Win',   multiplier: 100 },
+  { id: 't1', label: 'Nice One!',     multiplier: 8   },
+  { id: 't2', label: 'Insane!',       multiplier: 40  },
+  { id: 't3', label: 'Fabulous Win!', multiplier: 150 },
 ] as const;
 
 export function WinTierTestPanel({ pixiApp, snapshot, soundManager }: Props) {

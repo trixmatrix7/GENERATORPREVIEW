@@ -1518,6 +1518,13 @@ export class PixiApp {
         this.reelSet.refreshStickyWilds();
         break;
       }
+      case 'winParticle': {
+        const kind = String(value);
+        if (kind === 'gem' || kind === 'cash' || kind === 'star' || kind === 'coin') {
+          this.winCelebration?.setParticle(kind);
+        }
+        break;
+      }
       default:
         break;
     }

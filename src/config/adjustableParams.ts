@@ -90,6 +90,16 @@ export const ADJUSTABLE_PARAMS: readonly AdjustableParam[] = [
     keywords: ['coin', 'coins'],
   },
   {
+    id: 'winParticle',
+    label: 'Win particle',
+    layer: 'win-screens',
+    type: 'enum',
+    options: ['gem', 'cash', 'star', 'coin'],
+    default: 'gem',
+    description: 'Which particle bursts around the win text on a win: neon gem (Vice), cash notes, neon star, or a gold coin. Phrases: "win with gems / cash / stars / coins".',
+    keywords: ['particle', 'gem', 'gems', 'cash', 'star', 'stars', 'coin', 'coins', 'win burst'],
+  },
+  {
     id: 'ambientMotes',
     label: 'Ambient motes',
     layer: 'canvas-layers',

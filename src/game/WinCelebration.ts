@@ -10,8 +10,13 @@
 import { Application, Container, Sprite, Text, TextStyle, Texture, Ticker } from 'pixi.js';
 import { gsap } from 'gsap';
 
+/** Which particle bursts on a win. */
+export type WinParticle = 'gem' | 'cash' | 'star' | 'coin';
+
 /** Everything tunable — edit intensities / words / timing / coin counts here. */
 export const WIN_CELEBRATION_CONFIG = {
+  /** The win particle (Vice default = neon gem). Live-switchable via winParticle. */
+  particle: 'gem' as WinParticle,
   /** Visual-tier bands by win/wager multiplier: <t2 = tier0, <t3 = tier1, else tier2. */
   bands: { t2: 15, t3: 75 },
   words: ['NICE ONE!', 'INSANE!', 'FABULOUS WIN!'],
@@ -129,7 +134,7 @@ export class WinCelebration {
     textGroup.addChild(amount);
 
     // ── Coin fountain: ONE premium baked texture + ONE ticker integrator ──
-    const coinTex = this.getCoinTex();
+    const coinTex = this.getParticleTex();
     // Burst RADIALLY around the text — full circle, not one direction — with a
     // slight upward bias; gravity then pulls them down into an arc.
     const emit = (count: number, power: number, scaleMul: number) => {
@@ -259,45 +264,108 @@ export class WinCelebration {
     if (r) r();
   }
 
-  /** A crisp, bright premium gold coin: 2-tone rim, lit gold face, embossed $,
-   *  clean inner ring, and a soft specular crescent. Baked hi-res so it stays
-   *  sharp when the coins tumble. */
-  private getCoinTex(): Texture {
+  /** Switch the win particle live; the next burst rebuilds the cached texture. */
+  setParticle(kind: WinParticle): void {
+    WIN_CELEBRATION_CONFIG.particle = kind;
+    this.coinTex?.destroy(true);
+    this.coinTex = null;
+  }
+
+  private getParticleTex(): Texture {
     if (this.coinTex) return this.coinTex;
     const S = 128;
     const cv = document.createElement('canvas'); cv.width = cv.height = S;
     const ctx = cv.getContext('2d')!;
     ctx.imageSmoothingEnabled = true;
-    const cx = S / 2, cy = S / 2, R = S * 0.46;
+    switch (WIN_CELEBRATION_CONFIG.particle) {
+      case 'cash': this.bakeCash(ctx, S); break;
+      case 'star': this.bakeStar(ctx, S); break;
+      case 'coin': this.bakeCoin(ctx, S); break;
+      case 'gem':
+      default: this.bakeGem(ctx, S); break;
+    }
+    this.coinTex = Texture.from(cv);
+    return this.coinTex;
+  }
 
-    // Outer rim: a bright→dark gold ring for a beveled metal edge.
+  /** Neon faceted gem (Vice cyan) — a hexagon with a lighter table + facets. */
+  private bakeGem(ctx: CanvasRenderingContext2D, S: number): void {
+    const cx = S / 2, cy = S / 2, R = S * 0.44;
+    const hex = (rad: number): [number, number][] => {
+      const p: [number, number][] = [];
+      for (let i = 0; i < 6; i++) { const a = i * Math.PI / 3 - Math.PI / 2; p.push([cx + Math.cos(a) * rad, cy + Math.sin(a) * rad]); }
+      return p;
+    };
+    const poly = (pts: [number, number][]) => {
+      ctx.beginPath(); ctx.moveTo(pts[0][0], pts[0][1]);
+      for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i][0], pts[i][1]);
+      ctx.closePath();
+    };
+    const outer = hex(R), table = hex(R * 0.54);
+    const g = ctx.createLinearGradient(cx, cy - R, cx, cy + R);
+    g.addColorStop(0, '#CFFBFF'); g.addColorStop(0.5, '#3FD3E0'); g.addColorStop(1, '#0C6C7C');
+    poly(outer); ctx.fillStyle = g; ctx.fill();
+    poly(table); ctx.fillStyle = 'rgba(225,255,255,0.55)'; ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,0.3)'; ctx.lineWidth = S * 0.012;
+    for (let i = 0; i < 6; i++) { ctx.beginPath(); ctx.moveTo(table[i][0], table[i][1]); ctx.lineTo(outer[i][0], outer[i][1]); ctx.stroke(); }
+    poly(outer); ctx.strokeStyle = '#9BF3FF'; ctx.lineWidth = S * 0.03; ctx.stroke();
+    ctx.beginPath(); ctx.arc(cx - R * 0.2, cy - R * 0.22, R * 0.12, 0, Math.PI * 2); ctx.fillStyle = 'rgba(255,255,255,0.9)'; ctx.fill();
+  }
+
+  /** Green banknote with a $ — for the money/mafia vibe. */
+  private bakeCash(ctx: CanvasRenderingContext2D, S: number): void {
+    const w = S * 0.9, h = S * 0.52, x = (S - w) / 2, y = (S - h) / 2, r = S * 0.05, cx = S / 2, cy = S / 2;
+    const rr = (a: number, b: number, ww: number, hh: number, rad: number) => {
+      ctx.beginPath();
+      ctx.moveTo(a + rad, b);
+      ctx.arcTo(a + ww, b, a + ww, b + hh, rad); ctx.arcTo(a + ww, b + hh, a, b + hh, rad);
+      ctx.arcTo(a, b + hh, a, b, rad); ctx.arcTo(a, b, a + ww, b, rad); ctx.closePath();
+    };
+    rr(x, y, w, h, r);
+    const g = ctx.createLinearGradient(x, y, x, y + h); g.addColorStop(0, '#43CE81'); g.addColorStop(1, '#1E9A5B');
+    ctx.fillStyle = g; ctx.fill();
+    rr(x + S * 0.03, y + S * 0.03, w - S * 0.06, h - S * 0.06, r * 0.6);
+    ctx.strokeStyle = 'rgba(235,255,242,0.5)'; ctx.lineWidth = S * 0.012; ctx.stroke();
+    ctx.beginPath(); ctx.arc(cx, cy, h * 0.3, 0, Math.PI * 2); ctx.fillStyle = 'rgba(255,255,255,0.14)'; ctx.fill();
+    ctx.font = `900 ${Math.round(h * 0.55)}px system-ui, sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillStyle = 'rgba(240,255,245,0.92)'; ctx.fillText('$', cx, cy);
+  }
+
+  /** Neon 5-point star (gold). */
+  private bakeStar(ctx: CanvasRenderingContext2D, S: number): void {
+    const cx = S / 2, cy = S / 2, R = S * 0.46, r = R * 0.46;
+    ctx.beginPath();
+    for (let i = 0; i < 10; i++) {
+      const rad = i % 2 === 0 ? R : r; const a = -Math.PI / 2 + i * Math.PI / 5;
+      const px = cx + Math.cos(a) * rad, py = cy + Math.sin(a) * rad;
+      if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+    }
+    ctx.closePath();
+    const g = ctx.createRadialGradient(cx, cy - R * 0.2, R * 0.1, cx, cy, R);
+    g.addColorStop(0, '#FFFBE0'); g.addColorStop(0.6, '#FFD23F'); g.addColorStop(1, '#FF9A2E');
+    ctx.fillStyle = g; ctx.fill();
+    ctx.strokeStyle = 'rgba(255,240,180,0.9)'; ctx.lineWidth = S * 0.02; ctx.stroke();
+    ctx.beginPath(); ctx.arc(cx, cy - R * 0.15, R * 0.12, 0, Math.PI * 2); ctx.fillStyle = 'rgba(255,255,255,0.85)'; ctx.fill();
+  }
+
+  /** Premium gold coin with an embossed $. */
+  private bakeCoin(ctx: CanvasRenderingContext2D, S: number): void {
+    const cx = S / 2, cy = S / 2, R = S * 0.46;
     const rim = ctx.createLinearGradient(cx, cy - R, cx, cy + R);
     rim.addColorStop(0, '#FFE99A'); rim.addColorStop(0.5, '#E0A423'); rim.addColorStop(1, '#9A6A0C');
     ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI * 2); ctx.fillStyle = rim; ctx.fill();
-
-    // Face: bright, top-left lit gold.
     const face = ctx.createRadialGradient(cx - R * 0.28, cy - R * 0.32, R * 0.08, cx, cy, R * 0.9);
     face.addColorStop(0, '#FFFBDF'); face.addColorStop(0.45, '#FFD84A'); face.addColorStop(1, '#EDA820');
     ctx.beginPath(); ctx.arc(cx, cy, R * 0.82, 0, Math.PI * 2); ctx.fillStyle = face; ctx.fill();
-
-    // Clean inner ring.
     ctx.beginPath(); ctx.arc(cx, cy, R * 0.82, 0, Math.PI * 2);
     ctx.lineWidth = S * 0.018; ctx.strokeStyle = 'rgba(120,80,0,0.45)'; ctx.stroke();
-
-    // Embossed "$": a soft dark shape + a light top edge = reads as a coin.
-    ctx.font = `900 ${Math.round(R * 1.15)}px system-ui, sans-serif`;
-    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.font = `900 ${Math.round(R * 1.15)}px system-ui, sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     ctx.fillStyle = 'rgba(120,78,0,0.38)'; ctx.fillText('$', cx, cy + R * 0.03);
     ctx.fillStyle = 'rgba(255,246,200,0.5)'; ctx.fillText('$', cx, cy - R * 0.02);
-
-    // Specular crescent (top-left) + a sharp glint.
     ctx.save(); ctx.translate(cx - R * 0.26, cy - R * 0.3); ctx.rotate(-0.5);
     ctx.beginPath(); ctx.ellipse(0, 0, R * 0.4, R * 0.16, 0, 0, Math.PI * 2);
     ctx.fillStyle = 'rgba(255,255,255,0.55)'; ctx.fill(); ctx.restore();
     ctx.beginPath(); ctx.arc(cx + R * 0.26, cy - R * 0.24, R * 0.07, 0, Math.PI * 2);
     ctx.fillStyle = 'rgba(255,255,255,0.95)'; ctx.fill();
-
-    this.coinTex = Texture.from(cv);
-    return this.coinTex;
   }
 }

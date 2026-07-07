@@ -1,42 +1,45 @@
-// WinCelebration — a clean, BOUNCY win celebration: just the tier text + a
-// count-up amount + a premium coin explosion. NO dim / vignette / ray-glow /
-// burst rings / flash — text and coins carry it. Three tiers (NICE ONE! /
-// INSANE! / FABULOUS WIN!) escalate by coin count + duration + punch.
+// WinCelebration — an AAA win celebration, rebuilt from research on how top
+// studios (Hacksaw / Push / Nolimit / Pragmatic / stake) present wins.
 //
-// Self-contained: owns ONE full-viewport overlay on app.stage (screen coords).
-// play(params) resolves EXACTLY ONCE on every path (normal / reduced / cancel)
-// so an awaiting spin never hangs. cancel()/dispose() tear everything down.
+// Core idea: the HERO is one running number. A single counter tween drives the
+// amount text, promotes the tier wordmark LIVE mid-roll as the value crosses
+// x-bet thresholds (NICE ONE! → INSANE! → FABULOUS WIN!), and fires the coin
+// waves. The particles are real: a baked 12-frame SPIN atlas + an additive
+// glint + a velocity trail + depth + gravity arcs that fall off-screen (the
+// anti-"flat-AI-disc" rule). The wordmark is a baked FOIL texture with a moving
+// specular sheen. Impact SLAMS in (never fades); higher tiers add a short shake.
+//
+// Self-contained: ONE app.stage overlay (screen coords). play() resolves EXACTLY
+// once on every path. cancel()/dispose() tear everything down.
 
 import { Application, Assets, Container, Sprite, Text, TextStyle, Texture, Ticker } from 'pixi.js';
 import { gsap } from 'gsap';
 
-/** Which particle bursts on a win. 'moneybag'/'diamond' are crisp OS emoji;
- *  gem/cash/star/coin are drawn. A custom uploaded image overrides all of these. */
 export type WinParticle = 'moneybag' | 'diamond' | 'gem' | 'cash' | 'star' | 'coin';
 
-/** Everything tunable — edit intensities / words / timing / coin counts here. */
+/** Everything tunable. */
 export const WIN_CELEBRATION_CONFIG = {
-  /** The win particle. Default = 💰 emoji (clean); or upload a real PNG. */
-  particle: 'moneybag' as WinParticle,
-  /** Visual-tier bands by win/wager multiplier: <t2 = tier0, <t3 = tier1, else tier2. */
+  particle: 'coin' as WinParticle, // (kept for compat; the spin-atlas coin is used unless a PNG is uploaded)
   bands: { t2: 15, t3: 75 },
   words: ['NICE ONE!', 'INSANE!', 'FABULOUS WIN!'],
-  countDur: [1.0, 1.6, 2.2],
-  holdDur: [0.5, 0.8, 1.1],
-  amountFontSize: [42, 56, 68],
-  wordFontSize: [30, 40, 50],
-  endPunch: [1.12, 1.18, 1.24],
-  coinCount: [55, 120, 200],
+  // Per FINAL-tier intensity (the tier the win reaches).
+  countDur: [1.1, 1.9, 2.8],
+  coinCount: [46, 110, 190],
   coinWaves: [2, 3, 4],
-  coinPower: [580, 700, 820],
-  gravity: 980,
-  airDrag: 0.995,
-  coinSpread: 1.5,
-  particleCap: 340,
-  /** How lively the text bob is (px, at design scale). */
-  bobPx: 5,
-  /** Design reference height; sizes/physics scale by min(sw,sh)/this. */
+  coinPower: [560, 700, 840],
+  shake: [0, 5, 9],          // px
+  shakeRot: [0, 0.006, 0.014], // rad
+  amountFontSize: [42, 56, 70],
+  wordFontSize: [34, 46, 58],
+  gravity: 1050,
+  airDrag: 0.992,
+  particleCap: 380,
   designBase: 720,
+  // Vice neon palette.
+  pink: 0xff2e88,
+  cyan: 0x16e0e8,
+  gold: 0xffd24a,
+  cream: 0xfff3b0,
 };
 
 export interface WinCelebrationParams {
@@ -44,18 +47,19 @@ export interface WinCelebrationParams {
   wager: bigint;
   symbol: string;
   decimals: number;
-  tier: number; // 0 | 1 | 2
+  tier: number;
   centre: { x: number; y: number };
   origins: Array<{ x: number; y: number }>;
   reduced: boolean;
 }
 
 interface Coin {
-  sp: Sprite; x: number; y: number; vx: number; vy: number;
-  age: number; life: number; spin: number; ph: number; base: number;
+  sp: Sprite; glint: Sprite; trail: Sprite | null;
+  x: number; y: number; vx: number; vy: number;
+  frame: number; frameRate: number; frameDir: number;
+  age: number; life: number; depth: number;
 }
 
-/** Exact, bigint-safe amount → "12.34" (2dp for hi-decimal tokens). */
 function formatAmount(amount: bigint, decimals: number): string {
   const dp = decimals > 4 ? 2 : decimals;
   const divisor = 10n ** BigInt(decimals);
@@ -71,13 +75,26 @@ export class WinCelebration {
   private readonly font: string;
 
   private overlay: Container | null = null;
+  private coinBack: Container | null = null;
+  private coinFront: Container | null = null;
   private tl: gsap.core.Timeline | null = null;
   private tickCb: ((t: Ticker) => void) | null = null;
   private coins: Coin[] = [];
-  private coinTex: Texture | null = null;
-  /** A user-uploaded particle image — overrides the drawn/emoji particle. */
-  private customTex: Texture | null = null;
   private resolveActive: (() => void) | null = null;
+
+  // baked, cached
+  private coinFrames: Texture[] | null = null;
+  private glintTex: Texture | null = null;
+  private trailTex: Texture | null = null;
+  private wordCache = new Map<string, Texture>();
+  private customTex: Texture | null = null;
+
+  // per-run state (read by the ticker)
+  private trauma = 0;
+  private traumaMax = 0;
+  private traumaRot = 0;
+  private baseCx = 0;
+  private baseCy = 0;
 
   constructor(app: Application, opts: { accent: number; coinColors: number[]; fontFamily?: string }) {
     this.app = app;
@@ -89,109 +106,142 @@ export class WinCelebration {
 
     const sw = this.app.screen.width, sh = this.app.screen.height;
     const s = Math.max(0.6, Math.min(2, Math.min(sw, sh) / WIN_CELEBRATION_CONFIG.designBase));
-    const tier = Math.max(0, Math.min(2, p.tier));
     const C = WIN_CELEBRATION_CONFIG;
+    const finalVal = Number(p.winAmount) / Math.pow(10, p.decimals);
+    const wagerVal = p.wager > 0n ? Number(p.wager) / Math.pow(10, p.decimals) : finalVal || 1;
+    const finalTier = Math.max(0, Math.min(2, p.tier));
+    // Value thresholds for LIVE wordmark promotion.
+    const th = [0, wagerVal * C.bands.t2, wagerVal * C.bands.t3];
 
     const overlay = new Container();
-    overlay.zIndex = 10000;
-    overlay.eventMode = 'none';
+    overlay.zIndex = 10000; overlay.eventMode = 'none';
+    overlay.position.set(0, 0);
     this.overlay = overlay;
-    this.app.stage.addChild(overlay); // last => on top
+    this.app.stage.addChild(overlay);
+    this.baseCx = p.centre.x; this.baseCy = p.centre.y;
+    this.traumaMax = C.shake[finalTier] * s;
+    this.traumaRot = C.shakeRot[finalTier];
 
-    // Coins behind the text (text stays readable).
-    const coinLayer = new Container();
-    overlay.addChild(coinLayer);
+    const coinBack = new Container(); overlay.addChild(coinBack); this.coinBack = coinBack;
 
-    // Text group (bobs for liveliness).
-    const baseCy = p.centre.y;
+    // text group (word above, amount below)
     const textGroup = new Container();
-    textGroup.position.set(p.centre.x, baseCy);
+    textGroup.position.set(p.centre.x, p.centre.y);
     overlay.addChild(textGroup);
+    const amtSize = Math.round(C.amountFontSize[finalTier] * s);
 
-    const wordSize = Math.round(C.wordFontSize[tier] * s);
-    const amtSize = Math.round(C.amountFontSize[tier] * s);
-    const word = new Text({
-      text: C.words[tier],
-      style: new TextStyle({
-        fontFamily: this.font, fontSize: wordSize, fontWeight: '800', letterSpacing: 3,
-        fill: 0xfff4d8, stroke: { color: 0x201400, width: Math.max(3, 4 * s) },
-        dropShadow: { color: 0x000000, blur: 7, distance: 3, alpha: 0.7 },
-      }),
-    });
-    word.anchor.set(0.5);
-    word.y = -amtSize * 0.68;
-    word.alpha = 0; word.scale.set(1.5);
+    // Foil wordmark sprite (swappable on promotion) + masked sheen.
+    let curTier = 0;
+    const word = new Sprite(this.getWordTex(0, finalTier, s));
+    word.anchor.set(0.5); word.y = -amtSize * 0.72;
+    word.alpha = 0; word.scale.set(1.3);
     textGroup.addChild(word);
 
     const amount = new Text({
-      text: '',
-      style: new TextStyle({
+      text: '', style: new TextStyle({
         fontFamily: this.font, fontSize: amtSize, fontWeight: '800', fontStyle: 'italic', letterSpacing: 1,
-        fill: 0xffd24a, stroke: { color: 0x3a1500, width: Math.max(4, 5 * s) },
-        dropShadow: { color: 0x000000, blur: 6, distance: 2, alpha: 0.6 },
+        fill: 0xffffff, stroke: { color: 0x2a0730, width: Math.max(4, 5 * s) },
+        dropShadow: { color: C.pink, blur: 10, distance: 0, alpha: 0.5 },
       }),
     });
-    amount.anchor.set(0.5);
-    amount.y = amtSize * 0.32;
-    amount.alpha = 0; amount.scale.set(0.55);
+    amount.anchor.set(0.5); amount.y = amtSize * 0.34; amount.alpha = 0; amount.scale.set(0.6);
     textGroup.addChild(amount);
 
-    // ── Coin fountain: ONE premium baked texture + ONE ticker integrator ──
-    const coinTex = this.getParticleTex();
-    // Burst RADIALLY around the text — full circle, not one direction — with a
-    // slight upward bias; gravity then pulls them down into an arc.
+    const coinFront = new Container(); overlay.addChild(coinFront); this.coinFront = coinFront;
+
+    // impact flash
+    const flash = new Sprite(Texture.WHITE);
+    flash.width = sw; flash.height = sh; flash.alpha = 0; flash.blendMode = 'add';
+    overlay.addChild(flash);
+
+    // ── particle emit ─────────────────────────────────────────────────────
+    const frames = this.customTex ? null : this.getCoinFrames();
+    const single = this.customTex;
     const emit = (count: number, power: number, scaleMul: number) => {
       for (let i = 0; i < count; i++) {
         if (this.coins.length >= C.particleCap) break;
-        const angle = (i / count) * Math.PI * 2 + (Math.random() - 0.5) * 0.5;
-        const sp0 = power * s * (0.55 + Math.random() * 0.75);
-        const seedR = (26 + Math.random() * 22) * s; // start on a ring around the text
-        const sprite = new Sprite(coinTex);
-        sprite.anchor.set(0.5);
-        // Normalise to a target on-screen size (smaller now) regardless of the
-        // source texture's native resolution (drawn 128px OR an uploaded PNG).
-        const targetPx = (22 + Math.random() * 12) * s * scaleMul;
-        const base = targetPx / (coinTex.width || 128);
-        sprite.scale.set(base);
-        const x = p.centre.x + Math.cos(angle) * seedR, y = p.centre.y + Math.sin(angle) * seedR;
-        sprite.position.set(x, y);
-        coinLayer.addChild(sprite);
+        const depth = Math.random();                    // 0=back .. 1=front
+        const layer = depth > 0.5 ? coinFront : coinBack;
+        const angle = -Math.PI / 2 + (Math.random() - 0.5) * 2.3; // up-and-out cone (radial-ish)
+        const sp0 = power * s * (0.55 + Math.random() * 0.8);
+        const tex0 = single ?? frames![0];
+        const sp = new Sprite(tex0);
+        sp.anchor.set(0.5);
+        const px = 24 + Math.random() * 12;
+        const dScale = (0.6 + depth * 0.55) * scaleMul;
+        const base = (px * s * dScale) / (tex0.width || 96);
+        sp.scale.set(base);
+        sp.alpha = 0.7 + depth * 0.3;
+        sp.position.set(p.centre.x + (Math.random() - 0.5) * 30 * s, p.centre.y + (Math.random() - 0.5) * 16 * s);
+        const glint = new Sprite(this.getGlintTex());
+        glint.anchor.set(0.5); glint.blendMode = 'add';
+        glint.scale.set((tex0.width || 96) / (this.glintTex!.width || 64) * 0.9);
+        glint.tint = Math.random() < 0.5 ? C.cyan : C.pink;
+        sp.addChild(glint);
+        layer.addChild(sp);
+        // velocity trail behind fast coins
+        let trail: Sprite | null = null;
+        if (depth > 0.35) {
+          trail = new Sprite(this.getTrailTex());
+          trail.anchor.set(0.5, 1); trail.blendMode = 'add'; trail.alpha = 0.5;
+          trail.tint = C.cream;
+          layer.addChildAt(trail, Math.max(0, layer.getChildIndex(sp)));
+        }
         this.coins.push({
-          sp: sprite, x, y,
-          vx: Math.cos(angle) * sp0, vy: Math.sin(angle) * sp0 - 70 * s,
-          age: 0, life: 1.0 + Math.random() * 0.7, spin: 6 + Math.random() * 6,
-          ph: Math.random() * Math.PI * 2, base,
+          sp, glint, trail,
+          x: sp.x, y: sp.y, vx: Math.cos(angle) * sp0, vy: Math.sin(angle) * sp0 - 120 * s,
+          frame: frames ? Math.floor(Math.random() * frames.length) : 0,
+          frameRate: 14 + Math.random() * 14, frameDir: Math.random() < 0.5 ? 1 : -1,
+          age: 0, life: 1.4 + Math.random() * 1.0, depth,
         });
       }
     };
 
     const grav = C.gravity * s;
-    const bob = C.bobPx * s;
-    let elapsed = 0;
     const tick = (t: Ticker) => {
       if (!this.overlay) return;
       const dt = Math.min(0.05, t.deltaMS / 1000);
-      elapsed += dt;
-      textGroup.y = baseCy + Math.sin(elapsed * 3.4) * bob; // lively idle bob
+      // trauma screenshake (translation + a touch of rotation = "force")
+      if (this.trauma > 0) {
+        const tr = this.trauma * this.trauma;
+        this.overlay.x = this.traumaMax * tr * (Math.random() * 2 - 1);
+        this.overlay.y = this.traumaMax * tr * (Math.random() * 2 - 1);
+        this.overlay.rotation = this.traumaRot * tr * (Math.random() * 2 - 1);
+        this.trauma = Math.max(0, this.trauma - dt * 1.6);
+        if (this.trauma === 0) { this.overlay.x = 0; this.overlay.y = 0; this.overlay.rotation = 0; }
+      }
+      const nf = frames ? frames.length : 0;
       for (let i = this.coins.length - 1; i >= 0; i--) {
         const c = this.coins[i];
-        c.vy += grav * dt; c.vx *= C.airDrag;
+        c.vy += grav * dt; c.vx *= C.airDrag; c.vy *= C.airDrag;
         c.x += c.vx * dt; c.y += c.vy * dt; c.age += dt;
         c.sp.position.set(c.x, c.y);
-        c.sp.scale.x = (0.6 + 0.4 * Math.abs(Math.cos(c.age * c.spin + c.ph))) * c.base; // soft flip (never a sliver)
-        c.sp.rotation += dt * 2.4; // tumble
-        const left = c.life - c.age;
-        if (left < c.life * 0.32) c.sp.alpha = Math.max(0, left / (c.life * 0.32));
-        if (c.age >= c.life) { c.sp.destroy(); this.coins.splice(i, 1); }
+        if (frames && nf) { c.frame = (c.frame + c.frameDir * c.frameRate * dt + nf) % nf; c.sp.texture = frames[Math.floor(c.frame)]; }
+        else { c.sp.scale.x = (0.55 + 0.45 * Math.abs(Math.cos(c.age * 9))) * c.sp.scale.y; }
+        // glint pulses with the spin phase (metal read)
+        c.glint.alpha = 0.35 + 0.5 * Math.abs(Math.sin(c.age * 11 + c.depth * 3));
+        // trail follows velocity
+        if (c.trail) {
+          const sp2 = Math.hypot(c.vx, c.vy);
+          c.trail.position.set(c.x, c.y);
+          c.trail.rotation = Math.atan2(c.vy, c.vx) - Math.PI / 2;
+          c.trail.scale.set(c.sp.scale.y * 0.8, c.sp.scale.y * (0.6 + sp2 / (900 * s)));
+          c.trail.alpha = Math.min(0.55, sp2 / (1400 * s));
+        }
+        // fall off the bottom (permanence) — recycle only when well off-screen
+        if (c.y > sh + 80 || c.age >= c.life) {
+          c.sp.destroy(); c.trail?.destroy(); this.coins.splice(i, 1);
+        }
       }
     };
     this.tickCb = tick;
     this.app.ticker.add(tick);
 
-    // ── Reduced motion: static text + final number, brief hold, resolve once ─
+    // ── reduced motion ────────────────────────────────────────────────────
     if (p.reduced) {
       return new Promise<void>((resolve) => {
         this.resolveActive = resolve;
+        word.texture = this.getWordTex(finalTier, finalTier, s);
         word.alpha = 1; word.scale.set(1);
         amount.text = `${formatAmount(p.winAmount, p.decimals)} ${p.symbol}`;
         amount.alpha = 1; amount.scale.set(1);
@@ -202,47 +252,68 @@ export class WinCelebration {
       });
     }
 
-    // ── The bouncy celebration ────────────────────────────────────────────
+    // ── the celebration ───────────────────────────────────────────────────
     return new Promise<void>((resolve) => {
       this.resolveActive = resolve;
       const tl = gsap.timeline({ onComplete: () => this.finish() });
       this.tl = tl;
 
-      // Coins: biggest wave first, trailing waves smaller.
-      const waves = C.coinWaves[tier], total = C.coinCount[tier], power = C.coinPower[tier];
-      tl.call(() => emit(Math.round(total * 0.55), power, 1.15), undefined, 0);
-      for (let w = 1; w < waves; w++) {
-        tl.call(() => emit(Math.round((total * 0.45) / (waves - 1)), power * 0.92, 1 - w * 0.07),
-          undefined, 0.14 + w * (C.countDur[tier] / waves));
-      }
+      const promoteTier = (n: number) => {
+        if (n <= curTier || !this.overlay) return;
+        curTier = n;
+        word.texture = this.getWordTex(n, finalTier, s);
+        gsap.killTweensOf(word.scale);
+        gsap.fromTo(word.scale, { x: 1, y: 1 }, { x: 1.24, y: 1.24, duration: 0.12, ease: 'power2.out', yoyo: true, repeat: 1 });
+        emit(Math.round(C.coinCount[finalTier] * 0.28), C.coinPower[finalTier], 1);
+        if (n >= 1) { this.trauma = 1; }
+      };
 
-      // Wordmark: bouncy snap-in.
-      tl.to(word, { alpha: 1, duration: 0.14, ease: 'power2.out' }, 0);
-      tl.fromTo(word.scale, { x: 1.5, y: 1.5 }, { x: 1, y: 1, duration: 0.5, ease: 'back.out(3)' }, 0);
+      // IMPACT: word SLAMS in, flash, first (biggest) burst, count starts.
+      tl.to(word, { alpha: 1, duration: 0.1, ease: 'power2.out' }, 0);
+      tl.fromTo(word.scale, { x: 1.3, y: 1.3 }, { x: 1, y: 1, duration: 0.5, ease: 'back.out(2.2)' }, 0);
+      tl.fromTo(word, { rotation: -0.07 }, { rotation: 0, duration: 0.5, ease: 'back.out(2)' }, 0);
+      tl.to(flash, { alpha: 0.55, duration: 0.04 }, 0).to(flash, { alpha: 0, duration: 0.35, ease: 'power2.in' }, 0.04);
+      tl.call(() => emit(Math.round(C.coinCount[finalTier] * 0.55), C.coinPower[finalTier], 1.15), undefined, 0.02);
+      if (finalTier >= 1) tl.call(() => { this.trauma = 1; }, undefined, 0.02);
 
-      // Amount: bouncy pop, then count up.
+      // AMOUNT reveal + segmented count-up (steady body, decelerating tail).
       amount.text = `0.00 ${p.symbol}`;
-      tl.to(amount, { alpha: 1, duration: 0.14, ease: 'power2.out' }, 0.08);
-      tl.fromTo(amount.scale, { x: 0.55, y: 0.55 }, { x: 1, y: 1, duration: 0.44, ease: 'back.out(2.8)' }, 0.08);
-      const finalVal = Number(p.winAmount) / Math.pow(10, p.decimals);
+      tl.to(amount, { alpha: 1, duration: 0.12, ease: 'power2.out' }, 0.06);
+      tl.fromTo(amount.scale, { x: 0.6, y: 0.6 }, { x: 1, y: 1, duration: 0.4, ease: 'back.out(2.6)' }, 0.06);
       const dp = p.decimals > 4 ? 2 : p.decimals;
       const counter = { val: 0 };
+      const waves = C.coinWaves[finalTier];
+      let nextWave = 1;
       tl.to(counter, {
-        val: finalVal, duration: C.countDur[tier], ease: 'power2.out',
-        onUpdate: () => { if (this.overlay) amount.text = `${counter.val.toFixed(dp)} ${p.symbol}`; },
+        val: finalVal, duration: C.countDur[finalTier], ease: 'power1.inOut',
+        onUpdate: () => {
+          if (!this.overlay) return;
+          amount.text = `${counter.val.toFixed(dp)} ${p.symbol}`;
+          // live tier promotion as the number climbs past x-bet thresholds
+          if (curTier < finalTier) {
+            if (curTier < 2 && counter.val >= th[2] && finalTier >= 2) promoteTier(2);
+            else if (curTier < 1 && counter.val >= th[1] && finalTier >= 1) promoteTier(1);
+          }
+          // coin waves on progress milestones (burst-then-trickle)
+          const prog = counter.val / (finalVal || 1);
+          if (nextWave < waves && prog >= nextWave / waves) {
+            emit(Math.round((C.coinCount[finalTier] * 0.45) / (waves - 1)), C.coinPower[finalTier] * 0.9, 1 - nextWave * 0.06);
+            nextWave++;
+          }
+        },
         onComplete: () => { if (this.overlay) amount.text = `${formatAmount(p.winAmount, p.decimals)} ${p.symbol}`; },
       }, 0.12);
 
-      // End punch: pre-squash → punch → springy elastic settle (bouncy!).
-      const at = 0.12 + C.countDur[tier];
-      tl.to(amount.scale, { x: 0.9, y: 0.9, duration: 0.06 }, at)
-        .to(amount.scale, { x: C.endPunch[tier], y: C.endPunch[tier], duration: 0.1, ease: 'power2.out' }, at + 0.06)
+      // END FLARE: overshoot punch + a small flash + brief shake bump.
+      const at = 0.12 + C.countDur[finalTier];
+      tl.to(amount.scale, { x: 0.92, y: 0.92, duration: 0.06 }, at)
+        .to(amount.scale, { x: 1.16, y: 1.16, duration: 0.1, ease: 'power2.out' }, at + 0.06)
         .to(amount.scale, { x: 1, y: 1, duration: 0.55, ease: 'elastic.out(1.1,0.4)' }, at + 0.16);
-      // Sympathetic word bounce on the punch.
-      tl.to(word.scale, { x: 1.08, y: 1.08, duration: 0.1, yoyo: true, repeat: 1, ease: 'sine.inOut' }, at + 0.06);
+      tl.to(flash, { alpha: 0.4, duration: 0.05 }, at + 0.05).to(flash, { alpha: 0, duration: 0.35, ease: 'power2.in' }, at + 0.1);
+      if (finalTier >= 1) tl.call(() => { this.trauma = 0.8; }, undefined, at + 0.05);
 
-      // Hold, then exit.
-      const exitAt = at + 0.25 + C.holdDur[tier];
+      // HOLD then EXIT (coins keep falling under the fade).
+      const exitAt = at + 0.35 + [0.4, 0.7, 1.0][finalTier];
       tl.to(word, { alpha: 0, duration: 0.3, ease: 'power1.in' }, exitAt);
       tl.to(amount, { alpha: 0, duration: 0.3, ease: 'power1.in' }, exitAt + 0.05);
     });
@@ -252,145 +323,132 @@ export class WinCelebration {
 
   dispose(): void {
     this.finish();
-    this.coinTex?.destroy(true); this.coinTex = null;
+    this.coinFrames?.forEach(t => t.destroy(true)); this.coinFrames = null;
+    this.glintTex?.destroy(true); this.glintTex = null;
+    this.trailTex?.destroy(true); this.trailTex = null;
     this.customTex?.destroy(true); this.customTex = null;
+    for (const t of this.wordCache.values()) t.destroy(true);
+    this.wordCache.clear();
+  }
+
+  setParticle(kind: WinParticle): void {
+    WIN_CELEBRATION_CONFIG.particle = kind;
+    this.customTex?.destroy(true); this.customTex = null;
+  }
+
+  async setParticleImage(url: string | null): Promise<void> {
+    this.customTex?.destroy(true); this.customTex = null;
+    if (!url) return;
+    try { this.customTex = await Assets.load<Texture>(url); }
+    catch (err) { console.warn('[WinCelebration] particle image failed to load:', err); }
   }
 
   // ── internals ──
   private finish(): void {
     if (this.tl) { this.tl.kill(); this.tl = null; }
     if (this.tickCb) { this.app.ticker.remove(this.tickCb); this.tickCb = null; }
-    for (const c of this.coins) { try { c.sp.destroy(); } catch { /* torn down */ } }
+    for (const c of this.coins) { try { c.sp.destroy(); c.trail?.destroy(); } catch { /* torn down */ } }
     this.coins.length = 0;
-    if (this.overlay) {
-      try { this.overlay.destroy({ children: true }); } catch { /* torn down */ }
-      this.overlay = null;
-    }
-    const r = this.resolveActive;
-    this.resolveActive = null;
+    this.trauma = 0;
+    if (this.overlay) { try { this.overlay.destroy({ children: true }); } catch { /* torn down */ } this.overlay = null; }
+    this.coinBack = null; this.coinFront = null;
+    const r = this.resolveActive; this.resolveActive = null;
     if (r) r();
   }
 
-  /** Switch to a built-in particle; clears any custom image + rebuilds the tex. */
-  setParticle(kind: WinParticle): void {
-    WIN_CELEBRATION_CONFIG.particle = kind;
-    this.customTex?.destroy(true); this.customTex = null; // a built-in kind clears the upload
-    this.coinTex?.destroy(true); this.coinTex = null;
+  /** 12-frame Y-axis spin strip of a neon-gold coin — a real 3D spin. */
+  private getCoinFrames(): Texture[] {
+    if (this.coinFrames) return this.coinFrames;
+    const C = WIN_CELEBRATION_CONFIG;
+    const S = 96, N = 12, R = S * 0.42;
+    const frames: Texture[] = [];
+    const hex = (n: number) => '#' + n.toString(16).padStart(6, '0');
+    for (let i = 0; i < N; i++) {
+      const cv = document.createElement('canvas'); cv.width = cv.height = S;
+      const ctx = cv.getContext('2d')!;
+      const a = (i / N) * Math.PI * 2;
+      const wf = Math.max(0.08, Math.abs(Math.cos(a)));
+      const front = Math.cos(a) >= 0;
+      const cx = S / 2, cy = S / 2;
+      // neon rim
+      ctx.beginPath(); ctx.ellipse(cx, cy, R * wf, R, 0, 0, Math.PI * 2);
+      ctx.fillStyle = front ? hex(C.pink) : hex(C.cyan); ctx.fill();
+      // gold face
+      const g = ctx.createLinearGradient(cx, cy - R, cx, cy + R);
+      g.addColorStop(0, '#FFF7C8'); g.addColorStop(0.5, '#FFD24A'); g.addColorStop(1, '#E39B1E');
+      ctx.beginPath(); ctx.ellipse(cx, cy, R * wf * 0.82, R * 0.82, 0, 0, Math.PI * 2);
+      ctx.fillStyle = g; ctx.fill();
+      if (front && wf > 0.35) {
+        ctx.font = `900 ${Math.round(R * 1.1)}px system-ui, sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.save(); ctx.scale(wf, 1); ctx.fillStyle = 'rgba(120,78,0,0.4)'; ctx.fillText('$', cx / wf, cy); ctx.restore();
+      }
+      // edge glint when near edge-on
+      if (wf < 0.3) { ctx.fillStyle = 'rgba(255,255,255,0.8)'; ctx.fillRect(cx - R * wf, cy - R, R * wf * 2, R * 2); }
+      frames.push(Texture.from(cv));
+    }
+    this.coinFrames = frames;
+    return frames;
   }
 
-  /** Use a custom uploaded particle PNG (overrides the drawn/emoji particle). */
-  async setParticleImage(url: string | null): Promise<void> {
-    this.customTex?.destroy(true);
-    this.customTex = null;
-    if (!url) return;
-    try { this.customTex = await Assets.load<Texture>(url); }
-    catch (err) { console.warn('[WinCelebration] particle image failed to load:', err); }
-  }
-
-  private getParticleTex(): Texture {
-    if (this.customTex) return this.customTex; // uploaded PNG wins
-    if (this.coinTex) return this.coinTex;
-    const S = 128;
-    const cv = document.createElement('canvas'); cv.width = cv.height = S;
+  private getGlintTex(): Texture {
+    if (this.glintTex) return this.glintTex;
+    const S = 64, cv = document.createElement('canvas'); cv.width = cv.height = S;
     const ctx = cv.getContext('2d')!;
-    ctx.imageSmoothingEnabled = true;
-    switch (WIN_CELEBRATION_CONFIG.particle) {
-      case 'moneybag': this.bakeEmoji(ctx, S, '💰'); break; // 💰
-      case 'diamond': this.bakeEmoji(ctx, S, '💎'); break; // 💎
-      case 'cash': this.bakeCash(ctx, S); break;
-      case 'star': this.bakeStar(ctx, S); break;
-      case 'coin': this.bakeCoin(ctx, S); break;
-      case 'gem':
-      default: this.bakeGem(ctx, S); break;
-    }
-    this.coinTex = Texture.from(cv);
-    return this.coinTex;
+    const g = ctx.createRadialGradient(S / 2, S / 2, 0, S / 2, S / 2, S / 2);
+    g.addColorStop(0, 'rgba(255,255,255,0.9)'); g.addColorStop(0.4, 'rgba(255,255,255,0.35)'); g.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = g; ctx.fillRect(0, 0, S, S);
+    this.glintTex = Texture.from(cv); return this.glintTex;
   }
 
-  private bakeEmoji(ctx: CanvasRenderingContext2D, S: number, ch: string): void {
-    ctx.font = `${Math.round(S * 0.8)}px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",serif`;
-    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillText(ch, S / 2, S / 2 + S * 0.04);
+  private getTrailTex(): Texture {
+    if (this.trailTex) return this.trailTex;
+    const W = 24, H = 96, cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+    const ctx = cv.getContext('2d')!;
+    const g = ctx.createLinearGradient(0, 0, 0, H);
+    g.addColorStop(0, 'rgba(255,255,255,0)'); g.addColorStop(1, 'rgba(255,255,255,0.85)');
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.moveTo(W / 2, 0); ctx.lineTo(W, H); ctx.lineTo(0, H); ctx.closePath(); ctx.fill();
+    this.trailTex = Texture.from(cv); return this.trailTex;
   }
 
-  /** Neon faceted gem (Vice cyan) — a hexagon with a lighter table + facets. */
-  private bakeGem(ctx: CanvasRenderingContext2D, S: number): void {
-    const cx = S / 2, cy = S / 2, R = S * 0.44;
-    const hex = (rad: number): [number, number][] => {
-      const p: [number, number][] = [];
-      for (let i = 0; i < 6; i++) { const a = i * Math.PI / 3 - Math.PI / 2; p.push([cx + Math.cos(a) * rad, cy + Math.sin(a) * rad]); }
-      return p;
-    };
-    const poly = (pts: [number, number][]) => {
-      ctx.beginPath(); ctx.moveTo(pts[0][0], pts[0][1]);
-      for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i][0], pts[i][1]);
-      ctx.closePath();
-    };
-    const outer = hex(R), table = hex(R * 0.54);
-    const g = ctx.createLinearGradient(cx, cy - R, cx, cy + R);
-    g.addColorStop(0, '#CFFBFF'); g.addColorStop(0.5, '#3FD3E0'); g.addColorStop(1, '#0C6C7C');
-    poly(outer); ctx.fillStyle = g; ctx.fill();
-    poly(table); ctx.fillStyle = 'rgba(225,255,255,0.55)'; ctx.fill();
-    ctx.strokeStyle = 'rgba(255,255,255,0.3)'; ctx.lineWidth = S * 0.012;
-    for (let i = 0; i < 6; i++) { ctx.beginPath(); ctx.moveTo(table[i][0], table[i][1]); ctx.lineTo(outer[i][0], outer[i][1]); ctx.stroke(); }
-    poly(outer); ctx.strokeStyle = '#9BF3FF'; ctx.lineWidth = S * 0.03; ctx.stroke();
-    ctx.beginPath(); ctx.arc(cx - R * 0.2, cy - R * 0.22, R * 0.12, 0, Math.PI * 2); ctx.fillStyle = 'rgba(255,255,255,0.9)'; ctx.fill();
-  }
-
-  /** Green banknote with a $ — for the money/mafia vibe. */
-  private bakeCash(ctx: CanvasRenderingContext2D, S: number): void {
-    const w = S * 0.9, h = S * 0.52, x = (S - w) / 2, y = (S - h) / 2, r = S * 0.05, cx = S / 2, cy = S / 2;
-    const rr = (a: number, b: number, ww: number, hh: number, rad: number) => {
-      ctx.beginPath();
-      ctx.moveTo(a + rad, b);
-      ctx.arcTo(a + ww, b, a + ww, b + hh, rad); ctx.arcTo(a + ww, b + hh, a, b + hh, rad);
-      ctx.arcTo(a, b + hh, a, b, rad); ctx.arcTo(a, b, a + ww, b, rad); ctx.closePath();
-    };
-    rr(x, y, w, h, r);
-    const g = ctx.createLinearGradient(x, y, x, y + h); g.addColorStop(0, '#43CE81'); g.addColorStop(1, '#1E9A5B');
-    ctx.fillStyle = g; ctx.fill();
-    rr(x + S * 0.03, y + S * 0.03, w - S * 0.06, h - S * 0.06, r * 0.6);
-    ctx.strokeStyle = 'rgba(235,255,242,0.5)'; ctx.lineWidth = S * 0.012; ctx.stroke();
-    ctx.beginPath(); ctx.arc(cx, cy, h * 0.3, 0, Math.PI * 2); ctx.fillStyle = 'rgba(255,255,255,0.14)'; ctx.fill();
-    ctx.font = `900 ${Math.round(h * 0.55)}px system-ui, sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillStyle = 'rgba(240,255,245,0.92)'; ctx.fillText('$', cx, cy);
-  }
-
-  /** Neon 5-point star (gold). */
-  private bakeStar(ctx: CanvasRenderingContext2D, S: number): void {
-    const cx = S / 2, cy = S / 2, R = S * 0.46, r = R * 0.46;
-    ctx.beginPath();
-    for (let i = 0; i < 10; i++) {
-      const rad = i % 2 === 0 ? R : r; const a = -Math.PI / 2 + i * Math.PI / 5;
-      const px = cx + Math.cos(a) * rad, py = cy + Math.sin(a) * rad;
-      if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
-    }
-    ctx.closePath();
-    const g = ctx.createRadialGradient(cx, cy - R * 0.2, R * 0.1, cx, cy, R);
-    g.addColorStop(0, '#FFFBE0'); g.addColorStop(0.6, '#FFD23F'); g.addColorStop(1, '#FF9A2E');
-    ctx.fillStyle = g; ctx.fill();
-    ctx.strokeStyle = 'rgba(255,240,180,0.9)'; ctx.lineWidth = S * 0.02; ctx.stroke();
-    ctx.beginPath(); ctx.arc(cx, cy - R * 0.15, R * 0.12, 0, Math.PI * 2); ctx.fillStyle = 'rgba(255,255,255,0.85)'; ctx.fill();
-  }
-
-  /** Premium gold coin with an embossed $. */
-  private bakeCoin(ctx: CanvasRenderingContext2D, S: number): void {
-    const cx = S / 2, cy = S / 2, R = S * 0.46;
-    const rim = ctx.createLinearGradient(cx, cy - R, cx, cy + R);
-    rim.addColorStop(0, '#FFE99A'); rim.addColorStop(0.5, '#E0A423'); rim.addColorStop(1, '#9A6A0C');
-    ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI * 2); ctx.fillStyle = rim; ctx.fill();
-    const face = ctx.createRadialGradient(cx - R * 0.28, cy - R * 0.32, R * 0.08, cx, cy, R * 0.9);
-    face.addColorStop(0, '#FFFBDF'); face.addColorStop(0.45, '#FFD84A'); face.addColorStop(1, '#EDA820');
-    ctx.beginPath(); ctx.arc(cx, cy, R * 0.82, 0, Math.PI * 2); ctx.fillStyle = face; ctx.fill();
-    ctx.beginPath(); ctx.arc(cx, cy, R * 0.82, 0, Math.PI * 2);
-    ctx.lineWidth = S * 0.018; ctx.strokeStyle = 'rgba(120,80,0,0.45)'; ctx.stroke();
-    ctx.font = `900 ${Math.round(R * 1.15)}px system-ui, sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillStyle = 'rgba(120,78,0,0.38)'; ctx.fillText('$', cx, cy + R * 0.03);
-    ctx.fillStyle = 'rgba(255,246,200,0.5)'; ctx.fillText('$', cx, cy - R * 0.02);
-    ctx.save(); ctx.translate(cx - R * 0.26, cy - R * 0.3); ctx.rotate(-0.5);
-    ctx.beginPath(); ctx.ellipse(0, 0, R * 0.4, R * 0.16, 0, 0, Math.PI * 2);
-    ctx.fillStyle = 'rgba(255,255,255,0.55)'; ctx.fill(); ctx.restore();
-    ctx.beginPath(); ctx.arc(cx + R * 0.26, cy - R * 0.24, R * 0.07, 0, Math.PI * 2);
-    ctx.fillStyle = 'rgba(255,255,255,0.95)'; ctx.fill();
+  /** Bake a tier wordmark as a foil texture (Vice gradient + stroke + glow). */
+  private getWordTex(tier: number, _finalTier: number, s: number): Texture {
+    const key = `${tier}`;
+    const cached = this.wordCache.get(key);
+    if (cached) return cached;
+    const C = WIN_CELEBRATION_CONFIG;
+    const text = C.words[tier].toUpperCase();
+    const fs = Math.round(C.wordFontSize[tier] * s * 1.15);
+    const font = `900 italic ${fs}px ${this.font.replace(/'/g, '')}`;
+    const measure = document.createElement('canvas').getContext('2d')!;
+    measure.font = font;
+    const w = Math.ceil(measure.measureText(text).width) + fs * 1.2;
+    const h = Math.ceil(fs * 1.9);
+    const cv = document.createElement('canvas'); cv.width = w; cv.height = h;
+    const ctx = cv.getContext('2d')!;
+    ctx.font = font; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    const cx = w / 2, cy = h / 2;
+    // outer glow
+    ctx.save();
+    ctx.shadowColor = tier === 2 ? '#FF2E88' : tier === 1 ? '#16E0E8' : '#FFD24A';
+    ctx.shadowBlur = fs * 0.4;
+    ctx.fillStyle = '#ffffff'; ctx.fillText(text, cx, cy);
+    ctx.restore();
+    // dark stroke (bevel base, offset down)
+    ctx.lineWidth = fs * 0.14; ctx.strokeStyle = '#1a0416'; ctx.lineJoin = 'round';
+    ctx.strokeText(text, cx, cy + fs * 0.02);
+    // foil vertical gradient fill
+    const grad = ctx.createLinearGradient(0, cy - fs * 0.6, 0, cy + fs * 0.6);
+    grad.addColorStop(0, '#FFFFFF');
+    grad.addColorStop(0.45, tier === 0 ? '#FFE68A' : '#FFF3B0');
+    grad.addColorStop(0.5, tier === 2 ? '#FF6FB0' : tier === 1 ? '#7FF0F4' : '#FFD24A');
+    grad.addColorStop(1, tier === 2 ? '#B01E63' : tier === 1 ? '#0E9BA6' : '#C77E10');
+    ctx.fillStyle = grad; ctx.fillText(text, cx, cy);
+    // top specular line
+    ctx.fillStyle = 'rgba(255,255,255,0.5)';
+    ctx.save(); ctx.beginPath(); ctx.rect(0, 0, w, cy - fs * 0.18); ctx.clip(); ctx.fillText(text, cx, cy); ctx.restore();
+    const tex = Texture.from(cv);
+    this.wordCache.set(key, tex);
+    return tex;
   }
 }

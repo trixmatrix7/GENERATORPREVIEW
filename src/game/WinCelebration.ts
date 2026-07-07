@@ -130,24 +130,25 @@ export class WinCelebration {
 
     // ── Coin fountain: ONE premium baked texture + ONE ticker integrator ──
     const coinTex = this.getCoinTex();
-    const origins = p.origins.length ? p.origins : [{ x: p.centre.x, y: p.centre.y + amtSize }];
+    // Burst RADIALLY around the text — full circle, not one direction — with a
+    // slight upward bias; gravity then pulls them down into an arc.
     const emit = (count: number, power: number, scaleMul: number) => {
       for (let i = 0; i < count; i++) {
         if (this.coins.length >= C.particleCap) break;
-        const o = origins[i % origins.length];
-        const angle = -Math.PI / 2 + ((i / count) - 0.5) * C.coinSpread + (Math.random() - 0.5) * 0.25;
-        const sp0 = power * s * (0.7 + Math.random() * 0.6);
-        const seedA = Math.random() * Math.PI * 2, seedR = 14 * s;
+        const angle = (i / count) * Math.PI * 2 + (Math.random() - 0.5) * 0.5;
+        const sp0 = power * s * (0.55 + Math.random() * 0.75);
+        const seedR = (26 + Math.random() * 22) * s; // start on a ring around the text
         const sprite = new Sprite(coinTex);
         sprite.anchor.set(0.5);
-        const base = s * (0.34 + Math.random() * 0.22) * scaleMul;
+        const base = s * (0.32 + Math.random() * 0.24) * scaleMul;
         sprite.scale.set(base);
-        const x = o.x + Math.cos(seedA) * seedR, y = o.y + Math.sin(seedA) * seedR;
+        const x = p.centre.x + Math.cos(angle) * seedR, y = p.centre.y + Math.sin(angle) * seedR;
         sprite.position.set(x, y);
         coinLayer.addChild(sprite);
         this.coins.push({
-          sp: sprite, x, y, vx: Math.cos(angle) * sp0, vy: Math.sin(angle) * sp0,
-          age: 0, life: 0.95 + Math.random() * 0.7, spin: 8 + Math.random() * 7,
+          sp: sprite, x, y,
+          vx: Math.cos(angle) * sp0, vy: Math.sin(angle) * sp0 - 70 * s,
+          age: 0, life: 1.0 + Math.random() * 0.7, spin: 6 + Math.random() * 6,
           ph: Math.random() * Math.PI * 2, base,
         });
       }
@@ -166,8 +167,8 @@ export class WinCelebration {
         c.vy += grav * dt; c.vx *= C.airDrag;
         c.x += c.vx * dt; c.y += c.vy * dt; c.age += dt;
         c.sp.position.set(c.x, c.y);
-        c.sp.scale.x = Math.abs(Math.cos(c.age * c.spin + c.ph)) * c.base; // edge-flip
-        c.sp.rotation += dt * 1.1;
+        c.sp.scale.x = (0.6 + 0.4 * Math.abs(Math.cos(c.age * c.spin + c.ph))) * c.base; // soft flip (never a sliver)
+        c.sp.rotation += dt * 2.4; // tumble
         const left = c.life - c.age;
         if (left < c.life * 0.32) c.sp.alpha = Math.max(0, left / (c.life * 0.32));
         if (c.age >= c.life) { c.sp.destroy(); this.coins.splice(i, 1); }
@@ -258,29 +259,44 @@ export class WinCelebration {
     if (r) r();
   }
 
-  /** A premium gold coin: dark rim + radial gold face + inner ring + specular. */
+  /** A crisp, bright premium gold coin: 2-tone rim, lit gold face, embossed $,
+   *  clean inner ring, and a soft specular crescent. Baked hi-res so it stays
+   *  sharp when the coins tumble. */
   private getCoinTex(): Texture {
     if (this.coinTex) return this.coinTex;
-    const S = 80;
+    const S = 128;
     const cv = document.createElement('canvas'); cv.width = cv.height = S;
     const ctx = cv.getContext('2d')!;
-    const cx = S / 2, cy = S / 2, R = S * 0.44;
-    // dark gold rim
-    ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI * 2); ctx.fillStyle = '#7a5200'; ctx.fill();
-    // gold face (lit from top-left)
-    const g = ctx.createRadialGradient(cx - R * 0.3, cy - R * 0.34, R * 0.1, cx, cy, R * 0.95);
-    g.addColorStop(0, '#FFF4B8'); g.addColorStop(0.5, '#FFD23F'); g.addColorStop(1, '#E09A18');
-    ctx.beginPath(); ctx.arc(cx, cy, R * 0.85, 0, Math.PI * 2); ctx.fillStyle = g; ctx.fill();
-    // inner ring
-    ctx.beginPath(); ctx.arc(cx, cy, R * 0.85, 0, Math.PI * 2);
-    ctx.lineWidth = S * 0.035; ctx.strokeStyle = 'rgba(150,100,10,0.65)'; ctx.stroke();
-    // specular highlight
-    ctx.save(); ctx.translate(cx - R * 0.3, cy - R * 0.34); ctx.rotate(-0.5);
-    ctx.beginPath(); ctx.ellipse(0, 0, R * 0.36, R * 0.2, 0, 0, Math.PI * 2);
-    ctx.fillStyle = 'rgba(255,255,255,0.6)'; ctx.fill(); ctx.restore();
-    // tiny sparkle
-    ctx.beginPath(); ctx.arc(cx + R * 0.24, cy - R * 0.22, R * 0.08, 0, Math.PI * 2);
-    ctx.fillStyle = 'rgba(255,255,255,0.9)'; ctx.fill();
+    ctx.imageSmoothingEnabled = true;
+    const cx = S / 2, cy = S / 2, R = S * 0.46;
+
+    // Outer rim: a bright→dark gold ring for a beveled metal edge.
+    const rim = ctx.createLinearGradient(cx, cy - R, cx, cy + R);
+    rim.addColorStop(0, '#FFE99A'); rim.addColorStop(0.5, '#E0A423'); rim.addColorStop(1, '#9A6A0C');
+    ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI * 2); ctx.fillStyle = rim; ctx.fill();
+
+    // Face: bright, top-left lit gold.
+    const face = ctx.createRadialGradient(cx - R * 0.28, cy - R * 0.32, R * 0.08, cx, cy, R * 0.9);
+    face.addColorStop(0, '#FFFBDF'); face.addColorStop(0.45, '#FFD84A'); face.addColorStop(1, '#EDA820');
+    ctx.beginPath(); ctx.arc(cx, cy, R * 0.82, 0, Math.PI * 2); ctx.fillStyle = face; ctx.fill();
+
+    // Clean inner ring.
+    ctx.beginPath(); ctx.arc(cx, cy, R * 0.82, 0, Math.PI * 2);
+    ctx.lineWidth = S * 0.018; ctx.strokeStyle = 'rgba(120,80,0,0.45)'; ctx.stroke();
+
+    // Embossed "$": a soft dark shape + a light top edge = reads as a coin.
+    ctx.font = `900 ${Math.round(R * 1.15)}px system-ui, sans-serif`;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillStyle = 'rgba(120,78,0,0.38)'; ctx.fillText('$', cx, cy + R * 0.03);
+    ctx.fillStyle = 'rgba(255,246,200,0.5)'; ctx.fillText('$', cx, cy - R * 0.02);
+
+    // Specular crescent (top-left) + a sharp glint.
+    ctx.save(); ctx.translate(cx - R * 0.26, cy - R * 0.3); ctx.rotate(-0.5);
+    ctx.beginPath(); ctx.ellipse(0, 0, R * 0.4, R * 0.16, 0, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(255,255,255,0.55)'; ctx.fill(); ctx.restore();
+    ctx.beginPath(); ctx.arc(cx + R * 0.26, cy - R * 0.24, R * 0.07, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(255,255,255,0.95)'; ctx.fill();
+
     this.coinTex = Texture.from(cv);
     return this.coinTex;
   }

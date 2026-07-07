@@ -35,6 +35,8 @@ export const WIN_CELEBRATION_CONFIG = {
   airDrag: 0.992,
   particleCap: 380,
   designBase: 720,
+  /** Overall size of the whole celebration (text + particles). 1 = full. */
+  sizeMul: 0.7,
   // Vice neon palette.
   pink: 0xff2e88,
   cyan: 0x16e0e8,
@@ -81,6 +83,8 @@ export class WinCelebration {
   private tickCb: ((t: Ticker) => void) | null = null;
   private coins: Coin[] = [];
   private resolveActive: (() => void) | null = null;
+  /** Standalone tweens (the promotion punch) that live outside this.tl. */
+  private extraTweens: gsap.core.Tween[] = [];
 
   // baked, cached
   private coinFrames: Texture[] | null = null;
@@ -105,13 +109,16 @@ export class WinCelebration {
     this.cancel();
 
     const sw = this.app.screen.width, sh = this.app.screen.height;
-    const s = Math.max(0.6, Math.min(2, Math.min(sw, sh) / WIN_CELEBRATION_CONFIG.designBase));
+    const s = Math.max(0.6, Math.min(2, Math.min(sw, sh) / WIN_CELEBRATION_CONFIG.designBase)) * WIN_CELEBRATION_CONFIG.sizeMul;
     const C = WIN_CELEBRATION_CONFIG;
     const finalVal = Number(p.winAmount) / Math.pow(10, p.decimals);
     const wagerVal = p.wager > 0n ? Number(p.wager) / Math.pow(10, p.decimals) : finalVal || 1;
     const finalTier = Math.max(0, Math.min(2, p.tier));
-    // Value thresholds for LIVE wordmark promotion.
-    const th = [0, wagerVal * C.bands.t2, wagerVal * C.bands.t3];
+    // Value thresholds for LIVE wordmark promotion. With no wager, promote at
+    // fractions of the final value so the word still upgrades on the roll.
+    const th = p.wager > 0n
+      ? [0, wagerVal * C.bands.t2, wagerVal * C.bands.t3]
+      : [0, finalVal * 0.34, finalVal * 0.7];
 
     const overlay = new Container();
     overlay.zIndex = 10000; overlay.eventMode = 'none';
@@ -262,8 +269,12 @@ export class WinCelebration {
         if (n <= curTier || !this.overlay) return;
         curTier = n;
         word.texture = this.getWordTex(n, finalTier, s);
-        gsap.killTweensOf(word.scale);
-        gsap.fromTo(word.scale, { x: 1, y: 1 }, { x: 1.24, y: 1.24, duration: 0.12, ease: 'power2.out', yoyo: true, repeat: 1 });
+        // Kill only the PREVIOUS promotion punch (not the timeline's slam-in),
+        // and track this one so finish() tears it down.
+        for (const t of this.extraTweens) t.kill();
+        this.extraTweens = [
+          gsap.fromTo(word.scale, { x: 1, y: 1 }, { x: 1.24, y: 1.24, duration: 0.12, ease: 'power2.out', yoyo: true, repeat: 1 }),
+        ];
         emit(Math.round(C.coinCount[finalTier] * 0.28), C.coinPower[finalTier], 1);
         if (n >= 1) { this.trauma = 1; }
       };
@@ -346,6 +357,8 @@ export class WinCelebration {
   // ── internals ──
   private finish(): void {
     if (this.tl) { this.tl.kill(); this.tl = null; }
+    for (const t of this.extraTweens) t.kill();
+    this.extraTweens.length = 0;
     if (this.tickCb) { this.app.ticker.remove(this.tickCb); this.tickCb = null; }
     for (const c of this.coins) { try { c.sp.destroy(); c.trail?.destroy(); } catch { /* torn down */ } }
     this.coins.length = 0;
@@ -413,12 +426,12 @@ export class WinCelebration {
 
   /** Bake a tier wordmark as a foil texture (Vice gradient + stroke + glow). */
   private getWordTex(tier: number, _finalTier: number, s: number): Texture {
-    const key = `${tier}`;
+    const C = WIN_CELEBRATION_CONFIG;
+    const fs = Math.round(C.wordFontSize[tier] * s * 1.15);
+    const key = `${tier}:${fs}`; // include size so a resized run bakes a fresh texture
     const cached = this.wordCache.get(key);
     if (cached) return cached;
-    const C = WIN_CELEBRATION_CONFIG;
     const text = C.words[tier].toUpperCase();
-    const fs = Math.round(C.wordFontSize[tier] * s * 1.15);
     const font = `900 italic ${fs}px ${this.font.replace(/'/g, '')}`;
     const measure = document.createElement('canvas').getContext('2d')!;
     measure.font = font;

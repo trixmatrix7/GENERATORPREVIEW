@@ -289,6 +289,7 @@ function AssetsTab({ pixiApp }: { pixiApp: PixiApp | null }) {
   const [symbols, setSymbols] = useState<Record<number, string>>(() => saved0.symbols ?? {});
   const [bg, setBg] = useState<string | null>(() => saved0.bg ?? null);
   const [frame, setFrame] = useState<string | null>(() => saved0.frame ?? null);
+  const [winParticle, setWinParticle] = useState<string | null>(() => saved0.winParticle ?? null);
 
   const applySymbols = (next: Record<number, string>) => {
     setSymbols(next);
@@ -358,6 +359,15 @@ function AssetsTab({ pixiApp }: { pixiApp: PixiApp | null }) {
         active={frame}
         onPick={url => { setFrame(url); saveAssets({ frame: url }); void pixiApp?.setFrameImage(url); }}
         onClear={() => { setFrame(null); saveAssets({ frame: null }); void pixiApp?.setFrameImage(null); }}
+      />
+
+      {/* Win particle */}
+      <AssetSlot
+        title="Win particle · setWinParticleImage"
+        note="The graphic that bursts around the win text (coin / gem / cash / your own art). Small transparent PNG works best. Overrides the built-in particle."
+        active={winParticle}
+        onPick={url => { setWinParticle(url); saveAssets({ winParticle: url }); void pixiApp?.setWinParticleImage(url); }}
+        onClear={() => { setWinParticle(null); saveAssets({ winParticle: null }); void pixiApp?.setWinParticleImage(null); }}
       />
     </div>
   );

@@ -797,6 +797,12 @@ export class PixiApp {
     this.updateReelBackdrop();
   }
 
+  /** Use a custom uploaded win-particle PNG (overrides the drawn/emoji particle).
+   *  Pass null to clear. */
+  async setWinParticleImage(url: string | null): Promise<void> {
+    await this.winCelebration?.setParticleImage(url);
+  }
+
   /** Load a custom free-spins INTRO SCREEN image (shown when the iris opens).
    *  Pass null to clear (falls back to the plain placeholder). */
   async setFreeSpinsIntroImage(url: string | null): Promise<void> {
@@ -1520,7 +1526,7 @@ export class PixiApp {
       }
       case 'winParticle': {
         const kind = String(value);
-        if (kind === 'gem' || kind === 'cash' || kind === 'star' || kind === 'coin') {
+        if (kind === 'moneybag' || kind === 'diamond' || kind === 'gem' || kind === 'cash' || kind === 'star' || kind === 'coin') {
           this.winCelebration?.setParticle(kind);
         }
         break;

@@ -7,16 +7,17 @@
 // play(params) resolves EXACTLY ONCE on every path (normal / reduced / cancel)
 // so an awaiting spin never hangs. cancel()/dispose() tear everything down.
 
-import { Application, Container, Sprite, Text, TextStyle, Texture, Ticker } from 'pixi.js';
+import { Application, Assets, Container, Sprite, Text, TextStyle, Texture, Ticker } from 'pixi.js';
 import { gsap } from 'gsap';
 
-/** Which particle bursts on a win. */
-export type WinParticle = 'gem' | 'cash' | 'star' | 'coin';
+/** Which particle bursts on a win. 'moneybag'/'diamond' are crisp OS emoji;
+ *  gem/cash/star/coin are drawn. A custom uploaded image overrides all of these. */
+export type WinParticle = 'moneybag' | 'diamond' | 'gem' | 'cash' | 'star' | 'coin';
 
 /** Everything tunable — edit intensities / words / timing / coin counts here. */
 export const WIN_CELEBRATION_CONFIG = {
-  /** The win particle (Vice default = neon gem). Live-switchable via winParticle. */
-  particle: 'gem' as WinParticle,
+  /** The win particle. Default = 💰 emoji (clean); or upload a real PNG. */
+  particle: 'moneybag' as WinParticle,
   /** Visual-tier bands by win/wager multiplier: <t2 = tier0, <t3 = tier1, else tier2. */
   bands: { t2: 15, t3: 75 },
   words: ['NICE ONE!', 'INSANE!', 'FABULOUS WIN!'],
@@ -74,6 +75,8 @@ export class WinCelebration {
   private tickCb: ((t: Ticker) => void) | null = null;
   private coins: Coin[] = [];
   private coinTex: Texture | null = null;
+  /** A user-uploaded particle image — overrides the drawn/emoji particle. */
+  private customTex: Texture | null = null;
   private resolveActive: (() => void) | null = null;
 
   constructor(app: Application, opts: { accent: number; coinColors: number[]; fontFamily?: string }) {
@@ -145,7 +148,10 @@ export class WinCelebration {
         const seedR = (26 + Math.random() * 22) * s; // start on a ring around the text
         const sprite = new Sprite(coinTex);
         sprite.anchor.set(0.5);
-        const base = s * (0.32 + Math.random() * 0.24) * scaleMul;
+        // Normalise to a target on-screen size (smaller now) regardless of the
+        // source texture's native resolution (drawn 128px OR an uploaded PNG).
+        const targetPx = (22 + Math.random() * 12) * s * scaleMul;
+        const base = targetPx / (coinTex.width || 128);
         sprite.scale.set(base);
         const x = p.centre.x + Math.cos(angle) * seedR, y = p.centre.y + Math.sin(angle) * seedR;
         sprite.position.set(x, y);
@@ -247,6 +253,7 @@ export class WinCelebration {
   dispose(): void {
     this.finish();
     this.coinTex?.destroy(true); this.coinTex = null;
+    this.customTex?.destroy(true); this.customTex = null;
   }
 
   // ── internals ──
@@ -264,20 +271,32 @@ export class WinCelebration {
     if (r) r();
   }
 
-  /** Switch the win particle live; the next burst rebuilds the cached texture. */
+  /** Switch to a built-in particle; clears any custom image + rebuilds the tex. */
   setParticle(kind: WinParticle): void {
     WIN_CELEBRATION_CONFIG.particle = kind;
-    this.coinTex?.destroy(true);
-    this.coinTex = null;
+    this.customTex?.destroy(true); this.customTex = null; // a built-in kind clears the upload
+    this.coinTex?.destroy(true); this.coinTex = null;
+  }
+
+  /** Use a custom uploaded particle PNG (overrides the drawn/emoji particle). */
+  async setParticleImage(url: string | null): Promise<void> {
+    this.customTex?.destroy(true);
+    this.customTex = null;
+    if (!url) return;
+    try { this.customTex = await Assets.load<Texture>(url); }
+    catch (err) { console.warn('[WinCelebration] particle image failed to load:', err); }
   }
 
   private getParticleTex(): Texture {
+    if (this.customTex) return this.customTex; // uploaded PNG wins
     if (this.coinTex) return this.coinTex;
     const S = 128;
     const cv = document.createElement('canvas'); cv.width = cv.height = S;
     const ctx = cv.getContext('2d')!;
     ctx.imageSmoothingEnabled = true;
     switch (WIN_CELEBRATION_CONFIG.particle) {
+      case 'moneybag': this.bakeEmoji(ctx, S, '💰'); break; // 💰
+      case 'diamond': this.bakeEmoji(ctx, S, '💎'); break; // 💎
       case 'cash': this.bakeCash(ctx, S); break;
       case 'star': this.bakeStar(ctx, S); break;
       case 'coin': this.bakeCoin(ctx, S); break;
@@ -286,6 +305,12 @@ export class WinCelebration {
     }
     this.coinTex = Texture.from(cv);
     return this.coinTex;
+  }
+
+  private bakeEmoji(ctx: CanvasRenderingContext2D, S: number, ch: string): void {
+    ctx.font = `${Math.round(S * 0.8)}px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",serif`;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(ch, S / 2, S / 2 + S * 0.04);
   }
 
   /** Neon faceted gem (Vice cyan) — a hexagon with a lighter table + facets. */

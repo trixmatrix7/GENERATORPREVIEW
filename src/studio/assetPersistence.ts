@@ -9,6 +9,7 @@ export interface SavedAssets {
   symbols?: Record<number, string>;
   bg?: string | null;
   frame?: string | null;
+  winParticle?: string | null;
 }
 
 export function loadAssets(): SavedAssets {

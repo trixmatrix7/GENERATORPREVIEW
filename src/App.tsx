@@ -55,6 +55,7 @@ export function App() {
     const bg = saved.bg ?? VICE_BACKGROUND_URL;
     if (bg) void pixiAppRef.setBackgroundImage(bg);
     if (saved.frame) void pixiAppRef.setFrameImage(saved.frame);
+    if (saved.winParticle) void pixiAppRef.setWinParticleImage(saved.winParticle);
     if (VICE_INTRO_URL) void pixiAppRef.setFreeSpinsIntroImage(VICE_INTRO_URL);
   }, [pixiAppRef]);
 

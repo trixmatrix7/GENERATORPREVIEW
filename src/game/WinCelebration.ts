@@ -12,7 +12,7 @@
 // Self-contained: ONE app.stage overlay (screen coords). play() resolves EXACTLY
 // once on every path. cancel()/dispose() tear everything down.
 
-import { Application, Assets, Container, Sprite, Text, TextStyle, Texture, Ticker } from 'pixi.js';
+import { Application, Assets, Container, Rectangle, Sprite, Text, TextStyle, Texture, Ticker } from 'pixi.js';
 import { gsap } from 'gsap';
 
 export type WinParticle = 'moneybag' | 'diamond' | 'gem' | 'cash' | 'star' | 'coin';
@@ -92,6 +92,8 @@ export class WinCelebration {
   private trailTex: Texture | null = null;
   private wordCache = new Map<string, Texture>();
   private customTex: Texture | null = null;
+  /** Frames sliced from an uploaded horizontal spin-strip (real rotation). */
+  private customFrames: Texture[] | null = null;
 
   // per-run state (read by the ticker)
   private trauma = 0;
@@ -162,8 +164,8 @@ export class WinCelebration {
     overlay.addChild(flash);
 
     // ── particle emit ─────────────────────────────────────────────────────
-    const frames = this.customTex ? null : this.getCoinFrames();
-    const single = this.customTex;
+    const frames = this.customFrames ? this.customFrames : (this.customTex ? null : this.getCoinFrames());
+    const single = this.customFrames ? null : this.customTex;
     const emit = (count: number, power: number, scaleMul: number) => {
       for (let i = 0; i < count; i++) {
         if (this.coins.length >= C.particleCap) break;
@@ -337,6 +339,7 @@ export class WinCelebration {
     this.coinFrames?.forEach(t => t.destroy(true)); this.coinFrames = null;
     this.glintTex?.destroy(true); this.glintTex = null;
     this.trailTex?.destroy(true); this.trailTex = null;
+    this.customFrames?.forEach(t => t.destroy(false)); this.customFrames = null;
     this.customTex?.destroy(true); this.customTex = null;
     for (const t of this.wordCache.values()) t.destroy(true);
     this.wordCache.clear();
@@ -344,14 +347,30 @@ export class WinCelebration {
 
   setParticle(kind: WinParticle): void {
     WIN_CELEBRATION_CONFIG.particle = kind;
+    this.customFrames?.forEach(t => t.destroy(false)); this.customFrames = null;
     this.customTex?.destroy(true); this.customTex = null;
   }
 
   async setParticleImage(url: string | null): Promise<void> {
+    this.customFrames = null;
     this.customTex?.destroy(true); this.customTex = null;
     if (!url) return;
-    try { this.customTex = await Assets.load<Texture>(url); }
-    catch (err) { console.warn('[WinCelebration] particle image failed to load:', err); }
+    try {
+      const tex = await Assets.load<Texture>(url);
+      this.customTex = tex;
+      // A wide image is treated as a horizontal SPIN STRIP → slice into square
+      // frames for a real rotation; a ~square image is used as a single coin.
+      const w = tex.width, h = tex.height;
+      if (w >= h * 2.2) {
+        const n = Math.max(2, Math.min(24, Math.round(w / h)));
+        const fw = w / n;
+        const frames: Texture[] = [];
+        for (let i = 0; i < n; i++) {
+          frames.push(new Texture({ source: tex.source, frame: new Rectangle(i * fw, 0, fw, h) }));
+        }
+        this.customFrames = frames;
+      }
+    } catch (err) { console.warn('[WinCelebration] particle image failed to load:', err); }
   }
 
   // ── internals ──
@@ -391,9 +410,14 @@ export class WinCelebration {
       g.addColorStop(0, '#FFF7C8'); g.addColorStop(0.5, '#FFD24A'); g.addColorStop(1, '#E39B1E');
       ctx.beginPath(); ctx.ellipse(cx, cy, R * wf * 0.82, R * 0.82, 0, 0, Math.PI * 2);
       ctx.fillStyle = g; ctx.fill();
-      if (front && wf > 0.35) {
-        ctx.font = `900 ${Math.round(R * 1.1)}px system-ui, sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-        ctx.save(); ctx.scale(wf, 1); ctx.fillStyle = 'rgba(120,78,0,0.4)'; ctx.fillText('$', cx / wf, cy); ctx.restore();
+      if (front && wf > 0.3) {
+        // Non-branded coin detail: a concentric inner ring (no $ / logo).
+        ctx.save(); ctx.scale(wf, 1);
+        ctx.beginPath(); ctx.arc(cx / wf, cy, R * 0.52, 0, Math.PI * 2);
+        ctx.lineWidth = R * 0.06; ctx.strokeStyle = 'rgba(120,78,0,0.32)'; ctx.stroke();
+        ctx.beginPath(); ctx.arc(cx / wf, cy, R * 0.3, 0, Math.PI * 2);
+        ctx.lineWidth = R * 0.04; ctx.strokeStyle = 'rgba(255,246,200,0.35)'; ctx.stroke();
+        ctx.restore();
       }
       // edge glint when near edge-on
       if (wf < 0.3) { ctx.fillStyle = 'rgba(255,255,255,0.8)'; ctx.fillRect(cx - R * wf, cy - R, R * wf * 2, R * 2); }

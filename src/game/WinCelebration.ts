@@ -175,10 +175,10 @@ export class WinCelebration {
     overlay.addChild(textGroup);
     const amtSize = Math.round(C.amountFontSize[finalTier] * s);
 
-    // Foil wordmark sprite (swappable on promotion) + masked sheen.
+    // Foil wordmark sprite (swappable on promotion).
     let curTier = 0;
     const word = new Sprite(this.getWordTex(0, finalTier, s));
-    word.anchor.set(0.5); word.y = -amtSize * 0.72;
+    word.anchor.set(0.5);
     word.alpha = 0; word.scale.set(1.3);
     textGroup.addChild(word);
 
@@ -189,25 +189,31 @@ export class WinCelebration {
         dropShadow: { color: C.pink, blur: 10, distance: 0, alpha: 0.5 },
       }),
     });
-    amount.anchor.set(0.5); amount.y = amtSize * 0.34; amount.alpha = 0; amount.scale.set(0.6);
+    amount.anchor.set(0.5); amount.alpha = 0; amount.scale.set(0.6);
     textGroup.addChild(amount);
 
-    // Size the plaque to wrap the widest of {word, final amount} + padding.
+    // The plaque wraps ONLY the tier WORD; the money amount sits BELOW it.
+    let bh = amtSize * 1.5; // height fallback if no banner
     if (banner && this.bannerTex) {
+      const wordFS = Math.round(C.wordFontSize[finalTier] * s * 1.15);
       const measure = document.createElement('canvas').getContext('2d')!;
-      measure.font = `800 italic ${amtSize}px ${this.font.replace(/'/g, '')}`;
-      const amountW = measure.measureText(`${formatAmount(p.winAmount, p.decimals)} ${p.symbol}`).width;
-      const contentW = Math.max(word.texture.width, amountW);
-      const bw = contentW + 160 * s;
-      const bh = Math.max(amtSize * 2.2 + 74 * s, bw / 3.3); // don't let the frame get too thin
+      measure.font = `900 italic ${wordFS}px ${this.font.replace(/'/g, '')}`;
+      const wordW = measure.measureText(C.words[finalTier].toUpperCase()).width;
+      const bw = wordW + 66 * s;
+      bh = Math.max(wordFS * 1.7 + 14 * s, bw / 2.9); // wrap the word; keep the frame proportional
       bannerBaseSX = bw / this.bannerTex.width;
       bannerBaseSY = bh / this.bannerTex.height;
       banner.scale.set(bannerBaseSX, bannerBaseSY);
-      const bannerCY = p.centre.y - amtSize * 0.18;
+      bannerHalfW = bw / 2;
+    }
+    // Layout: word centred in the plaque (upper), money amount just below it.
+    word.y = -amtSize * 0.625;
+    amount.y = word.y + bh * 0.5 + amtSize * 0.72;
+    if (banner) {
+      const bannerCY = p.centre.y + word.y;
       banner.position.set(p.centre.x, bannerCY);
       bannerTopY = bannerCY - bh / 2;
       bannerBottomY = bannerCY + bh / 2;
-      bannerHalfW = bw / 2;
     }
 
     // impact flash

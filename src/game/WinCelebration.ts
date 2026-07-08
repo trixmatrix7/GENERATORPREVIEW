@@ -140,10 +140,8 @@ export class WinCelebration {
       ? [0, wagerVal * C.bands.t2, wagerVal * C.bands.t3]
       : [0, finalVal * 0.34, finalVal * 0.7];
 
-    // The fountain is confined to the slot: coins emerge from + exit at the
-    // frame's bottom edge (as if from behind it), never below the control bar.
-    const edge = p.bounds?.bottom ?? sh;
-    const exitBand = 44 * s;
+    // Horizontal confinement to the slot frame (x only — the vertical zone is
+    // anchored to the win text, defined once the font size is known).
     const bLeft = p.bounds?.left ?? 0;
     const bRight = p.bounds?.right ?? sw;
 
@@ -189,6 +187,12 @@ export class WinCelebration {
     flash.width = sw; flash.height = sh; flash.alpha = 0; flash.blendMode = 'add';
     overlay.addChild(flash);
 
+    // Vertical zone anchored to the WIN TEXT: coins live from just under the
+    // amount up to a bit above the wordmark — they rise out of the band's
+    // floor and dissolve back into it (all on the layer behind the text).
+    const bandTop = p.centre.y + amtSize * 1.9;
+    const bandH = 55 * s;
+
     // ── particle emit ─────────────────────────────────────────────────────
     const strip = this.customFrames;                     // uploaded spin-strip overrides all metals
     const single = strip ? null : this.customTex;        // uploaded single image
@@ -214,15 +218,15 @@ export class WinCelebration {
         const base = (px * s * dScale) / (tex0.width || 96);
         sp.scale.set(base);
         sp.alpha = 0.7 + depth * 0.3;
-        // Spawn just under the SLOT's bottom edge, spread across the slot width
-        // (wider per tier); launch speed derived from the arc's peak height.
+        // Spawn just UNDER the win text (inside the dissolve band), spread
+        // across the slot width; arcs peak a little ABOVE the wordmark.
         const slotW = bRight - bLeft;
         let x0 = p.centre.x + (Math.random() - 0.5) * slotW * (0.55 + finalTier * 0.15);
         x0 = Math.max(bLeft + 16 * s, Math.min(bRight - 16 * s, x0));
-        const y0 = edge + 14 * s;
-        const peak = p.centre.y - amtSize * (Math.random() * 2.4 - 0.5);
-        const vy0 = -Math.sqrt(2 * C.gravity * s * Math.max(90 * s, y0 - peak));
-        const vx0 = (Math.random() - 0.5) * 260 * s;
+        const y0 = bandTop + bandH * 0.7;
+        const peak = p.centre.y - amtSize * (0.9 + Math.random() * 1.1);
+        const vy0 = -Math.sqrt(2 * C.gravity * s * Math.max(60 * s, y0 - peak));
+        const vx0 = (Math.random() - 0.5) * 220 * s;
         sp.position.set(x0, y0);
         // Warm-white glint (universal metal highlight — deliberately NOT theme-
         // tinted), smaller and offset toward the top-left key light.
@@ -295,15 +299,15 @@ export class WinCelebration {
           c.trail.scale.set(c.sp.scale.y * 0.8, c.sp.scale.y * (0.6 + sp2 / (900 * s)));
           c.trail.alpha = Math.min(0.55, sp2 / (1400 * s));
         }
-        // ONE positional fade band at the slot's bottom edge sells "from behind
-        // the frame": coins fade IN as they rise out of it and fade OUT as they
-        // fall back into it. Stragglers get a soft end-of-life fade.
+        // ONE positional fade band just below the text: coins fade IN rising
+        // out of it and dissolve falling back into it — the whole fountain
+        // stays tight around the win text. Stragglers get an end-of-life fade.
         const lifeLeft = c.life - c.age;
         let alpha = lifeLeft < c.life * 0.15 ? Math.max(0, lifeLeft / (c.life * 0.15)) : 1;
-        alpha *= Math.max(0, Math.min(1, (edge + exitBand - c.y) / exitBand));
+        alpha *= Math.max(0, Math.min(1, (bandTop + bandH - c.y) / bandH));
         c.sp.alpha = alpha * (0.7 + c.depth * 0.3);
         if (c.trail) c.trail.alpha *= alpha;
-        if ((c.vy > 0 && c.y > edge + exitBand + 20 * s) || c.age >= c.life) {
+        if ((c.vy > 0 && c.y > bandTop + bandH + 20 * s) || c.age >= c.life) {
           c.sp.destroy(); c.trail?.destroy(); this.coins.splice(i, 1);
         }
       }

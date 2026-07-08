@@ -119,6 +119,8 @@ export class PixiApp {
   private frameSat = 0;
   private frameLight = 26;
   private frameOpacity = 100;
+  /** Band thickness in px — how far the frame extends OUT from the reel grid. */
+  private frameWidth = 22;
   /** Rising ambient "dust" motes over the reels — OFF by default. */
   private motesEnabled = false;
 
@@ -845,27 +847,33 @@ export class PixiApp {
     }
   }
 
-  /** Redraw the clean layered frame bezel from a single frame colour (grey by
-   *  default). Derives a dark outer rim + inner highlight line + soft sheen so
-   *  the whole bezel retints from one slider. */
+  /** Redraw the frame: a FLAT band around the reel grid (Hacksaw-replica look).
+   *  Inner edge = the reel window; the band extends frameWidth px OUTWARD.
+   *  One colour + opacity + thickness — no bevels, no sheen. Hairline edges are
+   *  filled rings (strokes flicker at non-integer scale). */
   private redrawFrame(): void {
     const rw = this.frameW, rh = this.frameH;
     if (!rw || !rh || !this.frameGraphic) return;
-    const base = hslToNum(this.frameHue, this.frameSat, this.frameLight);
-    const outer = blendHex(base, 0x000000, 0.42);
-    const innerLine = blendHex(base, 0xffffff, 0.16);
-    const sheenC = blendHex(base, 0xffffff, 0.38);
+    const winX = FRAME_PAD, winY = FRAME_PAD;
+    const winW = rw - FRAME_PAD * 2, winH = rh - FRAME_PAD * 2;
+    const t = Math.max(0, this.frameWidth);
     const a = Math.max(0, Math.min(100, this.frameOpacity)) / 100;
+    const base = hslToNum(this.frameHue, this.frameSat, this.frameLight);
+    const edge = blendHex(base, 0x000000, 0.35);
     this.frameGraphic.clear();
-    this.frameGraphic.roundRect(0, 0, rw, rh, 16).fill({ color: base, alpha: a });
     this.borderOuterGraphic.clear();
-    this.borderOuterGraphic.roundRect(0, 0, rw, rh, 16).fill({ color: outer, alpha: a });
-    this.borderOuterGraphic.roundRect(3, 3, rw - 6, rh - 6, 13).fill({ color: base, alpha: a });
     this.borderInnerGraphic.clear();
-    this.borderInnerGraphic.roundRect(3, 3, rw - 6, rh - 6, 13).fill({ color: innerLine, alpha: a * 0.85 });
-    this.borderInnerGraphic.roundRect(5, 5, rw - 10, rh - 10, 11).fill({ color: base, alpha: a });
     this.sheenGraphic.clear();
-    this.sheenGraphic.roundRect(5, 5, rw - 10, 30, 11).fill({ color: sheenC, alpha: a * 0.22 });
+    if (t <= 0 || a <= 0) return;
+    const oX = winX - t, oY = winY - t, oW = winW + t * 2, oH = winH + t * 2;
+    // the band itself (hole-punched over the reel window)
+    this.frameGraphic.roundRect(oX, oY, oW, oH, 12).fill({ color: base, alpha: a });
+    this.frameGraphic.roundRect(winX, winY, winW, winH, 10).cut();
+    // hairline definition: outer edge + inner (grid) edge
+    this.borderOuterGraphic.roundRect(oX, oY, oW, oH, 12).fill({ color: edge, alpha: a });
+    this.borderOuterGraphic.roundRect(oX + 1.5, oY + 1.5, oW - 3, oH - 3, 11).cut();
+    this.borderInnerGraphic.roundRect(winX - 1.5, winY - 1.5, winW + 3, winH + 3, 11).fill({ color: edge, alpha: a });
+    this.borderInnerGraphic.roundRect(winX, winY, winW, winH, 10).cut();
   }
 
   /** Redraw the reel-window tint from the current hue/sat/lightness/opacity.
@@ -1516,6 +1524,7 @@ export class PixiApp {
       case 'frameSaturation': { this.frameSat = Number(value); this.redrawFrame(); break; }
       case 'frameLightness': { this.frameLight = Number(value); this.redrawFrame(); break; }
       case 'frameOpacity': { this.frameOpacity = Number(value); this.redrawFrame(); break; }
+      case 'frameWidth': { this.frameWidth = Number(value); this.redrawFrame(); break; }
       case 'cellBgColor':
       case 'cellBgHue':
       case 'cellBgSaturation':

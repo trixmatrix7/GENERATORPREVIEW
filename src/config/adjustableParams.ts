@@ -296,6 +296,16 @@ export const ADJUSTABLE_PARAMS: readonly AdjustableParam[] = [
     keywords: ['frame', 'bezel', 'opacity', 'transparency', 'alpha'],
   },
   {
+    id: 'frameWidth',
+    label: 'Frame — thickness',
+    layer: 'canvas-layers',
+    type: 'number',
+    min: 0, max: 36, step: 1,
+    default: 22,
+    description: 'How far the frame band extends outward from the reel grid, in px (0 = no frame). Phrases: "thicker frame", "thinner frame".',
+    keywords: ['frame', 'bezel', 'thickness', 'width', 'thick', 'thin', 'dick', 'dünn'],
+  },
+  {
     id: 'reelSpeed',
     label: 'Reel speed',
     layer: 'canvas-layers',

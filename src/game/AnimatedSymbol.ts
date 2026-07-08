@@ -26,6 +26,7 @@ import {
   type SymbolState,
 } from '@/config/symbolAnimations';
 import { symbolSizing } from '@/config/symbolSizing';
+import { drawCellPocket } from '@/config/cellBackdrop';
 import type { SymbolAtlasMap } from './SymbolAtlasLoader';
 import type { GameTheme } from '@/engine/GameConfig';
 import { SYMBOL_HEIGHT, SYMBOL_WIDTH } from './symbolMetrics';
@@ -395,6 +396,10 @@ export class AnimatedSymbol extends Container {
     const w = SYMBOL_WIDTH;
     const h = SYMBOL_HEIGHT;
     const r = 16;
+
+    // Per-symbol cell backdrop pocket (chat-config cellBg*): drawn FIRST so it
+    // sits behind the symbol art and travels with the symbol (spins + lands).
+    drawCellPocket(g, w, h);
 
     if (!isUserAsset) {
       // Themed "gem" tile — placeholder visual when no user art is set.

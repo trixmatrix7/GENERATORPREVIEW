@@ -10,6 +10,7 @@ export interface SavedAssets {
   bg?: string | null;
   frame?: string | null;
   winParticle?: string | null;
+  winBanner?: string | null;
 }
 
 export function loadAssets(): SavedAssets {

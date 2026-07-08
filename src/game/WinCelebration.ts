@@ -112,9 +112,13 @@ export class WinCelebration {
   private customTex: Texture | null = null;
   /** Frames sliced from an uploaded horizontal spin-strip (real rotation). */
   private customFrames: Texture[] | null = null;
+  /** Chrome plaque texture shown behind the win text (pulses gently). */
+  private bannerTex: Texture | null = null;
 
   // per-run state (read by the ticker)
   private trauma = 0;
+  /** One-shot pulse impulse for the banner+text (set on impact/promotion). */
+  private pulseKick = 0;
   private traumaMax = 0;
   private traumaRot = 0;
   private baseCx = 0;
@@ -154,6 +158,12 @@ export class WinCelebration {
     this.traumaMax = C.shake[finalTier] * s;
     this.traumaRot = C.shakeRot[finalTier];
 
+    // Chrome plaque behind the win text — backmost, so the coin fountain flies
+    // OVER its dark face and the text sits on top of everything.
+    const banner = this.bannerTex ? new Sprite(this.bannerTex) : null;
+    let bannerBaseSX = 1, bannerBaseSY = 1;
+    if (banner) { banner.anchor.set(0.5); banner.alpha = 0; overlay.addChild(banner); }
+
     // BOTH coin layers live BEHIND the text (client: coins never cover the win
     // text) — front is just the nearer/larger depth bucket, still under it.
     const coinBack = new Container(); overlay.addChild(coinBack); this.coinBack = coinBack;
@@ -181,6 +191,20 @@ export class WinCelebration {
     });
     amount.anchor.set(0.5); amount.y = amtSize * 0.34; amount.alpha = 0; amount.scale.set(0.6);
     textGroup.addChild(amount);
+
+    // Size the plaque to wrap the widest of {word, final amount} + padding.
+    if (banner && this.bannerTex) {
+      const measure = document.createElement('canvas').getContext('2d')!;
+      measure.font = `800 italic ${amtSize}px ${this.font.replace(/'/g, '')}`;
+      const amountW = measure.measureText(`${formatAmount(p.winAmount, p.decimals)} ${p.symbol}`).width;
+      const contentW = Math.max(word.texture.width, amountW);
+      const bw = contentW + 160 * s;
+      const bh = Math.max(amtSize * 2.2 + 74 * s, bw / 3.3); // don't let the frame get too thin
+      bannerBaseSX = bw / this.bannerTex.width;
+      bannerBaseSY = bh / this.bannerTex.height;
+      banner.scale.set(bannerBaseSX, bannerBaseSY);
+      banner.position.set(p.centre.x, p.centre.y - amtSize * 0.18);
+    }
 
     // impact flash
     const flash = new Sprite(Texture.WHITE);
@@ -259,9 +283,18 @@ export class WinCelebration {
     };
 
     const grav = C.gravity * s;
+    let elapsed = 0;
+    const pulseAmp = p.reduced ? 0 : 0.022;
     const tick = (t: Ticker) => {
       if (!this.overlay) return;
       const dt = Math.min(0.05, t.deltaMS / 1000);
+      elapsed += dt;
+      // Gentle continuous "breathe" of the plaque + text, plus a one-shot kick
+      // on impact / tier promotion (decays away) — the pulsing from the ref.
+      this.pulseKick = Math.max(0, this.pulseKick - this.pulseKick * dt * 5);
+      const factor = 1 + Math.sin(elapsed * 2.7) * pulseAmp + this.pulseKick;
+      if (banner) banner.scale.set(bannerBaseSX * factor, bannerBaseSY * factor);
+      textGroup.scale.set(factor);
       // trauma screenshake (translation + a touch of rotation = "force")
       if (this.trauma > 0) {
         const tr = this.trauma * this.trauma;
@@ -325,10 +358,11 @@ export class WinCelebration {
         word.alpha = 1; word.scale.set(1);
         amount.text = `${formatAmount(p.winAmount, p.decimals)} ${p.symbol}`;
         amount.alpha = 1; amount.scale.set(1);
+        if (banner) banner.alpha = 1;
         const tl = gsap.timeline({ onComplete: () => this.finish() });
         this.tl = tl;
         tl.to({}, { duration: 1.0 });
-        tl.to([word, amount], { alpha: 0, duration: 0.3, ease: 'power1.in' });
+        tl.to([word, amount, ...(banner ? [banner] : [])], { alpha: 0, duration: 0.3, ease: 'power1.in' });
       });
     }
 
@@ -349,10 +383,13 @@ export class WinCelebration {
           gsap.fromTo(word.scale, { x: 1, y: 1 }, { x: 1.24, y: 1.24, duration: 0.12, ease: 'power2.out', yoyo: true, repeat: 1 }),
         ];
         emit(Math.round(C.coinCount[finalTier] * 0.28), C.coinPower[finalTier], 1);
+        this.pulseKick = 0.13; // plaque + text pop on the upgrade
         if (n >= 1) { this.trauma = 1; }
       };
 
-      // IMPACT: word SLAMS in, flash, first (biggest) burst, count starts.
+      // IMPACT: plaque fades in, word SLAMS in, flash, first burst, count starts.
+      if (banner) tl.to(banner, { alpha: 1, duration: 0.18, ease: 'power2.out' }, 0);
+      tl.call(() => { this.pulseKick = 0.13; }, undefined, 0.02);
       tl.to(word, { alpha: 1, duration: 0.1, ease: 'power2.out' }, 0);
       tl.fromTo(word.scale, { x: 1.3, y: 1.3 }, { x: 1, y: 1, duration: 0.5, ease: 'back.out(2.2)' }, 0);
       tl.fromTo(word, { rotation: -0.07 }, { rotation: 0, duration: 0.5, ease: 'back.out(2)' }, 0);
@@ -400,6 +437,7 @@ export class WinCelebration {
       const exitAt = at + 0.35 + [0.4, 0.7, 1.0][finalTier];
       tl.to(word, { alpha: 0, duration: 0.3, ease: 'power1.in' }, exitAt);
       tl.to(amount, { alpha: 0, duration: 0.3, ease: 'power1.in' }, exitAt + 0.05);
+      if (banner) tl.to(banner, { alpha: 0, duration: 0.35, ease: 'power1.in' }, exitAt);
     });
   }
 
@@ -413,6 +451,7 @@ export class WinCelebration {
     this.trailTex?.destroy(true); this.trailTex = null;
     this.customFrames?.forEach(t => t.destroy(false)); this.customFrames = null;
     this.customTex?.destroy(true); this.customTex = null;
+    this.bannerTex?.destroy(true); this.bannerTex = null;
     for (const t of this.wordCache.values()) t.destroy(true);
     this.wordCache.clear();
   }
@@ -445,6 +484,14 @@ export class WinCelebration {
     } catch (err) { console.warn('[WinCelebration] particle image failed to load:', err); }
   }
 
+  /** Load the chrome plaque shown behind the win text (null clears it). */
+  async setBannerImage(url: string | null): Promise<void> {
+    this.bannerTex?.destroy(true); this.bannerTex = null;
+    if (!url) return;
+    try { this.bannerTex = await Assets.load<Texture>(url); }
+    catch (err) { console.warn('[WinCelebration] banner image failed to load:', err); }
+  }
+
   // ── internals ──
   private finish(): void {
     if (this.tl) { this.tl.kill(); this.tl = null; }
@@ -453,7 +500,7 @@ export class WinCelebration {
     if (this.tickCb) { this.app.ticker.remove(this.tickCb); this.tickCb = null; }
     for (const c of this.coins) { try { c.sp.destroy(); c.trail?.destroy(); } catch { /* torn down */ } }
     this.coins.length = 0;
-    this.trauma = 0;
+    this.trauma = 0; this.pulseKick = 0;
     if (this.overlay) { try { this.overlay.destroy({ children: true }); } catch { /* torn down */ } this.overlay = null; }
     this.coinBack = null; this.coinFront = null;
     const r = this.resolveActive; this.resolveActive = null;

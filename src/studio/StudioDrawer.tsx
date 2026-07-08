@@ -290,6 +290,7 @@ function AssetsTab({ pixiApp }: { pixiApp: PixiApp | null }) {
   const [bg, setBg] = useState<string | null>(() => saved0.bg ?? null);
   const [frame, setFrame] = useState<string | null>(() => saved0.frame ?? null);
   const [winParticle, setWinParticle] = useState<string | null>(() => saved0.winParticle ?? null);
+  const [winBanner, setWinBanner] = useState<string | null>(() => saved0.winBanner ?? null);
 
   const applySymbols = (next: Record<number, string>) => {
     setSymbols(next);
@@ -368,6 +369,15 @@ function AssetsTab({ pixiApp }: { pixiApp: PixiApp | null }) {
         active={winParticle}
         onPick={url => { setWinParticle(url); saveAssets({ winParticle: url }); void pixiApp?.setWinParticleImage(url); }}
         onClear={() => { setWinParticle(null); saveAssets({ winParticle: null }); void pixiApp?.setWinParticleImage(null); }}
+      />
+
+      {/* Win banner (chrome plaque behind the win text) */}
+      <AssetSlot
+        title="Win banner · setWinBannerImage"
+        note="The plaque/frame behind the win text (chrome by default). Transparent PNG, roughly 2–3:1 wide. Clearing falls back to the built-in chrome banner on next reload."
+        active={winBanner}
+        onPick={url => { setWinBanner(url); saveAssets({ winBanner: url }); void pixiApp?.setWinBannerImage(url); }}
+        onClear={() => { setWinBanner(null); saveAssets({ winBanner: null }); void pixiApp?.setWinBannerImage(`${import.meta.env.BASE_URL}theme/win-banner.png`); }}
       />
     </div>
   );

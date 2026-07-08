@@ -803,6 +803,11 @@ export class PixiApp {
     await this.winCelebration?.setParticleImage(url);
   }
 
+  /** Chrome plaque shown behind the win text. Pass null to clear. */
+  async setWinBannerImage(url: string | null): Promise<void> {
+    await this.winCelebration?.setBannerImage(url);
+  }
+
   /** Load a custom free-spins INTRO SCREEN image (shown when the iris opens).
    *  Pass null to clear (falls back to the plain placeholder). */
   async setFreeSpinsIntroImage(url: string | null): Promise<void> {

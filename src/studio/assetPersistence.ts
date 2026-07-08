@@ -11,6 +11,7 @@ export interface SavedAssets {
   frame?: string | null;
   winParticle?: string | null;
   winBanner?: string | null;
+  fsBg?: string | null;
 }
 
 export function loadAssets(): SavedAssets {

@@ -56,6 +56,7 @@ export function App() {
     if (bg) void pixiAppRef.setBackgroundImage(bg);
     if (saved.frame) void pixiAppRef.setFrameImage(saved.frame);
     if (saved.winParticle) void pixiAppRef.setWinParticleImage(saved.winParticle);
+    if (saved.fsBg) void pixiAppRef.setFreeSpinsBackgroundImage(saved.fsBg);
     void pixiAppRef.setWinBannerImage(saved.winBanner ?? `${import.meta.env.BASE_URL}theme/win-banner.png`);
     if (VICE_INTRO_URL) void pixiAppRef.setFreeSpinsIntroImage(VICE_INTRO_URL);
   }, [pixiAppRef]);

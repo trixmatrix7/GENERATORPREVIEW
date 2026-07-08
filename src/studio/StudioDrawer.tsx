@@ -323,6 +323,7 @@ function AssetsTab({ pixiApp }: { pixiApp: PixiApp | null }) {
   const [frame, setFrame] = useState<string | null>(() => saved0.frame ?? null);
   const [winParticle, setWinParticle] = useState<string | null>(() => saved0.winParticle ?? null);
   const [winBanner, setWinBanner] = useState<string | null>(() => saved0.winBanner ?? null);
+  const [fsBg, setFsBg] = useState<string | null>(() => saved0.fsBg ?? null);
 
   const applySymbols = (next: Record<number, string>) => {
     setSymbols(next);
@@ -410,6 +411,15 @@ function AssetsTab({ pixiApp }: { pixiApp: PixiApp | null }) {
         active={winBanner}
         onPick={url => { setWinBanner(url); saveAssets({ winBanner: url }); void pixiApp?.setWinBannerImage(url); }}
         onClear={() => { setWinBanner(null); saveAssets({ winBanner: null }); void pixiApp?.setWinBannerImage(`${import.meta.env.BASE_URL}theme/win-banner.png`); }}
+      />
+
+      {/* Free-spins-only background */}
+      <AssetSlot
+        title="FS background · setFreeSpinsBackgroundImage"
+        note="Background shown ONLY during the free-spins round — swapped in under the black iris beat (never visibly), swapped back when the round ends. Same format as the base background."
+        active={fsBg}
+        onPick={url => { setFsBg(url); saveAssets({ fsBg: url }); void pixiApp?.setFreeSpinsBackgroundImage(url); }}
+        onClear={() => { setFsBg(null); saveAssets({ fsBg: null }); void pixiApp?.setFreeSpinsBackgroundImage(null); }}
       />
     </div>
   );

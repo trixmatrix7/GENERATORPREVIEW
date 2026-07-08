@@ -79,6 +79,11 @@ export class PixiApp {
   // Optional custom free-spins INTRO SCREEN art (e.g. the Vice "BONUS" board),
   // shown when the iris opens. Falls back to the plain placeholder if unset.
   private fsIntroTexture: Texture | null = null;
+  // Free-spins-ONLY background: swapped in under the closed iris (never
+  // visibly), swapped back when the round ends.
+  private fsBgTexture: Texture | null = null;
+  private fsBgSavedBase: Texture | null = null;
+  private fsBgActive = false;
   private ambientLayer: Container | null = null;
   private ambientTweens: ReturnType<typeof gsap.timeline>[] = [];
   /** Celebration coin tints (base, deep, highlight) — live-adjustable via the
@@ -753,6 +758,76 @@ export class PixiApp {
     }
   }
 
+  /** Free-spins-ONLY background. Shown while the round runs: swapped in at the
+   *  iris's full-black beat (never visibly), swapped back when the round ends.
+   *  Pass null to clear (round then keeps the base background). */
+  async setFreeSpinsBackgroundImage(url: string | null): Promise<void> {
+    if (this._aborted) return;
+    const old = this.fsBgTexture;
+    this.fsBgTexture = null;
+    if (url) {
+      try { this.fsBgTexture = await Assets.load<Texture>(url); }
+      catch (err) { console.warn('[PixiApp] failed to load free-spins background:', err); }
+    }
+    // Mid-round change: reflect it right away.
+    if (this.fsBgActive) {
+      if (this.fsBgTexture) this.presentBgTexture(this.fsBgTexture);
+      else this.exitFsBackground();
+    }
+    if (old && old !== this.fsBgTexture) { try { old.destroy(true); } catch { /* torn down */ } }
+  }
+
+  /** Point the background layer at `tex` WITHOUT destroying the current base
+   *  texture (the FS swap must be reversible). Same pipeline as
+   *  setBackgroundImage: cover-fit sprite + frosted reel backdrop. */
+  private presentBgTexture(tex: Texture): void {
+    if (!this._initialized || this._aborted) return;
+    this.teardownReelBackdrop();
+    if (this.bgSprite) {
+      this.bgSprite.texture = tex;
+    } else {
+      this.bgSprite = new Sprite(tex);
+      this.bgSprite.anchor.set(0.5);
+      this.app.stage.addChildAt(this.bgSprite, 0);
+    }
+    this.bgTexture = tex;
+    if (this.backdropGraphic) this.backdropGraphic.visible = false;
+    this.fitBackground();
+    this.updateReelBackdrop();
+  }
+
+  /** Swap to the FS background (no-op without one). Called at the iris's
+   *  full-black beat so the change is never visible. */
+  private enterFsBackground(): void {
+    if (!this.fsBgTexture || this.fsBgActive || !this.isLive) return;
+    this.fsBgSavedBase = this.bgTexture;
+    this.fsBgActive = true;
+    this.presentBgTexture(this.fsBgTexture);
+  }
+
+  /** Restore the base-game background when the free-spins round ends. */
+  private exitFsBackground(): void {
+    if (!this.fsBgActive) return;
+    this.fsBgActive = false;
+    const base = this.fsBgSavedBase;
+    this.fsBgSavedBase = null;
+    if (!this.isLive) return;
+    if (base) {
+      this.presentBgTexture(base);
+    } else {
+      // No base image was set: drop the sprite (keep the FS texture for the
+      // next round) and restore the gradient stage.
+      this.teardownReelBackdrop();
+      if (this.bgSprite) {
+        this.bgSprite.parent?.removeChild(this.bgSprite);
+        try { this.bgSprite.destroy(); } catch { /* torn down */ }
+        this.bgSprite = null;
+      }
+      this.bgTexture = null;
+      if (this.backdropGraphic) this.backdropGraphic.visible = true;
+    }
+  }
+
   private clearBackgroundImage(): void {
     // Tear down the frosted backdrop first — it references bgTexture.
     this.teardownReelBackdrop();
@@ -946,8 +1021,9 @@ export class PixiApp {
         }
       }
 
-      // Fade out the FS overlay
+      // Fade out the FS overlay + restore the base-game background.
       this.hideFreeSpinOverlay(fsOverlay);
+      this.exitFsBackground();
     } else {
       await this.reelSet.stopOnStops(outcome.stops, this.turbo);
     }
@@ -1249,6 +1325,9 @@ export class PixiApp {
       // CLOSE (0.00 -> 0.70): the live board is slowly pulled into a shrinking
       // black circle — power3.in accelerates the collapse for a "suck-in" feel.
       tl.to(st, { r: 0, tint: 1, duration: 0.70, ease: 'power3.in', onUpdate: redraw }, 0);
+      // FULL-BLACK BEAT: the screen is entirely covered — swap in the
+      // free-spins-only background here so the change is never visible.
+      tl.call(() => this.enterFsBackground(), undefined, 0.72);
       // Brief full-black beat, then arm the intro behind the field (still hidden).
       tl.set(intro, { alpha: 1 }, 0.74);
       // OPEN (0.82 -> 1.42): the black circle irises back open onto the intro screen.
@@ -2095,8 +2174,15 @@ export class PixiApp {
       this.reelSet.dispose();
     }
 
-    // Destroy the background image (sprite + texture).
+    // Destroy the background image (sprite + texture) + the FS-only bg.
+    // If we die mid-round, bgTexture === fsBgTexture: point it back at the
+    // saved base so clearBackgroundImage frees the BASE and we free the FS
+    // texture exactly once below (no double-destroy).
+    this.fsBgActive = false;
+    if (this.fsBgTexture && this.bgTexture === this.fsBgTexture) this.bgTexture = this.fsBgSavedBase;
+    this.fsBgSavedBase = null;
     this.clearBackgroundImage();
+    if (this.fsBgTexture) { try { this.fsBgTexture.destroy(true); } catch { /* torn down */ } this.fsBgTexture = null; }
 
     // Destroy user-asset textures we created.
     const userAssets = this.config.theme.userAssetTextures;

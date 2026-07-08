@@ -37,57 +37,45 @@ function drawFrame(ctx, W, H){
 
   // ── bezel face: brushed gunmetal, vertical light-to-dark, inset 3px ──
   const fx=ox+3, fy=oy+3, fw=ow-6, fh=oh-6, FR=R-3;
-  // Rounded metal PROFILE across the bezel thickness: bright outer edge → lit
-  // crown → shaded valley near the window. Read as a raised, curved rail.
+  // CHROME profile across the bezel thickness — bright/dark reflection banding
+  // like a polished curved rail (the look of the win-banner chrome).
   const body = ctx.createLinearGradient(0,fy,0,fy+fh);
-  body.addColorStop(0,'#7c8290'); body.addColorStop(0.10,'#5a606e');
-  body.addColorStop(0.30,'#3d414c'); body.addColorStop(0.55,'#2b2e37');
-  body.addColorStop(0.82,'#20222a'); body.addColorStop(1,'#15161c');
+  body.addColorStop(0.00,'#f4f7fb');   // hot top edge
+  body.addColorStop(0.16,'#c2cad6');
+  body.addColorStop(0.30,'#7d8695');   // upper shade
+  body.addColorStop(0.44,'#e6ebf2');   // reflection highlight band
+  body.addColorStop(0.55,'#9aa3b2');
+  body.addColorStop(0.72,'#565e6c');   // lower shade
+  body.addColorStop(0.88,'#8a92a1');   // bounce light
+  body.addColorStop(1.00,'#3a404b');
   rr(ctx,fx,fy,fw,fh,FR); ctx.fillStyle=body; ctx.fill();
 
-  // clip to the bezel RING (face minus window) for texture + lighting
+  // clip to the bezel RING for the polish streaks + corner glints
   ctx.save();
   rr(ctx,fx,fy,fw,fh,FR);
   rr(ctx,ix,iy,iw,ih,IR);
   ctx.clip('evenodd');
-  // brushed horizontal micro-lines (more visible = reads as brushed steel)
-  for(let y=fy; y<fy+fh; y+=2){
-    ctx.fillStyle = (y%4===0)?'rgba(255,255,255,0.045)':'rgba(0,0,0,0.06)';
-    ctx.fillRect(fx,y,fw,1);
-  }
-  // crown highlight band — the raised middle of the rail catching light
-  const crown = ctx.createLinearGradient(0,fy,0,fy+fh);
-  crown.addColorStop(0,'rgba(255,255,255,0)');
-  crown.addColorStop(0.14,'rgba(255,255,255,0.22)');
-  crown.addColorStop(0.24,'rgba(255,255,255,0)');
-  ctx.fillStyle=crown; ctx.fillRect(fx,fy,fw,fh);
-  // broad top-left key light
-  const key = ctx.createLinearGradient(fx,fy,fx+fw*0.7,fy+fh*0.6);
-  key.addColorStop(0,'rgba(255,255,255,0.22)'); key.addColorStop(0.55,'rgba(255,255,255,0)');
-  ctx.fillStyle=key; ctx.fillRect(fx,fy,fw,fh);
-  // sharp diagonal glints in the two lit corners
+  // diagonal polish streaks (soft, chrome look)
+  const streak = ctx.createLinearGradient(fx,fy,fx+fw,fy+fh);
+  streak.addColorStop(0.0,'rgba(255,255,255,0.28)');
+  streak.addColorStop(0.18,'rgba(255,255,255,0)');
+  streak.addColorStop(0.5,'rgba(255,255,255,0.14)');
+  streak.addColorStop(0.82,'rgba(255,255,255,0)');
+  streak.addColorStop(1.0,'rgba(255,255,255,0.22)');
+  ctx.fillStyle=streak; ctx.fillRect(fx,fy,fw,fh);
+  // hot corner glints (top-left + bottom-right)
   for(const [gx,gy] of [[fx,fy],[fx+fw,fy+fh]]){
     const gl = ctx.createRadialGradient(gx,gy,0,gx,gy,200);
-    gl.addColorStop(0,'rgba(255,255,255,0.20)'); gl.addColorStop(1,'rgba(255,255,255,0)');
+    gl.addColorStop(0,'rgba(255,255,255,0.5)'); gl.addColorStop(1,'rgba(255,255,255,0)');
     ctx.fillStyle=gl; ctx.fillRect(fx,fy,fw,fh);
   }
   ctx.restore();
 
-  // ── outer edge bevel: bright top rim + dark bottom rim ──
+  // ── outer edge: crisp bright chrome rim + thin dark separation ──
   ctx.lineWidth=2; rr(ctx,fx+1,fy+1,fw-2,fh-2,FR-1);
-  ctx.strokeStyle='rgba(255,255,255,0.30)'; ctx.stroke();
-  ctx.save(); rr(ctx,ox,oy,ow,oh,R); ctx.clip();
-  ctx.lineWidth=4; rr(ctx,ox+2,oy+3,ow-4,oh-4,R-1);
-  ctx.strokeStyle='rgba(0,0,0,0.55)'; ctx.stroke(); ctx.restore();
-
-  // ── thin neon accent line inset in the bezel (Vice pink→cyan) ──
-  const acc = ctx.createLinearGradient(ox,0,ox+ow,0);
-  acc.addColorStop(0,'#ff2e88'); acc.addColorStop(0.5,'#c9a3ff'); acc.addColorStop(1,'#16e0e8');
-  ctx.save();
-  ctx.shadowColor='rgba(255,60,150,0.55)'; ctx.shadowBlur=10;
-  ctx.lineWidth=2.5; rr(ctx,ox+T*0.52,oy+T*0.52,ow-T*1.04,oh-T*1.04,IR+11);
-  ctx.strokeStyle=acc; ctx.stroke();
-  ctx.restore();
+  ctx.strokeStyle='rgba(255,255,255,0.85)'; ctx.stroke();
+  ctx.lineWidth=1.5; rr(ctx,ox+0.5,oy+0.5,ow-1,oh-1,R);
+  ctx.strokeStyle='rgba(20,22,28,0.9)'; ctx.stroke();
 
   // ── inner bevel: a machined step DOWN into the window ──
   // dark shadow on the upper/inner edge…

@@ -139,7 +139,6 @@ export class PixiApp {
   private frameW = 0;
   private frameH = 0;
   private frameToken = 0;
-  private rowDots: Graphics[] = [];
   private titleText!: Text;
   private currentTheme: Theme = 'dark';
   /** Ambient glow + spotlight intensity multiplier (chat-config 'backgroundMood'). */
@@ -376,10 +375,8 @@ export class PixiApp {
       this.gameContainer.addChild(glow);
     }
 
-    // Clean layered bezel (Hacksaw-base style) — UNIVERSAL neutral grey by
-    // default, tinted live via the frame* params (redrawFrame). No themed
-    // rivets. Order: base fill → dark outer rim → inner highlight line → sheen.
-    const darkTheme = CANVAS_THEME.modes.dark;
+    // Flat band frame (replica look) — UNIVERSAL neutral grey by default,
+    // driven entirely by the frame* params (redrawFrame). No themed hardware.
     this.frameGraphic = new Graphics();
     this.gameContainer.addChild(this.frameGraphic);
     this.frameW = rw;
@@ -426,23 +423,7 @@ export class PixiApp {
     this.gameContainer.addChild(this.reelSet.container);
     this.spawnAmbientMotes();
 
-    // Row indicator dots on left and right sides
-    this.rowDots = [];
-    for (let row = 0; row < this.grid.visibleRows; row++) {
-      const cy = FRAME_PAD + this.reelSet.cellHeight * row + this.reelSet.cellHeight / 2;
-
-      const dotL = new Graphics();
-      dotL.circle(10, cy, 3);
-      dotL.fill({ color: darkTheme.dotColor });
-      this.gameContainer.addChild(dotL);
-      this.rowDots.push(dotL);
-
-      const dotR = new Graphics();
-      dotR.circle(rw - 10, cy, 3);
-      dotR.fill({ color: darkTheme.dotColor });
-      this.gameContainer.addChild(dotR);
-      this.rowDots.push(dotR);
-    }
+    // (row indicator dots removed — the flat band frame has no side hardware)
 
     // ── Win Banner container (kept as a z-marker for celebration FX) ──
     this.winBanner.visible = false;
@@ -592,37 +573,9 @@ export class PixiApp {
 
     this.redrawAmbient(rw, totalH, t.ambientAlpha1, t.ambientAlpha2, t.rendererBg);
 
-    this.frameGraphic.clear();
-    this.frameGraphic.roundRect(0, 0, rw, rh, 16);
-    this.frameGraphic.fill({ color: t.frameFill });
-
-    this.borderOuterGraphic.clear();
-    this.borderOuterGraphic.roundRect(0, 0, rw, rh, 16);
-    this.borderOuterGraphic.fill({ color: t.borderOuter });
-    this.borderOuterGraphic.roundRect(2, 2, rw - 4, rh - 4, 14);
-    this.borderOuterGraphic.fill({ color: t.frameFill });
-
-    this.borderInnerGraphic.clear();
-    this.borderInnerGraphic.roundRect(2, 2, rw - 4, rh - 4, 14);
-    this.borderInnerGraphic.fill({ color: t.borderInner });
-    this.borderInnerGraphic.roundRect(3, 3, rw - 6, rh - 6, 13);
-    this.borderInnerGraphic.fill({ color: t.frameFill });
-
-    this.sheenGraphic.clear();
-    this.sheenGraphic.roundRect(3, 3, rw - 6, 32, 13);
-    this.sheenGraphic.fill({ color: t.sheenColor, alpha: t.sheenAlpha });
-
-    for (let row = 0; row < this.grid.visibleRows; row++) {
-      const cy = FRAME_PAD + this.reelSet.cellHeight * row + this.reelSet.cellHeight / 2;
-      const dotL = this.rowDots[row * 2];
-      const dotR = this.rowDots[row * 2 + 1];
-      dotL.clear();
-      dotL.circle(10, cy, 3);
-      dotL.fill({ color: t.dotColor });
-      dotR.clear();
-      dotR.circle(rw - 10, cy, 3);
-      dotR.fill({ color: t.dotColor });
-    }
+    // The frame is theme-independent now: a flat band driven by the frame*
+    // params (universal grey by default) — never redrawn from theme colours.
+    this.redrawFrame();
 
     this.styleTitle();
 

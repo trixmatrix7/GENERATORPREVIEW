@@ -24,15 +24,15 @@ export const WIN_CELEBRATION_CONFIG = {
   words: ['NICE ONE!', 'INSANE!', 'FABULOUS WIN!'],
   // Per FINAL-tier intensity (the tier the win reaches).
   countDur: [1.1, 1.9, 2.8],
-  coinCount: [46, 110, 190],
-  coinWaves: [2, 3, 4],
+  coinCount: [46, 110, 200],
+  coinWaves: [3, 5, 7], // spread across the count = a continuous fountain, not one puff
   coinPower: [560, 700, 840],
   shake: [0, 5, 9],          // px
   shakeRot: [0, 0.006, 0.014], // rad
   amountFontSize: [42, 56, 70],
   wordFontSize: [34, 46, 58],
   gravity: 1050,
-  airDrag: 0.985, // strong decel = tight, short burst around the text
+  airDrag: 0.995, // low drag — clean ballistic arcs for the bottom fountain
   particleCap: 380,
   designBase: 720,
   /** Overall size of the whole celebration (text + particles). 1 = full. */
@@ -189,22 +189,28 @@ export class WinCelebration {
         if (this.coins.length >= C.particleCap) break;
         const depth = Math.random();                    // 0=back .. 1=front
         const layer = depth > 0.5 ? coinFront : coinBack;
-        // Full 360° halo AROUND the text: spawn on an elliptical ring outside
-        // the wordmark and push outward — a tight, short burst, not a fountain.
-        const angle = (i / count) * Math.PI * 2 + (Math.random() - 0.5) * 0.5;
-        const sp0 = power * s * (0.3 + Math.random() * 0.5); // shorter throw
+        // FOUNTAIN FROM BELOW (Gift-Bonanza reference): coins erupt from under
+        // the bottom edge, arc up to around/above the text, fall back out the
+        // bottom. Launch speed derived from the peak height, not a raw power.
+        void power;
         const metal = pickMetal();
         const fset = strip ?? (single ? null : this.getMetalFrames(metal));
         const tex0 = single ?? fset![0];
         const sp = new Sprite(tex0);
         sp.anchor.set(0.5);
-        const px = 18 + Math.random() * 16; // varied sizes read as a real handful
+        const px = 20 + Math.random() * 22; // big, varied — like the reference
         const dScale = (0.6 + depth * 0.55) * scaleMul;
         const base = (px * s * dScale) / (tex0.width || 96);
         sp.scale.set(base);
         sp.alpha = 0.7 + depth * 0.3;
-        const ringR = (55 + Math.random() * 45) * s;
-        sp.position.set(p.centre.x + Math.cos(angle) * ringR, p.centre.y + Math.sin(angle) * ringR * 0.7);
+        // Spawn UNDER the bottom edge, spread across the width (wider per tier);
+        // launch speed is derived from the arc's peak height (around the text).
+        const x0 = p.centre.x + (Math.random() - 0.5) * sw * (0.55 + finalTier * 0.18);
+        const y0 = sh + 24 * s;
+        const peak = p.centre.y - amtSize * (Math.random() * 2.4 - 0.5);
+        const vy0 = -Math.sqrt(2 * C.gravity * s * Math.max(90 * s, y0 - peak));
+        const vx0 = (Math.random() - 0.5) * 260 * s;
+        sp.position.set(x0, y0);
         // Warm-white glint (universal metal highlight — deliberately NOT theme-
         // tinted), smaller and offset toward the top-left key light.
         const glint = new Sprite(this.getGlintTex());
@@ -224,20 +230,16 @@ export class WinCelebration {
         }
         this.coins.push({
           sp, glint, trail, frames: fset,
-          x: sp.x, y: sp.y, vx: Math.cos(angle) * sp0, vy: Math.sin(angle) * sp0 * 0.7 - 60 * s,
+          x: sp.x, y: sp.y, vx: vx0, vy: vy0,
           frame: fset ? Math.floor(Math.random() * fset.length) : 0,
           frameRate: 12 + Math.random() * 16, frameDir: Math.random() < 0.5 ? 1 : -1,
-          age: 0, life: 1.0 + Math.random() * 0.5, depth,
+          age: 0, life: 2.2 + Math.random() * 0.8, depth,
           rotW: (Math.random() - 0.5) * 0.55, ph: Math.random() * Math.PI * 2,
         });
       }
     };
 
     const grav = C.gravity * s;
-    // Coins dissolve once they drop just below the amount text — alpha ramps
-    // to 0 across a short band instead of falling down the whole screen.
-    const fadeY = p.centre.y + amtSize * 1.5;
-    const fadeBand = 70 * s;
     const tick = (t: Ticker) => {
       if (!this.overlay) return;
       const dt = Math.min(0.05, t.deltaMS / 1000);
@@ -280,14 +282,13 @@ export class WinCelebration {
           c.trail.scale.set(c.sp.scale.y * 0.8, c.sp.scale.y * (0.6 + sp2 / (900 * s)));
           c.trail.alpha = Math.min(0.55, sp2 / (1400 * s));
         }
-        // Fade OUT as the coin drops below the text zone (plus a soft fade over
-        // the last of its life) — no long fall down the screen, no hard pop-out.
+        // Coins exit the way they came — falling back out below the bottom
+        // edge; only stragglers get a soft end-of-life fade (no hard pop-out).
         const lifeLeft = c.life - c.age;
-        let alpha = lifeLeft < c.life * 0.3 ? Math.max(0, lifeLeft / (c.life * 0.3)) : 1;
-        if (c.y > fadeY) alpha = Math.min(alpha, Math.max(0, 1 - (c.y - fadeY) / fadeBand));
+        const alpha = lifeLeft < c.life * 0.15 ? Math.max(0, lifeLeft / (c.life * 0.15)) : 1;
         c.sp.alpha = alpha * (0.7 + c.depth * 0.3);
         if (c.trail) c.trail.alpha *= alpha;
-        if (alpha <= 0 || c.age >= c.life) {
+        if ((c.vy > 0 && c.y > sh + 70) || c.age >= c.life) {
           c.sp.destroy(); c.trail?.destroy(); this.coins.splice(i, 1);
         }
       }

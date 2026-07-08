@@ -36,6 +36,23 @@ function blendHex(a: number, b: number, t: number): number {
     | Math.round(ab + (bb - ab) * t);
 }
 
+/** HSL (h 0–360, s/l 0–100) → 0xRRGGBB. Lets a few number sliders drive a full
+ *  free colour without a bespoke colour-picker control type. */
+function hslToNum(h: number, s: number, l: number): number {
+  h = ((h % 360) + 360) % 360; s = Math.max(0, Math.min(100, s)) / 100; l = Math.max(0, Math.min(100, l)) / 100;
+  const c = (1 - Math.abs(2 * l - 1)) * s;
+  const x = c * (1 - Math.abs(((h / 60) % 2) - 1));
+  const m = l - c / 2;
+  let r = 0, g = 0, b = 0;
+  if (h < 60) { r = c; g = x; }
+  else if (h < 120) { r = x; g = c; }
+  else if (h < 180) { g = c; b = x; }
+  else if (h < 240) { g = x; b = c; }
+  else if (h < 300) { r = x; b = c; }
+  else { r = c; b = x; }
+  return (Math.round((r + m) * 255) << 16) | (Math.round((g + m) * 255) << 8) | Math.round((b + m) * 255);
+}
+
 const FRAME_PAD = 28;
 const HEADER_H = 52;
 const FOOTER_H = 20;
@@ -103,6 +120,16 @@ export class PixiApp {
    *  (StrictMode or fast nav). */
   private _aborted = false;
   turbo = false;
+
+  // Reel-window tint (chat-config reelBg* params): a colour + opacity overlay
+  // on the reel area. Defaults ≈ the original dark backdrop (near-black @ 62%).
+  private reelTint: Graphics | null = null;
+  private reelBgHue = 220;
+  private reelBgSat = 0;
+  private reelBgLight = 4;
+  private reelBgOpacity = 62;
+  /** Rising ambient "dust" motes over the reels — OFF by default. */
+  private motesEnabled = false;
 
   // Theme-sensitive Graphics — redrawn by setTheme()
   private backdropGraphic!: Graphics;
@@ -413,12 +440,12 @@ export class PixiApp {
     this.reelBackdropContainer.mask = bdMask;
     this.gameContainer.addChild(this.reelBackdropContainer);
 
-    // Strong dark overlay over the whole reel window so symbols pop against a
-    // much darker backdrop (and the frosted bg copy stays subdued).
-    const reelDarken = new Graphics();
-    reelDarken.roundRect(FRAME_PAD, FRAME_PAD, bdW, bdH, 10);
-    reelDarken.fill({ color: 0x000000, alpha: 0.62 });
-    this.reelBackdropContainer.addChild(reelDarken);
+    // Colour + opacity tint over the whole reel window (chat-config reelBg*):
+    // sits ABOVE the frosted bg copy (added at index 1 by updateReelBackdrop),
+    // so it tints/darkens it. Defaults ≈ the original near-black @ 62%.
+    this.reelTint = new Graphics();
+    this.reelBackdropContainer.addChild(this.reelTint);
+    this.applyReelTint();
 
     // Vignette / inner shadow — a thick dark stroke on the window edge, blurred
     // inward; the container mask clips its outer half. Gives the reel area depth
@@ -854,6 +881,16 @@ export class PixiApp {
       try { this.reelFrosted.destroy(); } catch { /* already torn down */ }
       this.reelFrosted = null;
     }
+  }
+
+  /** Redraw the reel-window tint from the current hue/sat/lightness/opacity.
+   *  Cheap (one roundRect fill); called live from applyVisualParam. */
+  private applyReelTint(): void {
+    if (!this.reelTint || !this.reelSet) return;
+    const color = hslToNum(this.reelBgHue, this.reelBgSat, this.reelBgLight);
+    this.reelTint.clear();
+    this.reelTint.roundRect(FRAME_PAD, FRAME_PAD, this.reelSet.totalWidth, this.reelSet.totalHeight, 10);
+    this.reelTint.fill({ color, alpha: this.reelBgOpacity / 100 });
   }
 
   /** Build the frosted reel backdrop from the current background texture: a
@@ -1473,6 +1510,10 @@ export class PixiApp {
         this.setAmbientEnabled(String(value) !== 'off');
         break;
       }
+      case 'reelBgHue': { this.reelBgHue = Number(value); this.applyReelTint(); break; }
+      case 'reelBgSaturation': { this.reelBgSat = Number(value); this.applyReelTint(); break; }
+      case 'reelBgLightness': { this.reelBgLight = Number(value); this.applyReelTint(); break; }
+      case 'reelBgOpacity': { this.reelBgOpacity = Number(value); this.applyReelTint(); break; }
       case 'reelSpeed': {
         const v = String(value);
         const mul = v === 'snappy' ? 1.7 : v === 'relaxed' ? 0.6 : 1.0;
@@ -1743,6 +1784,7 @@ export class PixiApp {
    *  Idempotent: tears down any existing layer first, then optionally respawns.
    *  Mirrors the ambient teardown in destroy(). */
   private setAmbientEnabled(on: boolean): void {
+    this.motesEnabled = on;
     for (const tl of this.ambientTweens) tl.kill();
     this.ambientTweens.length = 0;
     if (this.ambientLayer) {
@@ -1765,16 +1807,20 @@ export class PixiApp {
     this.ambientLayer = layer;
     this.gameContainer.addChild(layer);
 
-    const tints = [0xFFE082, 0xFFFFFF, this.config.theme.accent];
-    const count = 16;
-    for (let i = 0; i < count; i++) {
-      const m = new Graphics();
-      const col = tints[i % tints.length];
-      const baseR = 2 + (i % 3);
-      for (let k = 4; k >= 1; k--) m.circle(0, 0, baseR * k * 0.7).fill({ color: col, alpha: 0.12 });
-      m.alpha = 0;
-      layer.addChild(m);
-      this.animateMote(m, rw, rh, i);
+    // Rising motes only when explicitly enabled (off by default). The glow
+    // "breathe" below always runs so the stage isn't static.
+    if (this.motesEnabled) {
+      const tints = [0xFFE082, 0xFFFFFF, this.config.theme.accent];
+      const count = 16;
+      for (let i = 0; i < count; i++) {
+        const m = new Graphics();
+        const col = tints[i % tints.length];
+        const baseR = 2 + (i % 3);
+        for (let k = 4; k >= 1; k--) m.circle(0, 0, baseR * k * 0.7).fill({ color: col, alpha: 0.12 });
+        m.alpha = 0;
+        layer.addChild(m);
+        this.animateMote(m, rw, rh, i);
+      }
     }
 
     // Living background: a slow alpha breathe on the glow layers so the stage

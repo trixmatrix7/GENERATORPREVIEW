@@ -32,7 +32,7 @@ export const WIN_CELEBRATION_CONFIG = {
   amountFontSize: [42, 56, 70],
   wordFontSize: [34, 46, 58],
   gravity: 1050,
-  airDrag: 0.992,
+  airDrag: 0.985, // strong decel = tight, short burst around the text
   particleCap: 380,
   designBase: 720,
   /** Overall size of the whole celebration (text + particles). 1 = full. */
@@ -145,7 +145,10 @@ export class WinCelebration {
     this.traumaMax = C.shake[finalTier] * s;
     this.traumaRot = C.shakeRot[finalTier];
 
+    // BOTH coin layers live BEHIND the text (client: coins never cover the win
+    // text) — front is just the nearer/larger depth bucket, still under it.
     const coinBack = new Container(); overlay.addChild(coinBack); this.coinBack = coinBack;
+    const coinFront = new Container(); overlay.addChild(coinFront); this.coinFront = coinFront;
 
     // text group (word above, amount below)
     const textGroup = new Container();
@@ -170,8 +173,6 @@ export class WinCelebration {
     amount.anchor.set(0.5); amount.y = amtSize * 0.34; amount.alpha = 0; amount.scale.set(0.6);
     textGroup.addChild(amount);
 
-    const coinFront = new Container(); overlay.addChild(coinFront); this.coinFront = coinFront;
-
     // impact flash
     const flash = new Sprite(Texture.WHITE);
     flash.width = sw; flash.height = sh; flash.alpha = 0; flash.blendMode = 'add';
@@ -180,19 +181,18 @@ export class WinCelebration {
     // ── particle emit ─────────────────────────────────────────────────────
     const strip = this.customFrames;                     // uploaded spin-strip overrides all metals
     const single = strip ? null : this.customTex;        // uploaded single image
-    // Metal per coin follows the CURRENT tier: bronze → silver → at FABULOUS
-    // everything pops together (weighted mix of all three).
-    const pickMetal = (): Metal => {
-      if (curTier >= 2) { const r = Math.random(); return r < 0.18 ? 'bronze' : r < 0.44 ? 'silver' : 'gold'; }
-      return curTier === 1 ? 'silver' : 'bronze';
-    };
+    // GOLD ONLY — the bronze/silver/gold ladder was not approved. Escalation
+    // stays in the counts/waves/shake, not the metal.
+    const pickMetal = (): Metal => 'gold';
     const emit = (count: number, power: number, scaleMul: number) => {
       for (let i = 0; i < count; i++) {
         if (this.coins.length >= C.particleCap) break;
         const depth = Math.random();                    // 0=back .. 1=front
         const layer = depth > 0.5 ? coinFront : coinBack;
-        const angle = -Math.PI / 2 + (Math.random() - 0.5) * 2.3; // up-and-out cone (radial-ish)
-        const sp0 = power * s * (0.55 + Math.random() * 0.8);
+        // Full 360° halo AROUND the text: spawn on an elliptical ring outside
+        // the wordmark and push outward — a tight, short burst, not a fountain.
+        const angle = (i / count) * Math.PI * 2 + (Math.random() - 0.5) * 0.5;
+        const sp0 = power * s * (0.3 + Math.random() * 0.5); // shorter throw
         const metal = pickMetal();
         const fset = strip ?? (single ? null : this.getMetalFrames(metal));
         const tex0 = single ?? fset![0];
@@ -203,7 +203,8 @@ export class WinCelebration {
         const base = (px * s * dScale) / (tex0.width || 96);
         sp.scale.set(base);
         sp.alpha = 0.7 + depth * 0.3;
-        sp.position.set(p.centre.x + (Math.random() - 0.5) * 30 * s, p.centre.y + (Math.random() - 0.5) * 16 * s);
+        const ringR = (55 + Math.random() * 45) * s;
+        sp.position.set(p.centre.x + Math.cos(angle) * ringR, p.centre.y + Math.sin(angle) * ringR * 0.7);
         // Warm-white glint (universal metal highlight — deliberately NOT theme-
         // tinted), smaller and offset toward the top-left key light.
         const glint = new Sprite(this.getGlintTex());
@@ -223,10 +224,10 @@ export class WinCelebration {
         }
         this.coins.push({
           sp, glint, trail, frames: fset,
-          x: sp.x, y: sp.y, vx: Math.cos(angle) * sp0, vy: Math.sin(angle) * sp0 - 120 * s,
+          x: sp.x, y: sp.y, vx: Math.cos(angle) * sp0, vy: Math.sin(angle) * sp0 * 0.7 - 60 * s,
           frame: fset ? Math.floor(Math.random() * fset.length) : 0,
           frameRate: 12 + Math.random() * 16, frameDir: Math.random() < 0.5 ? 1 : -1,
-          age: 0, life: 1.4 + Math.random() * 1.0, depth,
+          age: 0, life: 1.0 + Math.random() * 0.5, depth,
           rotW: (Math.random() - 0.5) * 0.55, ph: Math.random() * Math.PI * 2,
         });
       }
@@ -470,7 +471,7 @@ export class WinCelebration {
       }
 
       const dir = Math.sin(a) >= 0 ? 1 : -1;
-      const r0 = R, r1 = R * 0.94, r2 = R * 0.72, r3 = R * 0.46;
+      const r0 = R, r1 = R * 0.94, r2 = R * 0.74, r3 = R * 0.44;
       const ex = (r: number) => r * wf;
 
       // Coin thickness peeking on the receding side.
@@ -523,15 +524,16 @@ export class WinCelebration {
       ctx.fillRect(w1 * 0.95, -r2 * 1.5, w1 * 0.4, r2 * 3);
       ctx.restore();
 
-      // Strong top-left crescent on the rim + faint counter-shine.
+      // SHARP rim lighting: a hairline ring + a slim top-left accent (no fat
+      // cartoon crescent) — reads as machined metal, not a sticker.
       ctx.save(); ctx.translate(cx, cy); ctx.scale(wf, 1);
+      ctx.lineWidth = S * 0.012;
+      ctx.strokeStyle = 'rgba(255,255,255,0.5)';
+      ctx.beginPath(); ctx.arc(0, 0, r1 * 0.9, 0, TAU); ctx.stroke();
       ctx.lineCap = 'round';
-      ctx.lineWidth = (r1 - r2) * 1.05;
-      ctx.strokeStyle = 'rgba(255,255,255,0.92)';
-      ctx.beginPath(); ctx.arc(0, 0, (r1 + r2) / 2, Math.PI * 1.06, Math.PI * 1.5); ctx.stroke();
       ctx.lineWidth = (r1 - r2) * 0.6;
-      ctx.strokeStyle = 'rgba(255,255,255,0.3)';
-      ctx.beginPath(); ctx.arc(0, 0, (r1 + r2) / 2, Math.PI * 0.15, Math.PI * 0.4); ctx.stroke();
+      ctx.strokeStyle = 'rgba(255,255,255,0.75)';
+      ctx.beginPath(); ctx.arc(0, 0, (r1 + r2) / 2, Math.PI * 1.1, Math.PI * 1.38); ctx.stroke();
       ctx.restore();
 
       // Back face slightly duller.

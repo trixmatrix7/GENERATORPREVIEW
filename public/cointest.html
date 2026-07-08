@@ -62,7 +62,7 @@ function drawCoinFrame(ctx, S, a, P){
   }
 
   const dir = Math.sin(a) >= 0 ? 1 : -1;
-  const r0 = R, r1 = R * 0.94, r2 = R * 0.72, r3 = R * 0.46;
+  const r0 = R, r1 = R * 0.94, r2 = R * 0.74, r3 = R * 0.44;
   const ex = r => r * wf;
 
   // coin thickness peeking on the receding side
@@ -115,16 +115,16 @@ function drawCoinFrame(ctx, S, a, P){
   ctx.fillRect(w1 * 0.95, -r2 * 1.5, w1 * 0.4, r2 * 3);
   ctx.restore();
 
-  // strong top-left crescent on the rim (the "money shot" highlight)
+  // SHARP rim lighting: a hairline ring + a slim top-left accent (no fat
+  // cartoon crescent) — reads as machined metal, not a sticker.
   ctx.save(); ctx.translate(cx, cy); ctx.scale(wf, 1);
+  ctx.lineWidth = S * 0.012;
+  ctx.strokeStyle = 'rgba(255,255,255,0.5)';
+  ctx.beginPath(); ctx.arc(0, 0, r1 * 0.9, 0, TAU); ctx.stroke();
   ctx.lineCap = 'round';
-  ctx.lineWidth = (r1 - r2) * 1.05;
-  ctx.strokeStyle = 'rgba(255,255,255,0.92)';
-  ctx.beginPath(); ctx.arc(0, 0, (r1 + r2) / 2, Math.PI * 1.06, Math.PI * 1.5); ctx.stroke();
-  // small counter-shine bottom-right, much fainter
   ctx.lineWidth = (r1 - r2) * 0.6;
-  ctx.strokeStyle = 'rgba(255,255,255,0.3)';
-  ctx.beginPath(); ctx.arc(0, 0, (r1 + r2) / 2, Math.PI * 0.15, Math.PI * 0.4); ctx.stroke();
+  ctx.strokeStyle = 'rgba(255,255,255,0.75)';
+  ctx.beginPath(); ctx.arc(0, 0, (r1 + r2) / 2, Math.PI * 1.1, Math.PI * 1.38); ctx.stroke();
   ctx.restore();
 
   // back face slightly duller
@@ -145,7 +145,7 @@ function drawCoinFrame(ctx, S, a, P){
 const N = 16, S = 128;
 const main = document.getElementById('c').getContext('2d');
 main.fillStyle = '#100a1c'; main.fillRect(0, 0, 1720, 1000);
-const metals = ['bronze', 'silver', 'gold'];
+const metals = ['gold']; // gold only — the 3-metal ladder was not approved
 const off = document.createElement('canvas'); off.width = off.height = S;
 const octx = off.getContext('2d');
 metals.forEach((m, row) => {

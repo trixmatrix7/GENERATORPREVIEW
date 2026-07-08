@@ -347,12 +347,8 @@ export class PixiApp {
       CANVAS_THEME.modes.dark.rendererBg,
     );
 
-    // Scene vignette — darken the stage edges so the light pools on the reels.
-    const sceneVignette = new Graphics();
-    sceneVignette.rect(0, 0, rw, totalH);
-    sceneVignette.stroke({ color: 0x000000, width: 90, alpha: 0.45 });
-    sceneVignette.filters = [new BlurFilter({ strength: 34, quality: 3 })];
-    this.sceneRoot.addChild(sceneVignette);
+    // (scene vignette removed — it smeared a dark blur over light custom
+    // backgrounds; the clean flat-band frame needs no stage darkening)
 
     // ── Game title — logo-style wordmark (foil fill + outline + accent glow) ──
     this.titleText = new Text({ text: this.config.theme.title, style: new TextStyle({}) });
@@ -366,14 +362,7 @@ export class PixiApp {
     this.gameContainer.y = HEADER_H;
     this.sceneRoot.addChild(this.gameContainer);
 
-    // Outer glow ring (multiple layers for depth)
-    for (let i = 3; i >= 1; i--) {
-      const glow = new Graphics();
-      const offset = i * 4;
-      glow.roundRect(-offset, -offset, rw + offset * 2, rh + offset * 2, 18 + i * 2);
-      glow.fill({ color: this.config.theme.accent, alpha: 0.02 * i });
-      this.gameContainer.addChild(glow);
-    }
+    // (outer glow rings removed — they read as a light halo hugging the band)
 
     // Flat band frame (replica look) — UNIVERSAL neutral grey by default,
     // driven entirely by the frame* params (redrawFrame). No themed hardware.

@@ -199,8 +199,8 @@ export class WinCelebration {
       const measure = document.createElement('canvas').getContext('2d')!;
       measure.font = `900 italic ${wordFS}px ${this.font.replace(/'/g, '')}`;
       const wordW = measure.measureText(C.words[finalTier].toUpperCase()).width;
-      const bw = wordW + 66 * s;
-      bh = Math.max(wordFS * 1.7 + 14 * s, bw / 2.9); // wrap the word; keep the frame proportional
+      const bw = wordW + 26 * s;
+      bh = Math.max(wordFS * 1.18 + 6 * s, bw / 4.4); // hug the word tightly
       bannerBaseSX = bw / this.bannerTex.width;
       bannerBaseSY = bh / this.bannerTex.height;
       banner.scale.set(bannerBaseSX, bannerBaseSY);

@@ -37,15 +37,17 @@ export function WinTierTestPanel({ pixiApp, snapshot, soundManager }: Props) {
     pixiApp.__testWin(winAmount, symbol, decimals, 'WIN', wager);
     const sound = selectWinSound(winAmount, wager);
     if (sound) soundManager.play(sound);
-    // Layer scatter-land as a coin-chime accent for big+ wins (and a second
-    // chime mid-celebration for mega). Mirrors the staggered chime overlay
-    // wired in useSoundLayer.ts so the test panel matches real gameplay.
+    // Coin-chime accents on big+ wins — same soft ticks and timings as the
+    // live overlay in useSoundLayer.ts (melodic layers would clash with the
+    // signature win jingle).
     if (sound === 'win-big' || sound === 'win-mega') {
-      window.setTimeout(() => soundManager.play('scatter-land'), 250);
+      window.setTimeout(() => soundManager.play('coin-chime'), 200);
+      window.setTimeout(() => soundManager.play('coin-chime'), 600);
     }
     if (sound === 'win-mega') {
-      window.setTimeout(() => soundManager.play('scatter-land'), 900);
-      window.setTimeout(() => soundManager.play('scatter-land'), 1600);
+      window.setTimeout(() => soundManager.play('coin-chime'), 1100);
+      window.setTimeout(() => soundManager.play('coin-chime'), 1700);
+      window.setTimeout(() => soundManager.play('coin-chime'), 2300);
     }
   };
 

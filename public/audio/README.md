@@ -26,17 +26,23 @@ that one event; no errors.
 
 ## Source / licensing
 
-All SFX files are sourced from [Mixkit](https://mixkit.co/free-sound-effects/slot-machine/)
+Non-win SFX are sourced from [Mixkit](https://mixkit.co/free-sound-effects/slot-machine/)
 under the Mixkit Sound Effects Free License (royalty-free, no attribution required,
 commercial use allowed). Ambient music is CC0.
+
+The four WIN sounds are **original, synthesized in-repo** — one signature
+rising-fanfare motif rendered in four escalating arrangements (the same melody
+at every tier is what makes the win sound recognizable). Regenerate / retune
+with `node scripts/gen-win-jingles.mjs`.
 
 | File | Source | License |
 |------|--------|---------|
 | spin-start.wav | Mixkit "Arcade slot machine wheel" #1933 | Mixkit Free |
 | reel-stop.wav | Mixkit "Coins handling" #1939 | Mixkit Free |
-| win-small.wav | Mixkit "Payout award ding" #1935 | Mixkit Free |
-| win-big.wav | Mixkit "Slot machine win" #1928 | Mixkit Free |
-| win-mega.wav | Mixkit "Slot machine win siren" #1929 | Mixkit Free |
+| win-small.wav | Original signature jingle (scripts/gen-win-jingles.mjs) | CC0 (ours) |
+| win-normal.wav | Original signature jingle (scripts/gen-win-jingles.mjs) | CC0 (ours) |
+| win-big.wav | Original signature jingle (scripts/gen-win-jingles.mjs) | CC0 (ours) |
+| win-mega.wav | Original signature jingle (scripts/gen-win-jingles.mjs) | CC0 (ours) |
 | scatter-land.wav | Mixkit "Melodic bonus collect" #1938 | Mixkit Free |
 | free-spin-trigger.wav | Mixkit "Magical coin win" #1936 | Mixkit Free |
 | ambient-music.ogg | CC0 placeholder | CC0 |

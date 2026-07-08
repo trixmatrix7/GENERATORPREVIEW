@@ -224,9 +224,9 @@ export class WinCelebration {
         let x0 = p.centre.x + (Math.random() - 0.5) * slotW * (0.55 + finalTier * 0.15);
         x0 = Math.max(bLeft + 16 * s, Math.min(bRight - 16 * s, x0));
         const y0 = bandTop + bandH * 0.7;
-        // Peak clearly ABOVE the wordmark; ×1.35 compensates for air-drag losses
+        // Peak well ABOVE the wordmark; ×1.35 compensates for air-drag losses
         // so coins actually reach the target apex (not just mid-text).
-        const peak = p.centre.y - amtSize * (1.8 + Math.random() * 1.3);
+        const peak = p.centre.y - amtSize * (3.0 + Math.random() * 1.6);
         const vy0 = -Math.sqrt(2 * C.gravity * s * Math.max(60 * s, (y0 - peak) * 1.35));
         const vx0 = (Math.random() - 0.5) * 220 * s;
         sp.position.set(x0, y0);

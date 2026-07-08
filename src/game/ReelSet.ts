@@ -16,6 +16,7 @@ import { getActiveGrid, type GridConfig } from '@/config/gridConfig';
 import { resolveAnchor, cell as cellAnchor, reel as reelAnchor, grid as gridAnchor } from '@/engine/anchors';
 import { CANVAS_THEME } from '@/config/canvasTheme';
 import { SymbolId, type SymbolIdType } from '@/config/symbols';
+import { hslToNum, numToHsl, hexToNum } from '@/config/color';
 import { FALLBACK_TIMINGS } from '@/config/symbolAnimations';
 import type { WinResult, WinCombination } from '@/engine/WinEvaluator';
 import { HW_START_RESPINS, type HwRound } from '@/engine/holdAndWin';
@@ -127,6 +128,16 @@ export class ReelSet {
   // 'winLineColor' (default to the module consts; applied on the next win).
   private winLineColor = WIN_LINE_COLOR;
   private winFrameColor = WIN_FRAME_COLOR;
+
+  // Static per-cell backdrop pockets (chat-config cellBg* params): one fixed
+  // rounded rect behind each of the 15 cells, in front of the reel bg, behind
+  // the symbols. Fill colour is HSL (so a picker + sliders can drive it).
+  private cellBackdrop: Graphics | null = null;
+  private cellBg = {
+    hue: 240, sat: 20, light: 8, opacity: 45,   // fill (default: subtle dark pocket)
+    radius: 14, inset: 3,                        // shape
+    borderColor: 0xffffff, borderWidth: 0,       // outline (0 = none)
+  };
   /** Click-to-edit callback — set by PixiApp; fires with the tapped symbol id. */
   private symbolPickHandler?: (symbolId: number) => void;
 
@@ -194,6 +205,13 @@ export class ReelSet {
     this.container.addChild(this.waysLightContainer);   // ways-light comet — topmost fx
     // scale the comet head to this grid's cell size
     waysLightConfig.cellSize = resolveAnchor(cellAnchor(0, 0), grid).w;
+
+    // Per-cell backdrop pockets — backmost child so they sit in front of the
+    // reel bg but behind the (masked) reels/symbols.
+    this.cellBackdrop = new Graphics();
+    this.cellBackdrop.eventMode = 'none';
+    this.container.addChildAt(this.cellBackdrop, 0);
+    this.drawCellBackdrops();
 
     // Separator at the centre of each inter-reel gap. Anchor gives us the
     // left edge of reel `i`; subtract half the gap to land on the midline.
@@ -678,6 +696,45 @@ export class ReelSet {
     for (const combo of combos) {
       if (!waysLightConfig.enabled) return;
       await this.fireWaysLight(combo);
+    }
+  }
+
+  /** Live setter for the per-cell backdrop (chat-config cellBg* params). Colour
+   *  is stored as HSL so the picker + sliders agree; redraws immediately. */
+  setCellBackdropParam(id: string, value: string | number): void {
+    const c = this.cellBg;
+    switch (id) {
+      case 'cellBgColor': { const { h, s, l } = numToHsl(hexToNum(String(value))); c.hue = h; c.sat = s; c.light = l; break; }
+      case 'cellBgHue': c.hue = Number(value); break;
+      case 'cellBgSaturation': c.sat = Number(value); break;
+      case 'cellBgLightness': c.light = Number(value); break;
+      case 'cellBgOpacity': c.opacity = Number(value); break;
+      case 'cellBgRadius': c.radius = Number(value); break;
+      case 'cellBgInset': c.inset = Number(value); break;
+      case 'cellBgBorderColor': c.borderColor = hexToNum(String(value)); break;
+      case 'cellBgBorderWidth': c.borderWidth = Number(value); break;
+      default: return;
+    }
+    this.drawCellBackdrops();
+  }
+
+  /** Redraw the 15 static cell pockets from the current cellBg config. */
+  private drawCellBackdrops(): void {
+    if (!this.cellBackdrop) return;
+    const c = this.cellBg;
+    const g = this.cellBackdrop;
+    g.clear();
+    const color = hslToNum(c.hue, c.sat, c.light);
+    const alpha = Math.max(0, Math.min(100, c.opacity)) / 100;
+    for (let reel = 0; reel < this.grid.reelCount; reel++) {
+      for (let row = 0; row < this.grid.visibleRows; row++) {
+        const rect = resolveAnchor(cellAnchor(reel, row), this.grid);
+        const x = rect.x + c.inset, y = rect.y + c.inset;
+        const w = Math.max(1, rect.w - c.inset * 2), h = Math.max(1, rect.h - c.inset * 2);
+        const rad = Math.max(0, Math.min(c.radius, w / 2, h / 2));
+        if (alpha > 0) g.roundRect(x, y, w, h, rad).fill({ color, alpha });
+        if (c.borderWidth > 0) g.roundRect(x, y, w, h, rad).stroke({ color: c.borderColor, width: c.borderWidth, alpha: 1 });
+      }
     }
   }
 

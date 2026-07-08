@@ -1507,6 +1507,18 @@ export class PixiApp {
       case 'reelBgSaturation': { this.reelBgSat = Number(value); this.applyReelTint(); break; }
       case 'reelBgLightness': { this.reelBgLight = Number(value); this.applyReelTint(); break; }
       case 'reelBgOpacity': { this.reelBgOpacity = Number(value); this.applyReelTint(); break; }
+      case 'cellBgColor':
+      case 'cellBgHue':
+      case 'cellBgSaturation':
+      case 'cellBgLightness':
+      case 'cellBgOpacity':
+      case 'cellBgRadius':
+      case 'cellBgInset':
+      case 'cellBgBorderColor':
+      case 'cellBgBorderWidth': {
+        this.reelSet.setCellBackdropParam(id, value as string | number);
+        break;
+      }
       case 'reelSpeed': {
         const v = String(value);
         const mul = v === 'snappy' ? 1.7 : v === 'relaxed' ? 0.6 : 1.0;

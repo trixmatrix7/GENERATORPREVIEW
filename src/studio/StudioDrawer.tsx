@@ -233,6 +233,11 @@ function ParamsTab({ pixiApp }: { pixiApp: PixiApp | null }) {
         next.reelBgHue = h; next.reelBgSaturation = s; next.reelBgLightness = l;
       } else if (id === 'reelBgHue' || id === 'reelBgSaturation' || id === 'reelBgLightness') {
         next.reelBgColor = hslToHex(Number(next.reelBgHue), Number(next.reelBgSaturation), Number(next.reelBgLightness));
+      } else if (id === 'cellBgColor') {
+        const { h, s, l } = numToHsl(hexToNum(String(value)));
+        next.cellBgHue = h; next.cellBgSaturation = s; next.cellBgLightness = l;
+      } else if (id === 'cellBgHue' || id === 'cellBgSaturation' || id === 'cellBgLightness') {
+        next.cellBgColor = hslToHex(Number(next.cellBgHue), Number(next.cellBgSaturation), Number(next.cellBgLightness));
       }
       return next;
     });

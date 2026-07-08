@@ -36,7 +36,7 @@ export const WIN_CELEBRATION_CONFIG = {
   particleCap: 380,
   designBase: 720,
   /** Overall size of the whole celebration (text + banner + particles). 1 = full. */
-  sizeMul: 0.6,
+  sizeMul: 0.5,
   // Vice neon palette.
   pink: 0xff2e88,
   cyan: 0x16e0e8,

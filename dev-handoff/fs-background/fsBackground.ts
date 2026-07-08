@@ -1,11 +1,11 @@
 // fsBackground.ts — the free-spins-ONLY background swap.
 //
 // One texture that replaces the base background WHILE the free-spins round
-// runs. The whole trick is TIMING: the swap happens at the transition's
-// FULL-BLACK beat (the "Looney Tunes" iris is completely closed), so the
-// player never sees the change; the base background is restored right when
-// the round's overlay hides. This is the exact logic from the preview studio,
-// reduced to four methods + your background pipeline hooks.
+// runs, restored when the round ends. Pure logic + an upload field — no
+// transition screen required: enter() when the round starts, exit() when it
+// ends. (If a transition screen exists later, move the enter() call to its
+// fully-covered beat so the swap is invisible.) This is the exact logic from
+// the preview studio, reduced to four methods + your background pipeline hooks.
 
 import { Assets, Sprite, type Texture } from 'pixi.js';
 
@@ -44,8 +44,10 @@ export class FsBackground {
     if (old && old !== this.fsTexture) { try { old.destroy(true); } catch { /* torn down */ } }
   }
 
-  /** Swap to the FS background. CALL THIS AT THE TRANSITION'S FULL-BLACK BEAT
-   *  (see README) — no-op when no FS background is set. */
+  /** Swap to the FS background. Call when the free-spins round STARTS (no
+   *  transition needed — it's a straight swap). If a transition screen exists
+   *  later, move this call to its fully-covered beat so the swap is invisible.
+   *  No-op when no FS background is set. */
   enter(): void {
     if (!this.fsTexture || this.active) return;
     this.savedBase = this.hooks.current();

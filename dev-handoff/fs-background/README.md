@@ -1,51 +1,43 @@
-# FS-only background (drop-in)
+# FS-only background (drop-in: logic + upload field)
 
-A background image that is shown **only during the free-spins round**. The art
-itself ships like any other asset (drop `fs_background.png`/`.jpg` next to the
-theme's base background — same format, cover-fit). What this package adds is
-the **code + timing**: the swap happens where the player can't see it.
+A background image that is shown **only during the free-spins round**, then the
+base background comes back. This package is just **the logic + one more upload
+field** — it plugs into the background-upload pattern the generator already
+has, and it does NOT require any transition screen (none is assumed to exist).
 
 Purely visual — no odds/paytable/RTP touched. With no FS background set,
 everything behaves exactly as before (the round keeps the base background).
-
-## The timing (this is the whole feature)
-
-```
-iris CLOSE            FULL-BLACK BEAT           iris OPEN → intro → round        round ends
-──────────────────────┃━━━━━━━━━━━━━┃──────────────────────────────────────────┃──────────
-0.00s          0.70s  ┃    SWAP     ┃  0.82s      (intro screen, N spins)      ┃  RESTORE
-                      ┃  enter()    ┃                                          ┃  exit()
-```
-
-- **`enter()` at the full-black beat** of the transition — in our iris timeline
-  that is `t = 0.72` (close ends 0.70, intro is armed 0.74). The screen is
-  entirely covered, so the background change is invisible. One line:
-
-  ```ts
-  tl.call(() => this.fsBackground.enter(), undefined, 0.72);
-  ```
-
-- **`exit()` when the round ends** — right where you hide the free-spins
-  counter/overlay:
-
-  ```ts
-  this.hideFreeSpinOverlay(fsOverlay);
-  this.fsBackground.exit();
-  ```
-
-- Skipped-transition paths (turbo / reduced-motion): if your build skips the
-  iris there, either skip the FS bg too (what we do) or call `enter()` right
-  before the first free spin — it is just a hard cut then.
 
 ## Files
 
 | File | What it is | How to use |
 |------|-----------|------------|
-| `fsBackground.ts` | `FsBackground` controller (setImage / enter / exit / dispose) + a reference `present()` | Drop in; inject 3 small hooks |
+| `fsBackground.ts` | `FsBackground` controller (setImage / enter / exit / dispose) + a reference reversible `present()` | Drop in; inject 3 small hooks |
 
-## Integration — 3 points
+## 1. The upload field (same pattern as the existing background field)
 
-### 1. Construct with your background pipeline (3 hooks)
+Add **one more upload field** next to the existing background upload — label it
+"FS background". Its value feeds `setImage()`, exactly like the base
+background field feeds `setBackgroundImage()`:
+
+```ts
+// identical handling to your existing background upload field:
+<input type="file" accept="image/*" onChange={e => {
+  const f = e.target.files?.[0];
+  if (!f) return;
+  const r = new FileReader();
+  r.onload = () => void fsBackground.setImage(String(r.result));  // data URL
+  r.readAsDataURL(f);
+}} />
+// clear button → fsBackground.setImage(null)
+```
+
+Same image format/size guidance as the base background — it runs through the
+identical cover-fit pipeline. (A theme-folder convention like
+`fs_background.png` works as the default value if you prefer shipping it as an
+asset; the field then just overrides it.)
+
+## 2. Construct with your background pipeline (3 hooks)
 
 ```ts
 this.fsBackground = new FsBackground({
@@ -56,22 +48,27 @@ this.fsBackground = new FsBackground({
 ```
 
 ⚠️ `present()` must be **reversible**: it repoints the sprite/derived layers
-(frosted reel backdrop etc.) but must NOT destroy the previous texture — the
+(frosted reel backdrop etc.) but must NOT destroy the previous texture — a
 reference implementation is at the bottom of `fsBackground.ts`.
 
-### 2. Wire the two timing calls
-`enter()` at the transition's full-black beat, `exit()` where the round's
-overlay hides (see the diagram above — it is one line each).
-
-### 3. Feed it the asset
+## 3. Two calls around the free-spins round
 
 ```ts
-await this.fsBackground.setImage(themeUrl('fs_background.png')); // or null to clear
+// when the free-spins round STARTS (before the first free spin):
+this.fsBackground.enter();
+
+// when the round ENDS (right where the counter/overlay hides):
+this.fsBackground.exit();
 ```
 
-Safe to call mid-round (reflects immediately). In our studio this is an
-Assets-tab slot (`setFreeSpinsBackgroundImage`), persisted like the other
-slots — for a generated game it can simply be the theme-folder convention.
+That's it — with no transition screen this is a straight swap at round start.
+Both calls are no-ops when no FS background is set.
+
+> **Later, if a transition screen exists:** move the `enter()` call to the
+> moment the screen is fully covered (in our preview the iris timeline is
+> fully black at `t = 0.72`, between close-end 0.70 and intro-arm 0.74), so the
+> swap is never visible. The logic doesn't change — only where the one line
+> lives.
 
 ## Teardown
 Call `dispose()` from your destroy. It handles dying mid-round without a
@@ -82,7 +79,6 @@ this.fsBackground.dispose(base => { /* destroy `base` if you own it */ });
 ```
 
 ## Notes
-- Same image format/size guidance as the base background (it runs through the
-  identical cover-fit pipeline).
+- `setImage()` is safe mid-round (reflects immediately); `null` clears.
 - If your reel backdrop shows a frosted/blurred copy of the background, rebuild
   it inside `present()` (ours does) — otherwise the reels keep the old frost.

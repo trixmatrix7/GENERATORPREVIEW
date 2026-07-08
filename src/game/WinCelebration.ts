@@ -52,6 +52,10 @@ export interface WinCelebrationParams {
   tier: number;
   centre: { x: number; y: number };
   origins: Array<{ x: number; y: number }>;
+  /** Slot/reel-frame bounds in SCREEN coords — the coin fountain is confined
+   *  to this area (coins emerge from & exit at its bottom edge, as if from
+   *  behind the frame). Falls back to the full viewport when omitted. */
+  bounds?: { left: number; right: number; bottom: number };
   reduced: boolean;
 }
 
@@ -136,6 +140,13 @@ export class WinCelebration {
       ? [0, wagerVal * C.bands.t2, wagerVal * C.bands.t3]
       : [0, finalVal * 0.34, finalVal * 0.7];
 
+    // The fountain is confined to the slot: coins emerge from + exit at the
+    // frame's bottom edge (as if from behind it), never below the control bar.
+    const edge = p.bounds?.bottom ?? sh;
+    const exitBand = 44 * s;
+    const bLeft = p.bounds?.left ?? 0;
+    const bRight = p.bounds?.right ?? sw;
+
     const overlay = new Container();
     overlay.zIndex = 10000; overlay.eventMode = 'none';
     overlay.position.set(0, 0);
@@ -203,10 +214,12 @@ export class WinCelebration {
         const base = (px * s * dScale) / (tex0.width || 96);
         sp.scale.set(base);
         sp.alpha = 0.7 + depth * 0.3;
-        // Spawn UNDER the bottom edge, spread across the width (wider per tier);
-        // launch speed is derived from the arc's peak height (around the text).
-        const x0 = p.centre.x + (Math.random() - 0.5) * sw * (0.55 + finalTier * 0.18);
-        const y0 = sh + 24 * s;
+        // Spawn just under the SLOT's bottom edge, spread across the slot width
+        // (wider per tier); launch speed derived from the arc's peak height.
+        const slotW = bRight - bLeft;
+        let x0 = p.centre.x + (Math.random() - 0.5) * slotW * (0.55 + finalTier * 0.15);
+        x0 = Math.max(bLeft + 16 * s, Math.min(bRight - 16 * s, x0));
+        const y0 = edge + 14 * s;
         const peak = p.centre.y - amtSize * (Math.random() * 2.4 - 0.5);
         const vy0 = -Math.sqrt(2 * C.gravity * s * Math.max(90 * s, y0 - peak));
         const vx0 = (Math.random() - 0.5) * 260 * s;
@@ -282,13 +295,15 @@ export class WinCelebration {
           c.trail.scale.set(c.sp.scale.y * 0.8, c.sp.scale.y * (0.6 + sp2 / (900 * s)));
           c.trail.alpha = Math.min(0.55, sp2 / (1400 * s));
         }
-        // Coins exit the way they came — falling back out below the bottom
-        // edge; only stragglers get a soft end-of-life fade (no hard pop-out).
+        // ONE positional fade band at the slot's bottom edge sells "from behind
+        // the frame": coins fade IN as they rise out of it and fade OUT as they
+        // fall back into it. Stragglers get a soft end-of-life fade.
         const lifeLeft = c.life - c.age;
-        const alpha = lifeLeft < c.life * 0.15 ? Math.max(0, lifeLeft / (c.life * 0.15)) : 1;
+        let alpha = lifeLeft < c.life * 0.15 ? Math.max(0, lifeLeft / (c.life * 0.15)) : 1;
+        alpha *= Math.max(0, Math.min(1, (edge + exitBand - c.y) / exitBand));
         c.sp.alpha = alpha * (0.7 + c.depth * 0.3);
         if (c.trail) c.trail.alpha *= alpha;
-        if ((c.vy > 0 && c.y > sh + 70) || c.age >= c.life) {
+        if ((c.vy > 0 && c.y > edge + exitBand + 20 * s) || c.age >= c.life) {
           c.sp.destroy(); c.trail?.destroy(); this.coins.splice(i, 1);
         }
       }

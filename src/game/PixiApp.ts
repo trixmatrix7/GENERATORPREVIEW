@@ -1372,10 +1372,16 @@ export class PixiApp {
       ? originsLocal.map(o => this.sceneRoot.toGlobal({ x: FRAME_PAD + o.x, y: HEADER_H + FRAME_PAD + o.y }))
       : [this.sceneRoot.toGlobal({ x: rw / 2, y: HEADER_H + rh / 2 })];
 
+    // Slot-frame bounds in screen coords — the coin fountain stays inside the
+    // slot (coins start at the frame's bottom edge, not under the control bar).
+    const tl = this.sceneRoot.toGlobal({ x: 0, y: 0 });
+    const br = this.sceneRoot.toGlobal({ x: rw, y: HEADER_H + rh });
+
     return this.winCelebration.play({
       winAmount, wager, symbol, decimals, tier,
       centre: { x: centre.x, y: centre.y },
       origins: originPts.map(pt => ({ x: pt.x, y: pt.y })),
+      bounds: { left: tl.x, right: br.x, bottom: br.y },
       reduced: prefersReducedMotion(),
     });
   }

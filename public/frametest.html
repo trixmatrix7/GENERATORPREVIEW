@@ -1,0 +1,118 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Frame bezel test</title>
+<style>
+  body{margin:0;background:#0a0713;display:flex;justify-content:center;padding:24px;font:12px ui-sans-serif,system-ui;color:#8a7bb0}
+  canvas{display:block}
+</style>
+</head>
+<body>
+<canvas id="c" width="760" height="560"></canvas>
+<script>
+const TAU = Math.PI*2;
+function rr(ctx,x,y,w,h,r){ctx.beginPath();ctx.moveTo(x+r,y);ctx.arcTo(x+w,y,x+w,y+h,r);ctx.arcTo(x+w,y+h,x,y+h,r);ctx.arcTo(x,y+h,x,y,r);ctx.arcTo(x,y,x+w,y,r);ctx.closePath();}
+
+function drawFrame(ctx, W, H){
+  ctx.clearRect(0,0,W,H);
+  // faux game background behind the frame (so the bezel reads against content)
+  const bg = ctx.createLinearGradient(0,0,0,H);
+  bg.addColorStop(0,'#241a3a'); bg.addColorStop(1,'#140d24');
+  ctx.fillStyle=bg; ctx.fillRect(0,0,W,H);
+
+  const ox=56, oy=56, ow=W-112, oh=H-112, R=38;   // outer bezel bounds
+  const T=48;                                        // bezel thickness
+  const ix=ox+T, iy=oy+T, iw=ow-2*T, ih=oh-2*T, IR=18; // inner window
+
+  // ── outer drop shadow (lift off the bg) ──
+  ctx.save();
+  ctx.shadowColor='rgba(0,0,0,0.6)'; ctx.shadowBlur=40; ctx.shadowOffsetY=18;
+  rr(ctx,ox,oy,ow,oh,R); ctx.fillStyle='#0f1015'; ctx.fill();
+  ctx.restore();
+
+  // ── outer chamfer (very edge catches light) ──
+  rr(ctx,ox,oy,ow,oh,R);
+  ctx.fillStyle='#5b6070'; ctx.fill();
+
+  // ── bezel face: brushed gunmetal, vertical light-to-dark, inset 3px ──
+  const fx=ox+3, fy=oy+3, fw=ow-6, fh=oh-6, FR=R-3;
+  // Rounded metal PROFILE across the bezel thickness: bright outer edge → lit
+  // crown → shaded valley near the window. Read as a raised, curved rail.
+  const body = ctx.createLinearGradient(0,fy,0,fy+fh);
+  body.addColorStop(0,'#7c8290'); body.addColorStop(0.10,'#5a606e');
+  body.addColorStop(0.30,'#3d414c'); body.addColorStop(0.55,'#2b2e37');
+  body.addColorStop(0.82,'#20222a'); body.addColorStop(1,'#15161c');
+  rr(ctx,fx,fy,fw,fh,FR); ctx.fillStyle=body; ctx.fill();
+
+  // clip to the bezel RING (face minus window) for texture + lighting
+  ctx.save();
+  rr(ctx,fx,fy,fw,fh,FR);
+  rr(ctx,ix,iy,iw,ih,IR);
+  ctx.clip('evenodd');
+  // brushed horizontal micro-lines (more visible = reads as brushed steel)
+  for(let y=fy; y<fy+fh; y+=2){
+    ctx.fillStyle = (y%4===0)?'rgba(255,255,255,0.045)':'rgba(0,0,0,0.06)';
+    ctx.fillRect(fx,y,fw,1);
+  }
+  // crown highlight band — the raised middle of the rail catching light
+  const crown = ctx.createLinearGradient(0,fy,0,fy+fh);
+  crown.addColorStop(0,'rgba(255,255,255,0)');
+  crown.addColorStop(0.14,'rgba(255,255,255,0.22)');
+  crown.addColorStop(0.24,'rgba(255,255,255,0)');
+  ctx.fillStyle=crown; ctx.fillRect(fx,fy,fw,fh);
+  // broad top-left key light
+  const key = ctx.createLinearGradient(fx,fy,fx+fw*0.7,fy+fh*0.6);
+  key.addColorStop(0,'rgba(255,255,255,0.22)'); key.addColorStop(0.55,'rgba(255,255,255,0)');
+  ctx.fillStyle=key; ctx.fillRect(fx,fy,fw,fh);
+  // sharp diagonal glints in the two lit corners
+  for(const [gx,gy] of [[fx,fy],[fx+fw,fy+fh]]){
+    const gl = ctx.createRadialGradient(gx,gy,0,gx,gy,200);
+    gl.addColorStop(0,'rgba(255,255,255,0.20)'); gl.addColorStop(1,'rgba(255,255,255,0)');
+    ctx.fillStyle=gl; ctx.fillRect(fx,fy,fw,fh);
+  }
+  ctx.restore();
+
+  // ── outer edge bevel: bright top rim + dark bottom rim ──
+  ctx.lineWidth=2; rr(ctx,fx+1,fy+1,fw-2,fh-2,FR-1);
+  ctx.strokeStyle='rgba(255,255,255,0.30)'; ctx.stroke();
+  ctx.save(); rr(ctx,ox,oy,ow,oh,R); ctx.clip();
+  ctx.lineWidth=4; rr(ctx,ox+2,oy+3,ow-4,oh-4,R-1);
+  ctx.strokeStyle='rgba(0,0,0,0.55)'; ctx.stroke(); ctx.restore();
+
+  // ── thin neon accent line inset in the bezel (Vice pink→cyan) ──
+  const acc = ctx.createLinearGradient(ox,0,ox+ow,0);
+  acc.addColorStop(0,'#ff2e88'); acc.addColorStop(0.5,'#c9a3ff'); acc.addColorStop(1,'#16e0e8');
+  ctx.save();
+  ctx.shadowColor='rgba(255,60,150,0.55)'; ctx.shadowBlur=10;
+  ctx.lineWidth=2.5; rr(ctx,ox+T*0.52,oy+T*0.52,ow-T*1.04,oh-T*1.04,IR+11);
+  ctx.strokeStyle=acc; ctx.stroke();
+  ctx.restore();
+
+  // ── inner bevel: a machined step DOWN into the window ──
+  // dark shadow on the upper/inner edge…
+  ctx.save(); rr(ctx,ix,iy,iw,ih,IR); ctx.clip();
+  ctx.lineWidth=14; ctx.strokeStyle='rgba(0,0,0,0.7)';
+  rr(ctx,ix-7,iy-7,iw+14,ih+14,IR+7); ctx.stroke();
+  ctx.restore();
+  // …bright inner lip rim right at the window edge
+  ctx.lineWidth=2; rr(ctx,ix,iy,iw,ih,IR);
+  ctx.strokeStyle='rgba(255,255,255,0.34)'; ctx.stroke();
+  // thin dark separation just outside the lip
+  ctx.lineWidth=2; rr(ctx,ix-3,iy-3,iw+6,ih+6,IR+3);
+  ctx.strokeStyle='rgba(0,0,0,0.6)'; ctx.stroke();
+
+  // reel window (dark, faux reels)
+  rr(ctx,ix,iy,iw,ih,IR); ctx.fillStyle='#0b0c11'; ctx.fill();
+
+  // faint 5x3 cell guides so we can judge the window
+  ctx.strokeStyle='rgba(255,255,255,0.05)';
+  for(let i=1;i<5;i++){ctx.beginPath();ctx.moveTo(ix+iw*i/5,iy+6);ctx.lineTo(ix+iw*i/5,iy+ih-6);ctx.stroke();}
+  for(let j=1;j<3;j++){ctx.beginPath();ctx.moveTo(ix+6,iy+ih*j/3);ctx.lineTo(ix+iw-6,iy+ih*j/3);ctx.stroke();}
+}
+
+const ctx = document.getElementById('c').getContext('2d');
+drawFrame(ctx, 760, 560);
+</script>
+</body>
+</html>

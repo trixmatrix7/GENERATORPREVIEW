@@ -238,6 +238,11 @@ function ParamsTab({ pixiApp }: { pixiApp: PixiApp | null }) {
         next.cellBgHue = h; next.cellBgSaturation = s; next.cellBgLightness = l;
       } else if (id === 'cellBgHue' || id === 'cellBgSaturation' || id === 'cellBgLightness') {
         next.cellBgColor = hslToHex(Number(next.cellBgHue), Number(next.cellBgSaturation), Number(next.cellBgLightness));
+      } else if (id === 'frameColor') {
+        const { h, s, l } = numToHsl(hexToNum(String(value)));
+        next.frameHue = h; next.frameSaturation = s; next.frameLightness = l;
+      } else if (id === 'frameHue' || id === 'frameSaturation' || id === 'frameLightness') {
+        next.frameColor = hslToHex(Number(next.frameHue), Number(next.frameSaturation), Number(next.frameLightness));
       }
       return next;
     });

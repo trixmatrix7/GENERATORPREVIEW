@@ -113,6 +113,12 @@ export class PixiApp {
   private reelBgSat = 0;
   private reelBgLight = 4;
   private reelBgOpacity = 62;
+  // Frame bezel colour (chat-config frame* params) — universal neutral grey by
+  // default; a clean layered rounded-rect bezel (Hacksaw-base style).
+  private frameHue = 0;
+  private frameSat = 0;
+  private frameLight = 26;
+  private frameOpacity = 100;
   /** Rising ambient "dust" motes over the reels — OFF by default. */
   private motesEnabled = false;
 
@@ -368,50 +374,21 @@ export class PixiApp {
       this.gameContainer.addChild(glow);
     }
 
-    // Main frame background
+    // Clean layered bezel (Hacksaw-base style) — UNIVERSAL neutral grey by
+    // default, tinted live via the frame* params (redrawFrame). No themed
+    // rivets. Order: base fill → dark outer rim → inner highlight line → sheen.
+    const darkTheme = CANVAS_THEME.modes.dark;
     this.frameGraphic = new Graphics();
-    this.frameGraphic.roundRect(0, 0, rw, rh, 16);
-    this.frameGraphic.fill({ color: CANVAS_THEME.modes.dark.frameFill });
     this.gameContainer.addChild(this.frameGraphic);
     this.frameW = rw;
     this.frameH = rh;
-
-    // Frame border — filled shapes, not stroke() which flickers at non-integer scale
     this.borderOuterGraphic = new Graphics();
-    const darkTheme = CANVAS_THEME.modes.dark;
-    this.borderOuterGraphic.roundRect(0, 0, rw, rh, 16);
-    this.borderOuterGraphic.fill({ color: darkTheme.borderOuter });
-    this.borderOuterGraphic.roundRect(2, 2, rw - 4, rh - 4, 14);
-    this.borderOuterGraphic.fill({ color: darkTheme.frameFill });
     this.gameContainer.addChild(this.borderOuterGraphic);
-
     this.borderInnerGraphic = new Graphics();
-    this.borderInnerGraphic.roundRect(2, 2, rw - 4, rh - 4, 14);
-    this.borderInnerGraphic.fill({ color: darkTheme.borderInner });
-    this.borderInnerGraphic.roundRect(3, 3, rw - 6, rh - 6, 13);
-    this.borderInnerGraphic.fill({ color: darkTheme.frameFill });
     this.gameContainer.addChild(this.borderInnerGraphic);
-
-    // Top highlight sheen
     this.sheenGraphic = new Graphics();
-    this.sheenGraphic.roundRect(3, 3, rw - 6, 32, 13);
-    this.sheenGraphic.fill({ color: darkTheme.sheenColor, alpha: darkTheme.sheenAlpha });
     this.gameContainer.addChild(this.sheenGraphic);
-
-    // Cabinet detail — faint top-lit outer edge + four corner rivets (hardware).
-    const frameDetail = new Graphics();
-    frameDetail.roundRect(1, 1, rw - 2, rh - 2, 15);
-    frameDetail.stroke({ color: 0xFFFFFF, width: 1, alpha: 0.10 });
-    const rivetInset = 11;
-    const rivetPts: Array<[number, number]> = [
-      [rivetInset, rivetInset], [rw - rivetInset, rivetInset],
-      [rivetInset, rh - rivetInset], [rw - rivetInset, rh - rivetInset],
-    ];
-    for (const [cx, cy] of rivetPts) {
-      frameDetail.circle(cx, cy, 3.2).fill({ color: blendHex(this.config.theme.accent, 0x000000, 0.15) });
-      frameDetail.circle(cx - 0.8, cy - 0.8, 1.1).fill({ color: 0xFFFFFF, alpha: 0.5 });
-    }
-    this.gameContainer.addChild(frameDetail);
+    this.redrawFrame();
 
     // Reel backdrop: a static vignette (depth, always) + a frosted blurred copy
     // of the background (added by updateReelBackdrop when a bg image is set).
@@ -866,6 +843,29 @@ export class PixiApp {
       try { this.reelFrosted.destroy(); } catch { /* already torn down */ }
       this.reelFrosted = null;
     }
+  }
+
+  /** Redraw the clean layered frame bezel from a single frame colour (grey by
+   *  default). Derives a dark outer rim + inner highlight line + soft sheen so
+   *  the whole bezel retints from one slider. */
+  private redrawFrame(): void {
+    const rw = this.frameW, rh = this.frameH;
+    if (!rw || !rh || !this.frameGraphic) return;
+    const base = hslToNum(this.frameHue, this.frameSat, this.frameLight);
+    const outer = blendHex(base, 0x000000, 0.42);
+    const innerLine = blendHex(base, 0xffffff, 0.16);
+    const sheenC = blendHex(base, 0xffffff, 0.38);
+    const a = Math.max(0, Math.min(100, this.frameOpacity)) / 100;
+    this.frameGraphic.clear();
+    this.frameGraphic.roundRect(0, 0, rw, rh, 16).fill({ color: base, alpha: a });
+    this.borderOuterGraphic.clear();
+    this.borderOuterGraphic.roundRect(0, 0, rw, rh, 16).fill({ color: outer, alpha: a });
+    this.borderOuterGraphic.roundRect(3, 3, rw - 6, rh - 6, 13).fill({ color: base, alpha: a });
+    this.borderInnerGraphic.clear();
+    this.borderInnerGraphic.roundRect(3, 3, rw - 6, rh - 6, 13).fill({ color: innerLine, alpha: a * 0.85 });
+    this.borderInnerGraphic.roundRect(5, 5, rw - 10, rh - 10, 11).fill({ color: base, alpha: a });
+    this.sheenGraphic.clear();
+    this.sheenGraphic.roundRect(5, 5, rw - 10, 30, 11).fill({ color: sheenC, alpha: a * 0.22 });
   }
 
   /** Redraw the reel-window tint from the current hue/sat/lightness/opacity.
@@ -1507,6 +1507,15 @@ export class PixiApp {
       case 'reelBgSaturation': { this.reelBgSat = Number(value); this.applyReelTint(); break; }
       case 'reelBgLightness': { this.reelBgLight = Number(value); this.applyReelTint(); break; }
       case 'reelBgOpacity': { this.reelBgOpacity = Number(value); this.applyReelTint(); break; }
+      case 'frameColor': {
+        const { h, s, l } = numToHsl(hexToNum(String(value)));
+        this.frameHue = h; this.frameSat = s; this.frameLight = l; this.redrawFrame();
+        break;
+      }
+      case 'frameHue': { this.frameHue = Number(value); this.redrawFrame(); break; }
+      case 'frameSaturation': { this.frameSat = Number(value); this.redrawFrame(); break; }
+      case 'frameLightness': { this.frameLight = Number(value); this.redrawFrame(); break; }
+      case 'frameOpacity': { this.frameOpacity = Number(value); this.redrawFrame(); break; }
       case 'cellBgColor':
       case 'cellBgHue':
       case 'cellBgSaturation':

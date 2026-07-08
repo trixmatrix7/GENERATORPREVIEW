@@ -158,16 +158,16 @@ export class WinCelebration {
     this.traumaMax = C.shake[finalTier] * s;
     this.traumaRot = C.shakeRot[finalTier];
 
-    // Chrome plaque behind the win text — backmost, so the coin fountain flies
-    // OVER its dark face and the text sits on top of everything.
-    const banner = this.bannerTex ? new Sprite(this.bannerTex) : null;
-    let bannerBaseSX = 1, bannerBaseSY = 1;
-    if (banner) { banner.anchor.set(0.5); banner.alpha = 0; overlay.addChild(banner); }
-
-    // BOTH coin layers live BEHIND the text (client: coins never cover the win
-    // text) — front is just the nearer/larger depth bucket, still under it.
+    // Coins sit BEHIND the plaque now: they spawn from behind the chrome frame,
+    // arc up out of its top edge, and drop back DOWN behind it (the frame
+    // occludes them) — they never appear in a band below the text.
     const coinBack = new Container(); overlay.addChild(coinBack); this.coinBack = coinBack;
     const coinFront = new Container(); overlay.addChild(coinFront); this.coinFront = coinFront;
+
+    // Chrome plaque IN FRONT of the coins (the occluder), behind the text.
+    const banner = this.bannerTex ? new Sprite(this.bannerTex) : null;
+    let bannerBaseSX = 1, bannerBaseSY = 1, bannerTopY = 0, bannerBottomY = sh, bannerHalfW = sw / 2;
+    if (banner) { banner.anchor.set(0.5); banner.alpha = 0; overlay.addChild(banner); }
 
     // text group (word above, amount below)
     const textGroup = new Container();
@@ -203,7 +203,11 @@ export class WinCelebration {
       bannerBaseSX = bw / this.bannerTex.width;
       bannerBaseSY = bh / this.bannerTex.height;
       banner.scale.set(bannerBaseSX, bannerBaseSY);
-      banner.position.set(p.centre.x, p.centre.y - amtSize * 0.18);
+      const bannerCY = p.centre.y - amtSize * 0.18;
+      banner.position.set(p.centre.x, bannerCY);
+      bannerTopY = bannerCY - bh / 2;
+      bannerBottomY = bannerCY + bh / 2;
+      bannerHalfW = bw / 2;
     }
 
     // impact flash
@@ -242,17 +246,20 @@ export class WinCelebration {
         const base = (px * s * dScale) / (tex0.width || 96);
         sp.scale.set(base);
         sp.alpha = 0.7 + depth * 0.3;
-        // Spawn just UNDER the win text (inside the dissolve band), spread
-        // across the slot width; arcs peak a little ABOVE the wordmark.
+        // Spawn from BEHIND the plaque (hidden by it), across ~the plaque width;
+        // arcs peak above the wordmark, so coins emerge from the frame's top.
         const slotW = bRight - bLeft;
-        let x0 = p.centre.x + (Math.random() - 0.5) * slotW * (0.55 + finalTier * 0.15);
+        const spreadW = banner ? bannerHalfW * 1.4 : slotW * (0.55 + finalTier * 0.15);
+        let x0 = p.centre.x + (Math.random() - 0.5) * spreadW;
         x0 = Math.max(bLeft + 16 * s, Math.min(bRight - 16 * s, x0));
-        const y0 = bandTop + bandH * 0.7;
+        const y0 = banner ? bannerBottomY - (bannerBottomY - bannerTopY) * 0.18 : bandTop + bandH * 0.7;
         // Peak well ABOVE the wordmark; ×1.35 compensates for air-drag losses
         // so coins actually reach the target apex (not just mid-text).
         const peak = p.centre.y - amtSize * (3.0 + Math.random() * 1.6);
         const vy0 = -Math.sqrt(2 * C.gravity * s * Math.max(60 * s, (y0 - peak) * 1.35));
-        const vx0 = (Math.random() - 0.5) * 220 * s;
+        // Less sideways drift with the plaque so coins stay within its footprint
+        // (they'd otherwise drift out and fall visibly beside the frame).
+        const vx0 = (Math.random() - 0.5) * (banner ? 85 : 220) * s;
         sp.position.set(x0, y0);
         // Warm-white glint (universal metal highlight — deliberately NOT theme-
         // tinted), smaller and offset toward the top-left key light.
@@ -334,15 +341,17 @@ export class WinCelebration {
           c.trail.scale.set(c.sp.scale.y * 0.8, c.sp.scale.y * (0.6 + sp2 / (900 * s)));
           c.trail.alpha = Math.min(0.55, sp2 / (1400 * s));
         }
-        // ONE positional fade band just below the text: coins fade IN rising
-        // out of it and dissolve falling back into it — the whole fountain
-        // stays tight around the win text. Stragglers get an end-of-life fade.
+        // With the plaque, the chrome frame OCCLUDES the coins as they fall, so
+        // they just get an end-of-life fade and are culled once they drop past
+        // the frame's bottom edge (already hidden). Without it, keep the old
+        // positional dissolve band just below the text.
         const lifeLeft = c.life - c.age;
         let alpha = lifeLeft < c.life * 0.15 ? Math.max(0, lifeLeft / (c.life * 0.15)) : 1;
-        alpha *= Math.max(0, Math.min(1, (bandTop + bandH - c.y) / bandH));
+        if (!banner) alpha *= Math.max(0, Math.min(1, (bandTop + bandH - c.y) / bandH));
         c.sp.alpha = alpha * (0.7 + c.depth * 0.3);
         if (c.trail) c.trail.alpha *= alpha;
-        if ((c.vy > 0 && c.y > bandTop + bandH + 20 * s) || c.age >= c.life) {
+        const floorY = banner ? bannerBottomY : bandTop + bandH + 20 * s;
+        if ((c.vy > 0 && c.y > floorY) || c.age >= c.life) {
           c.sp.destroy(); c.trail?.destroy(); this.coins.splice(i, 1);
         }
       }

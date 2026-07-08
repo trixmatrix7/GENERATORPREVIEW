@@ -187,10 +187,10 @@ export class WinCelebration {
     flash.width = sw; flash.height = sh; flash.alpha = 0; flash.blendMode = 'add';
     overlay.addChild(flash);
 
-    // Vertical zone anchored to the WIN TEXT: coins live from just under the
-    // amount up to a bit above the wordmark — they rise out of the band's
-    // floor and dissolve back into it (all on the layer behind the text).
-    const bandTop = p.centre.y + amtSize * 1.9;
+    // Vertical zone anchored to the WIN TEXT: coins rise from just under the
+    // amount and arc up ABOVE the wordmark, then dissolve back into the band
+    // (all on the layer behind the text).
+    const bandTop = p.centre.y + amtSize * 1.0;
     const bandH = 55 * s;
 
     // ── particle emit ─────────────────────────────────────────────────────
@@ -224,8 +224,10 @@ export class WinCelebration {
         let x0 = p.centre.x + (Math.random() - 0.5) * slotW * (0.55 + finalTier * 0.15);
         x0 = Math.max(bLeft + 16 * s, Math.min(bRight - 16 * s, x0));
         const y0 = bandTop + bandH * 0.7;
-        const peak = p.centre.y - amtSize * (0.9 + Math.random() * 1.1);
-        const vy0 = -Math.sqrt(2 * C.gravity * s * Math.max(60 * s, y0 - peak));
+        // Peak clearly ABOVE the wordmark; ×1.35 compensates for air-drag losses
+        // so coins actually reach the target apex (not just mid-text).
+        const peak = p.centre.y - amtSize * (1.8 + Math.random() * 1.3);
+        const vy0 = -Math.sqrt(2 * C.gravity * s * Math.max(60 * s, (y0 - peak) * 1.35));
         const vx0 = (Math.random() - 0.5) * 220 * s;
         sp.position.set(x0, y0);
         // Warm-white glint (universal metal highlight — deliberately NOT theme-

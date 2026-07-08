@@ -60,6 +60,8 @@ interface Coin {
   x: number; y: number; vx: number; vy: number;
   frame: number; frameRate: number; frameDir: number;
   age: number; life: number; depth: number;
+  /** Small z-rotation wobble amplitude — a falling coin never spins on one axis only. */
+  rotW: number; ph: number;
 }
 
 function formatAmount(amount: bigint, decimals: number): string {
@@ -176,16 +178,19 @@ export class WinCelebration {
         const tex0 = single ?? frames![0];
         const sp = new Sprite(tex0);
         sp.anchor.set(0.5);
-        const px = 24 + Math.random() * 12;
+        const px = 18 + Math.random() * 16; // varied sizes read as a real handful
         const dScale = (0.6 + depth * 0.55) * scaleMul;
         const base = (px * s * dScale) / (tex0.width || 96);
         sp.scale.set(base);
         sp.alpha = 0.7 + depth * 0.3;
         sp.position.set(p.centre.x + (Math.random() - 0.5) * 30 * s, p.centre.y + (Math.random() - 0.5) * 16 * s);
+        // Warm-white glint (universal metal highlight — deliberately NOT theme-
+        // tinted), smaller and offset toward the top-left key light.
         const glint = new Sprite(this.getGlintTex());
         glint.anchor.set(0.5); glint.blendMode = 'add';
-        glint.scale.set((tex0.width || 96) / (this.glintTex!.width || 64) * 0.9);
-        glint.tint = Math.random() < 0.5 ? C.cyan : C.pink;
+        glint.scale.set((tex0.width || 96) / (this.glintTex!.width || 64) * 0.62);
+        glint.position.set(-(tex0.width || 96) * 0.1, -(tex0.height || 96) * 0.12);
+        glint.tint = i % 3 === 0 ? 0xffffff : 0xfff2c8;
         sp.addChild(glint);
         layer.addChild(sp);
         // velocity trail behind fast coins
@@ -200,8 +205,9 @@ export class WinCelebration {
           sp, glint, trail,
           x: sp.x, y: sp.y, vx: Math.cos(angle) * sp0, vy: Math.sin(angle) * sp0 - 120 * s,
           frame: frames ? Math.floor(Math.random() * frames.length) : 0,
-          frameRate: 14 + Math.random() * 14, frameDir: Math.random() < 0.5 ? 1 : -1,
+          frameRate: 12 + Math.random() * 16, frameDir: Math.random() < 0.5 ? 1 : -1,
           age: 0, life: 1.4 + Math.random() * 1.0, depth,
+          rotW: (Math.random() - 0.5) * 0.55, ph: Math.random() * Math.PI * 2,
         });
       }
     };
@@ -225,10 +231,21 @@ export class WinCelebration {
         c.vy += grav * dt; c.vx *= C.airDrag; c.vy *= C.airDrag;
         c.x += c.vx * dt; c.y += c.vy * dt; c.age += dt;
         c.sp.position.set(c.x, c.y);
-        if (frames && nf) { c.frame = (c.frame + c.frameDir * c.frameRate * dt + nf) % nf; c.sp.texture = frames[Math.floor(c.frame)]; }
-        else { c.sp.scale.x = (0.55 + 0.45 * Math.abs(Math.cos(c.age * 9))) * c.sp.scale.y; }
-        // glint pulses with the spin phase (metal read)
-        c.glint.alpha = 0.35 + 0.5 * Math.abs(Math.sin(c.age * 11 + c.depth * 3));
+        if (frames && nf) {
+          c.frame = (c.frame + c.frameDir * c.frameRate * dt + nf) % nf;
+          const fi = Math.floor(c.frame) % nf;
+          c.sp.texture = frames[fi];
+          // Specular PING exactly when the face passes the mirror angle of the
+          // spin (wf ≈ 0.38) — a metal flash, not a constant shimmer.
+          const wfF = Math.abs(Math.cos((fi / nf) * Math.PI * 2));
+          const ping = Math.exp(-((wfF - 0.38) ** 2) / 0.02);
+          c.glint.alpha = 0.08 + 0.9 * ping;
+          // Slight z-wobble: a falling coin never rotates on a single axis.
+          c.sp.rotation = c.rotW * Math.sin(c.age * 2.1 + c.ph);
+        } else {
+          c.sp.scale.x = (0.55 + 0.45 * Math.abs(Math.cos(c.age * 9))) * c.sp.scale.y;
+          c.glint.alpha = 0.35 + 0.5 * Math.abs(Math.sin(c.age * 11 + c.depth * 3));
+        }
         // trail follows velocity
         if (c.trail) {
           const sp2 = Math.hypot(c.vx, c.vy);
@@ -388,39 +405,115 @@ export class WinCelebration {
     if (r) r();
   }
 
-  /** 12-frame Y-axis spin strip of a neon-gold coin — a real 3D spin. */
+  /** 16-frame Y-axis spin of an UNBRANDED premium gold coin. Universal — no
+   *  theme tint. What sells the metal: a specular band that SWEEPS across the
+   *  face as it turns, a fixed top-left key light, a beveled rim, a recessed
+   *  face with concentric relief + sunburst spokes, a REEDED edge when
+   *  edge-on, and a grazing flash right at the mirror angle. */
   private getCoinFrames(): Texture[] {
     if (this.coinFrames) return this.coinFrames;
-    const C = WIN_CELEBRATION_CONFIG;
-    const S = 96, N = 12, R = S * 0.42;
+    const S = 128, N = 16, R = S * 0.42, TAU = Math.PI * 2;
     const frames: Texture[] = [];
-    const hex = (n: number) => '#' + n.toString(16).padStart(6, '0');
     for (let i = 0; i < N; i++) {
       const cv = document.createElement('canvas'); cv.width = cv.height = S;
       const ctx = cv.getContext('2d')!;
-      const a = (i / N) * Math.PI * 2;
-      const wf = Math.max(0.08, Math.abs(Math.cos(a)));
-      const front = Math.cos(a) >= 0;
+      ctx.imageSmoothingEnabled = true;
+      const a = (i / N) * TAU;
+      const cosA = Math.cos(a);
+      const wf = Math.abs(cosA);
+      const front = cosA >= 0;
       const cx = S / 2, cy = S / 2;
-      // neon rim
-      ctx.beginPath(); ctx.ellipse(cx, cy, R * wf, R, 0, 0, Math.PI * 2);
-      ctx.fillStyle = front ? hex(C.pink) : hex(C.cyan); ctx.fill();
-      // gold face
-      const g = ctx.createLinearGradient(cx, cy - R, cx, cy + R);
-      g.addColorStop(0, '#FFF7C8'); g.addColorStop(0.5, '#FFD24A'); g.addColorStop(1, '#E39B1E');
-      ctx.beginPath(); ctx.ellipse(cx, cy, R * wf * 0.82, R * 0.82, 0, 0, Math.PI * 2);
-      ctx.fillStyle = g; ctx.fill();
-      if (front && wf > 0.3) {
-        // Non-branded coin detail: a concentric inner ring (no $ / logo).
-        ctx.save(); ctx.scale(wf, 1);
-        ctx.beginPath(); ctx.arc(cx / wf, cy, R * 0.52, 0, Math.PI * 2);
-        ctx.lineWidth = R * 0.06; ctx.strokeStyle = 'rgba(120,78,0,0.32)'; ctx.stroke();
-        ctx.beginPath(); ctx.arc(cx / wf, cy, R * 0.3, 0, Math.PI * 2);
-        ctx.lineWidth = R * 0.04; ctx.strokeStyle = 'rgba(255,246,200,0.35)'; ctx.stroke();
-        ctx.restore();
+
+      // Near edge-on: the coin EDGE — a bright metal band with reeding.
+      if (wf < 0.16) {
+        const bw = R * 0.24;
+        const eg = ctx.createLinearGradient(cx - bw, 0, cx + bw, 0);
+        eg.addColorStop(0, '#7d560e'); eg.addColorStop(0.5, '#ffe9a0'); eg.addColorStop(1, '#7d560e');
+        ctx.fillStyle = eg;
+        ctx.beginPath(); ctx.ellipse(cx, cy, bw, R, 0, 0, TAU); ctx.fill();
+        ctx.globalAlpha = 0.4; ctx.fillStyle = '#6b4a0c';
+        for (let y = -R + 5; y < R - 4; y += 5) ctx.fillRect(cx - bw * 0.85, cy + y, bw * 1.7, 1.8);
+        ctx.globalAlpha = 1;
+        ctx.fillStyle = 'rgba(255,255,255,0.9)';
+        ctx.fillRect(cx - 1.3, cy - R * 0.96, 2.6, R * 1.92);
+        frames.push(Texture.from(cv));
+        continue;
       }
-      // edge glint when near edge-on
-      if (wf < 0.3) { ctx.fillStyle = 'rgba(255,255,255,0.8)'; ctx.fillRect(cx - R * wf, cy - R, R * wf * 2, R * 2); }
+
+      const rx = R * wf;
+      const dir = Math.sin(a) >= 0 ? 1 : -1;
+
+      // Coin thickness peeking on the receding side.
+      const th = R * 0.13 * Math.abs(Math.sin(a));
+      if (th > 1) {
+        ctx.fillStyle = '#785310';
+        ctx.beginPath(); ctx.ellipse(cx + dir * th, cy, rx, R, 0, 0, TAU); ctx.fill();
+      }
+
+      // Face base — warm gold, the back half a touch duller.
+      const face = ctx.createLinearGradient(cx - rx, cy - R, cx + rx, cy + R);
+      if (front) { face.addColorStop(0, '#fff0b0'); face.addColorStop(0.55, '#f6c63d'); face.addColorStop(1, '#c8891a'); }
+      else { face.addColorStop(0, '#eccc6a'); face.addColorStop(0.55, '#d9a733'); face.addColorStop(1, '#a17312'); }
+      ctx.fillStyle = face;
+      ctx.beginPath(); ctx.ellipse(cx, cy, rx, R, 0, 0, TAU); ctx.fill();
+
+      // Beveled rim — lit top-left, shaded bottom-right.
+      const rim = ctx.createLinearGradient(cx - rx, cy - R, cx + rx, cy + R);
+      rim.addColorStop(0, '#fff7d2'); rim.addColorStop(0.5, '#e8b530'); rim.addColorStop(1, '#8a6210');
+      ctx.lineWidth = R * 0.11; ctx.strokeStyle = rim;
+      ctx.beginPath(); ctx.ellipse(cx, cy, rx - R * 0.055, R - R * 0.055, 0, 0, TAU); ctx.stroke();
+      // Recess shadow where the face sinks below the rim.
+      ctx.lineWidth = R * 0.04; ctx.strokeStyle = 'rgba(96,62,8,0.5)';
+      ctx.beginPath(); ctx.ellipse(cx, cy, rx - R * 0.13, R - R * 0.13, 0, 0, TAU); ctx.stroke();
+
+      // Unbranded relief: concentric groove + sunburst spokes (squashed by wf).
+      ctx.save(); ctx.translate(cx, cy); ctx.scale(wf, 1);
+      ctx.strokeStyle = 'rgba(122,82,12,0.4)'; ctx.lineWidth = R * 0.035;
+      ctx.beginPath(); ctx.arc(0, 0, R * 0.56, 0, TAU); ctx.stroke();
+      ctx.strokeStyle = 'rgba(255,242,200,0.4)'; ctx.lineWidth = R * 0.022;
+      ctx.beginPath(); ctx.arc(0, 0, R * 0.515, 0, TAU); ctx.stroke();
+      ctx.strokeStyle = 'rgba(130,88,14,0.32)'; ctx.lineWidth = R * 0.03; ctx.lineCap = 'round';
+      for (let k = 0; k < 12; k++) {
+        const t = (k / 12) * TAU;
+        ctx.beginPath();
+        ctx.moveTo(Math.cos(t) * R * 0.14, Math.sin(t) * R * 0.14);
+        ctx.lineTo(Math.cos(t) * R * 0.40, Math.sin(t) * R * 0.40);
+        ctx.stroke();
+      }
+      ctx.restore();
+
+      // Light passes, clipped to the face.
+      ctx.save();
+      ctx.beginPath(); ctx.ellipse(cx, cy, rx, R, 0, 0, TAU); ctx.clip();
+
+      // 1) The specular band that SWEEPS across the face with rotation — this
+      //    is what makes the spin read as real, not a squashing disc.
+      const bandX = cx - Math.sin(a) * rx * 0.8;
+      const bw2 = Math.max(rx * 0.55, R * 0.18);
+      const sb = ctx.createLinearGradient(bandX - bw2, 0, bandX + bw2, 0);
+      sb.addColorStop(0, 'rgba(255,252,235,0)');
+      sb.addColorStop(0.5, `rgba(255,252,235,${front ? 0.5 : 0.32})`);
+      sb.addColorStop(1, 'rgba(255,252,235,0)');
+      ctx.fillStyle = sb; ctx.fillRect(cx - rx, cy - R, rx * 2, R * 2);
+
+      // 2) Fixed top-left key light.
+      const key = ctx.createRadialGradient(cx - rx * 0.4, cy - R * 0.45, 0, cx - rx * 0.4, cy - R * 0.45, R * 0.9);
+      key.addColorStop(0, 'rgba(255,255,255,0.4)'); key.addColorStop(0.5, 'rgba(255,255,255,0.08)'); key.addColorStop(1, 'rgba(255,255,255,0)');
+      ctx.fillStyle = key; ctx.fillRect(cx - rx, cy - R, rx * 2, R * 2);
+
+      // 3) Grazing flash right at the mirror angle.
+      const flash = Math.exp(-((wf - 0.36) ** 2) / 0.014);
+      if (flash > 0.05) {
+        ctx.fillStyle = `rgba(255,250,225,${0.5 * flash})`;
+        ctx.fillRect(cx - rx, cy - R, rx * 2, R * 2);
+      }
+
+      // 4) Bottom ambient occlusion seats the coin in space.
+      const ao = ctx.createLinearGradient(0, cy + R * 0.3, 0, cy + R);
+      ao.addColorStop(0, 'rgba(70,44,4,0)'); ao.addColorStop(1, 'rgba(70,44,4,0.35)');
+      ctx.fillStyle = ao; ctx.fillRect(cx - rx, cy - R, rx * 2, R * 2);
+      ctx.restore();
+
       frames.push(Texture.from(cv));
     }
     this.coinFrames = frames;

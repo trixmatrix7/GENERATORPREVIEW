@@ -234,6 +234,10 @@ export class WinCelebration {
     };
 
     const grav = C.gravity * s;
+    // Coins dissolve once they drop just below the amount text — alpha ramps
+    // to 0 across a short band instead of falling down the whole screen.
+    const fadeY = p.centre.y + amtSize * 1.5;
+    const fadeBand = 70 * s;
     const tick = (t: Ticker) => {
       if (!this.overlay) return;
       const dt = Math.min(0.05, t.deltaMS / 1000);
@@ -276,8 +280,14 @@ export class WinCelebration {
           c.trail.scale.set(c.sp.scale.y * 0.8, c.sp.scale.y * (0.6 + sp2 / (900 * s)));
           c.trail.alpha = Math.min(0.55, sp2 / (1400 * s));
         }
-        // fall off the bottom (permanence) — recycle only when well off-screen
-        if (c.y > sh + 80 || c.age >= c.life) {
+        // Fade OUT as the coin drops below the text zone (plus a soft fade over
+        // the last of its life) — no long fall down the screen, no hard pop-out.
+        const lifeLeft = c.life - c.age;
+        let alpha = lifeLeft < c.life * 0.3 ? Math.max(0, lifeLeft / (c.life * 0.3)) : 1;
+        if (c.y > fadeY) alpha = Math.min(alpha, Math.max(0, 1 - (c.y - fadeY) / fadeBand));
+        c.sp.alpha = alpha * (0.7 + c.depth * 0.3);
+        if (c.trail) c.trail.alpha *= alpha;
+        if (alpha <= 0 || c.age >= c.life) {
           c.sp.destroy(); c.trail?.destroy(); this.coins.splice(i, 1);
         }
       }

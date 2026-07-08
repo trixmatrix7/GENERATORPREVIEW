@@ -7,6 +7,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { PixiApp } from '@/game/PixiApp';
 import { ADJUSTABLE_PARAMS } from '@/config/adjustableParams';
+import { numToHsl, hexToNum, hslToHex } from '@/config/color';
 import { REGISTRIES, type StudioRegistryName } from './registryCatalog';
 import { loadCustomEntries, saveCustomEntries, type CustomEntry } from './persistence';
 import { loadAssets, saveAssets } from './assetPersistence';
@@ -223,7 +224,18 @@ function ParamsTab({ pixiApp }: { pixiApp: PixiApp | null }) {
   );
 
   const apply = (id: string, value: string | number | boolean) => {
-    setValues(v => ({ ...v, [id]: value }));
+    setValues(v => {
+      const next = { ...v, [id]: value };
+      // Keep the reel-bg colour picker and its H/S/L sliders in sync (both edit
+      // the same tint; PixiApp mirrors this internally so no double-apply).
+      if (id === 'reelBgColor') {
+        const { h, s, l } = numToHsl(hexToNum(String(value)));
+        next.reelBgHue = h; next.reelBgSaturation = s; next.reelBgLightness = l;
+      } else if (id === 'reelBgHue' || id === 'reelBgSaturation' || id === 'reelBgLightness') {
+        next.reelBgColor = hslToHex(Number(next.reelBgHue), Number(next.reelBgSaturation), Number(next.reelBgLightness));
+      }
+      return next;
+    });
     pixiApp?.applyVisualParam(id, value);
   };
 
@@ -250,6 +262,16 @@ function ParamsTab({ pixiApp }: { pixiApp: PixiApp | null }) {
                 </option>
               ))}
             </select>
+          ) : p.type === 'color' ? (
+            <span className="flex items-center gap-2">
+              <input
+                type="color"
+                value={String(values[p.id])}
+                onChange={e => apply(p.id, e.target.value)}
+                className="h-7 w-12 bg-transparent border border-[#2a2a2e] rounded-md cursor-pointer p-0"
+              />
+              <code className="text-[11px] text-[#6b6b73]">{String(values[p.id])}</code>
+            </span>
           ) : p.type === 'boolean' ? (
             <input type="checkbox" checked={Boolean(values[p.id])} onChange={e => apply(p.id, e.target.checked)} />
           ) : (

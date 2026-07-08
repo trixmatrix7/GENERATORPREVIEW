@@ -9,6 +9,7 @@ import { WIN_LINE_PRESETS, WIN_COIN_PRESETS, ACCENT_PRESETS } from '@/config/adj
 import { waysLightConfig, WAYS_LIGHT_PRESETS, WAYS_LIGHT_SPEED_MS, WAYS_LIGHT_WIDTH_PX } from './effects/WaysLightComet';
 import { stickyWildConfig, STICKY_WILD_PRESETS, STICKY_WILD_SPEED_MS } from './effects/StickyWildShine';
 import { symbolSizing, SYMBOL_SIZE_PRESETS } from '@/config/symbolSizing';
+import { hslToNum, numToHsl, hexToNum } from '@/config/color';
 import { CANVAS_THEME } from '@/config/canvasTheme';
 import { deriveStopsFromRandomness, type SpinOutcome } from '@/engine/SlotEngine';
 import { buildBoard } from '@/config/reels';
@@ -36,22 +37,6 @@ function blendHex(a: number, b: number, t: number): number {
     | Math.round(ab + (bb - ab) * t);
 }
 
-/** HSL (h 0–360, s/l 0–100) → 0xRRGGBB. Lets a few number sliders drive a full
- *  free colour without a bespoke colour-picker control type. */
-function hslToNum(h: number, s: number, l: number): number {
-  h = ((h % 360) + 360) % 360; s = Math.max(0, Math.min(100, s)) / 100; l = Math.max(0, Math.min(100, l)) / 100;
-  const c = (1 - Math.abs(2 * l - 1)) * s;
-  const x = c * (1 - Math.abs(((h / 60) % 2) - 1));
-  const m = l - c / 2;
-  let r = 0, g = 0, b = 0;
-  if (h < 60) { r = c; g = x; }
-  else if (h < 120) { r = x; g = c; }
-  else if (h < 180) { g = c; b = x; }
-  else if (h < 240) { g = x; b = c; }
-  else if (h < 300) { r = x; b = c; }
-  else { r = c; b = x; }
-  return (Math.round((r + m) * 255) << 16) | (Math.round((g + m) * 255) << 8) | Math.round((b + m) * 255);
-}
 
 const FRAME_PAD = 28;
 const HEADER_H = 52;
@@ -1508,6 +1493,14 @@ export class PixiApp {
       }
       case 'ambientMotes': {
         this.setAmbientEnabled(String(value) !== 'off');
+        break;
+      }
+      case 'reelBgColor': {
+        // A picked colour also updates the H/S/L state, so the sliders and the
+        // picker always agree (the studio mirrors this on its side too).
+        const { h, s, l } = numToHsl(hexToNum(String(value)));
+        this.reelBgHue = h; this.reelBgSat = s; this.reelBgLight = l;
+        this.applyReelTint();
         break;
       }
       case 'reelBgHue': { this.reelBgHue = Number(value); this.applyReelTint(); break; }

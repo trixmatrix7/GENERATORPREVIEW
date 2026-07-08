@@ -42,7 +42,7 @@ export const ACCENT_PRESETS: Record<string, { color: number; label: string }> = 
   white:  { color: 0xFFFFFF, label: 'White' },
 };
 
-export type AdjustableParamType = 'enum' | 'number' | 'boolean';
+export type AdjustableParamType = 'enum' | 'number' | 'boolean' | 'color';
 
 export interface AdjustableParam {
   /** Stable id — the key PixiApp.applyVisualParam switches on. */
@@ -108,6 +108,15 @@ export const ADJUSTABLE_PARAMS: readonly AdjustableParam[] = [
     default: 'off',
     description: 'Toggle the ambient floating dust motes drifting over the reels. Phrases: "turn off the ambient dust", "turn on the floating motes".',
     keywords: ['ambient', 'dust', 'motes', 'atmosphere'],
+  },
+  {
+    id: 'reelBgColor',
+    label: 'Reel bg — colour',
+    layer: 'canvas-layers',
+    type: 'color',
+    default: '#0a0a0a',
+    description: 'Colour of the tint over the reel window — pick any RGB colour. Stays in sync with the reel-bg hue/saturation/brightness sliders; pair with reel-bg opacity for transparency. Phrases: "make the reel background blue / purple / dark".',
+    keywords: ['reel', 'background', 'backdrop', 'colour', 'color', 'tint', 'rgb', 'picker'],
   },
   {
     id: 'reelBgHue',

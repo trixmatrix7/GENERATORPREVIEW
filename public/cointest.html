@@ -1,0 +1,167 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Coin bake test</title>
+<style>
+  body{background:#100a1c;color:#cbb8ee;font:13px ui-sans-serif,system-ui;margin:20px}
+  h1{font:800 italic 20px ui-sans-serif;color:#fff;margin:0 0 4px}
+  p{margin:0 0 16px;color:#8a7bb0}
+  canvas{display:block;image-rendering:auto}
+</style>
+</head>
+<body>
+<h1>Coin spin frames — bronze / silver / gold</h1>
+<p>Rows: 16 frames at 96px per metal · below each: game size (28px)</p>
+<canvas id="c" width="1720" height="1000"></canvas>
+<script>
+const TAU = Math.PI * 2;
+
+const PALETTES = {
+  gold:   { outline:'#4a2c05', dark:'#a56d0d', mid:'#e8a820', light:'#ffd95e', xlight:'#fff3b8', ink:'74,44,5' },
+  silver: { outline:'#2e3742', dark:'#6b7a8d', mid:'#aab9c9', light:'#e4edf6', xlight:'#ffffff', ink:'36,44,55' },
+  bronze: { outline:'#3a1f0c', dark:'#8a4f1d', mid:'#b06a2a', light:'#dd9a4e', xlight:'#f7cf96', ink:'58,31,12' },
+};
+
+function starPath(ctx, r){
+  ctx.beginPath();
+  for (let k = 0; k < 10; k++) {
+    const rr = k % 2 ? r * 0.45 : r;
+    const t = -Math.PI / 2 + k * Math.PI / 5;
+    if (k) ctx.lineTo(Math.cos(t) * rr, Math.sin(t) * rr);
+    else ctx.moveTo(Math.cos(t) * rr, Math.sin(t) * rr);
+  }
+  ctx.closePath();
+}
+
+// Draw ONE spin frame of the coin into ctx (SxS), rotation angle a.
+function drawCoinFrame(ctx, S, a, P){
+  ctx.clearRect(0, 0, S, S);
+  ctx.imageSmoothingEnabled = true;
+  const R = S * 0.42;
+  const cosA = Math.cos(a);
+  const wf = Math.abs(cosA);
+  const front = cosA >= 0;
+  const cx = S / 2, cy = S / 2;
+
+  // ── near edge-on: the reeded EDGE band ──
+  if (wf < 0.16) {
+    const bw = R * 0.22;
+    const eg = ctx.createLinearGradient(cx - bw, 0, cx + bw, 0);
+    eg.addColorStop(0, P.dark); eg.addColorStop(0.5, P.xlight); eg.addColorStop(1, P.dark);
+    ctx.fillStyle = P.outline;
+    ctx.beginPath(); ctx.ellipse(cx, cy, bw + S*0.02, R + S*0.02, 0, 0, TAU); ctx.fill();
+    ctx.fillStyle = eg;
+    ctx.beginPath(); ctx.ellipse(cx, cy, bw, R, 0, 0, TAU); ctx.fill();
+    ctx.globalAlpha = 0.45; ctx.fillStyle = 'rgba(' + P.ink + ',1)';
+    for (let y = -R + S*0.05; y < R - S*0.03; y += S*0.045) ctx.fillRect(cx - bw * 0.85, cy + y, bw * 1.7, S*0.014);
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = 'rgba(255,255,255,0.95)';
+    ctx.fillRect(cx - S*0.012, cy - R * 0.94, S*0.024, R * 1.88);
+    return;
+  }
+
+  const dir = Math.sin(a) >= 0 ? 1 : -1;
+  const r0 = R, r1 = R * 0.94, r2 = R * 0.72, r3 = R * 0.46;
+  const ex = r => r * wf;
+
+  // coin thickness peeking on the receding side
+  const th = R * 0.14 * Math.abs(Math.sin(a));
+  if (th > 1) {
+    ctx.fillStyle = P.outline;
+    ctx.beginPath(); ctx.ellipse(cx + dir * th, cy, ex(r0), r0, 0, 0, TAU); ctx.fill();
+    ctx.fillStyle = P.dark;
+    ctx.beginPath(); ctx.ellipse(cx + dir * th * 0.6, cy, ex(r0), r0, 0, 0, TAU); ctx.fill();
+  }
+
+  // silhouette outline (crisp dark edge → pops on any background)
+  ctx.fillStyle = P.outline;
+  ctx.beginPath(); ctx.ellipse(cx, cy, ex(r0), r0, 0, 0, TAU); ctx.fill();
+
+  // rim torus — HIGH contrast, tight stops: clearly a ring even at 24px
+  const g1 = ctx.createLinearGradient(0, cy - r0, 0, cy + r0);
+  g1.addColorStop(0, '#ffffff'); g1.addColorStop(0.2, P.xlight); g1.addColorStop(0.38, P.light);
+  g1.addColorStop(0.55, P.mid); g1.addColorStop(0.8, P.dark); g1.addColorStop(1, P.dark);
+  ctx.fillStyle = g1;
+  ctx.beginPath(); ctx.ellipse(cx, cy, ex(r1), r1, 0, 0, TAU); ctx.fill();
+
+  // face — separated from the rim by a crisp dark step
+  ctx.fillStyle = 'rgba(' + P.ink + ',0.55)';
+  ctx.beginPath(); ctx.ellipse(cx, cy, ex(r2 * 1.06), r2 * 1.06, 0, 0, TAU); ctx.fill();
+  const g2 = ctx.createLinearGradient(0, cy - r2, 0, cy + r2);
+  g2.addColorStop(0, P.light); g2.addColorStop(0.55, P.mid); g2.addColorStop(1, P.dark);
+  ctx.fillStyle = g2;
+  ctx.beginPath(); ctx.ellipse(cx, cy, ex(r2), r2, 0, 0, TAU); ctx.fill();
+
+  // ONE bold embossed inner disc (clean, unbranded, crisp at any size)
+  ctx.save(); ctx.translate(cx, cy); ctx.scale(wf, 1);
+  ctx.fillStyle = 'rgba(' + P.ink + ',0.5)';
+  ctx.beginPath(); ctx.arc(0, 0, r3 * 1.1, 0, TAU); ctx.fill();      // inset step (shadow)
+  const g3 = ctx.createLinearGradient(0, -r3, 0, r3);
+  g3.addColorStop(0, P.xlight); g3.addColorStop(0.5, P.light); g3.addColorStop(1, P.mid);
+  ctx.fillStyle = g3;
+  ctx.beginPath(); ctx.arc(0, r3 * 0.06, r3, 0, TAU); ctx.fill();     // raised centre boss
+  ctx.restore();
+
+  // moving specular wedge — BOLD; this is what sells the rotation
+  ctx.save();
+  ctx.beginPath(); ctx.ellipse(cx, cy, ex(r2), r2, 0, 0, TAU); ctx.clip();
+  const bandX = cx - Math.sin(a) * ex(r2) * 0.75;
+  ctx.translate(bandX, cy); ctx.rotate(-0.35);
+  const w1 = r2 * 0.44 * (wf * 0.7 + 0.3);
+  ctx.fillStyle = 'rgba(255,255,255,' + (front ? 0.62 : 0.4) + ')';
+  ctx.fillRect(-w1 / 2, -r2 * 1.5, w1, r2 * 3);
+  ctx.fillStyle = 'rgba(255,255,255,' + (front ? 0.3 : 0.18) + ')';
+  ctx.fillRect(w1 * 0.95, -r2 * 1.5, w1 * 0.4, r2 * 3);
+  ctx.restore();
+
+  // strong top-left crescent on the rim (the "money shot" highlight)
+  ctx.save(); ctx.translate(cx, cy); ctx.scale(wf, 1);
+  ctx.lineCap = 'round';
+  ctx.lineWidth = (r1 - r2) * 1.05;
+  ctx.strokeStyle = 'rgba(255,255,255,0.92)';
+  ctx.beginPath(); ctx.arc(0, 0, (r1 + r2) / 2, Math.PI * 1.06, Math.PI * 1.5); ctx.stroke();
+  // small counter-shine bottom-right, much fainter
+  ctx.lineWidth = (r1 - r2) * 0.6;
+  ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+  ctx.beginPath(); ctx.arc(0, 0, (r1 + r2) / 2, Math.PI * 0.15, Math.PI * 0.4); ctx.stroke();
+  ctx.restore();
+
+  // back face slightly duller
+  if (!front) {
+    ctx.fillStyle = 'rgba(' + P.ink + ',0.14)';
+    ctx.beginPath(); ctx.ellipse(cx, cy, ex(r1), r1, 0, 0, TAU); ctx.fill();
+  }
+
+  // grazing mirror flash — a blink, not a bleach
+  const flash = Math.exp(-Math.pow(wf - 0.34, 2) / 0.012);
+  if (flash > 0.05) {
+    ctx.fillStyle = 'rgba(255,253,240,' + (0.42 * flash) + ')';
+    ctx.beginPath(); ctx.ellipse(cx, cy, ex(r0), r0, 0, 0, TAU); ctx.fill();
+  }
+}
+
+// ── render the grid ──
+const N = 16, S = 128;
+const main = document.getElementById('c').getContext('2d');
+main.fillStyle = '#100a1c'; main.fillRect(0, 0, 1720, 1000);
+const metals = ['bronze', 'silver', 'gold'];
+const off = document.createElement('canvas'); off.width = off.height = S;
+const octx = off.getContext('2d');
+metals.forEach((m, row) => {
+  const P = PALETTES[m];
+  const y0 = 20 + row * 320;
+  main.fillStyle = '#8a7bb0'; main.font = '700 14px ui-sans-serif';
+  main.fillText(m.toUpperCase(), 10, y0 + 50);
+  for (let i = 0; i < N; i++) {
+    drawCoinFrame(octx, S, (i / N) * TAU, P);
+    main.drawImage(off, 90 + i * 100, y0, 96, 96);
+    // game size row
+    main.drawImage(off, 90 + i * 100 + 30, y0 + 130, 28, 28);
+    // bigger game size
+    main.drawImage(off, 90 + i * 100 + 24, y0 + 180, 40, 40);
+  }
+});
+</script>
+</body>
+</html>

@@ -35,8 +35,8 @@ export const WIN_CELEBRATION_CONFIG = {
   airDrag: 0.995, // low drag — clean ballistic arcs for the bottom fountain
   particleCap: 380,
   designBase: 720,
-  /** Overall size of the whole celebration (text + particles). 1 = full. */
-  sizeMul: 0.7,
+  /** Overall size of the whole celebration (text + banner + particles). 1 = full. */
+  sizeMul: 0.6,
   // Vice neon palette.
   pink: 0xff2e88,
   cyan: 0x16e0e8,

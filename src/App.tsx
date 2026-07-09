@@ -52,10 +52,11 @@ export function App() {
       ? new Map(Object.entries(saved.symbols).map(([k, v]) => [Number(k), v]))
       : viceSymbolMap();
     void pixiAppRef.setUserAssetTextures(symbols);
-    // Custom upload wins; otherwise the animated Vice spritesheet background
-    // (6×8 = 48 sharp 1024×576 frames from the 4K loop, ~6fps).
+    // Custom upload wins; otherwise the animated Vice spritesheet background:
+    // 8×9 = 72 frames @ 9fps, 848×874 each (box-aspect crop → ~1:1 pixels in
+    // the bounded game box) + ticker cross-fade in PixiApp = smooth AND crisp.
     if (saved.bg) void pixiAppRef.setBackgroundImage(saved.bg);
-    else void pixiAppRef.setBackgroundSpritesheet(`${import.meta.env.BASE_URL}theme/vice/bg_sheet.webp`, 6, 8, 48, 6);
+    else void pixiAppRef.setBackgroundSpritesheet(`${import.meta.env.BASE_URL}theme/vice/bg_sheet.webp`, 8, 9, 72, 9);
     if (saved.frame) void pixiAppRef.setFrameImage(saved.frame);
     if (saved.fsBg) void pixiAppRef.setFreeSpinsBackgroundImage(saved.fsBg);
     // Layered win-marquee art (BIG/MEGA/EPIC/MAX + WIN + number plate).

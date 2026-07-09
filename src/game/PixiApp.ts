@@ -180,6 +180,9 @@ export class PixiApp {
   // Animated (spritesheet) background: cycles frames on bgSprite via the ticker.
   private bgAnimSheet: Texture | null = null;
   private bgAnimFrames: Texture[] | null = null;
+  /** Cross-fade overlay: carries frame N+1 at alpha = progress through frame N,
+   *  so a modest sheet fps reads as continuous motion instead of stepping. */
+  private bgSpriteB: Sprite | null = null;
   private bgAnimCb: ((t: Ticker) => void) | null = null;
   private bgAnimIdx = 0;
   private bgAnimAccum = 0;
@@ -778,17 +781,28 @@ export class PixiApp {
     this.bgSprite = new Sprite(frames[0]);
     this.bgSprite.anchor.set(0.5);
     this.app.stage.addChildAt(this.bgSprite, 0);
+    // Cross-fade overlay directly above the base bg (still behind sceneRoot).
+    if (frames.length > 1) {
+      this.bgSpriteB = new Sprite(frames[1]);
+      this.bgSpriteB.anchor.set(0.5);
+      this.bgSpriteB.alpha = 0;
+      this.app.stage.addChildAt(this.bgSpriteB, 1);
+    }
     if (this.backdropGraphic) this.backdropGraphic.visible = false;
     this.fitBackground();
     this.updateReelBackdrop();
 
     this.bgAnimCb = () => {
       if (this.bgAnimPaused || !this.bgSprite || !this.bgAnimFrames) return;
+      const total = this.bgAnimFrames.length;
       this.bgAnimAccum += this.app.ticker.deltaMS / 1000;
       const spf = 1 / this.bgAnimFps;
-      let advanced = false;
-      while (this.bgAnimAccum >= spf) { this.bgAnimIdx = (this.bgAnimIdx + 1) % this.bgAnimFrames.length; this.bgAnimAccum -= spf; advanced = true; }
-      if (advanced) this.bgSprite.texture = this.bgAnimFrames[this.bgAnimIdx];
+      while (this.bgAnimAccum >= spf) { this.bgAnimIdx = (this.bgAnimIdx + 1) % total; this.bgAnimAccum -= spf; }
+      this.bgSprite.texture = this.bgAnimFrames[this.bgAnimIdx];
+      if (this.bgSpriteB) {
+        this.bgSpriteB.texture = this.bgAnimFrames[(this.bgAnimIdx + 1) % total];
+        this.bgSpriteB.alpha = Math.min(1, this.bgAnimAccum / spf);
+      }
     };
     this.app.ticker.add(this.bgAnimCb);
   }
@@ -798,6 +812,11 @@ export class PixiApp {
    *  shared sheet source twice. */
   private stopBgAnim(): void {
     if (this.bgAnimCb) { this.app.ticker.remove(this.bgAnimCb); this.bgAnimCb = null; }
+    if (this.bgSpriteB) {
+      this.bgSpriteB.parent?.removeChild(this.bgSpriteB);
+      try { this.bgSpriteB.destroy(); } catch { /* torn down */ }
+      this.bgSpriteB = null;
+    }
     if (this.bgTexture && this.bgAnimFrames?.includes(this.bgTexture)) this.bgTexture = null;
     if (this.bgAnimFrames) { for (const f of this.bgAnimFrames) { try { f.destroy(false); } catch { /* torn down */ } } this.bgAnimFrames = null; }
     if (this.bgAnimSheet) { try { this.bgAnimSheet.destroy(true); } catch { /* torn down */ } this.bgAnimSheet = null; }
@@ -867,6 +886,7 @@ export class PixiApp {
     this.fsBgSavedBase = this.bgTexture;
     this.fsBgActive = true;
     this.bgAnimPaused = true; // freeze any animated bg while the FS bg shows
+    if (this.bgSpriteB) this.bgSpriteB.visible = false; // overlay must not sit above the FS bg
     this.presentBgTexture(this.fsBgTexture);
   }
 
@@ -877,6 +897,7 @@ export class PixiApp {
     const base = this.fsBgSavedBase;
     this.fsBgSavedBase = null;
     this.bgAnimPaused = false; // resume the animated bg (if any)
+    if (this.bgSpriteB) this.bgSpriteB.visible = true;
     if (!this.isLive) return;
     if (base) {
       this.presentBgTexture(base);
@@ -919,7 +940,13 @@ export class PixiApp {
     this.bgSprite.position.set(width / 2, height / 2);
     const tw = this.bgTexture.width || 1;
     const th = this.bgTexture.height || 1;
-    this.bgSprite.scale.set(Math.max(width / tw, height / th));
+    const scale = Math.max(width / tw, height / th);
+    this.bgSprite.scale.set(scale);
+    if (this.bgSpriteB) {
+      // All anim frames share the sheet's frame size → same fit as the base.
+      this.bgSpriteB.position.set(width / 2, height / 2);
+      this.bgSpriteB.scale.set(scale);
+    }
   }
 
   private teardownReelBackdrop(): void {

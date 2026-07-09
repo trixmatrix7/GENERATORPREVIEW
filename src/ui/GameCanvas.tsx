@@ -66,18 +66,43 @@ export function GameCanvas({ lastOutcome, phase, onPixiReady, config }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [config]);
 
+  // Bounded game box — 1:1 the generator's preview shell:
+  //   GeneratorStudio.tsx  → centre column `mx-auto max-w-[960px] p-6`
+  //   PixiPreviewPanel.tsx → `rounded-xl overflow-hidden border border-white/[0.06]`
+  //                          + canvas holder aspectRatio 5/5.15 (5-row grid,
+  //                          else 5/3.4), maxHeight 60vh, bg #0D1117.
+  // PixiApp.onResize() scales-to-fit, so the height-capped box letterboxes
+  // the sides — never clips the grid.
+  const rows = config?.gridConfig.visibleRows ?? 3;
+
   return (
-    <div className="flex-1 relative overflow-hidden bg-[var(--color-bg)]">
+    <div className="flex-1 relative overflow-hidden bg-[var(--color-bg)] flex items-center justify-center">
       {error ? (
         <div className="absolute inset-0 flex items-center justify-center font-[var(--font-body)] text-[14px] text-[var(--color-red)]">
           {error}
         </div>
       ) : (
-        <canvas
-          ref={canvasRef}
-          className="absolute inset-0 w-full h-full"
-          style={{ background: '#0D1117' }}
-        />
+        <div className="mx-auto w-full max-w-[960px] p-6">
+          <div
+            className="slot-preview-root relative rounded-xl overflow-hidden border border-white/[0.06]"
+            style={{ background: '#0D1117' }}
+          >
+            <div
+              className="relative mx-auto w-full"
+              style={{
+                aspectRatio: rows === 5 ? '5 / 5.15' : '5 / 3.4',
+                maxHeight: '60vh',
+                background: '#0D1117',
+              }}
+            >
+              <canvas
+                ref={canvasRef}
+                className="absolute inset-0 w-full h-full"
+                style={{ background: '#0D1117' }}
+              />
+            </div>
+          </div>
+        </div>
       )}
 
       {lastOutcome?.freeSpinsTriggered && (phase === 'settled_win' || phase === 'settled_loss') && (

@@ -480,7 +480,9 @@ export class PixiApp {
     const availH = height - SCENE_MARGIN * 2;
     const scaleX = availW / totalW;
     const scaleY = availH / totalH;
-    const scale = Math.min(scaleX, scaleY, 1.3);
+    // ×0.85 — grid sits 15% smaller in the bounded box (still centred below),
+    // giving the animated background more breathing room around the reels.
+    const scale = Math.min(scaleX, scaleY, 1.3) * 0.85;
 
     this.sceneRoot.scale.set(scale);
     this.sceneRoot.x = Math.round((width - totalW * scale) / 2);

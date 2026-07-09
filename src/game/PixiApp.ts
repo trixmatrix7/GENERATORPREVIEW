@@ -1,7 +1,7 @@
 // PixiJS Application — initialises the WebGL canvas and manages the game scene.
 // Lifecycle is owned by the GameCanvas React component via useEffect.
 
-import { Application, Assets, BlurFilter, Container, Graphics, Sprite, Text, TextStyle, Texture } from 'pixi.js';
+import { Application, Assets, BlurFilter, Container, Graphics, Rectangle, Sprite, Text, TextStyle, Texture, Ticker } from 'pixi.js';
 import { gsap } from 'gsap';
 import { ReelSet, type ReelSetAudioHooks } from './ReelSet';
 import { setActiveGrid, type GridConfig } from '@/config/gridConfig';
@@ -176,6 +176,15 @@ export class PixiApp {
    *  publish — protects against out-of-order Promise resolution when the
    *  user re-uploads quickly. */
   private userAssetToken = 0;
+
+  // Animated (spritesheet) background: cycles frames on bgSprite via the ticker.
+  private bgAnimSheet: Texture | null = null;
+  private bgAnimFrames: Texture[] | null = null;
+  private bgAnimCb: ((t: Ticker) => void) | null = null;
+  private bgAnimIdx = 0;
+  private bgAnimAccum = 0;
+  private bgAnimFps = 12;
+  private bgAnimPaused = false;
 
   /** Optional full-canvas background image (uploaded via the asset-swap UI).
    *  Sits behind the machine scene; cover-fit to the renderer and re-fit on
@@ -735,6 +744,66 @@ export class PixiApp {
     this.updateReelBackdrop();
   }
 
+  /** Animated background from a SPRITESHEET (grid of frames, row-major). Slices
+   *  the sheet into `count` sub-textures and cycles them on the background
+   *  sprite at `fps`. Reuses the static bg pipeline (cover-fit + frosted reel
+   *  backdrop) so everything else keeps working. Pass null to clear. */
+  async setBackgroundSpritesheet(
+    url: string | null, cols: number, rows: number, count?: number, fps = 12,
+  ): Promise<void> {
+    if (!this._initialized || this._aborted) return;
+    const myToken = ++this.bgToken;
+    this.clearBackgroundImage(); // tears down any static bg AND stops any anim
+    if (!url) return;
+
+    let sheet: Texture;
+    try { sheet = await Assets.load<Texture>(url); }
+    catch (err) { console.warn('[PixiApp] failed to load bg spritesheet:', err); return; }
+    if (myToken !== this.bgToken || this._aborted) { try { sheet.destroy(true); } catch { /* torn down */ } return; }
+
+    const fw = sheet.width / cols, fh = sheet.height / rows;
+    const n = Math.max(1, count ?? cols * rows);
+    const frames: Texture[] = [];
+    for (let i = 0; i < n; i++) {
+      const cx = (i % cols) * fw, cy = Math.floor(i / cols) * fh;
+      frames.push(new Texture({ source: sheet.source, frame: new Rectangle(cx, cy, fw, fh) }));
+    }
+    this.bgAnimSheet = sheet;
+    this.bgAnimFrames = frames;
+    this.bgAnimFps = Math.max(1, fps);
+    this.bgAnimIdx = 0; this.bgAnimAccum = 0; this.bgAnimPaused = false;
+
+    // bgTexture = frame 0 so cover-fit + FS-swap see a stable frame-sized tex.
+    this.bgTexture = frames[0];
+    this.bgSprite = new Sprite(frames[0]);
+    this.bgSprite.anchor.set(0.5);
+    this.app.stage.addChildAt(this.bgSprite, 0);
+    if (this.backdropGraphic) this.backdropGraphic.visible = false;
+    this.fitBackground();
+    this.updateReelBackdrop();
+
+    this.bgAnimCb = () => {
+      if (this.bgAnimPaused || !this.bgSprite || !this.bgAnimFrames) return;
+      this.bgAnimAccum += this.app.ticker.deltaMS / 1000;
+      const spf = 1 / this.bgAnimFps;
+      let advanced = false;
+      while (this.bgAnimAccum >= spf) { this.bgAnimIdx = (this.bgAnimIdx + 1) % this.bgAnimFrames.length; this.bgAnimAccum -= spf; advanced = true; }
+      if (advanced) this.bgSprite.texture = this.bgAnimFrames[this.bgAnimIdx];
+    };
+    this.app.ticker.add(this.bgAnimCb);
+  }
+
+  /** Stop + free the animated background (frames + sheet). Nulls bgTexture when
+   *  it points at a frame so clearBackgroundImage never destroy(true)s the
+   *  shared sheet source twice. */
+  private stopBgAnim(): void {
+    if (this.bgAnimCb) { this.app.ticker.remove(this.bgAnimCb); this.bgAnimCb = null; }
+    if (this.bgTexture && this.bgAnimFrames?.includes(this.bgTexture)) this.bgTexture = null;
+    if (this.bgAnimFrames) { for (const f of this.bgAnimFrames) { try { f.destroy(false); } catch { /* torn down */ } } this.bgAnimFrames = null; }
+    if (this.bgAnimSheet) { try { this.bgAnimSheet.destroy(true); } catch { /* torn down */ } this.bgAnimSheet = null; }
+    this.bgAnimPaused = false;
+  }
+
   /** Load the six layered win-marquee images (big/mega/epic/max + WIN + plate).
    *  Pass null to clear (celebration falls back to baked text). */
   async setWinTierImages(urls: WinTierImageUrls | null): Promise<void> {
@@ -797,6 +866,7 @@ export class PixiApp {
     if (!this.fsBgTexture || this.fsBgActive || !this.isLive) return;
     this.fsBgSavedBase = this.bgTexture;
     this.fsBgActive = true;
+    this.bgAnimPaused = true; // freeze any animated bg while the FS bg shows
     this.presentBgTexture(this.fsBgTexture);
   }
 
@@ -806,6 +876,7 @@ export class PixiApp {
     this.fsBgActive = false;
     const base = this.fsBgSavedBase;
     this.fsBgSavedBase = null;
+    this.bgAnimPaused = false; // resume the animated bg (if any)
     if (!this.isLive) return;
     if (base) {
       this.presentBgTexture(base);
@@ -824,6 +895,8 @@ export class PixiApp {
   }
 
   private clearBackgroundImage(): void {
+    // Stop + free any animated background first (nulls bgTexture if it's a frame).
+    this.stopBgAnim();
     // Tear down the frosted backdrop first — it references bgTexture.
     this.teardownReelBackdrop();
     if (this.bgSprite) {

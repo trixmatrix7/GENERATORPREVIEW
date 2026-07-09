@@ -13,7 +13,7 @@ import { GameCanvas } from '@/ui/GameCanvas';
 import { StudioDrawer } from '@/studio/StudioDrawer';
 import { DEFAULT_GAME_CONFIG, type GameConfig } from '@/engine/GameConfig';
 import { getThemeByName } from '@/config/themes';
-import { viceSymbolMap, VICE_BACKGROUND_URL, VICE_INTRO_URL } from '@/config/viceAssets';
+import { viceSymbolMap, VICE_INTRO_URL } from '@/config/viceAssets';
 import { loadAssets } from '@/studio/assetPersistence';
 import type { PixiApp } from '@/game/PixiApp';
 
@@ -52,8 +52,10 @@ export function App() {
       ? new Map(Object.entries(saved.symbols).map(([k, v]) => [Number(k), v]))
       : viceSymbolMap();
     void pixiAppRef.setUserAssetTextures(symbols);
-    const bg = saved.bg ?? VICE_BACKGROUND_URL;
-    if (bg) void pixiAppRef.setBackgroundImage(bg);
+    // Custom upload wins; otherwise the animated Vice spritesheet background
+    // (8×12 = 96 frames, 512×288 each, ~12fps).
+    if (saved.bg) void pixiAppRef.setBackgroundImage(saved.bg);
+    else void pixiAppRef.setBackgroundSpritesheet(`${import.meta.env.BASE_URL}theme/vice/bg_sheet.webp`, 8, 12, 96, 12);
     if (saved.frame) void pixiAppRef.setFrameImage(saved.frame);
     if (saved.fsBg) void pixiAppRef.setFreeSpinsBackgroundImage(saved.fsBg);
     // Layered win-marquee art (BIG/MEGA/EPIC/MAX + WIN + number plate).

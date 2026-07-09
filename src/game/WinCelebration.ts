@@ -151,10 +151,10 @@ export class WinCelebration {
     overlay.zIndex = 10000; overlay.eventMode = 'none';
     this.overlay = overlay;
     this.app.stage.addChild(overlay);
-    // Impact shake starts modest — the PROMOTIONS escalate it to each new
-    // tier's strength (the difference between the stages must be felt).
-    this.traumaMax = C.shake[Math.min(finalTier, 1)];
-    this.traumaRot = C.shakeRot[Math.min(finalTier, 1)];
+    // Impact shake starts modest (small floor so even a BIG stamp thuds) —
+    // the PROMOTIONS escalate it to each new tier's strength.
+    this.traumaMax = Math.max(3, C.shake[Math.min(finalTier, 1)]);
+    this.traumaRot = Math.max(0.004, C.shakeRot[Math.min(finalTier, 1)]);
 
     const marquee = new Container();
     marquee.position.set(p.centre.x, p.centre.y);
@@ -276,7 +276,7 @@ export class WinCelebration {
         this.resolveActive = resolve;
         setTierLayer(finalTier); curTier = finalTier;
         for (const sp of [plateSpr, winSpr, tierSpr, fallbackWord]) if (sp) sp.alpha = 1;
-        amount.text = `${formatAmount(p.winAmount, p.decimals)} ${p.symbol}`;
+        amount.text = formatAmount(p.winAmount, p.decimals);
         amount.alpha = 1;
         const tl = gsap.timeline({ onComplete: () => this.finish() });
         this.tl = tl;
@@ -321,34 +321,60 @@ export class WinCelebration {
         this.trauma = 1;
       };
 
-      // IMPACT — layered slam-in: tier word first, WIN right behind, plate
-      // rises with the number. (Never fade a banner in — it slams.)
+      // ENTRANCE — a heavy STAMP, not a fade: the tier word appears huge and
+      // DROPS into the board (accelerating = weight), bursts an additive flash
+      // on landing with a kick + shake, then WIN snaps in and the plate+number
+      // rise up underneath.
+      const baseScale = marquee.scale.x;
+      const stampLand = 0.26;
       if (tierSpr) {
-        tl.to(tierSpr, { alpha: 1, duration: 0.1, ease: 'power2.out' }, 0);
-        tl.fromTo(marquee.scale, { x: marquee.scale.x * 1.35, y: marquee.scale.y * 1.35 },
-          { x: marquee.scale.x, y: marquee.scale.y, duration: 0.55, ease: 'back.out(1.8)' }, 0);
-        tl.fromTo(marquee, { rotation: -0.05 }, { rotation: 0, duration: 0.5, ease: 'back.out(2)' }, 0);
+        tl.to(tierSpr, { alpha: 1, duration: 0.05 }, 0);
+        tl.fromTo(marquee.scale, { x: baseScale * 2.3, y: baseScale * 2.3 },
+          { x: baseScale, y: baseScale, duration: stampLand, ease: 'power3.in' }, 0);
+        tl.fromTo(marquee, { rotation: -0.045 }, { rotation: 0, duration: 0.34, ease: 'back.out(3)' }, 0.06);
+        tl.call(() => {
+          if (!this.overlay || !tierSpr) return;
+          const flash = new Sprite(tierSpr.texture);
+          flash.anchor.set(tierSpr.anchor.x, tierSpr.anchor.y);
+          flash.position.copyFrom(tierSpr.position);
+          flash.blendMode = 'add';
+          marquee.addChild(flash);
+          this.extraTweens.push(
+            gsap.to(flash, { alpha: 0, duration: 0.3, ease: 'power2.out', onComplete: () => flash.destroy() }),
+            gsap.fromTo(flash.scale, { x: 1, y: 1 }, { x: 1.4, y: 1.4, duration: 0.3, ease: 'power2.out' }),
+          );
+          this.pulseKick = 0.4;
+          this.trauma = 1;
+        }, undefined, stampLand);
       }
-      if (winSpr) tl.to(winSpr, { alpha: 1, duration: 0.12, ease: 'power2.out' }, 0.10);
-      if (plateSpr) tl.to(plateSpr, { alpha: 1, duration: 0.16, ease: 'power2.out' }, 0.16);
+      if (winSpr) tl.to(winSpr, { alpha: 1, duration: 0.08, ease: 'power2.out' }, stampLand + 0.04);
+      if (plateSpr) {
+        tl.to(plateSpr, { alpha: 1, duration: 0.16, ease: 'power2.out' }, stampLand + 0.12);
+        tl.fromTo(plateSpr, { y: (PLATE_CY - 0.5) * ART_H + 70 },
+          { y: (PLATE_CY - 0.5) * ART_H, duration: 0.32, ease: 'power3.out' }, stampLand + 0.12);
+      }
       if (fallbackWord) {
-        tl.to(fallbackWord, { alpha: 1, duration: 0.1, ease: 'power2.out' }, 0);
-        tl.fromTo(marquee.scale, { x: 1.3, y: 1.3 }, { x: 1, y: 1, duration: 0.5, ease: 'back.out(2)' }, 0);
+        tl.to(fallbackWord, { alpha: 1, duration: 0.08 }, 0);
+        tl.fromTo(marquee.scale, { x: 2.0, y: 2.0 }, { x: 1, y: 1, duration: stampLand, ease: 'power3.in' }, 0);
+        tl.call(() => { this.pulseKick = 0.4; this.trauma = 1; }, undefined, stampLand);
       }
-      tl.call(() => { this.pulseKick = 0.14; }, undefined, 0.02);
-      if (finalTier >= 1) tl.call(() => { this.trauma = 1; }, undefined, 0.02);
 
       // AMOUNT reveal + count-up: one counter drives the number AND the
-      // live tier promotions (the escalation).
-      amount.text = `0.00 ${p.symbol}`;
-      tl.to(amount, { alpha: 1, duration: 0.14, ease: 'power2.out' }, 0.20);
+      // live tier promotions (the escalation). Number only — no token symbol.
+      amount.text = '0.00';
+      tl.to(amount, { alpha: 1, duration: 0.14, ease: 'power2.out' }, stampLand + 0.18);
+      if (plateSpr) {
+        tl.fromTo(amount, { y: (PLATE_CY - 0.5) * ART_H + 70 },
+          { y: (PLATE_CY - 0.5) * ART_H, duration: 0.32, ease: 'power3.out' }, stampLand + 0.14);
+      }
       const dp = p.decimals > 4 ? 2 : p.decimals;
       const counter = { val: 0 };
+      const countAt = stampLand + 0.30;
       tl.to(counter, {
         val: finalVal, duration: C.countDur[finalTier], ease: 'power1.inOut',
         onUpdate: () => {
           if (!this.overlay) return;
-          amount.text = `${counter.val.toFixed(dp)} ${p.symbol}`;
+          amount.text = counter.val.toFixed(dp);
           // Live promotion caps at EPIC — MAX only fires after the count.
           const liveMax = Math.min(finalTier, 2);
           if (curTier < liveMax) {
@@ -357,13 +383,13 @@ export class WinCelebration {
             }
           }
         },
-        onComplete: () => { if (this.overlay) amount.text = `${formatAmount(p.winAmount, p.decimals)} ${p.symbol}`; },
-      }, 0.24);
+        onComplete: () => { if (this.overlay) amount.text = formatAmount(p.winAmount, p.decimals); },
+      }, countAt);
 
       // END FLARE — and for a MAX win the SWITCH happens only NOW: EPIC held
       // until the number fully counted to the cap; then MAX slams in over the
       // final amount (which keeps pulsing — see the ticker).
-      const at = 0.24 + C.countDur[finalTier];
+      const at = countAt + C.countDur[finalTier];
       tl.call(() => { this.pulseKick = 0.18; if (finalTier >= 2) this.trauma = 0.8; }, undefined, at);
       const maxBeat = finalTier === 3 ? 0.18 : 0;
       if (finalTier === 3) tl.call(() => promoteTier(3), undefined, at + maxBeat);

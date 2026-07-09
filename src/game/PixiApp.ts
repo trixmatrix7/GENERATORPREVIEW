@@ -482,18 +482,23 @@ export class PixiApp {
     const totalW = rw;
 
     // The DOM control bar overlays the canvas bottom (strip = width × 150/1200
-    // design-px). Reserve that band so the grid centres ABOVE the bar and never
-    // sits under the cluster art.
+    // design-px). The grid keeps its ORIGINAL size (scale computed against the
+    // full box) and only re-centres in the area ABOVE the bar; a clamp shrinks
+    // it solely when it genuinely wouldn't fit over the bar.
     const hud = width * this.bottomHudFraction;
 
     // Scale scene to fit viewport with margin
     const availW = width - SCENE_MARGIN * 2;
-    const availH = height - hud - SCENE_MARGIN * 2;
+    const availH = height - SCENE_MARGIN * 2;
     const scaleX = availW / totalW;
     const scaleY = availH / totalH;
     // ×0.85 — grid sits 15% smaller in the bounded box (still centred below),
     // giving the animated background more breathing room around the reels.
-    const scale = Math.min(scaleX, scaleY, 1.3) * 0.85;
+    let scale = Math.min(scaleX, scaleY, 1.3) * 0.85;
+    // Only-if-needed clamp: never let the grid extend into the bar band.
+    if (hud > 0 && totalH * scale > height - hud - 8) {
+      scale = (height - hud - 8) / totalH;
+    }
 
     this.sceneRoot.scale.set(scale);
     this.sceneRoot.x = Math.round((width - totalW * scale) / 2);

@@ -53,9 +53,9 @@ export function App() {
       : viceSymbolMap();
     void pixiAppRef.setUserAssetTextures(symbols);
     // Custom upload wins; otherwise the animated Vice spritesheet background
-    // (8×12 = 96 frames, 512×288 each, ~12fps).
+    // (6×8 = 48 sharp 1024×576 frames from the 4K loop, ~6fps).
     if (saved.bg) void pixiAppRef.setBackgroundImage(saved.bg);
-    else void pixiAppRef.setBackgroundSpritesheet(`${import.meta.env.BASE_URL}theme/vice/bg_sheet.webp`, 8, 12, 96, 12);
+    else void pixiAppRef.setBackgroundSpritesheet(`${import.meta.env.BASE_URL}theme/vice/bg_sheet.webp`, 6, 8, 48, 6);
     if (saved.frame) void pixiAppRef.setFrameImage(saved.frame);
     if (saved.fsBg) void pixiAppRef.setFreeSpinsBackgroundImage(saved.fsBg);
     // Layered win-marquee art (BIG/MEGA/EPIC/MAX + WIN + number plate).

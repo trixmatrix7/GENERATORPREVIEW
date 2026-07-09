@@ -148,6 +148,9 @@ export class PixiApp {
   /** Optional logo image replacing the text title (see setTitleImage). */
   private titleSprite: Sprite | null = null;
   private titleTexture: Texture | null = null;
+  /** Bottom band reserved for the DOM control-bar overlay, as a fraction of
+   *  the canvas WIDTH (the bar strip is 150/1200 of the design width). 0 = off. */
+  public bottomHudFraction = 0;
   private currentTheme: Theme = 'dark';
   /** Ambient glow + spotlight intensity multiplier (chat-config 'backgroundMood'). */
   private ambientScale = 1;
@@ -478,9 +481,14 @@ export class PixiApp {
     const totalH = HEADER_H + rh + FOOTER_H;
     const totalW = rw;
 
+    // The DOM control bar overlays the canvas bottom (strip = width × 150/1200
+    // design-px). Reserve that band so the grid centres ABOVE the bar and never
+    // sits under the cluster art.
+    const hud = width * this.bottomHudFraction;
+
     // Scale scene to fit viewport with margin
     const availW = width - SCENE_MARGIN * 2;
-    const availH = height - SCENE_MARGIN * 2;
+    const availH = height - hud - SCENE_MARGIN * 2;
     const scaleX = availW / totalW;
     const scaleY = availH / totalH;
     // ×0.85 — grid sits 15% smaller in the bounded box (still centred below),
@@ -489,7 +497,7 @@ export class PixiApp {
 
     this.sceneRoot.scale.set(scale);
     this.sceneRoot.x = Math.round((width - totalW * scale) / 2);
-    this.sceneRoot.y = Math.round((height - totalH * scale) / 2);
+    this.sceneRoot.y = Math.round((height - hud - totalH * scale) / 2);
 
     // Centre win banner over reels
     this.winBanner.x = rw / 2;

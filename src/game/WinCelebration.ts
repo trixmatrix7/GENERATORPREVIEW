@@ -37,7 +37,10 @@ export const WIN_CELEBRATION_CONFIG = {
   shake: [0, 5, 8, 12],
   shakeRot: [0, 0.006, 0.01, 0.016],
   /** Overall marquee size multiplier (1 = full). */
-  sizeMul: 0.4,
+  sizeMul: 0.48,
+  /** Per-tier marquee scale step — each promotion GROWS the whole marquee
+   *  (this is the visible difference between the stages). */
+  tierScale: [1.0, 1.16, 1.34, 1.6],
   /** Continuous pulse strength (scale amplitude). */
   pulseAmp: 0.03,
 };
@@ -139,16 +142,19 @@ export class WinCelebration {
     const finalTier = Math.max(0, Math.min(3, p.tier));
     const finalVal = Number(p.winAmount) / Math.pow(10, p.decimals);
     const wagerVal = p.wager > 0n ? Number(p.wager) / Math.pow(10, p.decimals) : finalVal || 1;
-    // Live-promotion thresholds in VALUE space. MAX slams right at the end of
-    // the count (the number IS the cap), not at an x-bet band.
-    const th = [0, wagerVal * C.bands.mega, wagerVal * C.bands.epic, finalVal * 0.985];
+    // Live-promotion thresholds in VALUE space (mega/epic only — MAX never
+    // promotes mid-count: EPIC holds until the number has fully counted to the
+    // cap, THEN the MAX switch fires).
+    const th = [0, wagerVal * C.bands.mega, wagerVal * C.bands.epic];
 
     const overlay = new Container();
     overlay.zIndex = 10000; overlay.eventMode = 'none';
     this.overlay = overlay;
     this.app.stage.addChild(overlay);
-    this.traumaMax = C.shake[finalTier];
-    this.traumaRot = C.shakeRot[finalTier];
+    // Impact shake starts modest — the PROMOTIONS escalate it to each new
+    // tier's strength (the difference between the stages must be felt).
+    this.traumaMax = C.shake[Math.min(finalTier, 1)];
+    this.traumaRot = C.shakeRot[Math.min(finalTier, 1)];
 
     const marquee = new Container();
     marquee.position.set(p.centre.x, p.centre.y);
@@ -156,6 +162,8 @@ export class WinCelebration {
 
     const hasArt = !!(this.tierTex && this.winTex && this.plateTex);
     let curTier = 0;
+    /** Base marquee scale (tier 0); promotions grow it by C.tierScale[n]. */
+    let baseMsc = 1;
 
     // ── build the layers ──────────────────────────────────────────────────
     let tierSpr: Sprite | null = null;
@@ -179,8 +187,8 @@ export class WinCelebration {
     if (hasArt) {
       // Scale so the art's content height ≈ 55% of the short screen edge,
       // and pivot on the content's centre so the stack sits dead-centre.
-      const msc = (Math.min(sw, sh) * 0.55 * C.sizeMul) / (CONTENT_FRAC * ART_H);
-      marquee.scale.set(msc);
+      baseMsc = (Math.min(sw, sh) * 0.55 * C.sizeMul) / (CONTENT_FRAC * ART_H);
+      marquee.scale.set(baseMsc * C.tierScale[0]);
       marquee.pivot.set(0, (CONTENT_CY - 0.5) * ART_H);
 
       plateSpr = new Sprite(this.plateTex!);
@@ -246,6 +254,9 @@ export class WinCelebration {
       if (winSpr) winSpr.scale.set(1 + Math.sin(elapsed * 2.6 + 1.1) * amp * 0.8 + k * 0.7);
       if (plateSpr) plateSpr.scale.set(1 + Math.sin(elapsed * 2.2 + 0.5) * amp * 0.4 + k * 0.4);
       if (fallbackWord) fallbackWord.scale.set(1 + Math.sin(elapsed * 2.6) * amp + k);
+      // At MAX the final amount itself pulses hard ("der Betrag pulsiert").
+      if (curTier === 3) amount.scale.set(1 + Math.sin(elapsed * 3.4) * 0.055 + k * 0.7);
+      else amount.scale.set(1 + k * 0.25);
       // trauma screenshake (translation + a touch of rotation = "force")
       if (this.trauma > 0) {
         const tr = this.trauma * this.trauma;
@@ -283,18 +294,31 @@ export class WinCelebration {
       const promoteTier = (n: number) => {
         if (n <= curTier || !this.overlay) return;
         curTier = n;
-        setTierLayer(n);
-        // Punchy promotion: the new word slams over the old one; WIN kicks
-        // in sympathy. Standalone tweens → tracked so finish() kills them.
-        for (const t of this.extraTweens) t.kill();
-        this.extraTweens = [];
+        // HARD, impulsive switch:
+        // 1) an additive flash-clone of the OLD word bursts outward…
         if (tierSpr) {
+          const flash = new Sprite(tierSpr.texture);
+          flash.anchor.set(tierSpr.anchor.x, tierSpr.anchor.y);
+          flash.position.copyFrom(tierSpr.position);
+          flash.blendMode = 'add';
+          marquee.addChild(flash);
           this.extraTweens.push(
-            gsap.fromTo(tierSpr, { alpha: 0.35 }, { alpha: 1, duration: 0.18, ease: 'power2.out' }),
+            gsap.to(flash, { alpha: 0, duration: 0.28, ease: 'power2.out', onComplete: () => flash.destroy() }),
+            gsap.fromTo(flash.scale, { x: 1, y: 1 }, { x: 1.5, y: 1.5, duration: 0.28, ease: 'power2.out' }),
           );
         }
-        this.pulseKick = 0.16;
-        if (n >= 1) this.trauma = 1;
+        // 2) …the NEW word snaps in with a huge kick (ticker pulse decays it)…
+        setTierLayer(n);
+        this.pulseKick = 0.5;
+        // 3) …and the WHOLE marquee steps UP to the new tier's size with an
+        //    overshoot — each stage is visibly BIGGER than the last.
+        const target = baseMsc * C.tierScale[n];
+        this.extraTweens.push(
+          gsap.to(marquee.scale, { x: target, y: target, duration: 0.42, ease: 'back.out(2.8)', overwrite: 'auto' }),
+        );
+        // 4) shake escalates to the NEW tier's strength.
+        this.traumaMax = C.shake[n]; this.traumaRot = C.shakeRot[n];
+        this.trauma = 1;
       };
 
       // IMPACT — layered slam-in: tier word first, WIN right behind, plate
@@ -325,8 +349,10 @@ export class WinCelebration {
         onUpdate: () => {
           if (!this.overlay) return;
           amount.text = `${counter.val.toFixed(dp)} ${p.symbol}`;
-          if (curTier < finalTier) {
-            for (let n = finalTier; n > curTier; n--) {
+          // Live promotion caps at EPIC — MAX only fires after the count.
+          const liveMax = Math.min(finalTier, 2);
+          if (curTier < liveMax) {
+            for (let n = liveMax; n > curTier; n--) {
               if (counter.val >= th[n]) { promoteTier(n); break; }
             }
           }
@@ -334,15 +360,21 @@ export class WinCelebration {
         onComplete: () => { if (this.overlay) amount.text = `${formatAmount(p.winAmount, p.decimals)} ${p.symbol}`; },
       }, 0.24);
 
-      // END FLARE: settle punch on the whole marquee + a last kick.
+      // END FLARE — and for a MAX win the SWITCH happens only NOW: EPIC held
+      // until the number fully counted to the cap; then MAX slams in over the
+      // final amount (which keeps pulsing — see the ticker).
       const at = 0.24 + C.countDur[finalTier];
       tl.call(() => { this.pulseKick = 0.18; if (finalTier >= 2) this.trauma = 0.8; }, undefined, at);
+      const maxBeat = finalTier === 3 ? 0.18 : 0;
+      if (finalTier === 3) tl.call(() => promoteTier(3), undefined, at + maxBeat);
 
       // HOLD, then EXIT: slight scale-drift out while fading.
-      const exitAt = at + C.holdDur[finalTier];
+      const exitAt = at + maxBeat + C.holdDur[finalTier];
       tl.to(marquee, { alpha: 0, duration: 0.38, ease: 'power1.in' }, exitAt);
+      // Function-based values: evaluated when the tween STARTS, so the drift
+      // grows from wherever the promotions left the marquee (not build-time).
       tl.to(marquee.scale, {
-        x: marquee.scale.x * 1.05, y: marquee.scale.y * 1.05,
+        x: () => marquee.scale.x * 1.05, y: () => marquee.scale.y * 1.05,
         duration: 0.38, ease: 'power1.in',
       }, exitAt);
     });

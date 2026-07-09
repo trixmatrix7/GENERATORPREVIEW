@@ -23,8 +23,6 @@ export function GameCanvas({ lastOutcome, phase, onPixiReady, config, controls }
   const appRef = useRef<PixiApp | null>(null);
   const lastOutcomeRef = useRef(lastOutcome);
   lastOutcomeRef.current = lastOutcome;
-  const hasControlsRef = useRef(!!controls);
-  hasControlsRef.current = !!controls;
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -43,9 +41,9 @@ export function GameCanvas({ lastOutcome, phase, onPixiReady, config, controls }
 
     pixiApp.init(canvasRef.current).then(() => {
       if (cancelled) return;
-      // The control bar overlays the canvas bottom (strip = 150/1200 of the
-      // width) — reserve that band so the grid centres above the bar.
-      if (hasControlsRef.current) pixiApp.bottomHudFraction = 150 / 1200;
+      // NOTE: no bottomHudFraction reserve — the grid keeps its full-box
+      // centring/size and the control bar simply layers over the canvas
+      // bottom (its gradient top is transparent, so nothing is hidden).
       onPixiReady(pixiApp);
       // Sync the renderer buffer to the parent size, then keep it synced.
       // Pixi's built-in `resizeTo` uses a ResizeObserver that only fires on

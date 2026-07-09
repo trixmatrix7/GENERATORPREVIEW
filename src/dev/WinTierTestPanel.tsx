@@ -14,16 +14,15 @@ interface Props {
   soundManager: SoundManager;
 }
 
-// Multipliers picked to land safely inside each tier's [min, max) band
-// (see src/registries/winScreenTiers.ts). The sound is resolved via the SAME
-// selectWinSound() the live game uses, so the panel exercises every sting —
-// including win-normal — instead of a stale parallel table.
-// The 3 AAA win-celebration tiers (multipliers land inside the celebration's
-// visual bands: tier2 at 15×, tier3 at 75× — see WIN_CELEBRATION_CONFIG.bands).
+// Multipliers picked to land safely inside each marquee tier's band
+// (WIN_CELEBRATION_CONFIG: minBigWin 15, mega 25, epic 100; MAX = the game's
+// max-win cap, 5000× — see GameConfig.maxWinMultiplier). The sound is resolved
+// via the SAME selectWinSound() the live game uses.
 const TIERS = [
-  { id: 't1', label: 'Nice One!',     multiplier: 8   },
-  { id: 't2', label: 'Insane!',       multiplier: 40  },
-  { id: 't3', label: 'Fabulous Win!', multiplier: 150 },
+  { id: 'big',  label: 'Big Win',  multiplier: 20   },
+  { id: 'mega', label: 'Mega Win', multiplier: 40   },
+  { id: 'epic', label: 'Epic Win', multiplier: 150  },
+  { id: 'max',  label: 'MAX WIN',  multiplier: 5000 },
 ] as const;
 
 export function WinTierTestPanel({ pixiApp, snapshot, soundManager }: Props) {

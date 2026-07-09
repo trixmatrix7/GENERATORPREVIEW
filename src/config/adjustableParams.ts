@@ -90,16 +90,6 @@ export const ADJUSTABLE_PARAMS: readonly AdjustableParam[] = [
     keywords: ['coin', 'coins'],
   },
   {
-    id: 'winParticle',
-    label: 'Win particle',
-    layer: 'win-screens',
-    type: 'enum',
-    options: ['moneybag', 'diamond', 'gem', 'cash', 'star', 'coin'],
-    default: 'moneybag',
-    description: 'Which particle bursts around the win text: 💰 money-bag emoji (default) / 💎 diamond emoji, or the drawn neon gem / cash note / star / gold coin. (Upload your own PNG in the Assets tab to override all of these.) Phrases: "win with money bags / diamonds / gems / cash / stars / coins".',
-    keywords: ['particle', 'moneybag', 'money bag', 'diamond', 'gem', 'gems', 'cash', 'star', 'stars', 'coin', 'coins', 'win burst'],
-  },
-  {
     id: 'ambientMotes',
     label: 'Ambient motes',
     layer: 'canvas-layers',

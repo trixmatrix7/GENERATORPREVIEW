@@ -55,9 +55,13 @@ export function App() {
     const bg = saved.bg ?? VICE_BACKGROUND_URL;
     if (bg) void pixiAppRef.setBackgroundImage(bg);
     if (saved.frame) void pixiAppRef.setFrameImage(saved.frame);
-    if (saved.winParticle) void pixiAppRef.setWinParticleImage(saved.winParticle);
     if (saved.fsBg) void pixiAppRef.setFreeSpinsBackgroundImage(saved.fsBg);
-    void pixiAppRef.setWinBannerImage(saved.winBanner ?? `${import.meta.env.BASE_URL}theme/win-banner.png`);
+    // Layered win-marquee art (BIG/MEGA/EPIC/MAX + WIN + number plate).
+    const T = `${import.meta.env.BASE_URL}theme/win-tiers/`;
+    void pixiAppRef.setWinTierImages({
+      big: `${T}big.png`, mega: `${T}mega.png`, epic: `${T}epic.png`,
+      max: `${T}max.png`, win: `${T}win.png`, plate: `${T}plate.png`,
+    });
     if (VICE_INTRO_URL) void pixiAppRef.setFreeSpinsIntroImage(VICE_INTRO_URL);
   }, [pixiAppRef]);
 

@@ -23,7 +23,7 @@ import {
   disposeLucideTextureCache,
   type LucideTextureCache,
 } from './lucideIcon';
-import { WinCelebration, WIN_CELEBRATION_CONFIG } from './WinCelebration';
+import { WinCelebration, WIN_CELEBRATION_CONFIG, type WinTierImageUrls } from './WinCelebration';
 
 const prefersReducedMotion = () =>
   typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -735,15 +735,10 @@ export class PixiApp {
     this.updateReelBackdrop();
   }
 
-  /** Use a custom uploaded win-particle PNG (overrides the drawn/emoji particle).
-   *  Pass null to clear. */
-  async setWinParticleImage(url: string | null): Promise<void> {
-    await this.winCelebration?.setParticleImage(url);
-  }
-
-  /** Chrome plaque shown behind the win text. Pass null to clear. */
-  async setWinBannerImage(url: string | null): Promise<void> {
-    await this.winCelebration?.setBannerImage(url);
+  /** Load the six layered win-marquee images (big/mega/epic/max + WIN + plate).
+   *  Pass null to clear (celebration falls back to baked text). */
+  async setWinTierImages(urls: WinTierImageUrls | null): Promise<void> {
+    await this.winCelebration?.setTierImages(urls);
   }
 
   /** Load a custom free-spins INTRO SCREEN image (shown when the iris opens).
@@ -1413,11 +1408,15 @@ export class PixiApp {
   ): Promise<void> {
     if (!this.isLive || !this.winCelebration) return Promise.resolve();
 
-    // Visual tier: 3 CLEAN bands by win/wager multiplier (NICE ONE / INSANE /
-    // FABULOUS WIN). Decoupled from the 6-id audio tiers.
+    // Marquee tier: BIG → MEGA → EPIC by win/wager multiplier; MAX only when
+    // the win hit the game's max-win cap. Below minBigWin the marquee doesn't
+    // play at all (small wins stay on-board). Decoupled from the audio tiers.
     const r = wager > 0n ? Number(winAmount) / Number(wager) : Number(winAmount);
-    const B = WIN_CELEBRATION_CONFIG.bands;
-    const tier = r >= B.t3 ? 2 : r >= B.t2 ? 1 : 0;
+    const C = WIN_CELEBRATION_CONFIG;
+    const capX = this.config.maxWinMultiplier;
+    const isMax = capX > 0 && r >= capX * 0.999;
+    if (!isMax && r < C.minBigWin) return Promise.resolve();
+    const tier = isMax ? 3 : r >= C.bands.epic ? 2 : r >= C.bands.mega ? 1 : 0;
 
     // Screen-space centre + coin origins (real winning cells → global coords),
     // since the celebration overlay lives on app.stage (screen pixels).
@@ -1618,13 +1617,6 @@ export class PixiApp {
         symbolSizing.objectScale = SYMBOL_SIZE_PRESETS[String(value)] ?? symbolSizing.objectScale;
         this.reelSet.refreshAllTiles();
         this.reelSet.refreshStickyWilds();
-        break;
-      }
-      case 'winParticle': {
-        const kind = String(value);
-        if (kind === 'moneybag' || kind === 'diamond' || kind === 'gem' || kind === 'cash' || kind === 'star' || kind === 'coin') {
-          this.winCelebration?.setParticle(kind);
-        }
         break;
       }
       default:

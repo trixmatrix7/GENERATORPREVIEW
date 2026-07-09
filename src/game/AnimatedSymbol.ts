@@ -472,7 +472,9 @@ export class AnimatedSymbol extends Container {
         ? Math.round(Math.min(SYMBOL_WIDTH, SYMBOL_HEIGHT) * 0.72)
         : (isSpecial ? 64 : isHigh ? 58 : isLow ? 48 : 53);
       // Preview 'symbolSize' preset scales the object bigger/smaller in the cell.
-      const targetSize = Math.round(baseTargetSize * symbolSizing.objectScale);
+      // Scatter renders 20% bigger — the round BONUS badge needs more presence.
+      const perSymbolMul = def.isScatter ? 1.2 : 1;
+      const targetSize = Math.round(baseTargetSize * symbolSizing.objectScale * perSymbolMul);
       this.iconSprite.y = iy;
       this.iconSprite.width = targetSize;
       this.iconSprite.height = targetSize;

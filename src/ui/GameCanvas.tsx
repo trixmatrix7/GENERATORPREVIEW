@@ -1,5 +1,5 @@
 // GameCanvas — mounts the PixiJS Application onto a canvas element.
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { PixiApp } from '@/game/PixiApp';
 import type { SpinOutcome } from '@/engine/SlotEngine';
 import type { GameConfig } from '@/engine/GameConfig';
@@ -13,9 +13,12 @@ interface Props {
    *  DEFAULT_GAME_CONFIG inside PixiApp — same pattern as the wizard's
    *  PixiPreviewPanel. */
   config?: GameConfig;
+  /** Bottom control bar rendered INSIDE the bounded game box, under the
+   *  canvas (chaingames control-bar preset — a DOM layer, not canvas). */
+  controls?: ReactNode;
 }
 
-export function GameCanvas({ lastOutcome, phase, onPixiReady, config }: Props) {
+export function GameCanvas({ lastOutcome, phase, onPixiReady, config, controls }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const appRef = useRef<PixiApp | null>(null);
   const lastOutcomeRef = useRef(lastOutcome);
@@ -101,6 +104,7 @@ export function GameCanvas({ lastOutcome, phase, onPixiReady, config }: Props) {
                 style={{ background: '#0D1117' }}
               />
             </div>
+            {controls}
           </div>
         </div>
       )}

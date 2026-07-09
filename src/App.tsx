@@ -10,6 +10,7 @@ import { useGameState } from '@/hooks/useGameState';
 import { useSoundLayer } from '@/audio/useSoundLayer';
 import { Sidebar } from '@/ui/Sidebar';
 import { GameCanvas } from '@/ui/GameCanvas';
+import { ControlBar } from '@/ui/ControlBar';
 import { StudioDrawer } from '@/studio/StudioDrawer';
 import { DEFAULT_GAME_CONFIG, type GameConfig } from '@/engine/GameConfig';
 import { getThemeByName } from '@/config/themes';
@@ -136,6 +137,21 @@ export function App() {
         phase={state.phase}
         onPixiReady={handlePixiReady}
         config={gameConfig}
+        controls={
+          <ControlBar
+            gameState={state}
+            snapshot={snapshot}
+            onBetChange={handleBetChange}
+            onSpin={handleSpin}
+            onSkip={handleSkip}
+            onAutoSpin={handleAutoSpin}
+            onStopAuto={handleStopAuto}
+            onBuyBonus={handleBuyBonus}
+            turbo={turbo}
+            onTurboToggle={handleTurboToggle}
+            soundManager={soundManager}
+          />
+        }
       />
 
       <StudioDrawer pixiApp={pixiAppRef} />

@@ -36,8 +36,8 @@ export const WIN_CELEBRATION_CONFIG = {
   amountFontSize: [46, 50, 54, 58], // fallback-only
   shake: [0, 5, 8, 12],
   shakeRot: [0, 0.006, 0.01, 0.016],
-  /** Overall marquee size multiplier (1 = default). */
-  sizeMul: 1.0,
+  /** Overall marquee size multiplier (1 = full). */
+  sizeMul: 0.4,
   /** Continuous pulse strength (scale amplitude). */
   pulseAmp: 0.03,
 };
@@ -68,6 +68,9 @@ const PLATE_CY = 0.746;
 const PLATE_H = 0.27;
 /** Union content bbox height (fraction of canvas) — drives on-screen sizing. */
 const CONTENT_FRAC = 0.77;
+/** Union content centre (fraction of canvas height) — the marquee pivots here
+ *  so the whole stack is EXACTLY centred on the given centre point. */
+const CONTENT_CY = (0.11 + 0.881) / 2;
 
 function formatAmount(amount: bigint, decimals: number): string {
   const dp = decimals > 4 ? 2 : decimals;
@@ -174,9 +177,11 @@ export class WinCelebration {
     };
 
     if (hasArt) {
-      // Scale so the art's content height ≈ 55% of the short screen edge.
+      // Scale so the art's content height ≈ 55% of the short screen edge,
+      // and pivot on the content's centre so the stack sits dead-centre.
       const msc = (Math.min(sw, sh) * 0.55 * C.sizeMul) / (CONTENT_FRAC * ART_H);
       marquee.scale.set(msc);
+      marquee.pivot.set(0, (CONTENT_CY - 0.5) * ART_H);
 
       plateSpr = new Sprite(this.plateTex!);
       plateSpr.anchor.set(0.5, PLATE_CY);

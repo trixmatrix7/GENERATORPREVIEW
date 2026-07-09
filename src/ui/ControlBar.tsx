@@ -1,16 +1,21 @@
-// ControlBar — bottom HUD bar under the slot, built from Noski's
-// chaingames-controlbar preset (bar 978×124 anchored bottom-center; left
-// icons + CREDIT/BET readouts, center "START AND WIN" status, right cluster
-// with bet −, spin, bet +, autoplay; BONUS BUY floating above-left).
-// Per the preset spec this is a separate DOM/React layer (NOT canvas).
-// Coords are adapted to our bounded game-box width (regions + proportions
-// kept; left/right paddings fit our 912px box). The cluster PNGs aren't in
-// the package, so the − / spin / + / autoplay controls are recreated in CSS.
+// ControlBar — Noski's REAL chaingames control bar, rebuilt 1:1 from the
+// chaingames-complete package (presets/controlbar/control-bar.reference.md +
+// the shipped PNG assets in assets/ui/).
+//
+// Fidelity approach: the reference gives exact DESIGN-SPACE coordinates
+// (1200×675 logical canvas; bar 978×124 at BX=111, BY=543; bg gradient full
+// width × 150 tall). We lay everything out at those exact px inside a
+// 1200×150 bottom strip and scale the strip to the game box width — so the
+// arrangement is pixel-identical, only uniformly resized to our measurements.
+//
+// Assets (public/theme/chain/ui/, @2x PNGs from the package):
+//   snd_on/snd_off · dice · help · coin · cluster_idle · cluster_stop
+// The − / spin / + / autoplay glyphs are BAKED into the cluster image; only
+// transparent hit zones sit over them (exactly like the original ui.js).
+// The open*Menu overlay panels are a separate preset set — not wired here.
 
-import { useEffect, useState } from 'react';
-import { useTranslation } from 'react-i18next';
+import { useEffect, useRef, useState } from 'react';
 import { formatUnits, parseUnits } from 'viem';
-import { Volume2, VolumeX, Dices, HelpCircle, Minus, Plus, RotateCw, Square, Zap } from 'lucide-react';
 import { GAME_CONFIG } from '@/config/gameConfig';
 import type { GameState } from '@/state/types';
 import type { HostSnapshotV1 } from '@/bridge/types';
@@ -30,8 +35,14 @@ interface Props {
   soundManager?: SoundManager;
 }
 
-export function ControlBar({ gameState, snapshot, onBetChange, onSpin, onSkip, onAutoSpin, onStopAuto, onBuyBonus, turbo, onTurboToggle, soundManager }: Props) {
-  const { t } = useTranslation();
+const UI = `${import.meta.env.BASE_URL}theme/chain/ui/`;
+
+// Design-space constants from the reference (all px in 1200×675 space).
+const DESIGN_W = 1200;
+const STRIP_H = 150;              // bg gradient: full width, height 150
+const BX = 111, BY_IN_STRIP = 18; // bar origin inside the strip (543 − 525)
+
+export function ControlBar({ gameState, snapshot, onBetChange, onSpin, onSkip, onAutoSpin, onStopAuto, onBuyBonus, soundManager }: Props) {
   const decimals = snapshot.token.decimals ?? 18;
   const balance = snapshot.balances.smartVaultBalance ?? '0';
   const isReady = snapshot.wallet.status === 'ready';
@@ -40,18 +51,30 @@ export function ControlBar({ gameState, snapshot, onBetChange, onSpin, onSkip, o
   const betBig = BigInt(gameState.betBaseUnits || '0');
   const balanceBig = BigInt(balance || '0');
   const canSpin = isReady && gameState.phase === 'idle' && betBig >= GAME_CONFIG.minBetBaseUnits && betBig <= balanceBig;
-  const isLoading = gameState.phase === 'awaiting_tx' || gameState.phase === 'spinning';
+  const isSpinning = gameState.phase === 'awaiting_tx' || gameState.phase === 'spinning' || gameState.phase === 'resolving';
   const canSkip = gameState.phase === 'resolving';
   const isAutoRunning = gameState.autoSpinsRemaining > 0;
 
-  // ── readout values ("toFixed(2)" per the preset) ──────────────────────────
+  // ── responsive scale: strip is laid out at 1200 design-px, scaled to fit ──
+  const hostRef = useRef<HTMLDivElement>(null);
+  const [scale, setScale] = useState(912 / DESIGN_W);
+  useEffect(() => {
+    const el = hostRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(() => setScale(el.clientWidth / DESIGN_W));
+    ro.observe(el);
+    setScale(el.clientWidth / DESIGN_W);
+    return () => ro.disconnect();
+  }, []);
+
+  // ── values ("toFixed(2)" per the reference setters) ───────────────────────
   const credit = Number(formatUnits(balanceBig, decimals)).toFixed(2);
   const bet = Number(gameState.betDisplay || '0').toFixed(2);
   const winAmount = gameState.phase === 'settled_win' && gameState.lastOutcome
     ? Number(formatUnits(gameState.lastOutcome.winAmount, decimals)).toFixed(2)
     : null;
 
-  // ── bet − / + (same clamp as BetInput's ÷2/×2) ─────────────────────────────
+  // ── bet − / + (same clamp as BetInput ÷2/×2) ──────────────────────────────
   function clamp(raw: bigint): bigint {
     const min = GAME_CONFIG.minBetBaseUnits;
     const max = balanceBig > 0n
@@ -60,20 +83,21 @@ export function ControlBar({ gameState, snapshot, onBetChange, onSpin, onSkip, o
     return raw < min ? min : raw > max ? max : raw;
   }
   function stepBet(dir: -1 | 1) {
+    if (!isReady || !isIdle) return;
     let current: bigint;
     try { current = parseUnits(gameState.betDisplay || '0', decimals); } catch { current = 0n; }
     const next = clamp(dir === 1 ? current * 2n : current / 2n);
     onBetChange(formatUnits(next, decimals));
   }
 
-  // ── sound icon state (subscribe like AudioControl) ─────────────────────────
+  // ── sound icon state (sndOn/sndOff by sound.enabled) ──────────────────────
   const [muted, setMuted] = useState(soundManager?.muted ?? false);
   useEffect(() => {
     if (!soundManager) return;
     return soundManager.subscribe(() => setMuted(soundManager.muted));
   }, [soundManager]);
 
-  // ── bonus buy (above-bar button per the preset) ────────────────────────────
+  // ── bonus buy (above-bar button; renders only when the game carries a cost)
   const bonusBuyCost = (GAME_CONFIG as { bonusBuyCost?: number }).bonusBuyCost;
   const bonusBuyCostBase = bonusBuyCost != null
     ? (betBig * BigInt(Math.round(bonusBuyCost * 100))) / 100n
@@ -82,120 +106,120 @@ export function ControlBar({ gameState, snapshot, onBetChange, onSpin, onSkip, o
     isReady && gameState.phase === 'idle' && bonusBuyCost != null &&
     betBig >= GAME_CONFIG.minBetBaseUnits && bonusBuyCostBase <= balanceBig;
 
-  const iconBtn = 'flex items-center justify-center text-white/85 transition-opacity hover:opacity-80 cursor-pointer bg-transparent border-none p-0';
-  const stepBtn = 'flex h-[44px] w-[46px] items-center justify-center rounded-[10px] bg-white/[0.07] border border-white/10 text-white/85 transition-all hover:bg-white/[0.14] active:scale-95 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer';
+  // center-anchored icon (reference: sprites are center-anchored; hit +10 pad)
+  const icon = (src: string, x: number, y: number, size: number, title: string, onClick?: () => void) => (
+    <button
+      type="button"
+      title={title}
+      onClick={onClick}
+      className="absolute p-0 border-none bg-transparent cursor-pointer transition-opacity hover:opacity-80"
+      style={{ left: x - size / 2 - 5, top: y - size / 2 - 5, width: size + 10, height: size + 10 }}
+    >
+      <img src={src} alt="" draggable={false} style={{ width: size, height: size, margin: 5, display: 'block' }} />
+    </button>
+  );
+
+  // transparent hit zone over the baked-in cluster art
+  const hitZone = (x: number, y: number, w: number, h: number, title: string, onClick: () => void, disabled = false) => (
+    <button
+      type="button"
+      title={title}
+      onClick={onClick}
+      disabled={disabled}
+      className="absolute p-0 border-none bg-transparent cursor-pointer disabled:cursor-not-allowed"
+      style={{ left: x, top: y, width: w, height: h }}
+    />
+  );
+
+  const poppins = { fontFamily: 'var(--font-display)', fontStyle: 'italic' as const };
 
   return (
-    <div className="relative select-none" style={{ fontFamily: 'var(--font-display)' }}>
-      {/* BONUS BUY — floats above the bar, left edge (preset: 168×42 at BY−48) */}
-      {bonusBuyCost != null && !isAutoRunning && (
-        <button
-          type="button"
-          onClick={onBuyBonus}
-          disabled={!canBuyBonus}
-          title={`Buy the free-spins round for ${bonusBuyCost}× your bet`}
-          className="absolute -top-[48px] left-2 z-10 flex h-[42px] w-[168px] items-center justify-center gap-2 rounded-[12px] border border-black bg-[#2c2c2c] shadow-[inset_0_1px_0_rgba(255,255,255,0.16)] transition-opacity hover:opacity-85 disabled:opacity-35 disabled:cursor-not-allowed cursor-pointer"
-        >
-          <span className="text-[15px]">🪙</span>
-          <span className="text-[14px] font-bold italic tracking-[0.5px] text-[#ffaf68]">BONUS BUY</span>
-        </button>
-      )}
-
-      {/* Bar — vertical gradient rgba(30,30,30,0) → #111 per the preset */}
+    <div ref={hostRef} className="relative w-full select-none" style={{ height: STRIP_H * scale }}>
       <div
-        className="flex items-center gap-3 px-4 h-[112px]"
-        style={{ background: 'linear-gradient(180deg, rgba(30,30,30,0) 0%, #111111 100%)' }}
+        className="absolute left-0 top-0"
+        style={{
+          width: DESIGN_W,
+          height: STRIP_H,
+          transform: `scale(${scale})`,
+          transformOrigin: 'top left',
+          // reference: vertical gradient, FULL width, height 150, transparent → #111
+          background: 'linear-gradient(180deg, rgba(30,30,30,0) 0%, #111111 100%)',
+        }}
       >
-        {/* ── left: sound / RNG / help icons ── */}
-        <div className="flex flex-col gap-2 shrink-0">
-          <button type="button" className={iconBtn} title={muted ? 'Unmute' : 'Mute'} onClick={() => soundManager?.toggleMuted()}>
-            {muted ? <VolumeX size={20} /> : <Volume2 size={20} />}
-          </button>
-          <button type="button" className={iconBtn} title="Provably fair (RNG)">
-            <Dices size={20} />
-          </button>
-        </div>
-        <button type="button" className={`${iconBtn} shrink-0`} title="Rules / paytable">
-          <HelpCircle size={30} strokeWidth={1.6} />
-        </button>
+        {/* ── the bar (978×124 at BX=111) — all children at exact reference px ── */}
+        <div className="absolute" style={{ left: BX, top: BY_IN_STRIP, width: 978, height: 124 }}>
 
-        {/* ── CREDIT / BET readouts (Poppins italic, ls −1.4) ── */}
-        <div className="flex flex-col gap-1 shrink-0 ml-1">
-          <div className="flex items-baseline gap-2">
-            <span className="text-[17px] font-bold italic tracking-[-1px] text-[#dfe2e5]">CREDIT</span>
-            <span className="text-[13px]">🪙</span>
-            <span className="text-[15px] font-semibold italic text-[#eef0f2] tabular-nums">{credit}</span>
-          </div>
-          <div className="flex items-baseline gap-2">
-            <span className="text-[17px] font-bold italic tracking-[-1px] text-[#dfe2e5]">BET</span>
-            <span className="text-[13px]">🪙</span>
-            <span className="text-[15px] font-semibold italic text-[#eef0f2] tabular-nums">{bet}</span>
-          </div>
-        </div>
+          {/* left icons: sound (16,42) 30 · dice (16,82) 30 · help (58,64) 44 */}
+          {icon(muted ? `${UI}snd_off.png` : `${UI}snd_on.png`, 16, 42, 30, muted ? 'Sound off' : 'Sound on', () => soundManager?.toggleMuted())}
+          {icon(`${UI}dice.png`, 16, 82, 30, 'Provably fair (RNG)')}
+          {icon(`${UI}help.png`, 58, 64, 44, 'Rules / paytable')}
 
-        {/* ── center: win status ("START AND WIN" idle / "WIN x.xx") ── */}
-        <div className="flex-1 text-center min-w-0">
-          <span className={`text-[26px] font-extrabold italic tracking-[-2px] whitespace-nowrap ${winAmount ? 'text-[var(--color-yellow)]' : 'text-white'}`}>
+          {/* CREDIT row: label 20px #dfe2e5 (108,40) · coin 19px (208,40) · value 18px #eef0f2 (224,40) */}
+          <span className="absolute whitespace-nowrap" style={{ ...poppins, left: 108, top: 40, transform: 'translateY(-50%)', fontSize: 20, fontWeight: 700, letterSpacing: -1.4, color: '#dfe2e5' }}>CREDIT</span>
+          <img src={`${UI}coin.png`} alt="" draggable={false} className="absolute" style={{ left: 208 - 9.5, top: 40 - 9.5, width: 19, height: 19 }} />
+          <span className="absolute whitespace-nowrap tabular-nums" style={{ ...poppins, left: 224, top: 40, transform: 'translateY(-50%)', fontSize: 18, fontWeight: 600, color: '#eef0f2' }}>{credit}</span>
+
+          {/* BET row: label (108,84) · coin (220,84) · value (236,84) · hit zone (104,70,150×36) */}
+          <span className="absolute whitespace-nowrap" style={{ ...poppins, left: 108, top: 84, transform: 'translateY(-50%)', fontSize: 20, fontWeight: 700, letterSpacing: -1.4, color: '#dfe2e5' }}>BET</span>
+          <img src={`${UI}coin.png`} alt="" draggable={false} className="absolute" style={{ left: 220 - 9.5, top: 84 - 9.5, width: 19, height: 19 }} />
+          <span className="absolute whitespace-nowrap tabular-nums" style={{ ...poppins, left: 236, top: 84, transform: 'translateY(-50%)', fontSize: 18, fontWeight: 600, color: '#eef0f2' }}>{bet}</span>
+          {hitZone(104, 70, 150, 36, 'Bet (menu — separate overlay set)', () => { /* openBetMenu: overlay set is a separate preset */ })}
+
+          {/* center status (526,62): "START AND WIN" 30px white italic ls −2 / "WIN  x.xx" */}
+          <span
+            className="absolute whitespace-nowrap"
+            style={{ ...poppins, left: 526, top: 62, transform: 'translate(-50%,-50%)', fontSize: 30, fontWeight: 700, letterSpacing: -2, color: winAmount ? 'var(--color-yellow)' : '#ffffff' }}
+          >
             {winAmount ? `WIN  ${winAmount}` : 'START AND WIN'}
           </span>
-        </div>
 
-        {/* ── right cluster: − / spin / + on top, ⚡ + autoplay below ── */}
-        <div className="flex flex-col items-center gap-1.5 shrink-0">
-          <div className="flex items-center gap-4">
-            <button type="button" className={stepBtn} onClick={() => stepBet(-1)} disabled={!isReady || !isIdle} title="Bet −">
-              <Minus size={20} />
-            </button>
+          {/* right cluster: ONE image (769,0) 209×125 — idle arrows / stop square */}
+          <img
+            src={isSpinning ? `${UI}cluster_stop.png` : `${UI}cluster_idle.png`}
+            alt=""
+            draggable={false}
+            className="absolute"
+            style={{ left: 769, top: 0, width: 209, height: 125 }}
+          />
+          {/* autoplay-on tint 0xc8e6a0: same PNG masked, green, over the art */}
+          {isAutoRunning && (
+            <div
+              className="absolute pointer-events-none"
+              style={{
+                left: 769, top: 0, width: 209, height: 125,
+                background: '#c8e6a0', opacity: 0.45,
+                WebkitMaskImage: `url(${isSpinning ? `${UI}cluster_stop.png` : `${UI}cluster_idle.png`})`,
+                maskImage: `url(${isSpinning ? `${UI}cluster_stop.png` : `${UI}cluster_idle.png`})`,
+                WebkitMaskSize: '100% 100%', maskSize: '100% 100%',
+              }}
+            />
+          )}
+          {/* transparent hit zones per the reference */}
+          {hitZone(771, 14, 46, 44, 'Bet −', () => stepBet(-1), !isReady || !isIdle)}
+          {hitZone(837, 8, 74, 74, canSkip ? 'Skip' : 'Spin', () => { if (canSkip) onSkip(); else if (canSpin && !isSpinning) onSpin(); }, !canSkip && (!canSpin || isSpinning))}
+          {hitZone(930, 14, 46, 44, 'Bet +', () => stepBet(1), !isReady || !isIdle)}
+          {hitZone(796, 79, 155, 42, isAutoRunning ? `Stop autoplay (${gameState.autoSpinsRemaining} left)` : 'Autoplay — 10 spins',
+            () => { if (isAutoRunning) onStopAuto(); else if (canSpin) onAutoSpin(10); })}
+
+          {/* BONUS BUY — 168×42 at (2, −48): #2c2c2c r12, black outline + white 16% top line */}
+          {bonusBuyCost != null && !isAutoRunning && (
             <button
               type="button"
-              onClick={canSkip ? onSkip : onSpin}
-              disabled={!canSkip && (!canSpin || isLoading)}
-              title={canSkip ? 'Skip animation' : 'Spin'}
-              className="flex h-[68px] w-[68px] items-center justify-center rounded-full cursor-pointer border-none transition-all hover:brightness-110 active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed text-black"
+              onClick={onBuyBonus}
+              disabled={!canBuyBonus}
+              title={`Buy the free-spins round for ${bonusBuyCost}× your bet`}
+              className="absolute flex items-center cursor-pointer transition-opacity hover:opacity-85 disabled:opacity-35 disabled:cursor-not-allowed"
               style={{
-                background: 'radial-gradient(circle at 50% 35%, #ffe9a8 0%, var(--color-yellow) 55%, #caa62e 100%)',
-                boxShadow: '0 0 24px rgba(248,250,94,0.45), 0 2px 8px rgba(0,0,0,0.5)',
+                left: 2, top: -48, width: 168, height: 42,
+                background: '#2c2c2c', borderRadius: 12,
+                border: '1.5px solid #000000',
+                boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.16)',
               }}
             >
-              {canSkip
-                ? <Square size={22} fill="currentColor" />
-                : isLoading
-                  ? <span className="inline-block w-6 h-6 rounded-full border-[3px] border-black/25 border-t-black animate-spin" aria-hidden />
-                  : <RotateCw size={30} strokeWidth={2.6} />}
+              <img src={`${UI}coin.png`} alt="" draggable={false} className="absolute" style={{ left: 24 - 11, top: 21 - 11, width: 22, height: 22 }} />
+              <span className="absolute whitespace-nowrap" style={{ ...poppins, left: '50%', top: '50%', transform: 'translate(calc(-50% + 12px),-50%)', fontSize: 14, fontWeight: 700, letterSpacing: 0.5, color: '#ffaf68' }}>BONUS BUY</span>
             </button>
-            <button type="button" className={stepBtn} onClick={() => stepBet(1)} disabled={!isReady || !isIdle} title="Bet +">
-              <Plus size={20} />
-            </button>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <button
-              type="button"
-              onClick={onTurboToggle}
-              title="Turbo mode — reels snap instantly"
-              className={`${iconBtn} ${turbo ? 'text-[var(--color-yellow)]' : 'text-white/50'}`}
-            >
-              <Zap size={16} fill={turbo ? 'currentColor' : 'none'} />
-            </button>
-            {isAutoRunning ? (
-              <button
-                type="button"
-                onClick={onStopAuto}
-                className="h-[34px] px-5 rounded-[10px] bg-[var(--color-red)] border-none text-white text-[13px] font-bold italic tracking-[0.5px] cursor-pointer transition-opacity hover:opacity-90"
-              >
-                {t('stop_auto', { count: gameState.autoSpinsRemaining })}
-              </button>
-            ) : (
-              <button
-                type="button"
-                onClick={() => onAutoSpin(10)}
-                disabled={!canSpin}
-                title="Autoplay — 10 spins"
-                className="h-[34px] px-5 rounded-[10px] bg-white/[0.07] border border-white/10 text-white/85 text-[13px] font-bold italic tracking-[0.5px] cursor-pointer transition-all hover:bg-white/[0.14] disabled:opacity-30 disabled:cursor-not-allowed"
-              >
-                AUTO SPIN
-              </button>
-            )}
-          </div>
+          )}
         </div>
       </div>
     </div>

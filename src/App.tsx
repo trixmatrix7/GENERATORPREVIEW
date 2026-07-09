@@ -53,10 +53,13 @@ export function App() {
       : viceSymbolMap();
     void pixiAppRef.setUserAssetTextures(symbols);
     // Custom upload wins; otherwise the animated Vice spritesheet background:
-    // 8×9 = 72 frames @ 9fps, 848×874 each (box-aspect crop → ~1:1 pixels in
-    // the bounded game box) + ticker cross-fade in PixiApp = smooth AND crisp.
+    // 2 sheets × (8×6) = 96 frames @ 12fps, 800×824 each (box-aspect crop →
+    // near-1:1 pixels in the bounded game box) + ticker cross-fade = fluid.
+    const B = `${import.meta.env.BASE_URL}theme/vice/`;
     if (saved.bg) void pixiAppRef.setBackgroundImage(saved.bg);
-    else void pixiAppRef.setBackgroundSpritesheet(`${import.meta.env.BASE_URL}theme/vice/bg_sheet.webp`, 8, 9, 72, 9);
+    else void pixiAppRef.setBackgroundSpritesheet([`${B}bg_sheet_a.webp`, `${B}bg_sheet_b.webp`], 8, 6, 96, 12);
+    // VICE HEAT logo above the grid (replaces the text title).
+    void pixiAppRef.setTitleImage(`${B}logo.webp`);
     if (saved.frame) void pixiAppRef.setFrameImage(saved.frame);
     if (saved.fsBg) void pixiAppRef.setFreeSpinsBackgroundImage(saved.fsBg);
     // Layered win-marquee art (BIG/MEGA/EPIC/MAX + WIN + number plate).

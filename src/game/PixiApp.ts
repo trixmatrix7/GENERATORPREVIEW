@@ -145,6 +145,9 @@ export class PixiApp {
   private frameH = 0;
   private frameToken = 0;
   private titleText!: Text;
+  /** Optional logo image replacing the text title (see setTitleImage). */
+  private titleSprite: Sprite | null = null;
+  private titleTexture: Texture | null = null;
   private currentTheme: Theme = 'dark';
   /** Ambient glow + spotlight intensity multiplier (chat-config 'backgroundMood'). */
   private ambientScale = 1;
@@ -178,7 +181,7 @@ export class PixiApp {
   private userAssetToken = 0;
 
   // Animated (spritesheet) background: cycles frames on bgSprite via the ticker.
-  private bgAnimSheet: Texture | null = null;
+  private bgAnimSheets: Texture[] | null = null;
   private bgAnimFrames: Texture[] | null = null;
   /** Cross-fade overlay: carries frame N+1 at alpha = progress through frame N,
    *  so a modest sheet fps reads as continuous motion instead of stepping. */
@@ -553,6 +556,42 @@ export class PixiApp {
     this.redrawAmbient(rw, totalH, t.ambientAlpha1, t.ambientAlpha2, t.rendererBg);
   }
 
+  /** Replace the text title with a LOGO IMAGE above the grid. Sized to the
+   *  grid: height-capped so it stays inside the box's top padding, width-capped
+   *  at 60% of the reel width; bottom-anchored just above the frame. Pass null
+   *  to restore the text title. */
+  async setTitleImage(url: string | null): Promise<void> {
+    if (!this._initialized || this._aborted) return;
+    if (this.titleSprite) {
+      this.titleSprite.parent?.removeChild(this.titleSprite);
+      try { this.titleSprite.destroy(); } catch { /* torn down */ }
+      this.titleSprite = null;
+    }
+    if (this.titleTexture) {
+      try { this.titleTexture.destroy(true); } catch { /* torn down */ }
+      this.titleTexture = null;
+    }
+    if (!url) { this.titleText.visible = true; return; }
+
+    let tex: Texture;
+    try { tex = await Assets.load<Texture>(url); }
+    catch (err) { console.warn('[PixiApp] failed to load title image:', err); return; }
+    if (this._aborted) { try { tex.destroy(true); } catch { /* torn down */ } return; }
+
+    const rw = this.reelSet.totalWidth + FRAME_PAD * 2;
+    // Fit: ≤60% of grid width AND ≤150 scene-px tall (clears the box top even
+    // after the 60vh height cap), preserving the logo's aspect ratio.
+    const s = Math.min((rw * 0.6) / tex.width, 150 / tex.height);
+    this.titleSprite = new Sprite(tex);
+    this.titleSprite.anchor.set(0.5, 1);
+    this.titleSprite.scale.set(s);
+    this.titleSprite.x = rw / 2;
+    this.titleSprite.y = HEADER_H - 2; // bottom edge sits just above the frame
+    this.titleTexture = tex;
+    this.titleText.visible = false;
+    this.sceneRoot.addChild(this.titleSprite);
+  }
+
   /** Logo-style title: warm foil fill, dark outline for legibility on any
    *  background, and a soft accent glow — reads as a wordmark, not caption text. */
   private styleTitle(): void {
@@ -749,31 +788,44 @@ export class PixiApp {
     this.updateReelBackdrop();
   }
 
-  /** Animated background from a SPRITESHEET (grid of frames, row-major). Slices
-   *  the sheet into `count` sub-textures and cycles them on the background
-   *  sprite at `fps`. Reuses the static bg pipeline (cover-fit + frosted reel
-   *  backdrop) so everything else keeps working. Pass null to clear. */
+  /** Animated background from one or more SPRITESHEETS (grid of frames,
+   *  row-major; multiple sheets are consumed in order so total frame count can
+   *  exceed the single-texture GPU limit). Slices into `count` sub-textures and
+   *  cycles them on the background sprite at `fps`. Reuses the static bg
+   *  pipeline (cover-fit + frosted reel backdrop). Pass null to clear. */
   async setBackgroundSpritesheet(
-    url: string | null, cols: number, rows: number, count?: number, fps = 12,
+    url: string | string[] | null, cols: number, rows: number, count?: number, fps = 12,
   ): Promise<void> {
     if (!this._initialized || this._aborted) return;
     const myToken = ++this.bgToken;
     this.clearBackgroundImage(); // tears down any static bg AND stops any anim
-    if (!url) return;
+    if (!url || (Array.isArray(url) && url.length === 0)) return;
 
-    let sheet: Texture;
-    try { sheet = await Assets.load<Texture>(url); }
-    catch (err) { console.warn('[PixiApp] failed to load bg spritesheet:', err); return; }
-    if (myToken !== this.bgToken || this._aborted) { try { sheet.destroy(true); } catch { /* torn down */ } return; }
+    const urls = Array.isArray(url) ? url : [url];
+    const sheets: Texture[] = [];
+    try { for (const u of urls) sheets.push(await Assets.load<Texture>(u)); }
+    catch (err) {
+      console.warn('[PixiApp] failed to load bg spritesheet:', err);
+      for (const s of sheets) { try { s.destroy(true); } catch { /* torn down */ } }
+      return;
+    }
+    if (myToken !== this.bgToken || this._aborted) {
+      for (const s of sheets) { try { s.destroy(true); } catch { /* torn down */ } }
+      return;
+    }
 
-    const fw = sheet.width / cols, fh = sheet.height / rows;
-    const n = Math.max(1, count ?? cols * rows);
+    const fw = sheets[0].width / cols, fh = sheets[0].height / rows;
+    const perSheet = cols * rows;
+    const n = Math.max(1, count ?? perSheet * sheets.length);
     const frames: Texture[] = [];
     for (let i = 0; i < n; i++) {
-      const cx = (i % cols) * fw, cy = Math.floor(i / cols) * fh;
+      const sheet = sheets[Math.floor(i / perSheet)];
+      if (!sheet) break; // count exceeds supplied sheets — use what we have
+      const local = i % perSheet;
+      const cx = (local % cols) * fw, cy = Math.floor(local / cols) * fh;
       frames.push(new Texture({ source: sheet.source, frame: new Rectangle(cx, cy, fw, fh) }));
     }
-    this.bgAnimSheet = sheet;
+    this.bgAnimSheets = sheets;
     this.bgAnimFrames = frames;
     this.bgAnimFps = Math.max(1, fps);
     this.bgAnimIdx = 0; this.bgAnimAccum = 0; this.bgAnimPaused = false;
@@ -821,7 +873,7 @@ export class PixiApp {
     }
     if (this.bgTexture && this.bgAnimFrames?.includes(this.bgTexture)) this.bgTexture = null;
     if (this.bgAnimFrames) { for (const f of this.bgAnimFrames) { try { f.destroy(false); } catch { /* torn down */ } } this.bgAnimFrames = null; }
-    if (this.bgAnimSheet) { try { this.bgAnimSheet.destroy(true); } catch { /* torn down */ } this.bgAnimSheet = null; }
+    if (this.bgAnimSheets) { for (const s of this.bgAnimSheets) { try { s.destroy(true); } catch { /* torn down */ } } this.bgAnimSheets = null; }
     this.bgAnimPaused = false;
   }
 

@@ -896,6 +896,12 @@ export class PixiApp {
     await this.winCelebration?.setTierImages(urls);
   }
 
+  /** Load the coin-rain spritesheets (chroma-keyed alpha webp) played BEHIND
+   *  the win marquee during celebrations. Pass null to clear. */
+  async setWinCoinRain(urls: string[] | null, cols: number, rows: number, count: number, fps = 30): Promise<void> {
+    await this.winCelebration?.setCoinRain(urls, cols, rows, count, fps);
+  }
+
   /** Load a custom free-spins INTRO SCREEN image (shown when the iris opens).
    *  Pass null to clear (falls back to the plain placeholder). */
   async setFreeSpinsIntroImage(url: string | null): Promise<void> {

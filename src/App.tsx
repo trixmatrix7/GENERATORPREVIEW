@@ -71,6 +71,9 @@ export function App() {
       big: `${T}big.png`, mega: `${T}mega.png`, epic: `${T}epic.png`,
       max: `${T}max.png`, win: `${T}win.png`, plate: `${T}plate.png`,
     });
+    // Custom coin rain (chroma-keyed, 2 sheets × 150 = 300 frames @ 30fps) —
+    // plays as a layer BEHIND the win marquee.
+    void pixiAppRef.setWinCoinRain([`${T}coinrain_a.webp`, `${T}coinrain_b.webp`], 10, 15, 300, 30);
     if (VICE_INTRO_URL) void pixiAppRef.setFreeSpinsIntroImage(VICE_INTRO_URL);
   }, [pixiAppRef]);
 

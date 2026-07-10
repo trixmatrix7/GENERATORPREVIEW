@@ -13,7 +13,7 @@
 // Self-contained: ONE app.stage overlay (screen coords). play() resolves
 // EXACTLY once on every path. cancel()/dispose() tear everything down.
 
-import { Application, Assets, Container, Sprite, Text, TextStyle, Texture, Ticker } from 'pixi.js';
+import { Application, Assets, Container, Rectangle, Sprite, Text, TextStyle, Texture, Ticker } from 'pixi.js';
 import { gsap } from 'gsap';
 
 /** URLs for the six aligned marquee layers. */
@@ -105,6 +105,15 @@ export class WinCelebration {
   /** Fallback foil wordmarks (used only when no art is loaded). */
   private wordCache = new Map<string, Texture>();
 
+  /** Coin-rain overlay — a spritesheet layer rendered BEHIND the marquee.
+   *  Frames sliced from one or more sheets (row-major, sheets in order). */
+  private coinFrames: Texture[] | null = null;
+  private coinSheets: Texture[] | null = null;
+  private coinFps = 30;
+  private coinSprite: Sprite | null = null;
+  private coinIdx = 0;
+  private coinAccum = 0;
+
   // per-run state (read by the ticker)
   private trauma = 0;
   private traumaMax = 0;
@@ -136,6 +145,41 @@ export class WinCelebration {
     }
   }
 
+  /** Load the coin-rain spritesheets (chroma-keyed, alpha). The rain plays
+   *  behind the marquee on every celebration. Pass null to clear. */
+  async setCoinRain(urls: string[] | null, cols: number, rows: number, count: number, fps = 30): Promise<void> {
+    this.disposeCoinTextures();
+    if (!urls || urls.length === 0) return;
+    try {
+      const sheets: Texture[] = [];
+      for (const u of urls) sheets.push(await Assets.load<Texture>(u));
+      const fw = sheets[0].width / cols, fh = sheets[0].height / rows;
+      const perSheet = cols * rows;
+      const frames: Texture[] = [];
+      for (let i = 0; i < count; i++) {
+        const sheet = sheets[Math.floor(i / perSheet)];
+        if (!sheet) break;
+        const local = i % perSheet;
+        frames.push(new Texture({
+          source: sheet.source,
+          frame: new Rectangle((local % cols) * fw, Math.floor(local / cols) * fh, fw, fh),
+        }));
+      }
+      this.coinSheets = sheets;
+      this.coinFrames = frames;
+      this.coinFps = Math.max(1, fps);
+    } catch (err) {
+      console.warn('[WinCelebration] coin rain failed to load:', err);
+      this.disposeCoinTextures();
+    }
+  }
+
+  private disposeCoinTextures(): void {
+    this.coinSprite = null; // owned by the (already destroyed) overlay
+    if (this.coinFrames) { for (const f of this.coinFrames) { try { f.destroy(false); } catch { /* torn down */ } } this.coinFrames = null; }
+    if (this.coinSheets) { for (const s of this.coinSheets) { try { s.destroy(true); } catch { /* torn down */ } } this.coinSheets = null; }
+  }
+
   play(p: WinCelebrationParams): Promise<void> {
     this.cancel();
 
@@ -157,6 +201,24 @@ export class WinCelebration {
     // the PROMOTIONS escalate it to each new tier's strength.
     this.traumaMax = Math.max(3, C.shake[Math.min(finalTier, 1)]);
     this.traumaRot = Math.max(0.004, C.shakeRot[Math.min(finalTier, 1)]);
+
+    // Coin rain — added BEFORE the marquee so it renders BEHIND the win screen
+    // (the win screen itself is untouched). Cover-fit to the canvas; the tick
+    // below cycles the frames at coinFps, looping for the whole celebration.
+    if (this.coinFrames && this.coinFrames.length > 0 && !p.reduced) {
+      const t0 = this.coinFrames[0];
+      const rain = new Sprite(t0);
+      rain.anchor.set(0.5);
+      rain.position.set(sw / 2, sh / 2);
+      rain.scale.set(Math.max(sw / t0.width, sh / t0.height));
+      rain.eventMode = 'none';
+      rain.alpha = 0;
+      overlay.addChild(rain);
+      this.coinSprite = rain;
+      this.coinIdx = 0;
+      this.coinAccum = 0;
+      gsap.to(rain, { alpha: 1, duration: 0.35, ease: 'power1.out' });
+    }
 
     const marquee = new Container();
     marquee.position.set(p.centre.x, p.centre.y);
@@ -246,6 +308,13 @@ export class WinCelebration {
       if (!this.overlay) return;
       const dt = Math.min(0.05, t.deltaMS / 1000);
       elapsed += dt;
+      // coin rain frame advance (looping, behind the marquee)
+      if (this.coinSprite && this.coinFrames) {
+        this.coinAccum += dt;
+        const spf = 1 / this.coinFps;
+        while (this.coinAccum >= spf) { this.coinIdx = (this.coinIdx + 1) % this.coinFrames.length; this.coinAccum -= spf; }
+        this.coinSprite.texture = this.coinFrames[this.coinIdx];
+      }
       this.pulseKick = Math.max(0, this.pulseKick - this.pulseKick * dt * 6);
       const k = this.pulseKick;
       if (tierSpr) {
@@ -413,6 +482,7 @@ export class WinCelebration {
   dispose(): void {
     this.finish();
     this.disposeTierTextures();
+    this.disposeCoinTextures();
     for (const t of this.wordCache.values()) t.destroy(true);
     this.wordCache.clear();
   }
@@ -431,6 +501,7 @@ export class WinCelebration {
     this.extraTweens.length = 0;
     if (this.tickCb) { this.app.ticker.remove(this.tickCb); this.tickCb = null; }
     this.trauma = 0; this.pulseKick = 0;
+    this.coinSprite = null; // owned by the overlay — destroyed with it below
     if (this.overlay) { try { this.overlay.destroy({ children: true }); } catch { /* torn down */ } this.overlay = null; }
     const r = this.resolveActive; this.resolveActive = null;
     if (r) r();

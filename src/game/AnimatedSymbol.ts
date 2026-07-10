@@ -16,7 +16,7 @@
 // This file is the only place that needs to change when a new animation style
 // is introduced (e.g. Spine, particles). Reel/ReelSet never touch tween code.
 
-import { AnimatedSprite, Container, Graphics, Sprite, Spritesheet, Text, TextStyle } from 'pixi.js';
+import { AnimatedSprite, Container, Graphics, Sprite, Spritesheet, Text, TextStyle, Texture } from 'pixi.js';
 import { OutlineFilter } from 'pixi-filters';
 import { gsap } from 'gsap';
 import { SYMBOLS, type SymbolIdType } from '@/config/symbols';
@@ -30,11 +30,29 @@ import { drawCellPocket } from '@/config/cellBackdrop';
 import type { SymbolAtlasMap } from './SymbolAtlasLoader';
 import type { GameTheme } from '@/engine/GameConfig';
 import { SYMBOL_HEIGHT, SYMBOL_WIDTH } from './symbolMetrics';
-import type { Texture } from 'pixi.js';
 
 /** symbolId → win-state spritesheet frames (looped while the cell is in the
  *  'win' state, replacing the static art). Filled by PixiApp.setSymbolWinSheet. */
 export const SYMBOL_WIN_SHEETS = new Map<number, { frames: Texture[]; fps: number }>();
+
+/** Soft-edge mask for win-sheet overlays: the source video frames are square
+ *  portraits whose art touches the frame edges — unmasked they pop as a hard
+ *  CARD. A feathered rounded-rect alpha mask melts the edges away so only the
+ *  character reads. Built once, shared. */
+let softEdgeMask: Texture | null = null;
+function getSoftEdgeMask(): Texture {
+  if (softEdgeMask) return softEdgeMask;
+  const c = document.createElement('canvas');
+  c.width = 256; c.height = 256;
+  const ctx = c.getContext('2d')!;
+  ctx.filter = 'blur(16px)';
+  ctx.fillStyle = '#fff';
+  ctx.beginPath();
+  ctx.roundRect(26, 26, 204, 204, 48);
+  ctx.fill();
+  softEdgeMask = Texture.from(c);
+  return softEdgeMask;
+}
 
 // Re-export so existing consumers (Reel, tests) can keep their
 // `from './AnimatedSymbol'` import paths working. The canonical source is
@@ -221,6 +239,15 @@ export class AnimatedSymbol extends Container {
     gsap.to(spr.scale, { x: target, y: target, duration: 0.28, ease: 'back.out(2.2)' });
     spr.eventMode = 'none';
     this.inner.addChild(spr);
+    // Soft-edge mask: melts the square frame edges away so only the CHARACTER
+    // pops — never a hard card. Parented to the sprite so it scales with it.
+    const mask = new Sprite(getSoftEdgeMask());
+    mask.anchor.set(0.5);
+    mask.width = (sheet.frames[0].width || 256);
+    mask.height = (sheet.frames[0].height || 256);
+    mask.eventMode = 'none';
+    spr.addChild(mask);
+    spr.mask = mask;
     this.preSheetIconVisible = this.iconSprite?.visible ?? false;
     this.preSheetShadowVisible = this.iconShadow?.visible ?? false;
     if (this.iconSprite) this.iconSprite.visible = false;
@@ -241,7 +268,7 @@ export class AnimatedSymbol extends Container {
     if (this.winSheetSprite) {
       gsap.killTweensOf(this.winSheetSprite.scale);
       this.winSheetSprite.parent?.removeChild(this.winSheetSprite);
-      try { this.winSheetSprite.destroy(); } catch { /* torn down */ }
+      try { this.winSheetSprite.destroy({ children: true }); } catch { /* torn down */ }
       this.winSheetSprite = null;
       if (this.iconSprite) this.iconSprite.visible = this.preSheetIconVisible;
       if (this.iconShadow) this.iconShadow.visible = this.preSheetShadowVisible;

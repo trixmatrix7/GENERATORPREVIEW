@@ -133,6 +133,24 @@ export function WinTierTestPanel({ pixiApp, snapshot, soundManager }: Props) {
         ✦ Sticky Wilds
       </button>
       <button
+        onClick={() => pixiApp.__testExpandingWild()}
+        style={{
+          background: '#07170c',
+          color: '#8fe6a0',
+          border: '1px solid #2a6b3f',
+          borderRadius: 4,
+          padding: '4px 8px',
+          fontSize: 11,
+          fontFamily: 'monospace',
+          cursor: 'pointer',
+          textAlign: 'left',
+          marginTop: 4,
+        }}
+        title="Wild lands on 1–2 reels, clear-beat, the money tower races out of the landing cell and locks the reel"
+      >
+        ⤢ Expanding Wild
+      </button>
+      <button
         onClick={() => {
           // Force turbo off for the demo so the iris transition always plays
           // (the free-spins entry is skipped in turbo/reduced-motion).

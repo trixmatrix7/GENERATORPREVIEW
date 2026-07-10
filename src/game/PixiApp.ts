@@ -1931,6 +1931,27 @@ export class PixiApp {
     void this.reelSet.playStickyWildReveal({ isLive: () => this.isLive, turbo: this.turbo });
   }
 
+  /** Load the expanding-wild column art (the Vice money tower). Pass null to
+   *  clear (the effect then falls back to a flat panel). */
+  async setExpandingWildImage(url: string | null): Promise<void> {
+    if (!this._initialized || this._aborted) return;
+    if (!url) { this.reelSet?.setExpandingWildTexture(null); return; }
+    try {
+      const tex = await Assets.load<Texture>(url);
+      if (!this._aborted) this.reelSet.setExpandingWildTexture(tex);
+    } catch (err) {
+      console.warn('[PixiApp] failed to load expanding wild image:', err);
+    }
+  }
+
+  /** Test-only: OUR expanding-wild showcase (Gift-Bonanza choreography on the
+   *  Vice money tower) — wild lands on 1–2 random reels, clear-beat, column
+   *  races out of the landing cell, locks in with the AAA shine. Visual only. */
+  public __testExpandingWild(): void {
+    if (!this.isLive) return;
+    void this.reelSet.playExpandingWildReveal({ isLive: () => this.isLive, turbo: this.turbo });
+  }
+
   /** Test-only: force a near-miss anticipation tease — lands a single scatter
    *  on reels 0 and 1 (2 total → no FS trigger), so the remaining reels
    *  decelerate dramatically. Exercises the anticipation slow-down + tease cue. */

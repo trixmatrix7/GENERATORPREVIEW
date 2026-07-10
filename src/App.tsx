@@ -61,6 +61,8 @@ export function App() {
     else void pixiAppRef.setBackgroundSpritesheet([`${B}bg_sheet_a.webp`, `${B}bg_sheet_b.webp`], 8, 6, 96, 12);
     // VICE HEAT logo above the grid (replaces the text title).
     void pixiAppRef.setTitleImage(`${B}logo.webp`);
+    // Expanding-wild column art (money tower).
+    void pixiAppRef.setExpandingWildImage(`${B}wild_column.webp`);
     if (saved.frame) void pixiAppRef.setFrameImage(saved.frame);
     if (saved.fsBg) void pixiAppRef.setFreeSpinsBackgroundImage(saved.fsBg);
     // Layered win-marquee art (BIG/MEGA/EPIC/MAX + WIN + number plate).

@@ -7,7 +7,7 @@
 //     outcome itself is never altered.
 //   - Win-cell highlighting and per-cell state triggers after the reels land.
 
-import { Container, Graphics, Text, TextStyle, Rectangle, Sprite } from 'pixi.js';
+import { Container, Graphics, Text, TextStyle, Rectangle, Sprite, Texture } from 'pixi.js';
 import { gsap } from 'gsap';
 import { Reel } from './Reel';
 import { AnimatedSymbol, SYMBOL_WIDTH, SYMBOL_HEIGHT } from './AnimatedSymbol';
@@ -98,6 +98,8 @@ export class ReelSet {
   /** Extra display objects owned by the sticky-wild reveal (wild tiles +
    *  pop flashes) — destroyed together with the shine handles on clear. */
   private stickyRevealObjects: Container[] = [];
+  /** Money-tower art for the expanding-wild showcase (set via PixiApp). */
+  private expandWildTexture: Texture | null = null;
   /** The momentary board-dim veil shown during a sticky-wild reveal. */
   private stickyDimVeil: Graphics | null = null;
   /** Tweens owned by the reveal (pop-ins, veil fades), killed on clear. */
@@ -439,6 +441,118 @@ export class ReelSet {
           },
         }),
     );
+  }
+
+  /** Art for the expanding-wild column (null → effect falls back to a flat
+   *  panel; normally the Vice money tower). */
+  setExpandingWildTexture(tex: Texture | null): void {
+    this.expandWildTexture = tex;
+  }
+
+  /** OUR expanding-wild showcase — Gift-Bonanza choreography on the Vice
+   *  money-tower art: the reels roll and settle, a wild LANDS on 1–2 random
+   *  reels, a clear-beat blanks that reel's other symbols, then the money
+   *  column races out of the landing cell (both directions), locks in with an
+   *  impact flash + the AAA shine border, and stays until the next spin.
+   *  Purely visual — never rewrites the board or the math. */
+  async playExpandingWildReveal(opts: { isLive?: () => boolean; turbo?: boolean } = {}): Promise<void> {
+    const live = opts.isLive ?? (() => true);
+
+    // 1–2 distinct random reels, each with a random landing row.
+    const reelIdxs = Array.from({ length: this.grid.reelCount }, (_, i) => i);
+    for (let i = reelIdxs.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [reelIdxs[i], reelIdxs[j]] = [reelIdxs[j], reelIdxs[i]];
+    }
+    const chosen = reelIdxs.slice(0, 1 + Math.floor(Math.random() * 2)).sort((a, b) => a - b);
+    const landingRows = chosen.map(() => Math.floor(Math.random() * this.grid.visibleRows));
+
+    // Roll + settle first (display-only stops; the columns cover the reels).
+    this.startSpin();
+    const gen = this.stickyRevealGen;
+    const displayStops = this.config.reelLengths.map(len => Math.floor(Math.random() * len));
+    await new Promise(res => setTimeout(res, opts.turbo ? 240 : 520));
+    if (this.stickyRevealGen !== gen || !live()) return;
+    await this.stopOnStops(displayStops, !!opts.turbo);
+
+    // Sequential, one reel finishing before the next starts (like the ref).
+    for (let k = 0; k < chosen.length; k++) {
+      if (this.stickyRevealGen !== gen || !live()) return;
+      await this.expandOneWildReel(chosen[k], landingRows[k], !!opts.turbo);
+      await new Promise(res => setTimeout(res, opts.turbo ? 90 : 200));
+    }
+  }
+
+  /** One reel's expansion: wild pops in its landing cell → the reel's other
+   *  symbols vanish under an opaque clear-beat → the money column grows out of
+   *  the landing cell to full reel height (masked to the reel) → impact flash
+   *  + reel-sized AAA shine border. All overlays ride the sticky-reveal
+   *  lifecycle, so the next spin clears everything. */
+  private expandOneWildReel(reelIdx: number, row: number, turbo: boolean): Promise<void> {
+    return new Promise(resolve => {
+      const rr = resolveAnchor(reelAnchor(reelIdx), this.grid);
+      const cellR = resolveAnchor(cellAnchor(reelIdx, row), this.grid);
+      const cx = rr.x + rr.w / 2;
+      const cellCy = cellR.y + cellR.h / 2;
+      const speed = turbo ? 0.6 : 1;
+      const rad = 14;
+
+      // 1) the wild LANDS — reuse the sticky pop (backing + money-stack tile
+      //    + flash) for a consistent premium landing beat.
+      this.popOneStickyWild(reelIdx, row);
+
+      // 2) clear-beat — opaque panel over the reel so no symbol shows behind
+      //    the column while it races out.
+      const clear = new Graphics();
+      clear.roundRect(rr.x, rr.y, rr.w, rr.h, rad).fill({ color: 0x0b0d14, alpha: 1 });
+      clear.alpha = 0;
+      clear.eventMode = 'none';
+      this.stickyContainer.addChild(clear);
+      this.stickyRevealObjects.push(clear);
+
+      // 3) the column — anchored at the landing cell's centre so it grows out
+      //    of the wild in BOTH directions; masked to the reel rect.
+      const fy = (cellCy - rr.y) / rr.h;
+      const tex = this.expandWildTexture ?? Texture.WHITE;
+      const spr = new Sprite(tex);
+      spr.anchor.set(0.5, fy);
+      spr.position.set(cx, rr.y + fy * rr.h);
+      const tsx = Math.min(rr.w * 0.98, rr.h * (tex.width / tex.height)) / tex.width;
+      const tsy = rr.h / tex.height;
+      spr.scale.set(tsx, tsy * (cellR.h / rr.h)); // start = one cell tall
+      spr.alpha = 0;
+      spr.eventMode = 'none';
+      const mask = new Graphics();
+      mask.roundRect(rr.x - 1, rr.y - 1, rr.w + 2, rr.h + 2, rad).fill(0xffffff);
+      mask.eventMode = 'none';
+      this.stickyContainer.addChild(mask);
+      spr.mask = mask;
+      this.stickyContainer.addChild(spr);
+      this.stickyRevealObjects.push(mask, spr);
+
+      // 4) impact flash at full extension.
+      const flash = new Graphics();
+      flash.roundRect(rr.x, rr.y, rr.w, rr.h, rad).fill({ color: 0xffffff, alpha: 0.5 });
+      flash.blendMode = 'add';
+      flash.alpha = 0;
+      flash.eventMode = 'none';
+      this.stickyContainer.addChild(flash);
+      this.stickyRevealObjects.push(flash);
+
+      const tl = gsap.timeline({ onComplete: resolve });
+      this.stickyRevealTweens.push(tl);
+      tl.to(clear, { alpha: 0.92, duration: 0.14 * speed, ease: 'power2.out' }, 0.42 * speed);
+      tl.to(spr, { alpha: 1, duration: 0.08 * speed, ease: 'power1.out' }, 0.5 * speed);
+      tl.to(spr.scale, { y: tsy * 1.045, duration: 0.3 * speed, ease: 'power3.out' }, 0.5 * speed);
+      tl.to(spr.scale, { y: tsy, duration: 0.16 * speed, ease: 'power2.inOut' }, 0.8 * speed);
+      tl.to(flash, { alpha: 0.55, duration: 0.07 * speed, ease: 'power2.out' }, 0.78 * speed);
+      tl.to(flash, {
+        alpha: 0, duration: 0.32 * speed, ease: 'power2.in',
+        onComplete: () => { if (flash.parent) flash.parent.removeChild(flash); },
+      }, 0.85 * speed);
+      // AAA shine border around the whole reel at lock-in.
+      tl.call(() => { this.stickyHandles.push(applyStickyWild(this.stickyContainer, rr)); }, undefined, 0.8 * speed);
+    });
   }
 
   /** Schedule a callback that can be cancelled together with all others

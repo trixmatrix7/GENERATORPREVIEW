@@ -952,22 +952,9 @@ export class ReelSet {
     const group = new Container();
     this.winLinesContainer.addChild(group);
 
-    // Win-focus bloom — a soft radial behind each winning cell (in the win-line
-    // colour), below the line/dots so wins pop without dimming the board.
-    // Cleared with the rest of the decoration by clearWinLines().
-    const bloom = new Container();
-    group.addChild(bloom);
-    const bloomSeen = new Set<string>();
-    for (const combo of combos) {
-      for (const p of this.comboPoints(combo)) {
-        const k = `${Math.round(p.x)},${Math.round(p.y)}`;
-        if (bloomSeen.has(k)) continue;
-        bloomSeen.add(k);
-        const gl = new Graphics();
-        this.drawSoftGlow(gl, p.x, p.y, Math.max(p.w, p.h) * 0.6, this.winLineColor, 0.42);
-        bloom.addChild(gl);
-      }
-    }
+    // (win-focus bloom removed — the gold radial behind every winning cell
+    // fought the transparent symbol art; the line/dots + symbol win anims
+    // carry the win on their own)
 
     // The line/dots are revealed left→right by a growing mask; sparkles sit in
     // a separate steady layer (not masked) so they twinkle normally.

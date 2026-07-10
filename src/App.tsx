@@ -91,6 +91,9 @@ export function App() {
     // speedboat loop (1 sheet × 8×8 = 60 frames @ 12fps, same pipeline as base).
     if (saved.fsBg) void pixiAppRef.setFreeSpinsBackgroundImage(saved.fsBg);
     else void pixiAppRef.setFreeSpinsBackgroundSpritesheet(`${B}fsbg_sheet.webp`, 8, 8, 60, 12);
+    // Vice dancers left + right of the grid, dancing through the FS round
+    // (8×12 = 96 frames @ 12fps each, 224×398, seamless 8s loops).
+    void pixiAppRef.setFreeSpinsDancers([`${B}dancer_a.webp`, `${B}dancer_b.webp`], 8, 12, 96, 12);
     // Layered win-marquee art (BIG/MEGA/EPIC/MAX + WIN + number plate).
     const T = `${import.meta.env.BASE_URL}theme/win-tiers/`;
     void pixiAppRef.setWinTierImages({

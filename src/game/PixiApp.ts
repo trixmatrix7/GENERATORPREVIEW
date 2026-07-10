@@ -92,6 +92,11 @@ export class PixiApp {
   /** FS counter overlay currently on screen (swept by the next resolve if a
    *  cancelled run skipped its closing iris). */
   private fsOverlayOpen: { container: Container; counter: Text } | null = null;
+  /** FS dancers (left/right of the grid, looping through the round). */
+  private fsDancerSheets: Texture[] | null = null;
+  private fsDancerFrames: Texture[][] | null = null;
+  private fsDancerFps = 12;
+  private fsDancerTweens: gsap.core.Tween[] = [];
   private fsBgSavedBase: Texture | null = null;
   private fsBgActive = false;
   private ambientLayer: Container | null = null;
@@ -915,6 +920,37 @@ export class PixiApp {
    *  the win marquee during celebrations. Pass null to clear. */
   async setWinCoinRain(urls: string[] | null, cols: number, rows: number, count: number, fps = 30): Promise<void> {
     await this.winCelebration?.setCoinRain(urls, cols, rows, count, fps);
+  }
+
+  /** Free-spins dancers: one spritesheet per side (urls[0] = left of the grid,
+   *  urls[1] = right), looping through the whole FS round. Same grid slicing
+   *  for both sheets. Pass null to clear. */
+  async setFreeSpinsDancers(urls: string[] | null, cols: number, rows: number, count: number, fps = 12): Promise<void> {
+    if (this._aborted) return;
+    const oldF = this.fsDancerFrames, oldS = this.fsDancerSheets;
+    this.fsDancerFrames = null; this.fsDancerSheets = null;
+    if (urls && urls.length > 0) {
+      const sheets: Texture[] = [];
+      try {
+        for (const u of urls) sheets.push(await Assets.load<Texture>(u));
+        const sets: Texture[][] = sheets.map(sheet => {
+          const fw = sheet.width / cols, fh = sheet.height / rows;
+          const frames: Texture[] = [];
+          for (let i = 0; i < count; i++) {
+            frames.push(new Texture({ source: sheet.source, frame: new Rectangle((i % cols) * fw, Math.floor(i / cols) * fh, fw, fh) }));
+          }
+          return frames;
+        });
+        this.fsDancerSheets = sheets;
+        this.fsDancerFrames = sets;
+        this.fsDancerFps = Math.max(1, fps);
+      } catch (err) {
+        console.warn('[PixiApp] failed to load FS dancers:', err);
+        for (const s of sheets) { try { s.destroy(true); } catch { /* torn down */ } }
+      }
+    }
+    if (oldF) for (const set of oldF) for (const f of set) { try { f.destroy(false); } catch { /* torn down */ } }
+    if (oldS) for (const s of oldS) { try { s.destroy(true); } catch { /* torn down */ } }
   }
 
   /** Per-symbol WIN animation spritesheet: while that symbol's cell is in the
@@ -2269,6 +2305,32 @@ export class PixiApp {
     // (the old full-board aura ellipse is gone — it read as a giant circle
     // sitting over the animated FS background)
 
+    // The Vice dancers — one each side of the grid, looping through the whole
+    // round (frame tweens live in fsDancerTweens, killed on overlay hide).
+    if (this.fsDancerFrames && this.fsDancerFrames.length > 0) {
+      const h = rh * 0.52;
+      this.fsDancerFrames.slice(0, 2).forEach((frames, side) => {
+        if (frames.length === 0) return;
+        const t0 = frames[0];
+        const w = h * (t0.width / t0.height);
+        const spr = new Sprite(t0);
+        spr.anchor.set(0.5);
+        spr.scale.set(h / t0.height);
+        spr.x = side === 0 ? -14 - w / 2 : rw + 14 + w / 2;
+        spr.y = HEADER_H + rh * 0.55;
+        spr.eventMode = 'none';
+        fsContainer.addChild(spr);
+        const proxy = { f: 0 };
+        this.fsDancerTweens.push(gsap.to(proxy, {
+          f: frames.length - 1,
+          duration: frames.length / this.fsDancerFps,
+          ease: 'none',
+          repeat: -1,
+          onUpdate: () => { spr.texture = frames[Math.round(proxy.f) % frames.length]; },
+        }));
+      });
+    }
+
     // Counter — TOP-RIGHT, beside the slot frame (outside the grid's right
     // edge), so the board stays clean during the expanding-wild free spins.
     const counter = new Text({
@@ -2317,6 +2379,8 @@ export class PixiApp {
   }
 
   private hideFreeSpinOverlay(overlay: { container: Container; counter: Text }): void {
+    for (const t of this.fsDancerTweens) t.kill();
+    this.fsDancerTweens = [];
     gsap.killTweensOf(overlay.container.children);
     gsap.to(overlay.container, {
       alpha: 0,

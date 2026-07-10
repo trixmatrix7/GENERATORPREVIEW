@@ -83,7 +83,10 @@ export function App() {
     // aspect; setExpandingWildImage height-fits whichever grid is active.
     void pixiAppRef.setExpandingWildImage(saved.expandingWild ?? `${B}wild_column.webp`);
     if (saved.frame) void pixiAppRef.setFrameImage(saved.frame);
+    // FS-only background: custom static upload wins; otherwise the ANIMATED
+    // speedboat loop (1 sheet × 8×8 = 60 frames @ 12fps, same pipeline as base).
     if (saved.fsBg) void pixiAppRef.setFreeSpinsBackgroundImage(saved.fsBg);
+    else void pixiAppRef.setFreeSpinsBackgroundSpritesheet(`${B}fsbg_sheet.webp`, 8, 8, 60, 12);
     // Layered win-marquee art (BIG/MEGA/EPIC/MAX + WIN + number plate).
     const T = `${import.meta.env.BASE_URL}theme/win-tiers/`;
     void pixiAppRef.setWinTierImages({

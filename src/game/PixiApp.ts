@@ -82,6 +82,12 @@ export class PixiApp {
   // Free-spins-ONLY background: swapped in under the closed iris (never
   // visibly), swapped back when the round ends.
   private fsBgTexture: Texture | null = null;
+  /** ANIMATED free-spins background (spritesheet frames); while the FS round
+   *  runs the bg ticker cycles these instead of the base loop. */
+  private fsAnimSheets: Texture[] | null = null;
+  private fsAnimFrames: Texture[] | null = null;
+  private fsAnimFps = 12;
+  private fsBgAnimActive = false;
   private fsBgSavedBase: Texture | null = null;
   private fsBgActive = false;
   private ambientLayer: Container | null = null;
@@ -860,14 +866,19 @@ export class PixiApp {
     this.updateReelBackdrop();
 
     this.bgAnimCb = () => {
-      if (this.bgAnimPaused || !this.bgSprite || !this.bgAnimFrames) return;
-      const total = this.bgAnimFrames.length;
+      if (this.bgAnimPaused || !this.bgSprite) return;
+      // During the FS round the ticker cycles the FS frames instead.
+      const frames = this.fsBgAnimActive && this.fsAnimFrames ? this.fsAnimFrames : this.bgAnimFrames;
+      const fps = this.fsBgAnimActive && this.fsAnimFrames ? this.fsAnimFps : this.bgAnimFps;
+      if (!frames || frames.length === 0) return;
+      const total = frames.length;
       this.bgAnimAccum += this.app.ticker.deltaMS / 1000;
-      const spf = 1 / this.bgAnimFps;
+      const spf = 1 / fps;
       while (this.bgAnimAccum >= spf) { this.bgAnimIdx = (this.bgAnimIdx + 1) % total; this.bgAnimAccum -= spf; }
-      this.bgSprite.texture = this.bgAnimFrames[this.bgAnimIdx];
+      const idx = this.bgAnimIdx % total;
+      this.bgSprite.texture = frames[idx];
       if (this.bgSpriteB) {
-        this.bgSpriteB.texture = this.bgAnimFrames[(this.bgAnimIdx + 1) % total];
+        this.bgSpriteB.texture = frames[(idx + 1) % total];
         this.bgSpriteB.alpha = Math.min(1, this.bgAnimAccum / spf);
       }
     };
@@ -884,7 +895,7 @@ export class PixiApp {
       try { this.bgSpriteB.destroy(); } catch { /* torn down */ }
       this.bgSpriteB = null;
     }
-    if (this.bgTexture && this.bgAnimFrames?.includes(this.bgTexture)) this.bgTexture = null;
+    if (this.bgTexture && (this.bgAnimFrames?.includes(this.bgTexture) || this.fsAnimFrames?.includes(this.bgTexture))) this.bgTexture = null;
     if (this.bgAnimFrames) { for (const f of this.bgAnimFrames) { try { f.destroy(false); } catch { /* torn down */ } } this.bgAnimFrames = null; }
     if (this.bgAnimSheets) { for (const s of this.bgAnimSheets) { try { s.destroy(true); } catch { /* torn down */ } } this.bgAnimSheets = null; }
     this.bgAnimPaused = false;
@@ -933,6 +944,44 @@ export class PixiApp {
     if (old && old !== this.fsBgTexture) { try { old.destroy(true); } catch { /* torn down */ } }
   }
 
+  /** ANIMATED free-spins background from spritesheet(s) — same slicing rules
+   *  as setBackgroundSpritesheet. While the FS round runs, the background
+   *  ticker cycles THESE frames (cross-fade included) instead of the base
+   *  loop; the base loop resumes when the round ends. A static upload via
+   *  setFreeSpinsBackgroundImage takes priority when both are set. */
+  async setFreeSpinsBackgroundSpritesheet(
+    url: string | string[] | null, cols: number, rows: number, count?: number, fps = 12,
+  ): Promise<void> {
+    if (this._aborted) return;
+    const oldFrames = this.fsAnimFrames, oldSheets = this.fsAnimSheets;
+    this.fsAnimFrames = null; this.fsAnimSheets = null;
+    if (url && !(Array.isArray(url) && url.length === 0)) {
+      const urls = Array.isArray(url) ? url : [url];
+      const sheets: Texture[] = [];
+      try {
+        for (const u of urls) sheets.push(await Assets.load<Texture>(u));
+        const fw = sheets[0].width / cols, fh = sheets[0].height / rows;
+        const perSheet = cols * rows;
+        const n = Math.max(1, count ?? perSheet * sheets.length);
+        const frames: Texture[] = [];
+        for (let i = 0; i < n; i++) {
+          const sheet = sheets[Math.floor(i / perSheet)];
+          if (!sheet) break;
+          const local = i % perSheet;
+          frames.push(new Texture({ source: sheet.source, frame: new Rectangle((local % cols) * fw, Math.floor(local / cols) * fh, fw, fh) }));
+        }
+        this.fsAnimSheets = sheets;
+        this.fsAnimFrames = frames;
+        this.fsAnimFps = Math.max(1, fps);
+      } catch (err) {
+        console.warn('[PixiApp] failed to load FS bg spritesheet:', err);
+        for (const s of sheets) { try { s.destroy(true); } catch { /* torn down */ } }
+      }
+    }
+    if (oldFrames) for (const f of oldFrames) { try { f.destroy(false); } catch { /* torn down */ } }
+    if (oldSheets) for (const s of oldSheets) { try { s.destroy(true); } catch { /* torn down */ } }
+  }
+
   /** Point the background layer at `tex` WITHOUT destroying the current base
    *  texture (the FS swap must be reversible). Same pipeline as
    *  setBackgroundImage: cover-fit sprite + frosted reel backdrop. */
@@ -955,12 +1004,19 @@ export class PixiApp {
   /** Swap to the FS background (no-op without one). Called at the iris's
    *  full-black beat so the change is never visible. */
   private enterFsBackground(): void {
-    if (!this.fsBgTexture || this.fsBgActive || !this.isLive) return;
+    if ((!this.fsBgTexture && !this.fsAnimFrames?.length) || this.fsBgActive || !this.isLive) return;
     this.fsBgSavedBase = this.bgTexture;
     this.fsBgActive = true;
-    this.bgAnimPaused = true; // freeze any animated bg while the FS bg shows
+    if (!this.fsBgTexture && this.fsAnimFrames?.length && this.bgAnimCb) {
+      // ANIMATED FS bg — keep the ticker running, pointed at the FS frames.
+      this.fsBgAnimActive = true;
+      this.bgAnimIdx = 0; this.bgAnimAccum = 0;
+      this.presentBgTexture(this.fsAnimFrames[0]);
+      return;
+    }
+    this.bgAnimPaused = true; // freeze any animated bg while the static FS bg shows
     if (this.bgSpriteB) this.bgSpriteB.visible = false; // overlay must not sit above the FS bg
-    this.presentBgTexture(this.fsBgTexture);
+    this.presentBgTexture(this.fsBgTexture ?? this.fsAnimFrames![0]);
   }
 
   /** Restore the base-game background when the free-spins round ends. */
@@ -969,6 +1025,8 @@ export class PixiApp {
     this.fsBgActive = false;
     const base = this.fsBgSavedBase;
     this.fsBgSavedBase = null;
+    this.fsBgAnimActive = false; // ticker points back at the base loop
+    this.bgAnimIdx = 0; this.bgAnimAccum = 0;
     this.bgAnimPaused = false; // resume the animated bg (if any)
     if (this.bgSpriteB) this.bgSpriteB.visible = true;
     if (!this.isLive) return;

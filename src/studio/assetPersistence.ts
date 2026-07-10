@@ -12,6 +12,21 @@ export interface SavedAssets {
   winParticle?: string | null;
   winBanner?: string | null;
   fsBg?: string | null;
+  /** Expanding-wild column art — 512×2560 px on 5×5, 512×1484 px on 5×3. */
+  expandingWild?: string | null;
+}
+
+/** Full-replace variant for preset apply: overwrites every known key. */
+export function replaceAssets(next: SavedAssets): void {
+  try {
+    localStorage.setItem(KEY, JSON.stringify({
+      symbols: next.symbols ?? {},
+      bg: next.bg ?? null,
+      frame: next.frame ?? null,
+      fsBg: next.fsBg ?? null,
+      expandingWild: next.expandingWild ?? null,
+    }));
+  } catch { /* quota — skip */ }
 }
 
 export function loadAssets(): SavedAssets {

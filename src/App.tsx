@@ -13,6 +13,8 @@ import { GameCanvas } from '@/ui/GameCanvas';
 import { ControlBar } from '@/ui/ControlBar';
 import { StudioDrawer } from '@/studio/StudioDrawer';
 import { DEFAULT_GAME_CONFIG, type GameConfig } from '@/engine/GameConfig';
+import { GRID_5x3, GRID_5x5 } from '@/config/gridConfig';
+import { PresetDock, loadGridId, type GridId } from '@/dev/PresetDock';
 import { getThemeByName } from '@/config/themes';
 import { viceSymbolMap, VICE_INTRO_URL } from '@/config/viceAssets';
 import { loadAssets } from '@/studio/assetPersistence';
@@ -27,9 +29,22 @@ export function App() {
   // The loaded game = the stamped Fantasy spec (config/reels+paytable+gameConfig
   // are the ZIP's generated files, so DEFAULT_GAME_CONFIG IS the Fantasy math)
   // with the generator's Fantasy theme applied — same as a deployed build.
+  // Active grid (5×5 default = the Fantasy spec; 5×3 = the generator's classic
+  // 3-row grid). Switching remounts GameCanvas/PixiApp with the same math —
+  // the evaluator + all visuals derive from gridConfig.
+  const [gridId, setGridId] = useState<GridId>(loadGridId);
+  const handleGridChange = useCallback((g: GridId) => {
+    localStorage.setItem('studio-grid', g);
+    setGridId(g);
+  }, []);
+
   const gameConfig = useMemo<GameConfig>(
-    () => ({ ...DEFAULT_GAME_CONFIG, theme: getThemeByName('Fantasy') }),
-    [],
+    () => ({
+      ...DEFAULT_GAME_CONFIG,
+      gridConfig: gridId === '5x3' ? GRID_5x3 : GRID_5x5,
+      theme: getThemeByName('Fantasy'),
+    }),
+    [gridId],
   );
 
   useEffect(() => {
@@ -61,8 +76,10 @@ export function App() {
     else void pixiAppRef.setBackgroundSpritesheet([`${B}bg_sheet_a.webp`, `${B}bg_sheet_b.webp`], 8, 6, 96, 12);
     // VICE HEAT logo above the grid (replaces the text title).
     void pixiAppRef.setTitleImage(`${B}logo.webp`);
-    // Expanding-wild column art (money tower).
-    void pixiAppRef.setExpandingWildImage(`${B}wild_column.webp`);
+    // Expanding-wild column art (money tower; custom upload wins).
+    // Expected art: 512×2560 px (5×5 grid) / 512×1484 px (5×3) — one reel's
+    // aspect; setExpandingWildImage height-fits whichever grid is active.
+    void pixiAppRef.setExpandingWildImage(saved.expandingWild ?? `${B}wild_column.webp`);
     if (saved.frame) void pixiAppRef.setFrameImage(saved.frame);
     if (saved.fsBg) void pixiAppRef.setFreeSpinsBackgroundImage(saved.fsBg);
     // Layered win-marquee art (BIG/MEGA/EPIC/MAX + WIN + number plate).
@@ -164,6 +181,7 @@ export function App() {
       />
 
       <StudioDrawer pixiApp={pixiAppRef} />
+      <PresetDock grid={gridId} onGrid={handleGridChange} />
     </div>
   );
 }

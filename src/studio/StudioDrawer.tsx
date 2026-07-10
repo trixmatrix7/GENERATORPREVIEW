@@ -322,6 +322,7 @@ function AssetsTab({ pixiApp }: { pixiApp: PixiApp | null }) {
   const [bg, setBg] = useState<string | null>(() => saved0.bg ?? null);
   const [frame, setFrame] = useState<string | null>(() => saved0.frame ?? null);
   const [fsBg, setFsBg] = useState<string | null>(() => saved0.fsBg ?? null);
+  const [expandingWild, setExpandingWild] = useState<string | null>(() => saved0.expandingWild ?? null);
 
   const applySymbols = (next: Record<number, string>) => {
     setSymbols(next);
@@ -400,6 +401,15 @@ function AssetsTab({ pixiApp }: { pixiApp: PixiApp | null }) {
         active={fsBg}
         onPick={url => { setFsBg(url); saveAssets({ fsBg: url }); void pixiApp?.setFreeSpinsBackgroundImage(url); }}
         onClear={() => { setFsBg(null); saveAssets({ fsBg: null }); void pixiApp?.setFreeSpinsBackgroundImage(null); }}
+      />
+
+      {/* Expanding-wild column art */}
+      <AssetSlot
+        title="Expanding wild · setExpandingWildImage"
+        note="The tower column the expanding wild races out. REQUIRED SIZE: 512×2560 px on the 5×5 grid · 512×1484 px on 5×3 (one reel's aspect — the engine height-fits the ACTIVE grid automatically, so the same convert + expand animation works for any art)."
+        active={expandingWild}
+        onPick={url => { setExpandingWild(url); saveAssets({ expandingWild: url }); void pixiApp?.setExpandingWildImage(url); }}
+        onClear={() => { setExpandingWild(null); saveAssets({ expandingWild: null }); void pixiApp?.setExpandingWildImage(`${import.meta.env.BASE_URL}theme/vice/wild_column.webp`); }}
       />
     </div>
   );

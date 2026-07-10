@@ -150,6 +150,29 @@ export function WinTierTestPanel({ pixiApp, snapshot, soundManager }: Props) {
       >
         ⤢ Expanding Wild
       </button>
+      <div style={{ display: 'flex', gap: 4, marginTop: 4 }}>
+        {([[2, '▶ Prem A win'], [3, '▶ Prem B win']] as const).map(([id, label]) => (
+          <button
+            key={id}
+            onClick={() => pixiApp.__testSymbolWin(id)}
+            style={{
+              flex: 1,
+              background: '#12081c',
+              color: '#e6a0ff',
+              border: '1px solid #5a2a7a',
+              borderRadius: 4,
+              padding: '4px 6px',
+              fontSize: 11,
+              fontFamily: 'monospace',
+              cursor: 'pointer',
+              textAlign: 'left',
+            }}
+            title="Plays this premium's WIN spritesheet on its board cells for ~3.5s (re-skins the centre cell if none is visible)"
+          >
+            {label}
+          </button>
+        ))}
+      </div>
       <button
         onClick={() => {
           // Force turbo off for the demo so the iris transition always plays

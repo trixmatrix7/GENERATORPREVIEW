@@ -8,7 +8,7 @@ import { setActiveGrid, type GridConfig } from '@/config/gridConfig';
 import { WIN_LINE_PRESETS, WIN_COIN_PRESETS, ACCENT_PRESETS } from '@/config/adjustableParams';
 import { waysLightConfig, WAYS_LIGHT_PRESETS, WAYS_LIGHT_SPEED_MS, WAYS_LIGHT_WIDTH_PX } from './effects/WaysLightComet';
 import { stickyWildConfig, STICKY_WILD_PRESETS, STICKY_WILD_SPEED_MS } from './effects/StickyWildShine';
-import { SYMBOL_WIN_SHEETS } from './AnimatedSymbol';
+import { SYMBOL_WIN_SHEETS, AnimatedSymbol } from './AnimatedSymbol';
 import { symbolSizing, SYMBOL_SIZE_PRESETS } from '@/config/symbolSizing';
 import { hslToNum, numToHsl, hexToNum } from '@/config/color';
 import { CANVAS_THEME } from '@/config/canvasTheme';
@@ -1960,6 +1960,33 @@ export class PixiApp {
   public __testExpandingWild(): void {
     if (!this.isLive) return;
     void this.reelSet.playExpandingWildReveal({ isLive: () => this.isLive, turbo: this.turbo });
+  }
+
+  /** Test-only: play a symbol's WIN animation on the board. Every cell showing
+   *  the symbol enters the 'win' state for ~3.5s (if none is visible, the
+   *  centre cell is re-skinned to it, display-only). Exercises the win-sheet
+   *  overlay exactly like a real connection. */
+  public __testSymbolWin(symbolId: number): void {
+    if (!this.isLive) return;
+    const cells: AnimatedSymbol[] = [];
+    const all: AnimatedSymbol[] = [];
+    const walk = (n: Container) => {
+      for (const c of n.children) {
+        if (c instanceof AnimatedSymbol) {
+          all.push(c);
+          if (c.symbol === symbolId) cells.push(c);
+        } else if (c instanceof Container) walk(c);
+      }
+    };
+    walk(this.reelSet.container);
+    if (cells.length === 0 && all.length > 0) {
+      // No such symbol visible — re-skin a middle cell for the demo.
+      const mid = all[Math.floor(all.length / 2)];
+      mid.setSymbol(symbolId as Parameters<AnimatedSymbol['setSymbol']>[0]);
+      cells.push(mid);
+    }
+    for (const c of cells) c.play('win');
+    window.setTimeout(() => { for (const c of cells) { if (!c.destroyed) c.clearState(); } }, 3500);
   }
 
   /** Test-only: force a near-miss anticipation tease — lands a single scatter

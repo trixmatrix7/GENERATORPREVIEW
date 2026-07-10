@@ -2308,7 +2308,7 @@ export class PixiApp {
     // The Vice dancers — one each side of the grid, looping through the whole
     // round (frame tweens live in fsDancerTweens, killed on overlay hide).
     if (this.fsDancerFrames && this.fsDancerFrames.length > 0) {
-      const h = rh * 0.52;
+      const h = rh * 0.62;
       this.fsDancerFrames.slice(0, 2).forEach((frames, side) => {
         if (frames.length === 0) return;
         const t0 = frames[0];

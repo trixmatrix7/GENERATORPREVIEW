@@ -71,11 +71,12 @@ export function App() {
       big: `${T}big.png`, mega: `${T}mega.png`, epic: `${T}epic.png`,
       max: `${T}max.png`, win: `${T}win.png`, plate: `${T}plate.png`,
     });
-    // Custom coin rain v2 (denser; green-screen keyed #00D300 + despill,
-    // box-aspect crop → only ~1.42× upscale in the box = sharp): 3 sheets ×
-    // (10×10) = 300 frames @ 45fps (1.5× tempo), BEHIND the win marquee.
+    // Custom coin rain v3 (green-screen keyed #00D300, TIGHT key sim 0.13 so
+    // the gold bodies stay FULLY OPAQUE — yellow sits near green in chroma
+    // space, a loose key made the coins semi-transparent; box-aspect crop →
+    // ~1.42× upscale = sharp): 3 sheets × (10×10) = 300 frames @ 45fps.
     void pixiAppRef.setWinCoinRain(
-      [`${T}coinrain2_0.webp`, `${T}coinrain2_1.webp`, `${T}coinrain2_2.webp`], 10, 10, 300, 45,
+      [`${T}coinrain3_0.webp`, `${T}coinrain3_1.webp`, `${T}coinrain3_2.webp`], 10, 10, 300, 45,
     );
     if (VICE_INTRO_URL) void pixiAppRef.setFreeSpinsIntroImage(VICE_INTRO_URL);
   }, [pixiAppRef]);

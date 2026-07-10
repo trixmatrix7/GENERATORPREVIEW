@@ -265,14 +265,24 @@ export class AnimatedSymbol extends Container {
 
   private stopWinSheet(): void {
     if (this.winSheetTween) { this.winSheetTween.kill(); this.winSheetTween = null; }
-    if (this.winSheetSprite) {
-      gsap.killTweensOf(this.winSheetSprite.scale);
-      this.winSheetSprite.parent?.removeChild(this.winSheetSprite);
-      try { this.winSheetSprite.destroy({ children: true }); } catch { /* torn down */ }
-      this.winSheetSprite = null;
-      if (this.iconSprite) this.iconSprite.visible = this.preSheetIconVisible;
-      if (this.iconShadow) this.iconShadow.visible = this.preSheetShadowVisible;
-    }
+    const spr = this.winSheetSprite;
+    if (!spr) return;
+    this.winSheetSprite = null;
+    gsap.killTweensOf(spr.scale);
+    // Clean handoff: the static art comes back UNDER the overlay, then the
+    // overlay shrinks back to symbol size while fading out — no hard snap
+    // from the zoomed animation to the resting art.
+    if (this.iconSprite) this.iconSprite.visible = this.preSheetIconVisible;
+    if (this.iconShadow) this.iconShadow.visible = this.preSheetShadowVisible;
+    const back = (Math.min(SYMBOL_WIDTH, SYMBOL_HEIGHT) * 0.94) / (spr.texture.width || 256);
+    gsap.to(spr.scale, { x: back, y: back, duration: 0.22, ease: 'power2.inOut' });
+    gsap.to(spr, {
+      alpha: 0, duration: 0.24, ease: 'power1.in',
+      onComplete: () => {
+        spr.parent?.removeChild(spr);
+        try { spr.destroy({ children: true }); } catch { /* torn down */ }
+      },
+    });
   }
 
   /** Trace a bright outline around the symbol's silhouette (the object only —

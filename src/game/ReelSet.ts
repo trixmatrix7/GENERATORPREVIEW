@@ -545,8 +545,11 @@ export class ReelSet {
       const spr = new Sprite(tex);
       spr.anchor.set(0.5, fy);
       spr.position.set(cx, rr.y + fy * rr.h);
-      const tsx = Math.min(rr.w * 0.98, rr.h * (tex.width / tex.height)) / tex.width;
-      const tsy = rr.h / tex.height;
+      // COVER-fit: fill the reel's width (the tower read too thin height-fit
+      // on 5×3); any vertical overflow is clipped by the reel mask below.
+      const cover = Math.max((rr.w * 0.98) / tex.width, rr.h / tex.height);
+      const tsx = cover;
+      const tsy = cover;
       spr.scale.set(tsx, tsy * (cellR.h / rr.h)); // start = one cell tall
       spr.alpha = 0;
       spr.eventMode = 'none';

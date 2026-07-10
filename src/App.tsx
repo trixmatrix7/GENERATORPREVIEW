@@ -32,10 +32,12 @@ export function App() {
   // Active grid (5×5 default = the Fantasy spec; 5×3 = the generator's classic
   // 3-row grid). Switching remounts GameCanvas/PixiApp with the same math —
   // the evaluator + all visuals derive from gridConfig.
-  const [gridId, setGridId] = useState<GridId>(loadGridId);
+  const [gridId] = useState<GridId>(loadGridId);
   const handleGridChange = useCallback((g: GridId) => {
+    // Persist + clean reload (same pattern as preset apply): a live remount
+    // while multi-MB sheets are still loading can leave a white canvas.
     localStorage.setItem('studio-grid', g);
-    setGridId(g);
+    window.location.reload();
   }, []);
 
   const gameConfig = useMemo<GameConfig>(

@@ -88,6 +88,9 @@ export class PixiApp {
   private fsAnimFrames: Texture[] | null = null;
   private fsAnimFps = 12;
   private fsBgAnimActive = false;
+  /** FS counter overlay currently on screen (swept by the next resolve if a
+   *  cancelled run skipped its closing iris). */
+  private fsOverlayOpen: { container: Container; counter: Text } | null = null;
   private fsBgSavedBase: Texture | null = null;
   private fsBgActive = false;
   private ambientLayer: Container | null = null;
@@ -1209,6 +1212,15 @@ export class PixiApp {
    */
   async resolve(outcome: SpinOutcome, tokenSymbol: string, decimals: number): Promise<void> {
     if (!this.isLive) return;
+    // Sweep any FS overlay a previous resolve left open (the closing iris is
+    // skipped when a run gets interrupted mid-round) — never leak the counter.
+    if (this.fsOverlayOpen) {
+      this.hideFreeSpinOverlay(this.fsOverlayOpen);
+      this.fsOverlayOpen = null;
+      this.exitFsBackground();
+    }
+    // Set while a free-spins round is up; closed by the exit iris at the end.
+    let fsOverlayToClose: { container: Container; counter: Text } | null = null;
     if (outcome.freeSpinsTriggered && outcome.freeSpinsPlayed > 0 && !this.turbo && !prefersReducedMotion()) {
       // Straight into the iris — NO gold flash / shock-wave "sun" first. The live
       // board is pulled into a shrinking black circle, opens onto the intro
@@ -1217,39 +1229,23 @@ export class PixiApp {
       if (!this.isLive) return;
       const fsOverlay = this.showFreeSpinOverlay(outcome.freeSpinsPlayed);
 
-      // Animate each free spin visually — intermediate stops are random (display only)
+      // Every free spin IS an expanding-wild reveal: money sacks land on 1–3
+      // random reels and the towers race out (display-only — the settled
+      // total stays outcome.winAmount). This is the round's core showcase.
       for (let i = 0; i < outcome.freeSpinsPlayed; i++) {
         if (!this.isLive) break;
-        const isLast = i === outcome.freeSpinsPlayed - 1;
-        const stops = isLast
-          ? outcome.stops
-          // Display-only intermediate stops for the free-spin animation. NEVER
-          // feeds settlement (the final iteration uses outcome.stops), so the
-          // non-deterministic RNG here does not touch the outcome path.
-          : this.config.reelLengths.map(len => Math.floor(Math.random() * len));
-
-        // Update counter
         if (fsOverlay.counter) {
           fsOverlay.counter.text = `FREE SPIN ${i + 1} / ${outcome.freeSpinsPlayed}`;
         }
-
-        this.reelSet.startSpin();
-        // Each free spin must read as a real spin, not a flicker. 150ms was
-        // too short and looked like a stutter ("stop then spin again"); ~500ms
-        // gives the reels time to visibly roll before decelerating.
-        await new Promise(r => setTimeout(r, 500));
+        await this.reelSet.playExpandingWildReveal({ isLive: () => this.isLive, turbo: this.turbo });
         if (!this.isLive) break;
-        await this.reelSet.stopOnStops(stops, false);
-        if (!this.isLive) break;
-        if (!isLast) {
-          this.reelSet.clearHighlights();
-          await new Promise(r => setTimeout(r, 200));
-        }
+        await new Promise(r => setTimeout(r, 350));
       }
 
-      // Fade out the FS overlay + restore the base-game background.
-      this.hideFreeSpinOverlay(fsOverlay);
-      this.exitFsBackground();
+      // The overlay + FS background stay up for the TOTAL-win ceremony; the
+      // closing iris below restores the base screen (like the entry beat).
+      fsOverlayToClose = fsOverlay;
+      this.fsOverlayOpen = fsOverlay;
     } else {
       await this.reelSet.stopOnStops(outcome.stops, this.turbo);
     }
@@ -1278,9 +1274,16 @@ export class PixiApp {
       await this.playWinSequence(outcome, tokenSymbol, decimals);
     }
 
-    // Exit card — bookends the free-spins round (entry card shown above).
-    if (this.isLive && outcome.freeSpinsTriggered && !this.turbo && !prefersReducedMotion()) {
-      await this.playTransitionCard('FREE SPINS TOTAL', `${formatWin(outcome.winAmount, decimals)} ${tokenSymbol}`, 1.4);
+    // Closing iris — bookends the free-spins round like the entry: the screen
+    // pulls into the black circle, the FS overlay + background swap back
+    // underneath, then it opens onto the normal base screen.
+    if (this.isLive && fsOverlayToClose) {
+      const overlay = fsOverlayToClose;
+      await this.playExitIris(() => {
+        this.hideFreeSpinOverlay(overlay);
+        if (this.fsOverlayOpen === overlay) this.fsOverlayOpen = null;
+        this.exitFsBackground();
+      });
     }
   }
 
@@ -1344,85 +1347,6 @@ export class PixiApp {
         await new Promise(r => setTimeout(r, 800));
       }
     }
-  }
-
-  /** Coin-win ceremony (Fruit-Fortune style): dim the scene, count a big central
-   *  number up to the win, and burst coins from the winning symbols that fly
-   *  upward — then settle. Intensity scales with the win tier. `originsLocal` are
-   *  winning-cell centres in ReelSet-local coords (empty → coins from centre). */
-  /** A themed entry/exit card ("FREE SPINS ×N" / "FREE SPINS TOTAL: X"):
-   *  dim + gold-trimmed plaque + title/subtitle, pops in → holds → fades.
-   *  Awaited by resolve() so the spin holds through the bonus bookends. */
-  private playTransitionCard(title: string, subtitle: string, holdSec: number): Promise<void> {
-    if (!this.isLive) return Promise.resolve();
-    const rw = this.reelSet.totalWidth + FRAME_PAD * 2;
-    const rh = this.reelSet.totalHeight + FRAME_PAD * 2;
-    const totalH = HEADER_H + rh + FOOTER_H;
-    const cx = rw / 2, cy = HEADER_H + rh / 2;
-
-    const card = new Container();
-    card.x = cx; card.y = cy;
-
-    const dim = new Graphics();
-    dim.rect(-cx - 300, -cy - 300, rw + 600, totalH + 600);
-    dim.fill({ color: 0x000000, alpha: 0.5 });
-    card.addChild(dim);
-
-    const accent = this.config.theme.accent;
-    const gold = 0xFFD23F;
-    const w = 460, h = 180, r = 24;
-    const plaque = new Graphics();
-    for (let i = 4; i >= 1; i--) {
-      plaque.roundRect(-w / 2 - i * 4, -h / 2 - i * 4, w + i * 8, h + i * 8, r + i * 3);
-      plaque.fill({ color: gold, alpha: 0.05 });
-    }
-    plaque.roundRect(-w / 2, -h / 2, w, h, r);
-    plaque.fill({ color: blendHex(accent, 0x000000, 0.5) });
-    plaque.roundRect(-w / 2 + 4, -h / 2 + 4, w - 8, (h - 8) * 0.5, r - 2);
-    plaque.fill({ color: blendHex(accent, 0xffffff, 0.14), alpha: 0.55 });
-    plaque.roundRect(-w / 2, -h / 2, w, h, r);
-    plaque.stroke({ color: gold, width: 4, alpha: 0.92 });
-    card.addChild(plaque);
-
-    const titleText = new Text({
-      text: title,
-      style: new TextStyle({
-        fontFamily: "'Poppins', ui-sans-serif, sans-serif", fontSize: 40, fontWeight: '800',
-        fontStyle: 'italic', fill: 0xffffff, letterSpacing: 2,
-        dropShadow: { color: 0x000000, blur: 4, distance: 2, alpha: 0.5 },
-      }),
-    });
-    titleText.anchor.set(0.5); titleText.y = -26;
-    const subText = new Text({
-      text: subtitle,
-      style: new TextStyle({
-        fontFamily: "'Rubik', ui-sans-serif, sans-serif", fontSize: 34, fontWeight: '700',
-        fill: gold, letterSpacing: 1,
-      }),
-    });
-    subText.anchor.set(0.5); subText.y = 34;
-    card.addChild(titleText, subText);
-
-    card.alpha = 0; card.scale.set(0.8);
-    this.sceneRoot.addChild(card);
-    this.transitionCard = card;
-
-    return new Promise(resolve => {
-      const tl = gsap.timeline({
-        onComplete: () => {
-          gsap.killTweensOf(card);
-          gsap.killTweensOf(card.scale);
-          if (this.transitionCard === card) this.transitionCard = null;
-          if (this.transitionCardTl === tl) this.transitionCardTl = null;
-          try { card.destroy({ children: true }); } catch { /* already torn down */ }
-          resolve();
-        },
-      });
-      this.transitionCardTl = tl;
-      tl.to(card, { alpha: 1, duration: 0.25, ease: 'power2.out' }, 0)
-        .to(card.scale, { x: 1, y: 1, duration: 0.4, ease: 'back.out(2)' }, 0)
-        .to(card, { alpha: 0, duration: 0.3, ease: 'power1.in' }, 0.25 + holdSec);
-    });
   }
 
   /** Free-spins entry: the live board is sucked into a shrinking BLACK circle
@@ -2293,15 +2217,11 @@ export class PixiApp {
     const fsContainer = new Container();
     this.sceneRoot.addChild(fsContainer);
 
-    // Tinted glow behind the frame — purple/gold free-spin aura
-    const aura = new Graphics();
-    aura.ellipse(rw / 2, HEADER_H + rh / 2, rw * 0.6, rh * 0.7);
-    aura.fill({ color: 0xFFD700, alpha: 0.06 });
-    aura.ellipse(rw / 2, HEADER_H + rh / 2, rw * 0.4, rh * 0.5);
-    aura.fill({ color: 0x9C27B0, alpha: 0.05 });
-    fsContainer.addChild(aura);
+    // (the old full-board aura ellipse is gone — it read as a giant circle
+    // sitting over the animated FS background)
 
-    // Counter badge at top
+    // Counter — TOP-RIGHT, beside the slot frame (outside the grid's right
+    // edge), so the board stays clean during the expanding-wild free spins.
     const counter = new Text({
       text: `FREE SPIN 1 / ${totalSpins}`,
       style: new TextStyle({
@@ -2313,25 +2233,38 @@ export class PixiApp {
         dropShadow: { color: 0x000000, blur: 4, distance: 0, alpha: 0.6 },
       }),
     });
-    counter.anchor.set(0.5, 0);
-    counter.x = rw / 2;
-    counter.y = HEADER_H - 20;
+    counter.anchor.set(0, 0);
+    counter.x = rw + 12;
+    counter.y = HEADER_H + 2;
     fsContainer.addChild(counter);
 
     // Animate in
     fsContainer.alpha = 0;
     gsap.to(fsContainer, { alpha: 1, duration: 0.3 });
 
-    // Pulse the aura gently
-    gsap.to(aura, {
-      alpha: 0.03,
-      duration: 0.8,
-      ease: 'sine.inOut',
-      yoyo: true,
-      repeat: -1,
-    });
-
     return { container: fsContainer, counter };
+  }
+
+  /** Iris OUT → midAction at full black → iris back IN. The same circle beat
+   *  as the FS entry, used to bring the round back to the base screen. */
+  private async playExitIris(midAction: () => void): Promise<void> {
+    const { width, height } = this.app.screen;
+    const g = new Graphics();
+    g.eventMode = 'none';
+    this.app.stage.addChild(g);
+    const maxR = Math.hypot(width, height) / 2;
+    const state = { r: maxR };
+    const draw = () => {
+      g.clear();
+      g.rect(0, 0, width, height).fill(0x000000);
+      if (state.r > 0.5) g.circle(width / 2, height / 2, state.r).cut();
+    };
+    draw();
+    await new Promise<void>(res => { gsap.to(state, { r: 0, duration: 0.45, ease: 'power2.in', onUpdate: draw, onComplete: res }); });
+    try { midAction(); } catch { /* keep the iris opening */ }
+    await new Promise<void>(res => { gsap.to(state, { r: maxR, duration: 0.5, ease: 'power2.out', onUpdate: draw, onComplete: res }); });
+    g.parent?.removeChild(g);
+    g.destroy();
   }
 
   private hideFreeSpinOverlay(overlay: { container: Container; counter: Text }): void {

@@ -519,7 +519,6 @@ export class ReelSet {
       const rr = resolveAnchor(reelAnchor(reelIdx), this.grid);
       const cellR = resolveAnchor(cellAnchor(reelIdx, row), this.grid);
       const cx = rr.x + rr.w / 2;
-      const cellCy = cellR.y + cellR.h / 2;
       const speed = turbo ? 0.6 : 1;
       const rad = 14;
 
@@ -538,24 +537,26 @@ export class ReelSet {
       this.stickyContainer.addChild(clear);
       this.stickyRevealObjects.push(clear);
 
-      // 3) the column — anchored at the landing cell's centre so it grows out
-      //    of the wild in BOTH directions; masked to the reel rect.
-      const fy = (cellCy - rr.y) / rr.h;
+      // 3) the column — IDENTICAL on every reel: width-fit, tower TOP aligned
+      //    with the reel top (the head always shows; only the stack base may
+      //    crop at the bottom). The art never stretches or shifts — the grow
+      //    is a REVEAL MASK expanding from the landing cell in both directions.
       const tex = this.expandWildTexture ?? Texture.WHITE;
       const spr = new Sprite(tex);
-      spr.anchor.set(0.5, fy);
-      spr.position.set(cx, rr.y + fy * rr.h);
-      // COVER-fit: fill the reel's width (the tower read too thin height-fit
-      // on 5×3); any vertical overflow is clipped by the reel mask below.
-      const cover = Math.max((rr.w * 0.98) / tex.width, rr.h / tex.height);
-      const tsx = cover;
-      const tsy = cover;
-      spr.scale.set(tsx, tsy * (cellR.h / rr.h)); // start = one cell tall
+      spr.anchor.set(0.5, 0);
+      spr.position.set(cx, rr.y);
+      spr.scale.set((rr.w * 0.98) / tex.width);
       spr.alpha = 0;
       spr.eventMode = 'none';
       const mask = new Graphics();
-      mask.roundRect(rr.x - 1, rr.y - 1, rr.w + 2, rr.h + 2, rad).fill(0xffffff);
       mask.eventMode = 'none';
+      const drawReveal = (t: number) => {
+        const topY = cellR.y + (rr.y - cellR.y) * t;
+        const botY = (cellR.y + cellR.h) + ((rr.y + rr.h) - (cellR.y + cellR.h)) * t;
+        mask.clear();
+        mask.roundRect(rr.x - 1, topY, rr.w + 2, botY - topY, rad).fill(0xffffff);
+      };
+      drawReveal(0); // starts as exactly the landing cell
       this.stickyContainer.addChild(mask);
       spr.mask = mask;
       this.stickyContainer.addChild(spr);
@@ -574,8 +575,11 @@ export class ReelSet {
       this.stickyRevealTweens.push(tl);
       tl.to(clear, { alpha: 0.92, duration: 0.14 * speed, ease: 'power2.out' }, 0.42 * speed);
       tl.to(spr, { alpha: 1, duration: 0.08 * speed, ease: 'power1.out' }, 0.5 * speed);
-      tl.to(spr.scale, { y: tsy * 1.045, duration: 0.3 * speed, ease: 'power3.out' }, 0.5 * speed);
-      tl.to(spr.scale, { y: tsy, duration: 0.16 * speed, ease: 'power2.inOut' }, 0.8 * speed);
+      const reveal = { t: 0 };
+      tl.to(reveal, {
+        t: 1, duration: 0.34 * speed, ease: 'power3.out',
+        onUpdate: () => drawReveal(reveal.t),
+      }, 0.5 * speed);
       tl.to(flash, { alpha: 0.55, duration: 0.07 * speed, ease: 'power2.out' }, 0.78 * speed);
       tl.to(flash, {
         alpha: 0, duration: 0.32 * speed, ease: 'power2.in',

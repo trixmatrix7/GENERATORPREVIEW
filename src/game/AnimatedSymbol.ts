@@ -180,14 +180,19 @@ export class AnimatedSymbol extends Container {
     this.resetVisuals();
     this.activeState = state;
 
-    // Bright border highlight on the symbol's own silhouette while winning
-    // (applied even under reduced motion — it's a static highlight, not motion).
-    this.setWinOutline(state === 'win');
+    // Premiums with a WIN spritesheet get ONLY that animation: no white
+    // outline (it flickered over the art), no win-juice pulse — the sheet IS
+    // the whole win presentation. Everything else keeps the outline.
+    const winSheetAvailable = SYMBOL_WIN_SHEETS.has(this.symbolId);
+    this.setWinOutline(state === 'win' && (!winSheetAvailable || prefersReducedMotion()));
 
-    // Premium win spritesheet: loops in place of the static art while winning.
-    if (state === 'win') this.startWinSheet(); else this.stopWinSheet();
+    if (state === 'static' || prefersReducedMotion()) { this.stopWinSheet(); return; }
 
-    if (state === 'static' || prefersReducedMotion()) return;
+    if (state === 'win' && winSheetAvailable) {
+      this.startWinSheet();
+      return; // no other win effect on top
+    }
+    this.stopWinSheet();
 
     const supported = this.supportedStates();
     if (!supported.includes(state)) return;
@@ -206,11 +211,14 @@ export class AnimatedSymbol extends Container {
     if (this.winSheetSprite) return;
     const sheet = SYMBOL_WIN_SHEETS.get(this.symbolId);
     if (!sheet || sheet.frames.length === 0) return;
-    const size = Math.min(SYMBOL_WIDTH, SYMBOL_HEIGHT) * 0.94;
+    // Bigger than the resting art — the win animation pops OVER the cell
+    // (the lift keeps it above neighbours), with a quick back.out scale-in.
+    const size = Math.min(SYMBOL_WIDTH, SYMBOL_HEIGHT) * 1.22;
     const spr = new Sprite(sheet.frames[0]);
     spr.anchor.set(0.5);
-    spr.width = size;
-    spr.height = size;
+    const target = size / (sheet.frames[0].width || 256);
+    spr.scale.set(target * 0.78);
+    gsap.to(spr.scale, { x: target, y: target, duration: 0.28, ease: 'back.out(2.2)' });
     spr.eventMode = 'none';
     this.inner.addChild(spr);
     this.preSheetIconVisible = this.iconSprite?.visible ?? false;
@@ -231,6 +239,7 @@ export class AnimatedSymbol extends Container {
   private stopWinSheet(): void {
     if (this.winSheetTween) { this.winSheetTween.kill(); this.winSheetTween = null; }
     if (this.winSheetSprite) {
+      gsap.killTweensOf(this.winSheetSprite.scale);
       this.winSheetSprite.parent?.removeChild(this.winSheetSprite);
       try { this.winSheetSprite.destroy(); } catch { /* torn down */ }
       this.winSheetSprite = null;

@@ -371,7 +371,7 @@ export class ReelSet {
   /** Pop a single wild into a cell: an OPAQUE premium panel (so the still-
    *  spinning reel never shows through) + the real WILD tile art both grow in
    *  from the centre with a soft flash, and the AAA shine is layered on top. */
-  private popOneStickyWild(reel: number, row: number): void {
+  private popOneStickyWild(reel: number, row: number, withShine = true): void {
     const rect = resolveAnchor(cellAnchor(reel, row), this.grid);
     const cx = rect.x + rect.w / 2;
     const cy = rect.y + rect.h / 2;
@@ -416,7 +416,10 @@ export class ReelSet {
     popScale(tile, { x: sx, y: sy });
 
     // AAA shine border on top (its own pop-in + calm breath live in the effect).
-    this.stickyHandles.push(applyStickyWild(this.stickyContainer, rect));
+    // Skipped for the expanding-wild landing pop: the CELL-sized shine would
+    // peek out behind the (slightly narrower) column art — the reel-sized
+    // shine at lock-in is the only border there.
+    if (withShine) this.stickyHandles.push(applyStickyWild(this.stickyContainer, rect));
 
     // A quick additive flash sells the "lock-in" moment, then self-clears.
     const flash = new Graphics();
@@ -521,8 +524,9 @@ export class ReelSet {
       const rad = 14;
 
       // 1) the wild LANDS — reuse the sticky pop (backing + money-stack tile
-      //    + flash) for a consistent premium landing beat.
-      this.popOneStickyWild(reelIdx, row);
+      //    + flash) WITHOUT the cell shine (the reel-sized shine at lock-in
+      //    is the column's only border — no 1:1 edges peeking behind it).
+      this.popOneStickyWild(reelIdx, row, false);
 
 
       // 2) clear-beat — opaque panel over the reel so no symbol shows behind

@@ -464,8 +464,11 @@ export class ReelSet {
       const j = Math.floor(Math.random() * (i + 1));
       [reelIdxs[i], reelIdxs[j]] = [reelIdxs[j], reelIdxs[i]];
     }
-    const chosen = reelIdxs.slice(0, 1 + Math.floor(Math.random() * 2)).sort((a, b) => a - b);
+    const chosen = reelIdxs.slice(0, 1 + Math.floor(Math.random() * 3)).sort((a, b) => a - b);
     const landingRows = chosen.map(() => Math.floor(Math.random() * this.grid.visibleRows));
+    // Multiplier per landed money sack — the classic 2×/3×/5× spread.
+    const MULTS = [2, 3, 5];
+    const mults = chosen.map(() => MULTS[Math.floor(Math.random() * MULTS.length)]);
 
     // Roll + settle first (display-only stops; the columns cover the reels).
     this.startSpin();
@@ -478,8 +481,31 @@ export class ReelSet {
     // Sequential, one reel finishing before the next starts (like the ref).
     for (let k = 0; k < chosen.length; k++) {
       if (this.stickyRevealGen !== gen || !live()) return;
-      await this.expandOneWildReel(chosen[k], landingRows[k], !!opts.turbo);
+      await this.expandOneWildReel(chosen[k], landingRows[k], !!opts.turbo, mults[k]);
       await new Promise(res => setTimeout(res, opts.turbo ? 90 : 200));
+    }
+    if (this.stickyRevealGen !== gen || !live()) return;
+
+    // Final beat: the locked wilds CONNECT like ways — comet path left→right
+    // through every reel up to the rightmost column (column middles on wild
+    // reels, a random row on the reels between). Showcase of the real ways
+    // logic the evaluator would run with full-reel wilds.
+    const rightmost = chosen[chosen.length - 1];
+    const path: Array<Array<{ x: number; y: number }>> = [];
+    for (let reel = 0; reel <= rightmost; reel++) {
+      const rr = resolveAnchor(reelAnchor(reel), this.grid);
+      const row = chosen.includes(reel)
+        ? undefined
+        : Math.floor(Math.random() * this.grid.visibleRows);
+      const y = row === undefined
+        ? rr.y + rr.h / 2
+        : resolveAnchor(cellAnchor(reel, row), this.grid).y + resolveAnchor(cellAnchor(reel, row), this.grid).h / 2;
+      path.push([{ x: rr.x + rr.w / 2, y }]);
+    }
+    if (path.length >= 2) {
+      await new Promise(res => setTimeout(res, 220));
+      if (this.stickyRevealGen !== gen || !live()) return;
+      void playWaysLight(this.waysLightContainer, path, { ...waysLightConfig, enabled: true });
     }
   }
 
@@ -488,7 +514,7 @@ export class ReelSet {
    *  the landing cell to full reel height (masked to the reel) → impact flash
    *  + reel-sized AAA shine border. All overlays ride the sticky-reveal
    *  lifecycle, so the next spin clears everything. */
-  private expandOneWildReel(reelIdx: number, row: number, turbo: boolean): Promise<void> {
+  private expandOneWildReel(reelIdx: number, row: number, turbo: boolean, mult = 2): Promise<void> {
     return new Promise(resolve => {
       const rr = resolveAnchor(reelAnchor(reelIdx), this.grid);
       const cellR = resolveAnchor(cellAnchor(reelIdx, row), this.grid);
@@ -500,6 +526,30 @@ export class ReelSet {
       // 1) the wild LANDS — reuse the sticky pop (backing + money-stack tile
       //    + flash) for a consistent premium landing beat.
       this.popOneStickyWild(reelIdx, row);
+
+      // 1b) the MULTIPLIER badge (2×/3×/5×) pops ON the landed sack, then
+      //     flies to the column's middle at lock-in and stays until next spin.
+      const badge = new Container();
+      const plateW = Math.round(cellR.w * 0.52), plateH = Math.round(cellR.h * 0.42);
+      const plate = new Graphics();
+      plate.roundRect(-plateW / 2, -plateH / 2, plateW, plateH, plateH * 0.32)
+        .fill({ color: 0x140B22, alpha: 0.94 })
+        .stroke({ color: 0xFFD24A, width: 2.5 });
+      const label = new Text({
+        text: `${mult}x`, style: new TextStyle({
+          fontFamily: "'Poppins', ui-sans-serif, sans-serif", fontSize: Math.round(plateH * 0.62),
+          fontWeight: '900', fontStyle: 'italic', fill: 0xFFE9A0,
+          dropShadow: { color: 0x000000, blur: 4, distance: 1, alpha: 0.6, angle: Math.PI / 2 },
+        }),
+      });
+      label.anchor.set(0.5);
+      badge.addChild(plate, label);
+      badge.position.set(cx, cellCy);
+      badge.scale.set(0);
+      badge.alpha = 0;
+      badge.eventMode = 'none';
+      this.stickyContainer.addChild(badge);
+      this.stickyRevealObjects.push(badge);
 
       // 2) clear-beat — opaque panel over the reel so no symbol shows behind
       //    the column while it races out.
@@ -541,17 +591,28 @@ export class ReelSet {
 
       const tl = gsap.timeline({ onComplete: resolve });
       this.stickyRevealTweens.push(tl);
-      tl.to(clear, { alpha: 0.92, duration: 0.14 * speed, ease: 'power2.out' }, 0.42 * speed);
-      tl.to(spr, { alpha: 1, duration: 0.08 * speed, ease: 'power1.out' }, 0.5 * speed);
-      tl.to(spr.scale, { y: tsy * 1.045, duration: 0.3 * speed, ease: 'power3.out' }, 0.5 * speed);
-      tl.to(spr.scale, { y: tsy, duration: 0.16 * speed, ease: 'power2.inOut' }, 0.8 * speed);
-      tl.to(flash, { alpha: 0.55, duration: 0.07 * speed, ease: 'power2.out' }, 0.78 * speed);
+      // badge pops on the sack first…
+      tl.to(badge, { alpha: 1, duration: 0.1 * speed, ease: 'power1.out' }, 0.35 * speed);
+      tl.to(badge.scale, { x: 1.3, y: 1.3, duration: 0.16 * speed, ease: 'back.out(3)' }, 0.35 * speed);
+      tl.to(badge.scale, { x: 1, y: 1, duration: 0.14 * speed, ease: 'power2.out' }, 0.51 * speed);
+      // …then the reel clears and the column races out (shifted +0.35).
+      tl.to(clear, { alpha: 0.92, duration: 0.14 * speed, ease: 'power2.out' }, 0.77 * speed);
+      tl.to(spr, { alpha: 1, duration: 0.08 * speed, ease: 'power1.out' }, 0.85 * speed);
+      tl.to(spr.scale, { y: tsy * 1.045, duration: 0.3 * speed, ease: 'power3.out' }, 0.85 * speed);
+      tl.to(spr.scale, { y: tsy, duration: 0.16 * speed, ease: 'power2.inOut' }, 1.15 * speed);
+      tl.to(flash, { alpha: 0.55, duration: 0.07 * speed, ease: 'power2.out' }, 1.13 * speed);
       tl.to(flash, {
         alpha: 0, duration: 0.32 * speed, ease: 'power2.in',
         onComplete: () => { if (flash.parent) flash.parent.removeChild(flash); },
-      }, 0.85 * speed);
+      }, 1.2 * speed);
       // AAA shine border around the whole reel at lock-in.
-      tl.call(() => { this.stickyHandles.push(applyStickyWild(this.stickyContainer, rr)); }, undefined, 0.8 * speed);
+      tl.call(() => { this.stickyHandles.push(applyStickyWild(this.stickyContainer, rr)); }, undefined, 1.15 * speed);
+      // badge flies to the column middle, re-topped above the column art,
+      // and LOCKS with a punch ("pop vibe") — stays until the next spin.
+      tl.call(() => { this.stickyContainer.addChild(badge); }, undefined, 1.15 * speed);
+      tl.to(badge, { y: rr.y + rr.h / 2, duration: 0.3 * speed, ease: 'power3.inOut' }, 1.15 * speed);
+      tl.to(badge.scale, { x: 1.55, y: 1.55, duration: 0.3 * speed, ease: 'power2.out' }, 1.15 * speed);
+      tl.to(badge.scale, { x: 1.25, y: 1.25, duration: 0.18 * speed, ease: 'back.out(4)' }, 1.45 * speed);
     });
   }
 

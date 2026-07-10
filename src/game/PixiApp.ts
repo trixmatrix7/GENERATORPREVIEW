@@ -1280,6 +1280,30 @@ export class PixiApp {
     // Set while a free-spins round is up; closed by the exit iris at the end.
     let fsOverlayToClose: { container: Container; counter: Text } | null = null;
     if (outcome.freeSpinsTriggered && outcome.freeSpinsPlayed > 0 && !this.turbo && !prefersReducedMotion()) {
+      // Land the TRIGGER board first — the 3+ scatters visibly hit (with the
+      // natural near-miss anticipation) before anything else happens.
+      await this.reelSet.stopOnStops(outcome.stops, this.turbo);
+      if (!this.isLive) return;
+
+      // Landed-scatter BONUS animation (spritesheet on each scatter cell);
+      // the iris cuts in shortly BEFORE the animation ends.
+      if (SYMBOL_WIN_SHEETS.has(1)) {
+        const scatterCells: AnimatedSymbol[] = [];
+        const walkSc = (n: Container) => {
+          for (const c of n.children) {
+            if (c instanceof AnimatedSymbol) { if (c.symbol === 1) scatterCells.push(c); }
+            else if (c instanceof Container) walkSc(c);
+          }
+        };
+        walkSc(this.reelSet.container);
+        if (scatterCells.length >= 3) {
+          for (const c of scatterCells) c.play('win');
+          await new Promise(r => setTimeout(r, 4200)); // anim ~4.9s → iris just before the end
+          for (const c of scatterCells) { if (!c.destroyed) c.clearState(); }
+          if (!this.isLive) return;
+        }
+      }
+
       // Straight into the iris — NO gold flash / shock-wave "sun" first. The live
       // board is pulled into a shrinking black circle, opens onto the intro
       // screen, then dismisses into the round. Counter shows AFTER the iris.
@@ -1917,6 +1941,54 @@ export class PixiApp {
 
   /** Test-only: run the full free-spins presentation — entry card ("FREE SPINS
    *  ×N"), per-spin replay, win ceremony, and exit card ("FREE SPINS TOTAL"). */
+  /** Test-only: a REAL trigger spin — the reels roll and land on stops chosen
+   *  so exactly 3 or 4 scatters visibly hit (one per chosen reel, natural
+   *  anticipation tease included), then the full FS flow runs: scatter BONUS
+   *  animation → iris → round → total marquee → closing iris. */
+  public __testScatterTrigger(symbol: string, decimals: number, wager: bigint, scatters: 3 | 4 = 3, count = 8): void {
+    if (!this.isLive) return;
+    const SCATTER = 1;
+    const rows = this.grid.visibleRows;
+    const strips = this.config.reelStrips;
+    const lens = this.config.reelLengths;
+    const reelCount = lens.length;
+    const stopWith = (reel: number, wantScatter: boolean): number => {
+      const len = lens[reel];
+      const start = Math.floor(Math.random() * len);
+      for (let k = 0; k < len; k++) {
+        const stop = (start + k) % len;
+        let n = 0;
+        for (let row = 0; row < rows; row++) if (strips[reel][(stop + row) % len] === SCATTER) n++;
+        if (wantScatter ? n === 1 : n === 0) return stop;
+      }
+      return 0;
+    };
+    const scatterReels = new Set<number>();
+    while (scatterReels.size < scatters) scatterReels.add(Math.floor(Math.random() * reelCount));
+    const stops = lens.map((_, r) => stopWith(r, scatterReels.has(r)));
+    const board: number[][] = Array.from({ length: rows }, (_, row) =>
+      Array.from({ length: reelCount }, (_, r) => strips[r][(stops[r] + row) % lens[r]]));
+    const winAmount = wager * 30n;
+    const cells: [number, number][] = [];
+    for (let r = 0; r < reelCount; r++) cells.push([1, r]);
+    const outcome: SpinOutcome = {
+      stops, board, winAmount, wager,
+      scatterCount: scatters,
+      freeSpinsTriggered: true,
+      freeSpinsPlayed: count,
+      holdWinTriggered: false, holdWinWin: 0n, holdWin: null,
+      winResult: {
+        totalWin: winAmount,
+        combinations: [{ symbolId: 2, matchCount: reelCount, ways: 1, payBps: 0, winAmount, cells }],
+        scatterCount: scatters,
+        scatterPaid: false,
+      },
+    };
+    // Roll visibly first, then resolve — exactly like a real spin.
+    this.reelSet.startSpin();
+    window.setTimeout(() => { if (this.isLive) void this.resolve(outcome, symbol, decimals); }, 600);
+  }
+
   public __testFreeSpins(symbol: string, decimals: number, wager: bigint, count = 8): void {
     if (!this.isLive) return;
     const reelCount = this.config.reelLengths.length;

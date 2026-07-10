@@ -151,6 +151,47 @@ export function WinTierTestPanel({ pixiApp, snapshot, soundManager }: Props) {
         ⤢ Expanding Wild
       </button>
       <div style={{ display: 'flex', gap: 4, marginTop: 4 }}>
+        {([3, 4] as const).map(n => (
+          <button
+            key={n}
+            onClick={() => pixiApp.__testScatterTrigger(symbol, decimals, wager, n)}
+            style={{
+              flex: 1,
+              background: '#041c14',
+              color: '#7fe8c0',
+              border: '1px solid #2a7a5a',
+              borderRadius: 4,
+              padding: '4px 6px',
+              fontSize: 11,
+              fontFamily: 'monospace',
+              cursor: 'pointer',
+              textAlign: 'left',
+            }}
+            title={`Real trigger spin: reels roll and land ${n} scatters (with anticipation), scatter BONUS anim, then the full FS round`}
+          >
+            ◎ Trigger {n} SC
+          </button>
+        ))}
+        <button
+          onClick={() => pixiApp.__testSymbolWin(1)}
+          style={{
+            flex: 1,
+            background: '#04101c',
+            color: '#7fc8ff',
+            border: '1px solid #2a5a7a',
+            borderRadius: 4,
+            padding: '4px 6px',
+            fontSize: 11,
+            fontFamily: 'monospace',
+            cursor: 'pointer',
+            textAlign: 'left',
+          }}
+          title="Plays the scatter BONUS animation on the board's scatter cells (re-skins the centre cell if none visible)"
+        >
+          ✹ SC anim
+        </button>
+      </div>
+      <div style={{ display: 'flex', gap: 4, marginTop: 4 }}>
         {([[2, '▶ Prem A win'], [3, '▶ Prem B win']] as const).map(([id, label]) => (
           <button
             key={id}

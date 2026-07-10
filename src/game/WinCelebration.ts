@@ -64,16 +64,18 @@ export interface WinCelebrationParams {
 const ART_H = 1080;
 const TIER_KEYS = ['big', 'mega', 'epic', 'max'] as const;
 type TierKey = typeof TIER_KEYS[number];
-/** Content-centre Y per tier word (anchor pivot → pulses around the word). */
-const TIER_CY: Record<TierKey, number> = { big: 0.267, mega: 0.278, epic: 0.272, max: 0.289 };
-const WIN_CY = 0.5445;
-const PLATE_CY = 0.746;
-const PLATE_H = 0.27;
+/** Content-centre Y per tier word (anchor pivot → pulses around the word).
+ *  Re-measured 2026-07-10 for the v2 art set (chrome tier words + gold WIN +
+ *  chrome-rimmed price plate; layers pre-aligned on the same 1080p canvas). */
+const TIER_CY: Record<TierKey, number> = { big: 0.2273, mega: 0.2463, epic: 0.2495, max: 0.2269 };
+const WIN_CY = 0.4875;
+const PLATE_CY = 0.7681;
+const PLATE_H = 0.374; // plate bbox h404/1080
 /** Union content bbox height (fraction of canvas) — drives on-screen sizing. */
-const CONTENT_FRAC = 0.77;
+const CONTENT_FRAC = 0.911; // y[48..1031] across tiers
 /** Union content centre (fraction of canvas height) — the marquee pivots here
  *  so the whole stack is EXACTLY centred on the given centre point. */
-const CONTENT_CY = (0.11 + 0.881) / 2;
+const CONTENT_CY = (0.0444 + 0.9546) / 2;
 
 function formatAmount(amount: bigint, decimals: number): string {
   const dp = decimals > 4 ? 2 : decimals;

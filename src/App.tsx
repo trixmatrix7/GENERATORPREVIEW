@@ -71,9 +71,12 @@ export function App() {
       big: `${T}big.png`, mega: `${T}mega.png`, epic: `${T}epic.png`,
       max: `${T}max.png`, win: `${T}win.png`, plate: `${T}plate.png`,
     });
-    // Custom coin rain (chroma-keyed, 2 sheets × 150 = 300 frames, authored
-    // @30fps) — played at 45fps (1.5× tempo) as a layer BEHIND the win marquee.
-    void pixiAppRef.setWinCoinRain([`${T}coinrain_a.webp`, `${T}coinrain_b.webp`], 10, 15, 300, 45);
+    // Custom coin rain v2 (denser; green-screen keyed #00D300 + despill,
+    // box-aspect crop → only ~1.42× upscale in the box = sharp): 3 sheets ×
+    // (10×10) = 300 frames @ 45fps (1.5× tempo), BEHIND the win marquee.
+    void pixiAppRef.setWinCoinRain(
+      [`${T}coinrain2_0.webp`, `${T}coinrain2_1.webp`, `${T}coinrain2_2.webp`], 10, 10, 300, 45,
+    );
     if (VICE_INTRO_URL) void pixiAppRef.setFreeSpinsIntroImage(VICE_INTRO_URL);
   }, [pixiAppRef]);
 

@@ -168,6 +168,20 @@ export class WinCelebration {
       this.coinSheets = sheets;
       this.coinFrames = frames;
       this.coinFps = Math.max(1, fps);
+      // Warm-up: push the (large) sheets to the GPU now, not on the first win —
+      // otherwise the first celebration hitches while ~140MB/sheet uploads.
+      // Rendering one (invisible) sprite per sheet binds the full source.
+      try {
+        const warm = new Container();
+        warm.alpha = 0.001;
+        warm.eventMode = 'none';
+        for (const s of sheets) {
+          warm.addChild(new Sprite(new Texture({ source: s.source, frame: new Rectangle(0, 0, 4, 4) })));
+        }
+        this.app.stage.addChild(warm);
+        await new Promise(r => setTimeout(r, 150)); // a few rendered frames
+        warm.destroy({ children: true });
+      } catch { /* best-effort */ }
     } catch (err) {
       console.warn('[WinCelebration] coin rain failed to load:', err);
       this.disposeCoinTextures();

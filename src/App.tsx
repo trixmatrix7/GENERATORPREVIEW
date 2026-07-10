@@ -78,6 +78,10 @@ export function App() {
     else void pixiAppRef.setBackgroundSpritesheet(`${B}bg_sheet2.webp`, 8, 8, 60, 12);
     // VICE HEAT logo above the grid (replaces the text title).
     void pixiAppRef.setTitleImage(`${B}logo.webp`);
+    // Premium WIN animations: looped spritesheets on connection (7×7 = 48
+    // frames @ 12fps each). HIGH_A(2) = shades guy, HIGH_B(3) = cigar boss.
+    void pixiAppRef.setSymbolWinSheet(2, `${B}prem_a_win.webp`, 7, 7, 48, 12);
+    void pixiAppRef.setSymbolWinSheet(3, `${B}prem_b_win.webp`, 7, 7, 48, 12);
     // Expanding-wild column art (money tower; custom upload wins).
     // Expected art: 512×2560 px (5×5 grid) / 512×1484 px (5×3) — one reel's
     // aspect; setExpandingWildImage height-fits whichever grid is active.

@@ -8,6 +8,7 @@ import { setActiveGrid, type GridConfig } from '@/config/gridConfig';
 import { WIN_LINE_PRESETS, WIN_COIN_PRESETS, ACCENT_PRESETS } from '@/config/adjustableParams';
 import { waysLightConfig, WAYS_LIGHT_PRESETS, WAYS_LIGHT_SPEED_MS, WAYS_LIGHT_WIDTH_PX } from './effects/WaysLightComet';
 import { stickyWildConfig, STICKY_WILD_PRESETS, STICKY_WILD_SPEED_MS } from './effects/StickyWildShine';
+import { SYMBOL_WIN_SHEETS } from './AnimatedSymbol';
 import { symbolSizing, SYMBOL_SIZE_PRESETS } from '@/config/symbolSizing';
 import { hslToNum, numToHsl, hexToNum } from '@/config/color';
 import { CANVAS_THEME } from '@/config/canvasTheme';
@@ -914,6 +915,27 @@ export class PixiApp {
    *  the win marquee during celebrations. Pass null to clear. */
   async setWinCoinRain(urls: string[] | null, cols: number, rows: number, count: number, fps = 30): Promise<void> {
     await this.winCelebration?.setCoinRain(urls, cols, rows, count, fps);
+  }
+
+  /** Per-symbol WIN animation spritesheet: while that symbol's cell is in the
+   *  'win' state (part of a connection) the sheet loops in place of the static
+   *  art. Pass url=null to clear the symbol's sheet. */
+  async setSymbolWinSheet(symbolId: number, url: string | null, cols: number, rows: number, count: number, fps = 12): Promise<void> {
+    const old = SYMBOL_WIN_SHEETS.get(symbolId);
+    SYMBOL_WIN_SHEETS.delete(symbolId);
+    if (old) for (const f of old.frames) { try { f.destroy(false); } catch { /* torn down */ } }
+    if (!url) return;
+    try {
+      const sheet = await Assets.load<Texture>(url);
+      const fw = sheet.width / cols, fh = sheet.height / rows;
+      const frames: Texture[] = [];
+      for (let i = 0; i < count; i++) {
+        frames.push(new Texture({ source: sheet.source, frame: new Rectangle((i % cols) * fw, Math.floor(i / cols) * fh, fw, fh) }));
+      }
+      SYMBOL_WIN_SHEETS.set(symbolId, { frames, fps });
+    } catch (err) {
+      console.warn('[PixiApp] failed to load symbol win sheet:', err);
+    }
   }
 
   /** Load a custom free-spins INTRO SCREEN image (shown when the iris opens).

@@ -30,6 +30,11 @@ import { drawCellPocket } from '@/config/cellBackdrop';
 import type { SymbolAtlasMap } from './SymbolAtlasLoader';
 import type { GameTheme } from '@/engine/GameConfig';
 import { SYMBOL_HEIGHT, SYMBOL_WIDTH } from './symbolMetrics';
+import type { Texture } from 'pixi.js';
+
+/** symbolId → win-state spritesheet frames (looped while the cell is in the
+ *  'win' state, replacing the static art). Filled by PixiApp.setSymbolWinSheet. */
+export const SYMBOL_WIN_SHEETS = new Map<number, { frames: Texture[]; fps: number }>();
 
 // Re-export so existing consumers (Reel, tests) can keep their
 // `from './AnimatedSymbol'` import paths working. The canonical source is
@@ -80,6 +85,11 @@ export class AnimatedSymbol extends Container {
   private iconShadow: Sprite | null = null;
 
   private symbolId: SymbolIdType = 0 as SymbolIdType;
+  /** Win-spritesheet overlay (see SYMBOL_WIN_SHEETS / startWinSheet). */
+  private winSheetSprite: Sprite | null = null;
+  private winSheetTween: gsap.core.Tween | null = null;
+  private preSheetIconVisible = false;
+  private preSheetShadowVisible = false;
   private activeState: SymbolState = 'static';
   private tween: gsap.core.Tween | gsap.core.Timeline | null = null;
   /** Bright outline traced around the symbol's silhouette while it's winning. */
@@ -174,6 +184,9 @@ export class AnimatedSymbol extends Container {
     // (applied even under reduced motion — it's a static highlight, not motion).
     this.setWinOutline(state === 'win');
 
+    // Premium win spritesheet: loops in place of the static art while winning.
+    if (state === 'win') this.startWinSheet(); else this.stopWinSheet();
+
     if (state === 'static' || prefersReducedMotion()) return;
 
     const supported = this.supportedStates();
@@ -183,6 +196,46 @@ export class AnimatedSymbol extends Container {
       this.playSpriteState(state);
     } else {
       this.playFallbackState(state, delay);
+    }
+  }
+
+  /** Per-symbol WIN spritesheet overlay: while the cell is in the 'win' state
+   *  the sheet loops IN PLACE OF the static art (icon hidden, restored after).
+   *  Filled by PixiApp.setSymbolWinSheet. */
+  private startWinSheet(): void {
+    if (this.winSheetSprite) return;
+    const sheet = SYMBOL_WIN_SHEETS.get(this.symbolId);
+    if (!sheet || sheet.frames.length === 0) return;
+    const size = Math.min(SYMBOL_WIDTH, SYMBOL_HEIGHT) * 0.94;
+    const spr = new Sprite(sheet.frames[0]);
+    spr.anchor.set(0.5);
+    spr.width = size;
+    spr.height = size;
+    spr.eventMode = 'none';
+    this.inner.addChild(spr);
+    this.preSheetIconVisible = this.iconSprite?.visible ?? false;
+    this.preSheetShadowVisible = this.iconShadow?.visible ?? false;
+    if (this.iconSprite) this.iconSprite.visible = false;
+    if (this.iconShadow) this.iconShadow.visible = false;
+    this.winSheetSprite = spr;
+    const proxy = { f: 0 };
+    this.winSheetTween = gsap.to(proxy, {
+      f: sheet.frames.length - 1,
+      duration: sheet.frames.length / sheet.fps,
+      ease: 'none',
+      repeat: -1,
+      onUpdate: () => { spr.texture = sheet.frames[Math.round(proxy.f) % sheet.frames.length]; },
+    });
+  }
+
+  private stopWinSheet(): void {
+    if (this.winSheetTween) { this.winSheetTween.kill(); this.winSheetTween = null; }
+    if (this.winSheetSprite) {
+      this.winSheetSprite.parent?.removeChild(this.winSheetSprite);
+      try { this.winSheetSprite.destroy(); } catch { /* torn down */ }
+      this.winSheetSprite = null;
+      if (this.iconSprite) this.iconSprite.visible = this.preSheetIconVisible;
+      if (this.iconShadow) this.iconShadow.visible = this.preSheetShadowVisible;
     }
   }
 

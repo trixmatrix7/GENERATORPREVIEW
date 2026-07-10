@@ -461,19 +461,42 @@ export class ReelSet {
   async playExpandingWildReveal(opts: { isLive?: () => boolean; turbo?: boolean } = {}): Promise<void> {
     const live = opts.isLive ?? (() => true);
 
-    // 1–2 distinct random reels, each with a random landing row.
-    const reelIdxs = Array.from({ length: this.grid.reelCount }, (_, i) => i);
+    // Candidate reels = those whose strip actually carries a WILD (reel 0 has
+    // none by design). 1–3 of them get chosen; each chosen reel's display stop
+    // is picked so a money sack VISIBLY lands, and the expansion starts from
+    // exactly that cell — never from a freshly spawned position.
+    const rows = this.grid.visibleRows;
+    const findWildStop = (reel: number): { stop: number; row: number } | null => {
+      const strip = this.config.reelStrips[reel];
+      const len = this.config.reelLengths[reel];
+      const start = Math.floor(Math.random() * len);
+      for (let k = 0; k < len; k++) {
+        const stop = (start + k) % len;
+        for (let row = 0; row < rows; row++) {
+          if (strip[(stop + row) % len] === SymbolId.WILD) return { stop, row };
+        }
+      }
+      return null;
+    };
+    const reelIdxs = Array.from({ length: this.grid.reelCount }, (_, i) => i)
+      .filter(r => this.config.reelStrips[r].includes(SymbolId.WILD));
     for (let i = reelIdxs.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
       [reelIdxs[i], reelIdxs[j]] = [reelIdxs[j], reelIdxs[i]];
     }
-    const chosen = reelIdxs.slice(0, 1 + Math.floor(Math.random() * 3)).sort((a, b) => a - b);
-    const landingRows = chosen.map(() => Math.floor(Math.random() * this.grid.visibleRows));
+    const chosen = reelIdxs.slice(0, Math.min(reelIdxs.length, 1 + Math.floor(Math.random() * 3))).sort((a, b) => a - b);
+    if (chosen.length === 0) return;
 
     // Roll + settle first (display-only stops; the columns cover the reels).
     this.startSpin();
     const gen = this.stickyRevealGen;
     const displayStops = this.config.reelLengths.map(len => Math.floor(Math.random() * len));
+    const landingRows = chosen.map(reel => {
+      const hit = findWildStop(reel);
+      if (!hit) return Math.floor(Math.random() * rows);
+      displayStops[reel] = hit.stop; // the sack visibly lands at this exact cell
+      return hit.row;
+    });
     await new Promise(res => setTimeout(res, opts.turbo ? 240 : 520));
     if (this.stickyRevealGen !== gen || !live()) return;
     await this.stopOnStops(displayStops, !!opts.turbo);

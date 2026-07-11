@@ -21,11 +21,11 @@ import { OutlineFilter } from 'pixi-filters';
 import { gsap } from 'gsap';
 import { SYMBOLS, type SymbolIdType } from '@/config/symbols';
 import {
-  FALLBACK_TIMINGS,
   SYMBOL_ANIMATIONS,
   type SymbolState,
 } from '@/config/symbolAnimations';
 import { symbolSizing } from '@/config/symbolSizing';
+import { presetTimings } from '@/config/statePresets';
 import { drawCellPocket } from '@/config/cellBackdrop';
 import type { SymbolAtlasMap } from './SymbolAtlasLoader';
 import type { GameTheme } from '@/engine/GameConfig';
@@ -360,7 +360,7 @@ export class AnimatedSymbol extends Container {
     this.activeState = 'landing';
     this.inner.rotation = 0;
     this.inner.scale.set(1);
-    const t = FALLBACK_TIMINGS.landBounce;
+    const t = presetTimings('landBounce');
     this.tween = gsap
       .timeline({ delay })
       .to(this.inner.scale, {
@@ -661,7 +661,7 @@ export class AnimatedSymbol extends Container {
   }
 
   private playFallbackLanding(delay = 0) {
-    const t = FALLBACK_TIMINGS.landing;
+    const t = presetTimings('landing');
     this.inner.scale.set(1);
     this.inner.rotation = 0;
     const rotRad = (t.rotationKick * Math.PI) / 180;
@@ -716,7 +716,7 @@ export class AnimatedSymbol extends Container {
   }
 
   private playFallbackWin(delay = 0) {
-    const t = FALLBACK_TIMINGS.win;
+    const t = presetTimings('win');
     this.inner.scale.set(1);
     this.inner.rotation = 0;
     this.inner.alpha = 1;
@@ -737,7 +737,7 @@ export class AnimatedSymbol extends Container {
   }
 
   private playFallbackIdle() {
-    const t = FALLBACK_TIMINGS.idle;
+    const t = presetTimings('idle');
     this.inner.scale.set(1);
     const baseY = this.inner.y;
     // Gentle breathe: scale pulse + vertical float for a living feel
@@ -756,7 +756,7 @@ export class AnimatedSymbol extends Container {
   }
 
   private playFallbackFeatured() {
-    const t = FALLBACK_TIMINGS.featured;
+    const t = presetTimings('featured');
     this.inner.alpha = 1;
     this.inner.scale.set(1);
     this.inner.rotation = 0;

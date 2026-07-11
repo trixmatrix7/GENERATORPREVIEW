@@ -9,6 +9,9 @@ import { WIN_LINE_PRESETS, WIN_COIN_PRESETS, ACCENT_PRESETS } from '@/config/adj
 import { waysLightConfig, WAYS_LIGHT_PRESETS, WAYS_LIGHT_SPEED_MS, WAYS_LIGHT_WIDTH_PX } from './effects/WaysLightComet';
 import { stickyWildConfig, STICKY_WILD_PRESETS, STICKY_WILD_SPEED_MS } from './effects/StickyWildShine';
 import { SYMBOL_WIN_SHEETS, AnimatedSymbol } from './AnimatedSymbol';
+import { fxById } from './effects/fxRegistry';
+import type { FxContext } from './effects/fxTypes';
+import { resolveAnchor, cell as cellAnchor, reel as reelAnchor, grid as gridAnchor } from '@/engine/anchors';
 import { symbolSizing, SYMBOL_SIZE_PRESETS } from '@/config/symbolSizing';
 import { hslToNum, numToHsl, hexToNum } from '@/config/color';
 import { CANVAS_THEME } from '@/config/canvasTheme';
@@ -2068,6 +2071,50 @@ export class PixiApp {
   public __testExpandingWild(): void {
     if (!this.isLive) return;
     void this.reelSet.playExpandingWildReveal({ isLive: () => this.isLive, turbo: this.turbo });
+  }
+
+  // ── FX showcase runner ─────────────────────────────────────────────────
+  private fxLayer: Container | null = null;
+  private fxTweens: Array<{ kill(): void }> = [];
+  private fxCleanupTimer: number | null = null;
+
+  /** Run a showcase effect from the FX registry by id (see fxRegistry.ts).
+   *  Grid-relative + theme-accent driven → replicable in the generator. */
+  public runFx(id: string): void {
+    if (!this.isLive) return;
+    const entry = fxById(id);
+    if (!entry) { console.warn('[PixiApp] unknown fx:', id); return; }
+    this.clearFx();
+    const layer = new Container();
+    layer.eventMode = 'none';
+    this.reelSet.container.addChild(layer); // grid-local coords, above reels
+    this.fxLayer = layer;
+    const ctx: FxContext = {
+      layer,
+      grid: { reels: this.grid.reelCount, rows: this.grid.visibleRows },
+      cellRect: (reel, row) => resolveAnchor(cellAnchor(reel, row), this.grid),
+      reelRect: (reel) => resolveAnchor(reelAnchor(reel), this.grid),
+      gridRect: () => resolveAnchor(gridAnchor, this.grid),
+      accent: this.config.theme.accent,
+      gold: 0xFFC53D,
+      gsap,
+      track: <T extends { kill(): void }>(t: T): T => { this.fxTweens.push(t); return t; },
+      rand: (min, max) => min + Math.random() * (max - min),
+      pick: (arr) => arr[Math.floor(Math.random() * arr.length)],
+    };
+    try { entry.run(ctx); } catch (err) { console.warn('[PixiApp] fx failed:', id, err); }
+    this.fxCleanupTimer = window.setTimeout(() => this.clearFx(), 4500);
+  }
+
+  private clearFx(): void {
+    if (this.fxCleanupTimer !== null) { window.clearTimeout(this.fxCleanupTimer); this.fxCleanupTimer = null; }
+    for (const t of this.fxTweens) { try { t.kill(); } catch { /* torn down */ } }
+    this.fxTweens = [];
+    if (this.fxLayer) {
+      this.fxLayer.parent?.removeChild(this.fxLayer);
+      try { this.fxLayer.destroy({ children: true }); } catch { /* torn down */ }
+      this.fxLayer = null;
+    }
   }
 
   /** Test-only: play a symbol's WIN animation on the board. Every cell showing

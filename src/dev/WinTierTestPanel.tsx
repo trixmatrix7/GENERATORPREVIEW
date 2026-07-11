@@ -7,6 +7,8 @@ import type { PixiApp } from '@/game/PixiApp';
 import type { SoundManager } from '@/audio/SoundManager';
 import type { HostSnapshotV1 } from '@/bridge/types';
 import { selectWinSound } from '@/audio/useSoundLayer';
+import { FX_REGISTRY } from '@/game/effects/fxRegistry';
+import { STATE_PRESETS, setActiveStatePreset, getActiveStatePreset } from '@/config/statePresets';
 
 interface Props {
   pixiApp: PixiApp;
@@ -263,7 +265,90 @@ export function WinTierTestPanel({ pixiApp, snapshot, soundManager }: Props) {
       >
         ⟶ Win Line (ways-light)
       </button>
+
+      {/* ── State-animation presets (10 AAA flavours, generator-replicable) ── */}
+      <StatePresetPicker pixiApp={pixiApp} />
+
+      {/* ── FX library — one button per showcase effect ── */}
+      <FxLibrary pixiApp={pixiApp} />
       </>)}
+    </div>
+  );
+}
+
+function StatePresetPicker({ pixiApp }: { pixiApp: PixiApp }) {
+  const [active, setActive] = useState(getActiveStatePreset().id);
+  return (
+    <div style={{ marginTop: 6, borderTop: '1px solid #2a2a2e', paddingTop: 6 }}>
+      <div style={{ color: '#F8FA5E', fontWeight: 700, letterSpacing: 0.5, marginBottom: 4 }}>STATE PRESETS</div>
+      <select
+        value={active}
+        onChange={e => {
+          setActive(e.target.value);
+          setActiveStatePreset(e.target.value);
+          // Instant feel check: pulse a plain low symbol with the new WIN
+          // timing (landing/idle apply from the next spin automatically).
+          pixiApp.__testSymbolWin(8);
+        }}
+        title={STATE_PRESETS.find(p => p.id === active)?.description}
+        style={{
+          width: '100%', background: '#222', color: '#fff', border: '1px solid #444',
+          borderRadius: 4, padding: '4px 6px', fontSize: 11, fontFamily: 'monospace',
+        }}
+      >
+        {STATE_PRESETS.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+      </select>
+      <div style={{ color: '#888', fontSize: 10, marginTop: 3 }}>
+        {STATE_PRESETS.find(p => p.id === active)?.description}
+      </div>
+    </div>
+  );
+}
+
+const FX_GROUP_LABEL: Record<string, string> = {
+  win: 'WIN FX', anticipation: 'ANTICIPATION FX', ambient: 'AMBIENT FX',
+  transition: 'TRANSITION FX', symbol: 'SYMBOL FX',
+};
+
+function FxLibrary({ pixiApp }: { pixiApp: PixiApp }) {
+  const [open, setOpen] = useState(false);
+  const groups = [...new Set(FX_REGISTRY.map(e => e.group))];
+  return (
+    <div style={{ marginTop: 6, borderTop: '1px solid #2a2a2e', paddingTop: 6 }}>
+      <button
+        type="button"
+        onClick={() => setOpen(o => !o)}
+        style={{
+          background: 'transparent', border: 'none', color: '#F8FA5E', fontFamily: 'monospace',
+          fontSize: 11, fontWeight: 700, letterSpacing: 0.5, cursor: 'pointer', textAlign: 'left',
+          padding: 0, width: '100%', display: 'flex', justifyContent: 'space-between',
+        }}
+      >
+        <span>FX LIBRARY ({FX_REGISTRY.length})</span><span>{open ? '▾' : '▸'}</span>
+      </button>
+      {open && groups.map(g => (
+        <div key={g}>
+          <div style={{ color: '#9aa', fontSize: 10, letterSpacing: 1, margin: '6px 0 3px' }}>{FX_GROUP_LABEL[g] ?? g}</div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 3 }}>
+            {FX_REGISTRY.filter(e => e.group === g).map(e => (
+              <button
+                key={e.id}
+                type="button"
+                onClick={() => pixiApp.runFx(e.id)}
+                title={e.description}
+                style={{
+                  background: '#1b1b22', color: '#cfd3ff', border: '1px solid #3a3a4a',
+                  borderRadius: 4, padding: '3px 5px', fontSize: 10, fontFamily: 'monospace',
+                  cursor: 'pointer', textAlign: 'left', overflow: 'hidden',
+                  whiteSpace: 'nowrap', textOverflow: 'ellipsis',
+                }}
+              >
+                {e.name}
+              </button>
+            ))}
+          </div>
+        </div>
+      ))}
     </div>
   );
 }

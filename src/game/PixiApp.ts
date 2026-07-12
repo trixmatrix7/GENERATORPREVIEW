@@ -1314,16 +1314,34 @@ export class PixiApp {
       if (!this.isLive) return;
       const fsOverlay = this.showFreeSpinOverlay(outcome.freeSpinsPlayed);
 
-      // Every free spin IS an expanding-wild reveal: money sacks land on 1–3
-      // random reels and the towers race out (display-only — the settled
-      // total stays outcome.winAmount). This is the round's core showcase.
+      // Every free spin IS an expanding-wild reveal — and every spin's board
+      // (with the full-wild towers) runs through the REAL WinEvaluator, so
+      // connections visibly pay each spin (highlights, comet, amounts). The
+      // authoritative round total stays outcome.winAmount.
       for (let i = 0; i < outcome.freeSpinsPlayed; i++) {
         if (!this.isLive) break;
         if (fsOverlay.counter) {
           fsOverlay.counter.text = `FREE SPIN ${i + 1} / ${outcome.freeSpinsPlayed}`;
         }
-        await this.reelSet.playExpandingWildReveal({ isLive: () => this.isLive, turbo: this.turbo });
+        const chosen = await this.reelSet.playExpandingWildReveal({ isLive: () => this.isLive, turbo: this.turbo });
         if (!this.isLive) break;
+        if (chosen.length > 0) {
+          const board = this.reelSet.getVisibleBoard();
+          for (const reel of chosen) for (let row = 0; row < this.grid.visibleRows; row++) board[row][reel] = 0; // WILD
+          const winResult = evaluateWins(board, outcome.wager ?? 1n, this.config);
+          if (winResult.totalWin > 0n) {
+            const spinOutcome: SpinOutcome = {
+              stops: this.config.reelLengths.map(() => 0), board,
+              winAmount: winResult.totalWin, wager: outcome.wager ?? 1n,
+              scatterCount: 0, freeSpinsTriggered: false, freeSpinsPlayed: 0,
+              holdWinTriggered: false, holdWinWin: 0n, holdWin: null, winResult,
+            };
+            this.reelSet.highlightWins(winResult);
+            await this.playWinSequence(spinOutcome, tokenSymbol, decimals);
+            if (!this.isLive) break;
+            this.reelSet.clearHighlights();
+          }
+        }
         await new Promise(r => setTimeout(r, 350));
       }
 

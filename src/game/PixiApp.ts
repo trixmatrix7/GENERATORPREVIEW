@@ -1557,24 +1557,27 @@ export class PixiApp {
       // idempotent, so a later finish()/destroy() call is harmless.
       this.irisResolve = () => resolve();
 
-      // CLOSE (0.00 -> 0.70): the live board is slowly pulled into a shrinking
-      // black circle — power3.in accelerates the collapse for a "suck-in" feel.
-      tl.to(st, { r: 0, tint: 1, duration: 0.70, ease: 'power3.in', onUpdate: redraw }, 0);
+      // Whole-transition tempo: 1 = original; 1.3 = 30% slower (Noski: the
+      // FS entry should breathe more). Scales every duration AND position.
+      const S = 1.3;
+      // CLOSE: the live board is slowly pulled into a shrinking black circle —
+      // power3.in accelerates the collapse for a "suck-in" feel.
+      tl.to(st, { r: 0, tint: 1, duration: 0.70 * S, ease: 'power3.in', onUpdate: redraw }, 0);
       // FULL-BLACK BEAT: the screen is entirely covered — swap in the
       // free-spins-only background here so the change is never visible.
-      tl.call(() => this.enterFsBackground(), undefined, 0.72);
+      tl.call(() => this.enterFsBackground(), undefined, 0.72 * S);
       // Brief full-black beat, then arm the intro behind the field (still hidden).
-      tl.set(intro, { alpha: 1 }, 0.74);
-      // OPEN (0.82 -> 1.42): the black circle irises back open onto the intro screen.
-      tl.to(st, { r: rDiag, tint: 0, duration: 0.60, ease: 'power2.out', onUpdate: redraw }, 0.82);
-      tl.fromTo(introContent.scale, { x: 0.86, y: 0.86 }, { x: 1, y: 1, duration: 0.55, ease: 'power2.out' }, 0.84);
+      tl.set(intro, { alpha: 1 }, 0.74 * S);
+      // OPEN: the black circle irises back open onto the intro screen.
+      tl.to(st, { r: rDiag, tint: 0, duration: 0.60 * S, ease: 'power2.out', onUpdate: redraw }, 0.82 * S);
+      tl.fromTo(introContent.scale, { x: 0.86, y: 0.86 }, { x: 1, y: 1, duration: 0.55 * S, ease: 'power2.out' }, 0.84 * S);
       // Gentle "breeze" sway on the board art while the intro holds (a taste of
       // Miami motion; true per-palm sway needs the palms as separate PNGs).
       if (introArt) {
-        tl.to(introArt, { rotation: 0.012, duration: 0.9, yoyo: true, repeat: 1, ease: 'sine.inOut' }, 1.0);
+        tl.to(introArt, { rotation: 0.012, duration: 0.9 * S, yoyo: true, repeat: 1, ease: 'sine.inOut' }, 1.0 * S);
       }
-      // HOLD on the intro (~1.3s), then DISMISS (2.7 -> 3.2): fade out into the round.
-      tl.to(overlay, { alpha: 0, duration: 0.50, ease: 'power2.inOut' }, 2.70);
+      // HOLD on the intro, then DISMISS: fade out into the round.
+      tl.to(overlay, { alpha: 0, duration: 0.50 * S, ease: 'power2.inOut' }, 2.70 * S);
     });
   }
 

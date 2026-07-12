@@ -452,13 +452,28 @@ export class ReelSet {
     this.expandWildTexture = tex;
   }
 
+  /** The currently VISIBLE board as symbol ids, board[row][reel] — read from
+   *  the settled cells (display truth, not outcome data). */
+  getVisibleBoard(): number[][] {
+    const rows = this.grid.visibleRows;
+    const board: number[][] = [];
+    for (let row = 0; row < rows; row++) {
+      const r: number[] = [];
+      for (let reel = 0; reel < this.grid.reelCount; reel++) {
+        r.push(this.reels[reel]?.getVisibleCell(row)?.symbol ?? 0);
+      }
+      board.push(r);
+    }
+    return board;
+  }
+
   /** OUR expanding-wild showcase — Gift-Bonanza choreography on the Vice
    *  money-tower art: the reels roll and settle, a wild LANDS on 1–2 random
    *  reels, a clear-beat blanks that reel's other symbols, then the money
    *  column races out of the landing cell (both directions), locks in with an
    *  impact flash + the AAA shine border, and stays until the next spin.
    *  Purely visual — never rewrites the board or the math. */
-  async playExpandingWildReveal(opts: { isLive?: () => boolean; turbo?: boolean } = {}): Promise<void> {
+  async playExpandingWildReveal(opts: { isLive?: () => boolean; turbo?: boolean } = {}): Promise<number[]> {
     const live = opts.isLive ?? (() => true);
 
     // Candidate reels = those whose strip actually carries a WILD (reel 0 has
@@ -485,7 +500,7 @@ export class ReelSet {
       [reelIdxs[i], reelIdxs[j]] = [reelIdxs[j], reelIdxs[i]];
     }
     const chosen = reelIdxs.slice(0, Math.min(reelIdxs.length, 1 + Math.floor(Math.random() * 3))).sort((a, b) => a - b);
-    if (chosen.length === 0) return;
+    if (chosen.length === 0) return [];
 
     // Roll + settle first (display-only stops; the columns cover the reels).
     this.startSpin();
@@ -498,16 +513,16 @@ export class ReelSet {
       return hit.row;
     });
     await new Promise(res => setTimeout(res, opts.turbo ? 240 : 520));
-    if (this.stickyRevealGen !== gen || !live()) return;
+    if (this.stickyRevealGen !== gen || !live()) return [];
     await this.stopOnStops(displayStops, !!opts.turbo);
 
     // Sequential, one reel finishing before the next starts (like the ref).
     for (let k = 0; k < chosen.length; k++) {
-      if (this.stickyRevealGen !== gen || !live()) return;
+      if (this.stickyRevealGen !== gen || !live()) return [];
       await this.expandOneWildReel(chosen[k], landingRows[k], !!opts.turbo);
       await new Promise(res => setTimeout(res, opts.turbo ? 90 : 200));
     }
-    if (this.stickyRevealGen !== gen || !live()) return;
+    if (this.stickyRevealGen !== gen || !live()) return [];
 
     // Final beat: the locked wilds CONNECT like ways — comet path left→right
     // through every reel up to the rightmost column (column middles on wild
@@ -527,9 +542,10 @@ export class ReelSet {
     }
     if (path.length >= 2) {
       await new Promise(res => setTimeout(res, 220));
-      if (this.stickyRevealGen !== gen || !live()) return;
+      if (this.stickyRevealGen !== gen || !live()) return [];
       void playWaysLight(this.waysLightContainer, path, { ...waysLightConfig, enabled: true });
     }
+    return chosen;
   }
 
   /** One reel's expansion: wild pops in its landing cell → the reel's other

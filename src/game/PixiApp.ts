@@ -2066,11 +2066,33 @@ export class PixiApp {
   }
 
   /** Test-only: OUR expanding-wild showcase (Gift-Bonanza choreography on the
-   *  Vice money tower) — wild lands on 1–2 random reels, clear-beat, column
-   *  races out of the landing cell, locks in with the AAA shine. Visual only. */
-  public __testExpandingWild(): void {
+   *  Vice money tower) — wild lands, columns race out, and then the board WITH
+   *  the full-wild reels runs through the REAL WinEvaluator: connections pay
+   *  and present exactly like a live spin (comet, highlights, marquee). */
+  public __testExpandingWild(symbol = 'WIN', decimals = 6, wager = 1_000_000n): void {
     if (!this.isLive) return;
-    void this.reelSet.playExpandingWildReveal({ isLive: () => this.isLive, turbo: this.turbo });
+    void (async () => {
+      const chosen = await this.reelSet.playExpandingWildReveal({ isLive: () => this.isLive, turbo: this.turbo });
+      if (!this.isLive || chosen.length === 0) return;
+      // Effective board: the expanded reels are ENTIRELY wild.
+      const board = this.reelSet.getVisibleBoard();
+      for (const reel of chosen) for (let row = 0; row < this.grid.visibleRows; row++) board[row][reel] = 0; // WILD
+      const winResult = evaluateWins(board, wager, this.config);
+      if (winResult.totalWin <= 0n) return; // honest: dead-paytable connections stay silent
+      const outcome: SpinOutcome = {
+        stops: this.config.reelLengths.map(() => 0),
+        board,
+        winAmount: winResult.totalWin,
+        wager,
+        scatterCount: winResult.scatterCount,
+        freeSpinsTriggered: false,
+        freeSpinsPlayed: 0,
+        holdWinTriggered: false, holdWinWin: 0n, holdWin: null,
+        winResult,
+      };
+      this.reelSet.highlightWins(winResult);
+      await this.playWinSequence(outcome, symbol, decimals);
+    })();
   }
 
   // ── FX showcase runner ─────────────────────────────────────────────────

@@ -8,6 +8,7 @@ import type { SoundManager } from '@/audio/SoundManager';
 import type { HostSnapshotV1 } from '@/bridge/types';
 import { selectWinSound } from '@/audio/useSoundLayer';
 import { FX_REGISTRY } from '@/game/effects/fxRegistry';
+import { MECH_REGISTRY } from '@/game/effects/mechRegistry';
 import { STATE_PRESETS, setActiveStatePreset, getActiveStatePreset } from '@/config/statePresets';
 
 interface Props {
@@ -268,6 +269,19 @@ export function WinTierTestPanel({ pixiApp, snapshot, soundManager }: Props) {
 
       {/* ── State-animation presets (10 AAA flavours, generator-replicable) ── */}
       <StatePresetPicker pixiApp={pixiApp} />
+
+      {/* ── Mechanics — sticky-wild-class feature showcases ── */}
+      <div style={{ marginTop: 6, borderTop: '1px solid #2a2a2e', paddingTop: 6 }}>
+        <div style={{ color: '#F8FA5E', fontWeight: 700, letterSpacing: 0.5, marginBottom: 4 }}>MECHANICS ({MECH_REGISTRY.length})</div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 3 }}>
+          {MECH_REGISTRY.map(m => (
+            <button key={m.id} type="button" onClick={() => pixiApp.runMechanic(m.id)} title={m.description}
+              style={{ background: '#1c1410', color: '#ffd9a0', border: '1px solid #6b4a1d', borderRadius: 4, padding: '3px 5px', fontSize: 10, fontFamily: 'monospace', cursor: 'pointer', textAlign: 'left', overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>
+              {m.name}
+            </button>
+          ))}
+        </div>
+      </div>
 
       {/* ── FX library — one button per showcase effect ── */}
       <FxLibrary pixiApp={pixiApp} />

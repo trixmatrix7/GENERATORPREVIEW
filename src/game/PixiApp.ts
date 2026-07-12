@@ -10,6 +10,7 @@ import { waysLightConfig, WAYS_LIGHT_PRESETS, WAYS_LIGHT_SPEED_MS, WAYS_LIGHT_WI
 import { stickyWildConfig, STICKY_WILD_PRESETS, STICKY_WILD_SPEED_MS } from './effects/StickyWildShine';
 import { SYMBOL_WIN_SHEETS, AnimatedSymbol } from './AnimatedSymbol';
 import { fxById } from './effects/fxRegistry';
+import { mechById } from './effects/mechRegistry';
 import type { FxContext } from './effects/fxTypes';
 import { resolveAnchor, cell as cellAnchor, reel as reelAnchor, grid as gridAnchor } from '@/engine/anchors';
 import { symbolSizing, SYMBOL_SIZE_PRESETS } from '@/config/symbolSizing';
@@ -2116,6 +2117,14 @@ export class PixiApp {
       this.reelSet.highlightWins(winResult);
       await this.playWinSequence(outcome, symbol, decimals);
     })();
+  }
+
+  /** Run a MECHANIC showcase by id (see mechRegistry.ts). */
+  public runMechanic(id: string): void {
+    if (!this.isLive) return;
+    const entry = mechById(id);
+    if (!entry) { console.warn('[PixiApp] unknown mechanic:', id); return; }
+    void this.reelSet.runMechanic(entry);
   }
 
   // ── FX showcase runner ─────────────────────────────────────────────────

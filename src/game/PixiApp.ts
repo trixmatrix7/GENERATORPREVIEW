@@ -1530,9 +1530,11 @@ export class PixiApp {
       if (!this.isLive) return; // never draw into a torn-down GraphicsContext
       const r = Math.max(0, st.r);
       // Black field with the circular hole punched via .cut() (v8-correct).
+      // The field is ALWAYS fully black — only the hole radius animates, so
+      // the surround never reads as a transparent grey wash.
       iris.clear();
       iris.rect(ox, oy, outer, outer);
-      iris.fill({ color: 0x000000, alpha: st.tint });
+      iris.fill({ color: 0x000000, alpha: 1 });
       if (r > 0.5) { iris.circle(cx, cy, r); iris.cut(); }
     };
 

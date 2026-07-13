@@ -246,7 +246,7 @@ export class ReelSet {
     // the previous one.
     this.clearScheduledCallbacks();
     this.clearStickyWilds();
-    for (const reel of this.reels) reel.startSpin();
+    for (const reel of this.reels) { reel.clearHighlights(); reel.startSpin(); }
   }
 
   /** AAA sticky-wild treatment on every WILD cell of the settled board.
@@ -1020,6 +1020,11 @@ export class ReelSet {
       this.reels[i].clearAllStates();
       const rows = winningRows.get(i);
       if (rows && rows.size > 0) this.reels[i].playWinStateOnRows(Array.from(rows));
+      // Classic ways highlight: the CONNECTION carries the read — every cell
+      // that is not part of it dims, so the win line + winners pop instantly.
+      for (let row = 0; row < this.grid.visibleRows; row++) {
+        this.reels[i].getVisibleCell(row)?.highlight(!!rows && rows.has(row));
+      }
     }
   }
 

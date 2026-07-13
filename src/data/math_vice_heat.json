@@ -1,8 +1,8 @@
 {
- "gridId": "5x3",
+ "gridId": "5x5",
  "targetRtpPct": 96.0,
  "rtpBps": 9600,
- "rtpMethod": "exact-analytic (ways expectation factorised over independent reels; MC 5M sanity attached)",
+ "rtpMethod": "exact-analytic 96.0078% with final integer pays (ways expectation factorised; MC 3M sanity attached)",
  "reelStrips": [
   [
    5,
@@ -25,7 +25,7 @@
    1,
    8,
    6,
-   1,
+   2,
    7,
    5,
    8,
@@ -57,51 +57,9 @@
    7,
    1,
    7,
-   1,
-   2,
-   3,
-   6,
-   7,
-   4,
-   4,
-   0,
-   8,
-   5,
-   0,
-   6,
-   5,
-   8,
-   4,
-   4,
-   3,
-   8,
-   6,
-   6,
-   7,
-   8,
-   8,
-   8,
-   6,
-   3,
-   7,
-   7,
-   2,
-   5
-  ],
-  [
-   5,
-   3,
-   8,
-   5,
-   6,
-   3,
-   1,
-   7,
-   0,
-   7,
-   1,
    2,
    2,
+   3,
    6,
    7,
    4,
@@ -137,9 +95,9 @@
    5,
    6,
    3,
-   1,
+   2,
    7,
-   0,
+   1,
    7,
    1,
    2,
@@ -183,7 +141,49 @@
    7,
    1,
    7,
+   2,
+   2,
+   3,
+   6,
+   7,
+   4,
+   4,
+   0,
+   8,
+   5,
+   0,
+   6,
+   5,
+   8,
+   4,
+   4,
+   3,
+   8,
+   6,
+   6,
+   7,
+   8,
+   8,
+   8,
+   6,
+   3,
+   7,
+   7,
+   2,
+   5
+  ],
+  [
+   5,
+   3,
+   8,
+   5,
+   6,
+   4,
+   2,
+   7,
    1,
+   7,
+   2,
    2,
    3,
    6,
@@ -218,52 +218,52 @@
  "reelLength": 40,
  "payTable": {
   "wild": [
-   996,
-   4149,
-   19916
+   79,
+   328,
+   1574
   ],
   "highA": [
-   996,
-   4149,
-   19916
+   79,
+   328,
+   1574
   ],
   "highB": [
-   747,
-   2987,
-   13277
+   59,
+   236,
+   1049
   ],
   "midC": [
-   498,
-   1992,
-   8298
+   39,
+   157,
+   656
   ],
   "midD": [
-   415,
-   1660,
-   6639
+   33,
+   131,
+   525
   ],
   "lowE": [
-   299,
-   1162,
-   4149
+   24,
+   92,
+   328
   ],
   "lowF": [
-   249,
-   913,
-   3319
+   20,
+   72,
+   262
   ],
   "lowG": [
-   199,
-   747,
-   2655
+   16,
+   59,
+   210
   ]
  },
  "scatterPay": [
-  1660,
-  6639,
-  33193
+  131,
+  525,
+  2623
  ],
- "freeSpinsCount": 10,
+ "freeSpinsCount": 8,
  "freeSpinsCap": 50,
  "freeSpinMultiplier": 1,
  "maxWinMultiplier": 5000,
@@ -272,25 +272,25 @@
   "expandingWildsInFreeSpins": true,
   "hotSpinChance1In": 40,
   "hotSpinExpandsWilds": true,
-  "notes": "ALL symbols pay from 3-of-a-kind. Wilds only on reels 2-5 (no wild-line double count). In FS and hot spins every wild-carrying reel becomes FULLY WILD before ways evaluation. FS multiplier 1 - the expansion IS the FS juice (per-FS-spin EV ~13.6x a base spin)."
+  "notes": "5x5 / 3125 ways. ALL symbols pay from 3s. Wilds only reels 2-5 (2 per strip). In FS + hot spins every wild-carrying reel becomes FULLY WILD before ways evaluation (expansion EV ~8.7x base per spin). FS 8 spins, +5 retrigger, cap 50."
  },
  "analytic": {
-  "k1_base_line_bps": 149.257,
-  "k1_expansion_line_bps": 814.996,
-  "k1_scatter_bps": 7.043,
-  "p_fs_trigger": 0.039581,
-  "fs_trigger_1_in": 25.26,
-  "E_fs_spins": 12.462,
-  "rtp_at_k1_pct": 5.784376469812542,
-  "k_exact": 16.596430142644422,
-  "final_rtp_pct": 96.00027522034675
+  "k1_base_line_bps": 1403.875,
+  "k1_expansion_line_bps": 12216.092,
+  "k1_scatter_bps": 7.412,
+  "p_fs_trigger": 0.044763,
+  "fs_trigger_1_in": 22.34,
+  "E_fs_spins": 10.304,
+  "rtp_at_k1_pct": 73.19447992545567,
+  "k_exact": 1.3115743167759433,
+  "final_rtp_pct": 96.00782452313338
  },
- "mcSanity5M": {
-  "rtp_pct": 96.113147228,
-  "hit_freq_pct": 47.132600000000004,
-  "fs_trigger_1_in": 25.164956288470925,
-  "base_pct": 25.279938852,
-  "hot_pct": 3.492485068,
-  "fs_pct": 67.340723308
+ "mcSanity3M": {
+  "rtp_pct": 96.27759293,
+  "hit_freq_pct": 85.43260000000001,
+  "fs_trigger_1_in": 22.402437385187508,
+  "base_pct": 18.045911666666665,
+  "hot_pct": 4.006364696666666,
+  "fs_pct": 74.22531656666666
  }
 }

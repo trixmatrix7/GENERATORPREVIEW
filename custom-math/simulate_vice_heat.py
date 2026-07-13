@@ -9,9 +9,9 @@
 # total RTP = 96.00% (every pay component scales linearly with k), then the
 # final integer-bps paytable is re-simulated for certification.
 
-import random, json, sys
+import random, json, sys, os
 
-REELS, ROWS = 5, 3
+REELS, ROWS = 5, int(os.environ.get('VH_ROWS', '3'))
 W, SC = 0, 1
 SYMS = [2, 3, 4, 5, 6, 7, 8]  # A B C D E F G
 
@@ -24,13 +24,23 @@ def build_strip(counts):
     random.Random(1337 + len(s) + sum(counts.values())).shuffle(s)
     return s
 
-STRIPS = [
-    build_strip({SC: 2, 2: 3, 3: 4, 4: 5, 5: 5, 6: 7, 7: 7, 8: 7}),            # R1: no wild
-    build_strip({W: 2, SC: 2, 2: 3, 3: 4, 4: 5, 5: 5, 6: 6, 7: 6, 8: 7}),      # R2
-    build_strip({W: 3, SC: 2, 2: 3, 3: 4, 4: 4, 5: 5, 6: 6, 7: 6, 8: 7}),      # R3
-    build_strip({W: 3, SC: 2, 2: 3, 3: 4, 4: 5, 5: 5, 6: 6, 7: 6, 8: 6}),      # R4
-    build_strip({W: 2, SC: 2, 2: 3, 3: 4, 4: 5, 5: 5, 6: 6, 7: 7, 8: 6}),      # R5
-]
+if ROWS == 5:
+    # 5x5 structure: leaner scatters (windows are taller), tamer wilds, FS 8.
+    STRIPS = [
+        build_strip({SC: 1, 2: 4, 3: 4, 4: 5, 5: 5, 6: 7, 7: 7, 8: 7}),        # R1: no wild
+        build_strip({W: 2, SC: 1, 2: 4, 3: 4, 4: 5, 5: 5, 6: 6, 7: 6, 8: 7}),  # R2
+        build_strip({W: 2, SC: 2, 2: 4, 3: 4, 4: 5, 5: 5, 6: 6, 7: 6, 8: 6}),  # R3
+        build_strip({W: 2, SC: 1, 2: 4, 3: 4, 4: 5, 5: 5, 6: 6, 7: 6, 8: 7}),  # R4
+        build_strip({W: 2, SC: 1, 2: 4, 3: 4, 4: 5, 5: 5, 6: 6, 7: 7, 8: 6}),  # R5
+    ]
+else:
+    STRIPS = [
+        build_strip({SC: 2, 2: 3, 3: 4, 4: 5, 5: 5, 6: 7, 7: 7, 8: 7}),        # R1: no wild
+        build_strip({W: 2, SC: 2, 2: 3, 3: 4, 4: 5, 5: 5, 6: 6, 7: 6, 8: 7}),  # R2
+        build_strip({W: 3, SC: 2, 2: 3, 3: 4, 4: 4, 5: 5, 6: 6, 7: 6, 8: 7}),  # R3
+        build_strip({W: 3, SC: 2, 2: 3, 3: 4, 4: 5, 5: 5, 6: 6, 7: 6, 8: 6}),  # R4
+        build_strip({W: 2, SC: 2, 2: 3, 3: 4, 4: 5, 5: 5, 6: 6, 7: 7, 8: 6}),  # R5
+    ]
 
 # ── relative paytable (bps of total bet per way, [3,4,5]) ───────────────────
 BASE_PAYS = {
@@ -43,7 +53,7 @@ BASE_PAYS = {
     8: [12, 45, 160],
 }
 SCATTER_PAY = [100, 400, 2000]   # 3/4/5 scatters, x total bet bps
-FS_COUNT, FS_RETRIG, FS_CAP = 10, 5, 50
+FS_COUNT, FS_RETRIG, FS_CAP = (8 if ROWS == 5 else 10), 5, 50
 HOT_CHANCE = 40                   # 1-in-40 base spins are HOT (expansion mode)
 MAX_WIN_X = 5000
 

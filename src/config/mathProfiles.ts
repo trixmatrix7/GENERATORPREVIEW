@@ -72,10 +72,10 @@ export const MATH_PROFILES: readonly MathProfileOption[] = [
     grid: '5x3',
   },
   {
-    id: 'vice-heat-custom', name: '⭐ Vice Heat 96% (Custom)',
-    description: 'UNSER Modell: alles zahlt ab 3er (Hit 47%!), FS = Expanding Wilds (EV ~13.6× pro FS-Spin), Hot-Spin 1-in-40. RTP exakt-analytisch 96.0003%, 5M-Sim 96.11%.',
+    id: 'vice-heat-custom', name: '⭐ Vice Heat 96% (Custom 5×5)',
+    description: 'UNSER Modell auf 5×5/3125 Ways: alles zahlt ab 3er (Hit 85%!), FS = Expanding Wilds (~8.7× EV pro FS-Spin, Trigger 1-in-22), Hot-Spin 1-in-40. RTP exakt-analytisch 96.008%.',
     build: () => fromManifest(viceHeat as Record<string, unknown>),
-    grid: '5x3',
+    grid: '5x5',
   },
 ];
 

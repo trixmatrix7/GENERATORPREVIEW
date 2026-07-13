@@ -26,6 +26,8 @@ export interface MathProfileOption {
   description: string;
   /** null → the baked Fantasy config (DEFAULT_GAME_CONFIG). */
   build: (() => GameConfig) | null;
+  /** Grid the profile is certified for; null = grid-flexible (default math). */
+  grid: '5x3' | '5x5' | null;
 }
 
 function fromManifest(m: Record<string, unknown>): GameConfig {
@@ -55,21 +57,25 @@ export const MATH_PROFILES: readonly MathProfileOption[] = [
     id: 'fantasy-extreme', name: 'Extreme (Original)',
     description: 'Deine generierte Fantasy-Math (ältere Library): J/Q zahlen NIE, alles steckt in Scatter/FS/Premiums.',
     build: null,
+    grid: null,
   },
   {
     id: 'vol3-5x5', name: 'Sanft 5×5 (vol3)',
     description: 'Aktuelle Dev-Library rtp96.0_vol3_5x5: E+F zahlen bei 5ern, FS 20×9 — gleiche 5×5-Optik, weicheres Base Game.',
     build: () => fromManifest(vol3x5 as Record<string, unknown>),
+    grid: '5x5',
   },
   {
     id: 'vol3-5x3', name: 'Lively 5×3 (vol3)',
     description: 'Aktuelle Dev-Library rtp96.0_vol3: ALLE Symbole zahlen ab 3er — ständig sichtbare Connections, 243 Ways.',
     build: () => fromManifest(vol3x3 as Record<string, unknown>),
+    grid: '5x3',
   },
   {
     id: 'vice-heat-custom', name: '⭐ Vice Heat 96% (Custom)',
     description: 'UNSER Modell: alles zahlt ab 3er (Hit 47%!), FS = Expanding Wilds (EV ~13.6× pro FS-Spin), Hot-Spin 1-in-40. RTP exakt-analytisch 96.0003%, 5M-Sim 96.11%.',
     build: () => fromManifest(viceHeat as Record<string, unknown>),
+    grid: '5x3',
   },
 ];
 

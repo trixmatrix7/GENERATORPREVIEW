@@ -15,7 +15,7 @@ import { StudioDrawer } from '@/studio/StudioDrawer';
 import { DEFAULT_GAME_CONFIG, type GameConfig } from '@/engine/GameConfig';
 import { GRID_5x3, GRID_5x5 } from '@/config/gridConfig';
 import { PresetDock, loadGridId, type GridId } from '@/dev/PresetDock';
-import { mathProfileById, loadMathProfileId } from '@/config/mathProfiles';
+import { mathProfileById, loadMathProfileId, saveMathProfileId } from '@/config/mathProfiles';
 import { getThemeByName } from '@/config/themes';
 import { viceSymbolMap, VICE_INTRO_URL } from '@/config/viceAssets';
 import { loadAssets } from '@/studio/assetPersistence';
@@ -35,8 +35,11 @@ export function App() {
   // the evaluator + all visuals derive from gridConfig.
   const [gridId] = useState<GridId>(loadGridId);
   const handleGridChange = useCallback((g: GridId) => {
-    // Persist + clean reload (same pattern as preset apply): a live remount
-    // while multi-MB sheets are still loading can leave a white canvas.
+    // A grid-locked math profile would override the toggle — clicking a
+    // conflicting grid falls back to the grid-flexible original math so the
+    // switch ALWAYS works (no more being stuck in the profile's grid).
+    const profile = mathProfileById(loadMathProfileId());
+    if (profile.grid && profile.grid !== g) saveMathProfileId('fantasy-extreme');
     localStorage.setItem('studio-grid', g);
     window.location.reload();
   }, []);
@@ -201,7 +204,7 @@ export function App() {
       />
 
       <StudioDrawer pixiApp={pixiAppRef} />
-      <PresetDock grid={gridId} onGrid={handleGridChange} />
+      <PresetDock grid={gameConfig.gridConfig.visibleRows === 3 ? '5x3' : '5x5'} onGrid={handleGridChange} />
     </div>
   );
 }

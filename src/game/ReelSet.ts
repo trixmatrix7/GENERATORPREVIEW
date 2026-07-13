@@ -25,6 +25,7 @@ import { DEFAULT_GAME_CONFIG, type GameConfig } from '@/engine/GameConfig';
 import type { SymbolAtlasMap } from './SymbolAtlasLoader';
 import { playWaysLight, clearAllWaysLight, waysLightConfig } from './effects/WaysLightComet';
 import { waysImmersiveConfig, danceWinningObject, prefersReducedMotion } from './effects/WaysImmersive';
+import { landingImpactConfig } from './effects/LandingImpact';
 import { applyStickyWild, clearAllStickyWild, stickyWildConfig, type StickyHandle } from './effects/StickyWildShine';
 import type { MechEntry, MechContext } from './effects/mechTypes';
 import { getActiveTeasePreset } from './effects/teaseRegistry';
@@ -154,6 +155,12 @@ export class ReelSet {
    *  the wrong reel state. */
   private pendingTimeouts: ReturnType<typeof setTimeout>[] = [];
 
+  /** Board THUD on reel stop (LandingImpact): the whole board jolts down and
+   *  springs back. One tween at a time; base position captured once per
+   *  stop cycle and restored on completion AND interrupt (no drift). */
+  private thudTween: gsap.core.Timeline | null = null;
+  private thudBaseY: number | null = null;
+
   constructor(
     atlases: SymbolAtlasMap,
     config: GameConfig = DEFAULT_GAME_CONFIG,
@@ -258,6 +265,7 @@ export class ReelSet {
     // A new spin invalidates any post-landing callbacks still pending from
     // the previous one.
     this.clearScheduledCallbacks();
+    this.killThud();
     this.clearStickyWilds();
     // Full win-presentation teardown — kills motion tweens, un-lifts objects
     // (they must never float over rolling reels), clears amounts/comets/dims.
@@ -841,6 +849,7 @@ export class ReelSet {
       // Promise.all and leave the post-stop cleanup unrun.
       return stopPromise
         .then(() => {
+          if (!fast) this.playLandingThud(i); // board jolt — the stop has weight
           this.audioHooks.onReelStopped?.(i);
           if (this.reelHasVisibleScatter(i, stops[i])) {
             this.audioHooks.onScatterLanded?.(i);
@@ -887,6 +896,7 @@ export class ReelSet {
     // A skipped spin must not allow scheduled audio cues or featured-state
     // plays from this round to fire against whatever the next reel state is.
     this.clearScheduledCallbacks();
+    this.killThud();
     this.clearTeaseGlow();
     for (const reel of this.reels) reel.cancelSpin();
   }
@@ -1136,10 +1146,42 @@ export class ReelSet {
     }
   }
 
+  /** One reel just landed: jolt the whole board down and spring back — the
+   *  weight of the stop. The FINAL reel slams hardest with an elastic settle.
+   *  A new jolt replaces a mid-flight one against the SAME captured base, so
+   *  staggered stops chain without drifting. */
+  private playLandingThud(reelIdx: number): void {
+    if (!landingImpactConfig.enabled || !landingImpactConfig.thud || prefersReducedMotion()) return;
+    const base = this.thudBaseY ?? this.container.y;
+    this.thudBaseY = base;
+    if (this.thudTween) this.thudTween.kill(); // onInterrupt restored y to base
+    const last = reelIdx === this.grid.reelCount - 1;
+    const amp = last ? landingImpactConfig.thudLastAmp : landingImpactConfig.thudAmp;
+    const tl = gsap.timeline({
+      onComplete: () => { this.container.y = base; this.thudTween = null; this.thudBaseY = null; },
+      onInterrupt: () => { this.container.y = base; },
+    });
+    tl.to(this.container, { y: base + amp, duration: 0.05, ease: 'power3.out' })
+      .to(this.container, {
+        y: base,
+        duration: last ? 0.45 : 0.2,
+        ease: last ? 'elastic.out(1.1, 0.4)' : 'power2.out',
+      });
+    this.thudTween = tl;
+  }
+
+  /** Stop a thud immediately and restore the board's base position. */
+  private killThud(): void {
+    if (this.thudTween) { this.thudTween.kill(); this.thudTween = null; }
+    this.thudBaseY = null;
+  }
+
   /** Tiny decaying board punch for big matches. Restores the exact base
    *  position on completion AND on interrupt (clearWinLines can kill a
    *  mid-flight shake), so the board never drifts. */
   private microShake(amp: number): void {
+    // A residual landing thud would displace the captured base — settle it first.
+    this.killThud();
     const base = { x: this.container.x, y: this.container.y };
     const restore = () => { this.container.position.set(base.x, base.y); };
     const tl = gsap.timeline({ onComplete: restore, onInterrupt: restore });

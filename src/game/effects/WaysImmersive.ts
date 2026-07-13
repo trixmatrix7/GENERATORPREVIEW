@@ -51,14 +51,18 @@ export function danceWinningObject(
   const baseY = obj.y;
   const baseRot = obj.rotation;
   const restore = () => { obj.y = baseY; obj.rotation = baseRot; };
-  const jump = intense ? 16 : 9;
-  const tilt = intense ? 0.07 : 0.04;
+  const jump = intense ? 18 : 10;
+  const tilt = intense ? 0.08 : 0.04;
+  const slam = intense ? 5 : 2.5;
 
+  // Leap up fast, hang with a wiggle, then SLAM down through the floor and
+  // snap back — an impact landing, not a soft bounce-out.
   const tl = gsap.timeline({ delay, onComplete: restore, onInterrupt: restore });
-  tl.to(obj, { y: baseY - jump, duration: 0.18, ease: 'power2.out' }, 0)
-    .to(obj, { rotation: baseRot - tilt, duration: 0.09, ease: 'sine.inOut' }, 0.05)
-    .to(obj, { rotation: baseRot + tilt, duration: 0.13, ease: 'sine.inOut' }, 0.14)
-    .to(obj, { rotation: baseRot, duration: 0.16, ease: 'sine.out' }, 0.27)
-    .to(obj, { y: baseY, duration: 0.5, ease: 'bounce.out' }, 0.18);
+  tl.to(obj, { y: baseY - jump, duration: 0.15, ease: 'power3.out' }, 0)
+    .to(obj, { rotation: baseRot - tilt, duration: 0.08, ease: 'sine.inOut' }, 0.04)
+    .to(obj, { rotation: baseRot + tilt, duration: 0.12, ease: 'sine.inOut' }, 0.12)
+    .to(obj, { rotation: baseRot, duration: 0.12, ease: 'sine.out' }, 0.24)
+    .to(obj, { y: baseY + slam, duration: 0.11, ease: 'power3.in' }, 0.22)
+    .to(obj, { y: baseY, duration: 0.3, ease: 'back.out(3.5)' }, 0.33);
   sink.push(tl);
 }

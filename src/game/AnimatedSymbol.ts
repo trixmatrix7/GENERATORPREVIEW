@@ -28,6 +28,7 @@ import { symbolSizing } from '@/config/symbolSizing';
 import { presetTimings } from '@/config/statePresets';
 import { drawCellPocket } from '@/config/cellBackdrop';
 import { waysImmersiveConfig } from './effects/WaysImmersive';
+import { landingImpactConfig, impactSquash, impactStretch } from './effects/LandingImpact';
 import type { SymbolAtlasMap } from './SymbolAtlasLoader';
 import type { GameTheme } from '@/engine/GameConfig';
 import { SYMBOL_HEIGHT, SYMBOL_WIDTH } from './symbolMetrics';
@@ -379,19 +380,24 @@ export class AnimatedSymbol extends Container {
     this.inner.rotation = 0;
     this.inner.scale.set(1);
     const t = presetTimings('landBounce');
+    // Landing-impact treatment: deeper squash, taller rebound, snappier hit —
+    // applied on top of whatever state preset is active (LandingImpact.ts).
+    const squashY = impactSquash(t.scaleSquashY);
+    const stretchY = impactStretch(t.scaleStretchY);
+    const snap = landingImpactConfig.enabled ? landingImpactConfig.snapMul : 1;
     this.tween = gsap
       .timeline({ delay })
       .to(this.inner.scale, {
-        x: 1 / t.scaleSquashY, y: t.scaleSquashY,
-        duration: t.squashDuration, ease: 'power3.in',
+        x: 1 / squashY, y: squashY,
+        duration: t.squashDuration * snap, ease: 'power3.in',
       })
       .to(this.inner.scale, {
-        x: 1 / t.scaleStretchY, y: t.scaleStretchY,
+        x: 1 / stretchY, y: stretchY,
         duration: t.overshootDuration, ease: 'power2.out',
       })
       .to(this.inner.scale, {
         x: 1, y: 1,
-        duration: t.settleDuration, ease: 'back.out(2)',
+        duration: t.settleDuration, ease: 'back.out(2.6)',
       });
   }
 
@@ -683,20 +689,27 @@ export class AnimatedSymbol extends Container {
     const t = presetTimings('landing');
     this.inner.scale.set(1);
     this.inner.rotation = 0;
-    const rotRad = (t.rotationKick * Math.PI) / 180;
+    // Landing-impact treatment (LandingImpact.ts): harder slam on the rich
+    // wild/scatter landing too — deeper compress, taller overshoot, bigger
+    // rotation kick, faster down-phase.
+    const compress = impactSquash(t.scaleCompress);
+    const overshoot = impactStretch(t.scaleOvershoot);
+    const snap = landingImpactConfig.enabled ? landingImpactConfig.snapMul : 1;
+    const rotMul = landingImpactConfig.enabled ? landingImpactConfig.rotationMul : 1;
+    const rotRad = (t.rotationKick * rotMul * Math.PI) / 180;
     this.tween = gsap
       .timeline({ delay, onComplete: () => this.transitionAfterLanding() })
       // Squash down
       .to(this.inner.scale, {
-        x: 1 / t.scaleCompress, // horizontal stretch during vertical squash
-        y: t.scaleCompress,
-        duration: t.downDuration,
+        x: 1 / compress, // horizontal stretch during vertical squash
+        y: compress,
+        duration: t.downDuration * snap,
         ease: 'power3.in',
       })
       // Stretch up (overshoot) with rotation kick
       .to(this.inner.scale, {
-        x: t.scaleCompress, // narrow on stretch
-        y: t.scaleOvershoot,
+        x: compress, // narrow on stretch
+        y: overshoot,
         duration: t.upDuration,
         ease: 'back.out(3)',
       })

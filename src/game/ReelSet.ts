@@ -217,14 +217,16 @@ export class ReelSet {
       const hit = this.cellAt(e.getLocalPosition(this.container));
       if (hit) { hit.cell.playLandBounce(); this.symbolPickHandler(hit.id); } // bounce = visible click feedback
     });
-    this.container.addChild(this.winObjectsContainer);  // lifted winning objects — above line
     this.stickyContainer.eventMode = 'none';            // overlays never eat click-to-edit taps
     this.container.addChild(this.stickyContainer);      // sticky-wild overlays — above symbols
     this.stickyObjectsContainer.eventMode = 'none';
     this.container.addChild(this.stickyObjectsContainer); // wild art ABOVE its gold frame
-    // Floating amounts sit ABOVE the sticky layer: an expanded tower is fully
-    // opaque, and a combo amount whose centroid falls on a tower reel must
-    // never be swallowed by the column.
+    // The WIN presentation is the FRONTMOST play layer — winners (and their
+    // 1.22–1.34× pops, which overhang into neighbouring reels) must render on
+    // top of the opaque expanding towers, never get clipped behind them.
+    this.container.addChild(this.winObjectsContainer);  // lifted winning objects — above towers
+    // Floating amounts above everything: a combo amount whose centroid falls
+    // on a tower reel must never be swallowed by the column.
     this.container.addChild(this.winAmountsContainer);  // floating amounts — top
     this.container.addChild(this.waysLightContainer);   // ways-light comet — topmost fx
     // scale the comet head to this grid's cell size

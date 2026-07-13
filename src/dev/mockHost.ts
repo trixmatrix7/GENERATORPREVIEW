@@ -174,6 +174,16 @@ export class MockHost {
     let freeSpinsPlayed = 0;
     if (freeSpinsTriggered) {
       let remaining = this.config.freeSpinsCount;
+      // TIERED Vice-Heat bonus: a 4+-scatter trigger plays STICKY expanding
+      // wilds — the FIRST `stickyTowerCap` wild-landing reels become permanent
+      // full-wild towers (leftmost joins first) for the rest of the round;
+      // later wilds play as regular 1:1 wilds. 3 scatters keep the per-spin
+      // expansion. Uncapped sticky blows the math up (avg round 317x, pays
+      // would have to shrink to 34% — see custom-math/simulate_vice_heat.py).
+      const expandFS = !!(this.config as { expandingWildsInFS?: boolean }).expandingWildsInFS;
+      const stickyFS = expandFS && !buyBonus && scatterCount >= 4;
+      const stickyCap = (this.config as { stickyTowerCap?: number }).stickyTowerCap ?? 2;
+      const stickyReels = new Set<number>();
       while (remaining > 0 && freeSpinsPlayed < this.config.freeSpinsCap) {
         const seed = keccak256(
           encodeAbi(
@@ -185,10 +195,23 @@ export class MockHost {
         const fsBoard = this.buildBoardCfg(fsStops);
         // Vice-Heat style FS: wild-carrying reels become FULLY WILD before
         // ways evaluation (settlement matches the displayed expansion).
-        if ((this.config as { expandingWildsInFS?: boolean }).expandingWildsInFS) {
-          for (let reel = 0; reel < fsBoard[0].length; reel++) {
-            if (fsBoard.some(r => r[reel] === 0)) {
+        if (expandFS) {
+          if (stickyFS) {
+            // Sticky round: first `stickyCap` wild-landing reels become
+            // permanent towers (leftmost joins first); ONLY towers are
+            // overwritten — later wilds stay regular 1:1 wilds on the board.
+            for (let reel = 0; reel < fsBoard[0].length; reel++) {
+              if (stickyReels.size >= stickyCap) break;
+              if (!stickyReels.has(reel) && fsBoard.some(r => r[reel] === 0)) stickyReels.add(reel);
+            }
+            for (const reel of stickyReels) {
               for (let row = 0; row < fsBoard.length; row++) fsBoard[row][reel] = 0;
+            }
+          } else {
+            for (let reel = 0; reel < fsBoard[0].length; reel++) {
+              if (fsBoard.some(r => r[reel] === 0)) {
+                for (let row = 0; row < fsBoard.length; row++) fsBoard[row][reel] = 0;
+              }
             }
           }
         }

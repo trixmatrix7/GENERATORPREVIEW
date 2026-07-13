@@ -49,9 +49,11 @@ function fromManifest(m: Record<string, unknown>): GameConfig {
     freeSpinsMultiplier: (m['freeSpinMultiplier'] as number) ?? 5,
     maxWinMultiplier: (m['maxWinMultiplier'] as number) ?? 5000,
     theme: getThemeByName('Fantasy'),
-    // Vice-Heat custom rule: FS wild reels expand before evaluation (the mock
-    // settles with it so display and payout match).
+    // Vice-Heat custom rules: FS wild reels expand before evaluation; a
+    // 4+-scatter trigger plays STICKY towers capped at stickyTowerCap (the
+    // mock settles with both so display and payout match).
     expandingWildsInFS: !!(m['custom'] as { expandingWildsInFreeSpins?: boolean } | undefined)?.expandingWildsInFreeSpins,
+    stickyTowerCap: (m['custom'] as { stickyTowerCap?: number } | undefined)?.stickyTowerCap ?? 2,
   } as unknown as GameConfig;
 }
 

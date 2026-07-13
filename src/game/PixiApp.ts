@@ -1320,6 +1320,11 @@ export class PixiApp {
       // (with the full-wild towers) runs through the REAL WinEvaluator, so
       // connections visibly pay each spin (highlights, comet, amounts). The
       // authoritative round total stays outcome.winAmount.
+      //
+      // TIERED BONUS: 3 scatters = per-spin expansion (towers clear each
+      // spin); 4+ scatters = STICKY expansion — towers stay for the rest of
+      // the round and new ones accumulate wherever a sack naturally lands.
+      const stickyMode = outcome.scatterCount >= 4;
       for (let i = 0; i < outcome.freeSpinsPlayed; i++) {
         if (!this.isLive) break;
         if (fsOverlay.counter) {
@@ -1329,25 +1334,31 @@ export class PixiApp {
         // it re-applies revealCombo every 800ms and would keep popping the old
         // winners behind/beside the fresh towers (only spin() bumps the id).
         this._winRevealId++;
-        const chosen = await this.reelSet.playExpandingWildReveal({ isLive: () => this.isLive, turbo: this.turbo });
+        const expanded = await this.reelSet.playExpandingWildReveal(
+          { isLive: () => this.isLive, turbo: this.turbo, sticky: stickyMode },
+        );
         if (!this.isLive) break;
-        if (chosen.length > 0) {
-          const board = this.reelSet.getVisibleBoard();
-          for (const reel of chosen) for (let row = 0; row < this.grid.visibleRows; row++) board[row][reel] = 0; // WILD
-          const winResult = evaluateWins(board, outcome.wager ?? 1n, this.config);
-          if (winResult.totalWin > 0n) {
-            const spinOutcome: SpinOutcome = {
-              stops: this.config.reelLengths.map(() => 0), board,
-              winAmount: winResult.totalWin, wager: outcome.wager ?? 1n,
-              scatterCount: 0, freeSpinsTriggered: false, freeSpinsPlayed: 0,
-              holdWinTriggered: false, holdWinWin: 0n, holdWin: null, winResult,
-            };
-            // playWinSequence presents the win itself (tally → finale) — a
-            // preceding highlightWins would double-start the presentation.
-            await this.playWinSequence(spinOutcome, tokenSymbol, decimals);
-            if (!this.isLive) break;
-            this.reelSet.clearHighlights();
-          }
+        // Non-sticky: an empty result means NO spin ran (math without wilds)
+        // — evaluating the stale board would re-present old wins.
+        if (!stickyMode && expanded.length === 0) { await new Promise(r => setTimeout(r, 350)); continue; }
+        // Evaluate the DISPLAYED board with every standing tower fully wild.
+        // In sticky mode a spin may add no tower — the plain board can still
+        // connect, so the evaluation always runs.
+        const board = this.reelSet.getVisibleBoard();
+        for (const reel of expanded) for (let row = 0; row < this.grid.visibleRows; row++) board[row][reel] = 0; // WILD
+        const winResult = evaluateWins(board, outcome.wager ?? 1n, this.config);
+        if (winResult.totalWin > 0n) {
+          const spinOutcome: SpinOutcome = {
+            stops: this.config.reelLengths.map(() => 0), board,
+            winAmount: winResult.totalWin, wager: outcome.wager ?? 1n,
+            scatterCount: 0, freeSpinsTriggered: false, freeSpinsPlayed: 0,
+            holdWinTriggered: false, holdWinWin: 0n, holdWin: null, winResult,
+          };
+          // playWinSequence presents the win itself (tally → finale) — a
+          // preceding highlightWins would double-start the presentation.
+          await this.playWinSequence(spinOutcome, tokenSymbol, decimals);
+          if (!this.isLive) break;
+          this.reelSet.clearHighlights();
         }
         await new Promise(r => setTimeout(r, 350));
       }

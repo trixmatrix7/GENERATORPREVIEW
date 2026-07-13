@@ -1,8 +1,7 @@
 {
  "gridId": "5x5",
  "targetRtpPct": 96.0,
- "rtpBps": 9600,
- "rtpMethod": "exact-analytic 96.0078% with final integer pays (ways expectation factorised; MC 3M sanity attached)",
+ "rtpBps": 9615,
  "reelStrips": [
   [
    5,
@@ -218,50 +217,50 @@
  "reelLength": 40,
  "payTable": {
   "wild": [
-   79,
-   328,
-   1574
+   69,
+   287,
+   1377
   ],
   "highA": [
-   79,
-   328,
-   1574
+   69,
+   287,
+   1377
   ],
   "highB": [
-   59,
-   236,
-   1049
+   52,
+   207,
+   918
   ],
   "midC": [
-   39,
-   157,
-   656
+   34,
+   138,
+   574
   ],
   "midD": [
-   33,
-   131,
-   525
+   29,
+   115,
+   459
   ],
   "lowE": [
-   24,
-   92,
-   328
+   21,
+   80,
+   287
   ],
   "lowF": [
-   20,
-   72,
-   262
+   17,
+   63,
+   230
   ],
   "lowG": [
-   16,
-   59,
-   210
+   14,
+   52,
+   184
   ]
  },
  "scatterPay": [
-  131,
-  525,
-  2623
+  115,
+  459,
+  2295
  ],
  "freeSpinsCount": 8,
  "freeSpinsCap": 50,
@@ -270,27 +269,22 @@
  "minWager": 10000,
  "custom": {
   "expandingWildsInFreeSpins": true,
+  "stickyExpandingFrom4Scatters": true,
+  "stickyTowerCap": 2,
   "hotSpinChance1In": 40,
   "hotSpinExpandsWilds": true,
-  "notes": "5x5 / 3125 ways. ALL symbols pay from 3s. Wilds only reels 2-5 (2 per strip). In FS + hot spins every wild-carrying reel becomes FULLY WILD before ways evaluation (expansion EV ~8.7x base per spin). FS 8 spins, +5 retrigger, cap 50."
+  "notes": "Wild expands to full reel BEFORE ways evaluation in FS and hot spins. A 4+-scatter trigger plays STICKY expansion: expanded reels stay fully wild for the rest of the round. Fully wild reels contribute no scatters. Reel 1 carries no wilds (no wild-line double count). Wild pays as highA."
  },
- "analytic": {
-  "k1_base_line_bps": 1403.875,
-  "k1_expansion_line_bps": 12216.092,
-  "k1_scatter_bps": 7.412,
-  "p_fs_trigger": 0.044763,
-  "fs_trigger_1_in": 22.34,
-  "E_fs_spins": 10.304,
-  "rtp_at_k1_pct": 73.19447992545567,
-  "k_exact": 1.3115743167759433,
-  "final_rtp_pct": 96.00782452313338
- },
- "mcSanity3M": {
-  "rtp_pct": 96.27759293,
-  "hit_freq_pct": 85.43260000000001,
-  "fs_trigger_1_in": 22.402437385187508,
-  "base_pct": 18.045911666666665,
-  "hot_pct": 4.006364696666666,
-  "fs_pct": 74.22531656666666
+ "simResults": {
+  "rtp_pct": 96.1473308525,
+  "hit_freq_pct": 85.4531875,
+  "fs3_trigger_1_in": 26.419294010415808,
+  "fs4_trigger_1_in": 145.49687181725594,
+  "avg_fs3_round_x": 14.506585799629468,
+  "avg_fs4_round_x": 31.855403804743197,
+  "base_pct": 15.8068821,
+  "hot_pct": 3.5371704750000004,
+  "fs3_pct": 54.9090592425,
+  "fs4_pct": 21.894219035000003
  }
 }

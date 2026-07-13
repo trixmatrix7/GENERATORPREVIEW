@@ -622,8 +622,16 @@ export class ReelSet {
    *  reels, a clear-beat blanks that reel's other symbols, then the money
    *  column races out of the landing cell (both directions), locks in with an
    *  impact flash + the AAA shine border, and stays until the next spin.
-   *  Purely visual — never rewrites the board or the math. */
-  async playExpandingWildReveal(opts: { isLive?: () => boolean; turbo?: boolean } = {}): Promise<number[]> {
+   *  Purely visual — never rewrites the board or the math.
+   *
+   *  `sticky` mode (the 4-scatter bonus): towers from previous spins STAY —
+   *  only the uncovered reels roll, and a new tower grows wherever a money
+   *  sack NATURALLY lands in the settling window (no forced landings — the
+   *  organic strip probability paces the fill-up). Returns ALL expanded reels
+   *  (old + new) so the caller evaluates the full sticky board. */
+  async playExpandingWildReveal(
+    opts: { isLive?: () => boolean; turbo?: boolean; sticky?: boolean } = {},
+  ): Promise<number[]> {
     const live = opts.isLive ?? (() => true);
 
     // Candidate reels = those whose strip actually carries a WILD (reel 0 has
@@ -643,36 +651,73 @@ export class ReelSet {
       }
       return null;
     };
+    const wildRowInWindow = (reel: number, stop: number): number | null => {
+      const strip = this.config.reelStrips[reel];
+      const len = this.config.reelLengths[reel];
+      for (let row = 0; row < rows; row++) {
+        if (strip[(stop + row) % len] === SymbolId.WILD) return row;
+      }
+      return null;
+    };
     const reelIdxs = Array.from({ length: this.grid.reelCount }, (_, i) => i)
-      .filter(r => this.config.reelStrips[r].includes(SymbolId.WILD));
-    for (let i = reelIdxs.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [reelIdxs[i], reelIdxs[j]] = [reelIdxs[j], reelIdxs[i]];
-    }
-    const chosen = reelIdxs.slice(0, Math.min(reelIdxs.length, 1 + Math.floor(Math.random() * 3))).sort((a, b) => a - b);
-    if (chosen.length === 0) return [];
+      .filter(r => this.config.reelStrips[r].includes(SymbolId.WILD) && !this.expandedReels.has(r));
 
-    // Roll + settle first (display-only stops; the columns cover the reels).
-    this.startSpin();
-    const gen = this.stickyRevealGen;
+    let chosen: number[];
+    let gen: number;
     const displayStops = this.config.reelLengths.map(len => Math.floor(Math.random() * len));
-    const landingRows = chosen.map(reel => {
-      const hit = findWildStop(reel);
-      if (!hit) return Math.floor(Math.random() * rows);
-      displayStops[reel] = hit.stop; // the sack visibly lands at this exact cell
-      return hit.row;
-    });
+    const landingRows: number[] = [];
+
+    if (opts.sticky) {
+      // Keep standing towers; only presentation state clears. Spinning the
+      // covered reels too is harmless — they're fully hidden.
+      this.clearScheduledCallbacks();
+      this.killThud();
+      this.clearHighlights();
+      this.startSpinKeepShowcase();
+      gen = this.stickyRevealGen;
+      // New towers grow ONLY where the settling window naturally shows a
+      // sack — organic pacing, some spins add none. Capped: the first
+      // `stickyTowerCap` wild reels of the ROUND become towers (leftmost
+      // first, same rule as the math/mock); later wilds stay 1:1 wilds.
+      const cap = (this.config as unknown as { stickyTowerCap?: number }).stickyTowerCap ?? 2;
+      chosen = [];
+      for (const r of reelIdxs.sort((a, b) => a - b)) {
+        if (this.expandedReels.size + chosen.length >= cap) break;
+        const hitRow = wildRowInWindow(r, displayStops[r]);
+        if (hitRow !== null) { chosen.push(r); landingRows.push(hitRow); }
+      }
+    } else {
+      for (let i = reelIdxs.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [reelIdxs[i], reelIdxs[j]] = [reelIdxs[j], reelIdxs[i]];
+      }
+      chosen = reelIdxs.slice(0, Math.min(reelIdxs.length, 1 + Math.floor(Math.random() * 3))).sort((a, b) => a - b);
+      if (chosen.length === 0) return [];
+
+      // Roll + settle first (display-only stops; the columns cover the reels).
+      this.startSpin();
+      gen = this.stickyRevealGen;
+      for (const reel of chosen) {
+        const hit = findWildStop(reel);
+        if (!hit) { landingRows.push(Math.floor(Math.random() * rows)); continue; }
+        displayStops[reel] = hit.stop; // the sack visibly lands at this exact cell
+        landingRows.push(hit.row);
+      }
+    }
+
+    const allExpanded = () => Array.from(this.expandedReels).sort((a, b) => a - b);
     await new Promise(res => setTimeout(res, opts.turbo ? 240 : 520));
-    if (this.stickyRevealGen !== gen || !live()) return [];
+    if (this.stickyRevealGen !== gen || !live()) return opts.sticky ? allExpanded() : [];
     await this.stopOnStops(displayStops, !!opts.turbo);
 
     // Sequential, one reel finishing before the next starts (like the ref).
     for (let k = 0; k < chosen.length; k++) {
-      if (this.stickyRevealGen !== gen || !live()) return [];
+      if (this.stickyRevealGen !== gen || !live()) return opts.sticky ? allExpanded() : [];
       await this.expandOneWildReel(chosen[k], landingRows[k], !!opts.turbo);
       await new Promise(res => setTimeout(res, opts.turbo ? 90 : 200));
     }
-    if (this.stickyRevealGen !== gen || !live()) return [];
+    if (this.stickyRevealGen !== gen || !live()) return opts.sticky ? allExpanded() : [];
+    if (opts.sticky) return allExpanded();
 
     // (The synthetic ways-beat comet is GONE — it drew a path through random
     // cells of the in-between reels, visually "connecting" different symbols.

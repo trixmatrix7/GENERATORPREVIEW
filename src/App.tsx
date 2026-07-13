@@ -15,6 +15,7 @@ import { StudioDrawer } from '@/studio/StudioDrawer';
 import { DEFAULT_GAME_CONFIG, type GameConfig } from '@/engine/GameConfig';
 import { GRID_5x3, GRID_5x5 } from '@/config/gridConfig';
 import { PresetDock, loadGridId, type GridId } from '@/dev/PresetDock';
+import { mathProfileById, loadMathProfileId } from '@/config/mathProfiles';
 import { getThemeByName } from '@/config/themes';
 import { viceSymbolMap, VICE_INTRO_URL } from '@/config/viceAssets';
 import { loadAssets } from '@/studio/assetPersistence';
@@ -40,14 +41,18 @@ export function App() {
     window.location.reload();
   }, []);
 
-  const gameConfig = useMemo<GameConfig>(
-    () => ({
+  const gameConfig = useMemo<GameConfig>(() => {
+    // A selected math profile (dev's CURRENT manifest library) wins outright —
+    // it carries its own grid, strips, paytable, FS params. Default stays the
+    // original Fantasy math with the manual grid toggle.
+    const profile = mathProfileById(loadMathProfileId());
+    if (profile.build) return profile.build();
+    return {
       ...DEFAULT_GAME_CONFIG,
       gridConfig: gridId === '5x3' ? GRID_5x3 : GRID_5x5,
       theme: getThemeByName('Fantasy'),
-    }),
-    [gridId],
-  );
+    };
+  }, [gridId]);
 
   useEffect(() => {
     const mock = new MockHost(snap => setSnapshot(snap));

@@ -7,6 +7,7 @@
 
 import { useState } from 'react';
 import { loadAssets, replaceAssets, type SavedAssets } from '@/studio/assetPersistence';
+import { MATH_PROFILES, loadMathProfileId, saveMathProfileId } from '@/config/mathProfiles';
 
 export type GridId = '5x5' | '5x3';
 const GRID_KEY = 'studio-grid';
@@ -76,6 +77,16 @@ export function PresetDock({ grid, onGrid }: { grid: GridId; onGrid: (g: GridId)
           <button type="button" style={{ ...btn(false), marginLeft: 'auto', color: '#8fe6a0' }} onClick={savePreset} title="Snapshot the current grid + all asset swaps as a named preset">
             + Save
           </button>
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+          <span style={{ color: '#9aa', fontSize: 10, letterSpacing: 1 }}>MATH</span>
+          {MATH_PROFILES.map(m => (
+            <button key={m.id} type="button" title={m.description}
+              onClick={() => { saveMathProfileId(m.id); window.location.reload(); }}
+              style={btn(loadMathProfileId() === m.id)}>
+              {m.name}
+            </button>
+          ))}
         </div>
         {presets.map(p => (
           <div key={p.id} style={{ display: 'flex', gap: 4, alignItems: 'center' }}>

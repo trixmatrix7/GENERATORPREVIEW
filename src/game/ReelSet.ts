@@ -26,6 +26,8 @@ import type { SymbolAtlasMap } from './SymbolAtlasLoader';
 import { playWaysLight, clearAllWaysLight, waysLightConfig } from './effects/WaysLightComet';
 import { applyStickyWild, clearAllStickyWild, stickyWildConfig, type StickyHandle } from './effects/StickyWildShine';
 import type { MechEntry, MechContext } from './effects/mechTypes';
+import { getActiveTeasePreset } from './effects/teaseRegistry';
+import type { TeaseContext } from './effects/teaseTypes';
 
 /** Cap on the number of reels we apply the near-miss tease to. Each teased
  *  reel after the first compounds its delay and duration. We tease every
@@ -777,7 +779,10 @@ export class ReelSet {
     // slowdown on just the last reel.
     const teaseOrder = new Map<number, number>();
     if (nearMiss) {
-      nearMiss.teasedReels.forEach((reelIdx, position) => teaseOrder.set(reelIdx, position));
+      nearMiss.teasedReels.forEach((reelIdx, position) => {
+        teaseOrder.set(reelIdx, position);
+        this.teasePendingReel(reelIdx, position); // preset visual on the spinning reel
+      });
     }
 
     const stopPromises = this.reels.map((reel, i) => {
@@ -1072,14 +1077,38 @@ export class ReelSet {
 
   /** Warm halo behind a scatter during a near-miss tease — a "bonus incoming"
    *  cue under the featured pulse. Lives in teaseGlowContainer (auto-cleared). */
+  private teaseTweens: gsap.core.Animation[] = [];
+
+  private buildTeaseCtx(): TeaseContext {
+    return {
+      layer: this.teaseGlowContainer,
+      grid: { reels: this.grid.reelCount, rows: this.grid.visibleRows },
+      cellRect: (reel, row) => resolveAnchor(cellAnchor(reel, row), this.grid),
+      reelRect: (reel) => resolveAnchor(reelAnchor(reel), this.grid),
+      gridRect: () => resolveAnchor(gridAnchor, this.grid),
+      accent: this.config.theme.accent,
+      gold: 0xFFC53D,
+      gsap,
+      track: <T extends { kill(): void }>(t: T): T => { this.teaseTweens.push(t as unknown as gsap.core.Animation); return t; },
+      rand: (min, max) => min + Math.random() * (max - min),
+      pick: (arr) => arr[Math.floor(Math.random() * arr.length)],
+    };
+  }
+
   private addTeaseGlow(reel: number, row: number): void {
-    const r = resolveAnchor(cellAnchor(reel, row), this.grid);
-    const g = new Graphics();
-    this.drawSoftGlow(g, r.x + r.w / 2, r.y + r.h / 2, Math.max(r.w, r.h) * 0.72, 0xFFE08A, 0.5);
-    this.teaseGlowContainer.addChild(g);
+    try { getActiveTeasePreset().onScatterLanded(this.buildTeaseCtx(), reel, row); }
+    catch (err) { console.warn('[ReelSet] tease preset failed:', err); }
+  }
+
+  /** Preset hook: a pending right-side reel entered the tease ladder. */
+  private teasePendingReel(reel: number, position: number): void {
+    try { getActiveTeasePreset().onPendingReel(this.buildTeaseCtx(), reel, position); }
+    catch (err) { console.warn('[ReelSet] tease preset failed:', err); }
   }
 
   private clearTeaseGlow(): void {
+    for (const t of this.teaseTweens) { try { t.kill(); } catch { /* torn down */ } }
+    this.teaseTweens = [];
     for (const c of this.teaseGlowContainer.removeChildren()) c.destroy();
   }
 

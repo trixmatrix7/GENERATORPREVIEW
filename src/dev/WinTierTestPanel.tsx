@@ -10,6 +10,7 @@ import { selectWinSound } from '@/audio/useSoundLayer';
 import { FX_REGISTRY } from '@/game/effects/fxRegistry';
 import { MECH_REGISTRY } from '@/game/effects/mechRegistry';
 import { STATE_PRESETS, setActiveStatePreset, getActiveStatePreset } from '@/config/statePresets';
+import { TEASE_PRESETS, setActiveTeasePreset, getActiveTeasePreset } from '@/game/effects/teaseRegistry';
 
 interface Props {
   pixiApp: PixiApp;
@@ -267,6 +268,9 @@ export function WinTierTestPanel({ pixiApp, snapshot, soundManager }: Props) {
         ⟶ Win Line (ways-light)
       </button>
 
+      {/* ── Near-miss tease presets ── */}
+      <TeasePresetPicker pixiApp={pixiApp} symbol={symbol} decimals={decimals} wager={wager} />
+
       {/* ── State-animation presets (10 AAA flavours, generator-replicable) ── */}
       <StatePresetPicker pixiApp={pixiApp} />
 
@@ -363,6 +367,37 @@ function FxLibrary({ pixiApp }: { pixiApp: PixiApp }) {
           </div>
         </div>
       ))}
+    </div>
+  );
+}
+
+
+function TeasePresetPicker({ pixiApp, symbol, decimals, wager }: { pixiApp: PixiApp; symbol: string; decimals: number; wager: bigint }) {
+  const [active, setActive] = useState(getActiveTeasePreset().id);
+  return (
+    <div style={{ marginTop: 6, borderTop: '1px solid #2a2a2e', paddingTop: 6 }}>
+      <div style={{ color: '#F8FA5E', fontWeight: 700, letterSpacing: 0.5, marginBottom: 4 }}>NEAR-MISS TEASE</div>
+      <div style={{ display: 'flex', gap: 4 }}>
+        <select
+          value={active}
+          onChange={e => { setActive(e.target.value); setActiveTeasePreset(e.target.value); }}
+          title={TEASE_PRESETS.find(p => p.id === active)?.description}
+          style={{ flex: 1, background: '#222', color: '#fff', border: '1px solid #444', borderRadius: 4, padding: '4px 6px', fontSize: 11, fontFamily: 'monospace' }}
+        >
+          {TEASE_PRESETS.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+        </select>
+        <button
+          type="button"
+          onClick={() => pixiApp.__testNearMiss()}
+          title="Fire a near-miss spin (2 scatters land, right reels tease) with the selected preset"
+          style={{ background: '#1c0f14', color: '#ff9fb0', border: '1px solid #7a2a3f', borderRadius: 4, padding: '4px 8px', fontSize: 11, fontFamily: 'monospace', cursor: 'pointer' }}
+        >
+          ▶ Test
+        </button>
+      </div>
+      <div style={{ color: '#888', fontSize: 10, marginTop: 3 }}>
+        {TEASE_PRESETS.find(p => p.id === active)?.description}
+      </div>
     </div>
   );
 }

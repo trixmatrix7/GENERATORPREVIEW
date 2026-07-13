@@ -1,13 +1,15 @@
-// MECH_PACK_A — five slot-mechanic showcases. Every mechanic is outcome-neutral
-// (pure display; the math never moves), theme-agnostic (ctx.accent / ctx.gold),
-// grid-relative (all geometry via cellRect/reelRect/gridRect) and rides the
-// sticky overlay lifecycle — whatever survives the choreography is cleared by
-// the next spin. Each run is 2.5-5s of layered AAA beats: anticipation
-// counter-moves before every impact, power3/4.in arrivals with squash-stretch
-// and elastic settles, 3+ layer additive glows (wide wash / mid body / hot
-// white core), seeded timing jitter so nothing moves in lockstep, and every
-// tween registered through ctx.track() so the whole mechanic is cancellable
-// mid-flight (ctx.alive() checked after every await).
+// MECH_PACK_A — five slot-mechanic showcases, staged like shipped features:
+// every mechanic runs ONE dramatic arc — setup (dim/focus, 0.3-0.5s) -> a
+// single dominant payoff -> resolution — with exactly one hero element per
+// beat and everything else in support. Heroes are REAL symbol tiles
+// (ctx.spawnTile) wherever a symbol is involved. Weight comes from power4.in
+// arrivals, hard squash-stretch with a 0.08s held beat on every impact and
+// back.out(1.6-2) settles with follow-through. Light is always a layered
+// additive stack (wide wash / colour body / hot white core), never a flat
+// shape. Timing is humanized through ctx.rand (+-20%, odd counts, no
+// lockstep). All display-only: the math never moves; overlays ride the sticky
+// lifecycle and every tween goes through ctx.track (ctx.alive() checked after
+// every await) so the whole mechanic is cancellable mid-flight.
 
 import { Container, Graphics, Text, TextStyle } from 'pixi.js';
 import type { MechEntry, MechContext } from '../mechTypes';
@@ -18,6 +20,8 @@ type Rect = { x: number; y: number; w: number; h: number };
 /* shared helpers                                                      */
 /* ------------------------------------------------------------------ */
 
+const wait = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+
 function mid(r: Rect): { x: number; y: number } {
   return { x: r.x + r.w / 2, y: r.y + r.h / 2 };
 }
@@ -25,6 +29,19 @@ function mid(r: Rect): { x: number; y: number } {
 /** Integer in [0, n-1] using the mechanic's seeded cosmetic rand. */
 function randInt(ctx: MechContext, n: number): number {
   return Math.min(n - 1, Math.floor(ctx.rand(0, n)));
+}
+
+/** n distinct cells via a seeded shuffle of the whole board. */
+function pickCells(ctx: MechContext, n: number): { reel: number; row: number }[] {
+  const all: { reel: number; row: number }[] = [];
+  for (let reel = 0; reel < ctx.grid.reels; reel++) {
+    for (let row = 0; row < ctx.grid.rows; row++) all.push({ reel, row });
+  }
+  for (let i = all.length - 1; i > 0; i--) {
+    const j = randInt(ctx, i + 1);
+    [all[i], all[j]] = [all[j], all[i]];
+  }
+  return all.slice(0, Math.min(n, all.length));
 }
 
 /** Soft additive radial glow — four layers: wide wash, mid body, inner
@@ -91,7 +108,8 @@ function ringBurst(ctx: MechContext, x: number, y: number, radius: number, color
 }
 
 /** Radial spray of glow sparks: jittered angles/sizes/timing, each spark
- *  shrinks as it fades and gets a small gravity droop at the end. */
+ *  shrinks as it fades and gets a small gravity droop at the end. Keep the
+ *  counts ODD and small — dust is support, never the show. */
 function sparkBurst(ctx: MechContext, x: number, y: number, color: number, n: number, dist: number, delay = 0): void {
   for (let i = 0; i < n; i++) {
     const a = (i / n) * Math.PI * 2 + ctx.rand(-0.5, 0.5);
@@ -129,13 +147,13 @@ function cellFlash(ctx: MechContext, cr: Rect, color: number, delay = 0): void {
   ctx.overlay.addChild(g);
   const tl = ctx.track(ctx.gsap.timeline({ delay }));
   tl.to(g, { alpha: 1, duration: 0.06, ease: 'power2.out' }, 0)
-    .to(g.scale, { x: 1.07, y: 1.07, duration: 0.2, ease: 'back.out(2.6)' }, 0)
+    .to(g.scale, { x: 1.07, y: 1.07, duration: 0.2, ease: 'back.out(2)' }, 0)
     .to(g.scale, { x: 1, y: 1, duration: 0.14, ease: 'power2.out' }, 0.2)
     .to(g, { alpha: 0, duration: 0.34, ease: 'power2.in' }, 0.3);
 }
 
 /** Star glint: counter-rotated wind-up, back.out pop, then exits still
- *  rotating and shrinking so it never just pops off. */
+ *  rotating and shrinking so it never just pops off. One per beat, max. */
 function starPop(ctx: MechContext, x: number, y: number, size: number, color: number, delay = 0): void {
   const glint = new Container();
   const halo = glowDot(0xffffff, size * 1.5, 0.6);
@@ -150,10 +168,47 @@ function starPop(ctx: MechContext, x: number, y: number, size: number, color: nu
   ctx.overlay.addChild(glint);
   const spin = ctx.rand(0.6, 1.25);
   const tl = ctx.track(ctx.gsap.timeline({ delay }));
-  tl.to(glint.scale, { x: 1, y: 1, duration: 0.2, ease: 'back.out(3)' }, 0)
+  tl.to(glint.scale, { x: 1, y: 1, duration: 0.2, ease: 'back.out(2)' }, 0)
     .to(glint, { rotation: spin, duration: 0.55, ease: 'power2.out' }, 0)
     .to(glint.scale, { x: 0.55, y: 0.55, duration: 0.3, ease: 'power2.in' }, 0.26)
     .to(glint, { alpha: 0, duration: 0.28, ease: 'power2.in' }, 0.28);
+}
+
+/** Landing pad — a soft glow that blooms on the target cell a beat BEFORE the
+ *  arrival, so the eye is already parked where the impact will land. */
+function landingPad(ctx: MechContext, cr: Rect, color: number, delay = 0): void {
+  const c = mid(cr);
+  const pad = glowDot(color, Math.max(cr.w, cr.h) * 0.55, 0.7);
+  pad.position.set(c.x, c.y + cr.h * 0.16);
+  pad.alpha = 0;
+  pad.scale.set(0.5);
+  ctx.overlay.addChild(pad);
+  const tl = ctx.track(ctx.gsap.timeline({ delay }));
+  tl.to(pad, { alpha: 0.75, duration: 0.18, ease: 'power2.in' }, 0)
+    .to(pad.scale, { x: 1, y: 1, duration: 0.22, ease: 'power2.in' }, 0)
+    .to(pad, { alpha: 0, duration: 0.28, ease: 'power2.in' }, 0.26);
+}
+
+/** Heavyweight arrival. Drops the object from `drop` px above its CURRENT
+ *  position: power4.in fall (slight stretch along the motion), hard squash on
+ *  impact, a 0.08s HELD beat at full squash, then a back.out(1.8) settle.
+ *  Returns the absolute time (s) of the impact so callers can cue the thunk
+ *  flash / ring / dust exactly on the hit. The first scale tween overwrites
+ *  any spawn pop still running on the target. */
+function slamDown(ctx: MechContext, t: Container, drop: number, delay = 0): number {
+  const finalY = t.y;
+  const fall = 0.32 * ctx.rand(0.95, 1.1);
+  t.y = finalY - drop;
+  t.scale.set(0.9, 1.02);
+  const tl = ctx.track(ctx.gsap.timeline({ delay }));
+  // SFX: whoosh — the fall
+  tl.to(t, { y: finalY, duration: fall, ease: 'power4.in' }, 0)
+    .to(t.scale, { x: 0.95, y: 1.06, duration: fall * 0.75, ease: 'power2.in', overwrite: true }, 0)
+    // SFX: thud — impact
+    .to(t.scale, { x: 1.12, y: 0.84, duration: 0.06, ease: 'power3.out' }, fall)
+    // (0.08s held beat at full squash — the weight lives in this gap)
+    .to(t.scale, { x: 1, y: 1, duration: 0.34, ease: 'back.out(1.8)' }, fall + 0.14);
+  return delay + fall;
 }
 
 /** Gold '?' mystery plate sized to a cell, centred on (0,0). */
@@ -162,12 +217,13 @@ function mysteryPlate(ctx: MechContext, cr: Rect): Container {
   const w = cr.w;
   const h = cr.h;
   const plate = new Graphics();
-  plate.roundRect(-w / 2, -h / 2, w, h, 12).fill({ color: 0x140b02, alpha: 1 });
+  plate.roundRect(-w / 2, -h / 2, w, h, 12).fill({ color: 0x000000, alpha: 0.94 });
+  plate.roundRect(-w / 2, -h / 2, w, h, 12).fill({ color: ctx.gold, alpha: 0.1 });
   plate.roundRect(-w / 2, -h / 2, w, h, 12).stroke({ color: ctx.gold, width: 3, alpha: 1 });
-  plate.roundRect(-w / 2 + 5, -h / 2 + 5, w - 10, h - 10, 9).stroke({ color: 0xffffff, width: 1.4, alpha: 0.28 });
+  plate.roundRect(-w / 2 + 5, -h / 2 + 5, w - 10, h - 10, 9).stroke({ color: 0xffffff, width: 1.2, alpha: 0.25 });
   const sheen = new Graphics();
-  sheen.roundRect(-w / 2 + 4, -h / 2 + 4, w - 8, h * 0.38, 8).fill({ color: ctx.gold, alpha: 0.16 });
-  sheen.roundRect(-w / 2 + 4, -h / 2 + 4, w - 8, h * 0.16, 8).fill({ color: 0xffffff, alpha: 0.05 });
+  sheen.roundRect(-w / 2 + 4, -h / 2 + 4, w - 8, h * 0.34, 8).fill({ color: ctx.gold, alpha: 0.14 });
+  sheen.roundRect(-w / 2 + 4, -h / 2 + 4, w - 8, h * 0.14, 8).fill({ color: 0xffffff, alpha: 0.05 });
   sheen.blendMode = 'add';
   const q = new Text({
     text: '?',
@@ -194,78 +250,76 @@ export const MECH_PACK_A: readonly MechEntry[] = [
     id: 'mystery-reveal',
     name: 'Mystery Reveal',
     description:
-      "Gold '?' plates pop on random cells, tremble with anticipation, then all flip into the same random symbol.",
+      "Gold '?' plates thud onto the board one by one, share a single charged breath, then snap open in a cascade — every plate hiding the same symbol.",
     async run(ctx: MechContext): Promise<void> {
-      // Pick 4-7 distinct cells via a seeded shuffle.
-      const count = 4 + randInt(ctx, 4);
-      const all: { reel: number; row: number }[] = [];
-      for (let reel = 0; reel < ctx.grid.reels; reel++) {
-        for (let row = 0; row < ctx.grid.rows; row++) all.push({ reel, row });
-      }
-      for (let i = all.length - 1; i > 0; i--) {
-        const j = randInt(ctx, i + 1);
-        [all[i], all[j]] = [all[j], all[i]];
-      }
-      const cells = all.slice(0, Math.min(count, all.length));
-      const target = ctx.pick([0, 2, 3, 4, 5] as const);
+      const count = ctx.pick([3, 5] as const);
+      const cells = pickCells(ctx, count);
+      const target = ctx.pick([0, 2, 3] as const);
 
-      // Phase 1 — plates pop in: overshoot punch, follow-through settle, a
-      // tiny random spawn tilt that rights itself, halo blooming underneath.
-      // Stagger is jittered so no two arrivals are metronomic.
+      // SETUP — the board falls back; the stage is set before anything moves.
+      // SFX: low riser (board dim)
+      ctx.dimBoard(0.42);
+      await wait(320);
+      if (!ctx.alive()) return;
+
+      // BEAT 1 — the plates ARRIVE with weight: each drops from just above its
+      // cell (power4.in), squashes hard, holds a beat, settles with back.out.
+      // Staggered and jittered — three thuds, not one stamp.
       const tiles: Container[] = [];
       cells.forEach((cell, i) => {
         const cr = ctx.cellRect(cell.reel, cell.row);
         const c = mid(cr);
-        const halo = glowDot(ctx.gold, Math.max(cr.w, cr.h) * 0.62, 0.8);
-        halo.position.set(c.x, c.y);
-        halo.alpha = 0;
-        ctx.overlay.addChild(halo);
         const t = mysteryPlate(ctx, cr);
         t.position.set(c.x, c.y);
-        t.scale.set(0);
-        t.rotation = ctx.rand(-0.09, 0.09);
+        t.alpha = 0;
         ctx.overlay.addChild(t);
         tiles.push(t);
-        const tl = ctx.track(ctx.gsap.timeline({ delay: i * 0.09 + ctx.rand(0, 0.05) }));
-        tl.to(t.scale, { x: 1.07, y: 1.07, duration: 0.28, ease: 'back.out(2.2)' }, 0)
-          .to(t.scale, { x: 1, y: 1, duration: 0.15, ease: 'power2.out' }, 0.28)
-          .to(t, { rotation: 0, duration: 0.38, ease: 'back.out(1.6)' }, 0.06)
-          .to(halo, { alpha: 0.85, duration: 0.14, ease: 'power2.out' }, 0.04)
-          .to(halo.scale, { x: 1.18, y: 1.18, duration: 0.5, ease: 'power2.out' }, 0.08)
-          .to(halo, { alpha: 0, duration: 0.4, ease: 'power2.in' }, 0.28);
+        const delay = i * 0.16 + ctx.rand(0, 0.05);
+        ctx.track(ctx.gsap.to(t, { alpha: 1, duration: 0.07, delay, ease: 'power1.out' }));
+        // SFX: plate thud (one per landing)
+        const impactAt = slamDown(ctx, t, cr.h * 0.8, delay);
+        sparkBurst(ctx, c.x, c.y + cr.h * 0.32, ctx.gold, 3, cr.w * 0.35, impactAt);
       });
-      await new Promise((r) => setTimeout(r, 900));
+      await wait(700 + count * 170);
       if (!ctx.alive()) return;
 
-      // Phase 2 — anticipation tremble: per-tile random amplitude, rate and
-      // repeat count (nobody trembles in lockstep), plus a nervous inhale
-      // (squeeze down) that releases into a back.out puff.
+      // BEAT 2 — one shared inhale: a gold charge swells under the set, passing
+      // through the plates left to right while each squeezes down slightly.
+      // This is the anticipation for the flip — nothing else moves.
+      // SFX: charge riser (single swell)
       tiles.forEach((t, i) => {
-        const amp = ctx.rand(0.045, 0.075);
-        const rate = ctx.rand(0.07, 0.1);
-        const reps = 4 + randInt(ctx, 3);
-        const tl = ctx.track(ctx.gsap.timeline({ delay: i * 0.03 + ctx.rand(0, 0.04) }));
-        tl.to(t, { rotation: -amp, duration: rate * 0.6, ease: 'sine.inOut' }, 0)
-          .to(t, { rotation: amp, duration: rate, repeat: reps, yoyo: true, ease: 'sine.inOut' }, rate * 0.6)
-          .to(t, { rotation: 0, duration: 0.07, ease: 'sine.out' }, rate * 0.6 + rate * (reps + 1))
-          .to(t.scale, { x: 0.94, y: 0.95, duration: 0.28, ease: 'sine.inOut' }, 0.08)
-          .to(t.scale, { x: 1.045, y: 1.045, duration: 0.22, ease: 'back.out(2.4)' }, 0.42);
+        const cr = ctx.cellRect(cells[i].reel, cells[i].row);
+        const c = mid(cr);
+        const d = i * 0.09 + ctx.rand(0, 0.03);
+        const halo = glowDot(ctx.gold, Math.max(cr.w, cr.h) * 0.6, 0.75);
+        halo.position.set(c.x, c.y);
+        halo.alpha = 0;
+        halo.scale.set(0.7);
+        ctx.overlay.addChildAt(halo, 0);
+        const tl = ctx.track(ctx.gsap.timeline({ delay: d }));
+        tl.to(halo, { alpha: 0.7, duration: 0.2, ease: 'power2.out' }, 0)
+          .to(halo.scale, { x: 1.12, y: 1.12, duration: 0.5, ease: 'power2.out' }, 0)
+          .to(halo, { alpha: 0, duration: 0.34, ease: 'power2.in' }, 0.32)
+          .to(t.scale, { x: 0.965, y: 0.97, duration: 0.3, ease: 'sine.in' }, 0.05);
       });
-      await new Promise((r) => setTimeout(r, 800));
+      await wait(450 + count * 95);
       if (!ctx.alive()) return;
 
-      // Phase 3 — the flip: each plate inhales WIDER first (anticipation),
-      // slams shut with power3.in, the board cell re-skins under it, then it
-      // reopens with back.out and hands off by fading while still settling.
+      // BEAT 3 — the PAYOFF: a fast cascade of flips. Each plate widens for a
+      // breath, slams shut with power4.in, the real symbol lands underneath,
+      // and a slit of light escapes as the plate vanishes. The LAST plate is
+      // the hero — bigger ring, one star.
+      ctx.undimBoard();
       cells.forEach((cell, i) => {
         const t = tiles[i];
         const cr = ctx.cellRect(cell.reel, cell.row);
         const c = mid(cr);
-        const dl = i * 0.07 + ctx.rand(0, 0.03);
-        const side = i % 2 === 0 ? 1 : -1;
+        const hero = i === cells.length - 1;
+        const dl = i * 0.12 + ctx.rand(0, 0.04);
         const tl = ctx.track(ctx.gsap.timeline({ delay: dl }));
-        tl.to(t.scale, { x: 1.09, duration: 0.09, ease: 'power2.out' }, 0)
-          .to(t.scale, { x: 0, duration: 0.13, ease: 'power3.in' }, 0.09)
+        // SFX: flip snap
+        tl.to(t.scale, { x: 1.08, y: 1.01, duration: 0.08, ease: 'power2.out' }, 0)
+          .to(t.scale, { x: 0.02, duration: 0.11, ease: 'power4.in' }, 0.08)
           .call(
             () => {
               if (!ctx.alive()) return;
@@ -273,26 +327,33 @@ export const MECH_PACK_A: readonly MechEntry[] = [
               ctx.playCellState(cell.reel, cell.row, 'featured');
             },
             undefined,
-            0.22,
+            0.19,
           )
-          .to(t.scale, { x: 1.06, duration: 0.2, ease: 'back.out(2.4)' }, 0.24)
-          .to(t.scale, { x: 1, duration: 0.12, ease: 'power2.out' }, 0.44)
-          .to(t, { alpha: 0, duration: 0.22, ease: 'power2.in' }, 0.34);
-        ringBurst(ctx, c.x, c.y, Math.max(cr.w, cr.h) * 0.75, ctx.gold, dl + 0.24);
-        starPop(
-          ctx,
-          c.x + side * cr.w * ctx.rand(0.2, 0.3),
-          c.y - cr.h * ctx.rand(0.2, 0.3),
-          cr.w * 0.14,
-          ctx.gold,
-          dl + 0.3,
-        );
+          .to(t, { alpha: 0, duration: 0.06, ease: 'power1.in' }, 0.19);
+
+        // The slit of light that escapes the closing plate — 2-layer, additive.
+        const slit = new Graphics();
+        slit.roundRect(-cr.w * 0.1, -cr.h / 2, cr.w * 0.2, cr.h, 10).fill({ color: ctx.gold, alpha: 0.2 });
+        slit.roundRect(-cr.w * 0.04, -cr.h / 2, cr.w * 0.08, cr.h, 6).fill({ color: 0xffffff, alpha: 0.7 });
+        slit.blendMode = 'add';
+        slit.position.set(c.x, c.y);
+        slit.alpha = 0;
+        slit.scale.set(1, 0.92);
+        ctx.overlay.addChild(slit);
+        const stl = ctx.track(ctx.gsap.timeline({ delay: dl + 0.16 }));
+        stl.to(slit, { alpha: 1, duration: 0.05, ease: 'power1.out' }, 0)
+          .to(slit.scale, { x: 8, y: 1, duration: 0.16, ease: 'power2.out' }, 0.02)
+          .to(slit, { alpha: 0, duration: 0.16, ease: 'power2.in' }, 0.08);
+
+        // SFX: reveal chime (rising through the cascade)
+        ringBurst(ctx, c.x, c.y, cr.w * (hero ? 0.95 : 0.6), ctx.gold, dl + 0.2);
+        if (hero) starPop(ctx, c.x + cr.w * 0.26, c.y - cr.h * 0.28, cr.w * 0.15, ctx.gold, dl + 0.3);
       });
-      await new Promise((r) => setTimeout(r, 700 + cells.length * 70));
+      await wait(650 + count * 120);
       if (!ctx.alive()) return;
 
-      // Tail — a settling beat so the revealed set reads as one thing.
-      await new Promise((r) => setTimeout(r, 500));
+      // RESOLUTION — a settling beat so the revealed set reads as one thing.
+      await wait(450);
     },
   },
 
@@ -301,13 +362,13 @@ export const MECH_PACK_A: readonly MechEntry[] = [
     id: 'symbol-upgrade',
     name: 'Symbol Upgrade',
     description:
-      'A golden sweep crosses the grid; every low-pay cell it touches flashes and upgrades to the same premium.',
+      'A premium tile slams into the most central low cell; its shockwave rolls outward and converts every low symbol exactly as the front crosses it.',
     async run(ctx: MechContext): Promise<void> {
-      const gr = ctx.gridRect();
       const to = ctx.pick([2, 3] as const);
+      const gr = ctx.gridRect();
 
       // Collect the LOW cells (6-8). Fallback: if the board rolled no lows,
-      // bless three random cells so the showcase always lands.
+      // bless three shuffled cells so the showcase always lands.
       const marks: { reel: number; row: number }[] = [];
       for (let reel = 0; reel < ctx.grid.reels; reel++) {
         for (let row = 0; row < ctx.grid.rows; row++) {
@@ -315,80 +376,119 @@ export const MECH_PACK_A: readonly MechEntry[] = [
           if (s >= 6 && s <= 8) marks.push({ reel, row });
         }
       }
-      if (marks.length === 0) {
-        for (let i = 0; i < 3; i++) marks.push({ reel: randInt(ctx, ctx.grid.reels), row: randInt(ctx, ctx.grid.rows) });
+      if (marks.length === 0) marks.push(...pickCells(ctx, 3));
+
+      // Epicentre = the marked cell nearest the grid centre (reads intentional).
+      const gc = { x: gr.x + gr.w / 2, y: gr.y + gr.h / 2 };
+      let epi = marks[0];
+      let best = Infinity;
+      for (const m of marks) {
+        const c = mid(ctx.cellRect(m.reel, m.row));
+        const d2 = (c.x - gc.x) * (c.x - gc.x) + (c.y - gc.y) * (c.y - gc.y);
+        if (d2 < best) {
+          best = d2;
+          epi = m;
+        }
+      }
+      const er = ctx.cellRect(epi.reel, epi.row);
+      const ec = mid(er);
+      const others = marks.filter((m) => m !== epi);
+      let maxD = er.w;
+      for (const m of others) {
+        const c = mid(ctx.cellRect(m.reel, m.row));
+        maxD = Math.max(maxD, Math.hypot(c.x - ec.x, c.y - ec.y));
       }
 
-      ctx.dimBoard(0.3);
-
-      // Anticipation — a charge glow inhales at the launch edge: bloom out,
-      // contract hard, then the sweep fires out of the contraction.
-      const bandW = gr.w * 0.16;
-      const startX = gr.x - bandW * 1.5;
-      const endX = gr.x + gr.w + bandW * 1.5;
-      const charge = glowDot(ctx.gold, gr.h * 0.3, 0.9);
-      charge.position.set(gr.x - bandW * 0.4, gr.y + gr.h / 2);
-      charge.alpha = 0;
-      charge.scale.set(1.35);
-      ctx.overlay.addChild(charge);
-      const ctl = ctx.track(ctx.gsap.timeline());
-      ctl.to(charge, { alpha: 0.85, duration: 0.16, ease: 'power2.out' }, 0)
-        .to(charge.scale, { x: 0.45, y: 0.45, duration: 0.24, ease: 'power3.in' }, 0.06)
-        .to(charge, { alpha: 0, duration: 0.1, ease: 'power1.in' }, 0.28);
-      await new Promise((r) => setTimeout(r, 380));
-      if (!ctx.alive()) return;
-
-      // The sweep band: wide soft wash, gold body, razor white core. A short
-      // recoil pull-back, THEN linear travel so per-cell hit times line up
-      // exactly with the front (the sweep sync IS the design).
-      const recoil = 0.09;
-      const dur = 1.15;
-      const band = new Container();
-      band.position.set(startX, gr.y + gr.h / 2);
-      const wash = new Graphics();
-      wash.rect(-bandW, -gr.h * 0.62, bandW * 2, gr.h * 1.24).fill({ color: ctx.gold, alpha: 0.1 });
-      wash.blendMode = 'add';
-      const body = new Graphics();
-      body.rect(-bandW * 0.45, -gr.h * 0.6, bandW * 0.9, gr.h * 1.2).fill({ color: ctx.gold, alpha: 0.22 });
-      body.blendMode = 'add';
-      const core = new Graphics();
-      core.rect(-bandW * 0.06, -gr.h * 0.6, bandW * 0.12, gr.h * 1.2).fill({ color: 0xffffff, alpha: 0.6 });
-      core.blendMode = 'add';
-      band.addChild(wash, body, core);
-      ctx.overlay.addChild(band);
-      const btl = ctx.track(ctx.gsap.timeline());
-      btl.to(band.position, { x: startX - bandW * 0.3, duration: recoil, ease: 'power2.out' }, 0)
-        .to(band.position, { x: endX, duration: dur, ease: 'none' }, recoil)
-        .to(band, { alpha: 0, duration: 0.22, ease: 'power1.in' }, recoil + dur - 0.2);
-
-      // Each marked cell upgrades exactly when the band front crosses it:
-      // layered flash pop + re-skin to the premium + jittered star/sparks.
+      // SETUP — dim; every low cell breathes ONE faint gold underglow,
+      // staggered outward from the epicentre (it foreshadows the wave).
+      ctx.dimBoard(0.5);
+      // SFX: shimmer
       marks.forEach((m) => {
         const cr = ctx.cellRect(m.reel, m.row);
         const c = mid(cr);
-        const when = recoil + ((c.x - startX) / (endX - startX)) * dur;
-        const tl = ctx.track(ctx.gsap.timeline({ delay: Math.max(0, when - 0.05) }));
-        tl.call(
-          () => {
+        const dl = (Math.hypot(c.x - ec.x, c.y - ec.y) / maxD) * 0.24 + ctx.rand(0, 0.05);
+        const g = glowDot(ctx.gold, cr.w * 0.42, 0.55);
+        g.position.set(c.x, c.y);
+        g.alpha = 0;
+        g.scale.set(0.75);
+        ctx.overlay.addChildAt(g, 0);
+        const tl = ctx.track(ctx.gsap.timeline({ delay: dl }));
+        tl.to(g, { alpha: 0.55, duration: 0.2, ease: 'power2.out' }, 0)
+          .to(g.scale, { x: 1.06, y: 1.06, duration: 0.42, ease: 'power2.out' }, 0)
+          .to(g, { alpha: 0, duration: 0.3, ease: 'power2.in' }, 0.26);
+      });
+      await wait(640);
+      if (!ctx.alive()) return;
+
+      // HERO ARRIVAL — the real premium tile drops onto the epicentre with
+      // full weight: pad glow first, power4.in fall, squash, held beat, settle.
+      landingPad(ctx, er, ctx.gold, 0);
+      await wait(160);
+      if (!ctx.alive()) return;
+      const tile = ctx.spawnTile(to, epi.reel, epi.row, true);
+      const impactAt = slamDown(ctx, tile, er.h * 1.4);
+      ctx.track(
+        ctx.gsap.delayedCall(impactAt, () => {
+          if (!ctx.alive()) return;
+          ctx.setCellSymbol(epi.reel, epi.row, to);
+        }),
+      );
+      // SFX: premium slam
+      ringBurst(ctx, ec.x, ec.y, er.w * 1.1, ctx.gold, impactAt + 0.02);
+      sparkBurst(ctx, ec.x, ec.y + er.h * 0.35, ctx.gold, 7, er.w * 0.75, impactAt + 0.03);
+      await wait(Math.round((impactAt + 0.5) * 1000));
+      if (!ctx.alive()) return;
+
+      // THE WAVE — one expanding shockwave (wash / body / white core). Every
+      // low cell converts EXACTLY when the visible front crosses it: hit times
+      // are the ring's own ease inverted, so the sync IS the design.
+      const D = 0.72;
+      const R = maxD * 1.18;
+      const BASE = 40;
+      const wave = new Container();
+      wave.position.set(ec.x, ec.y);
+      const w1 = new Graphics();
+      w1.circle(0, 0, BASE).stroke({ color: ctx.gold, width: 18, alpha: 0.12 });
+      w1.blendMode = 'add';
+      const w2 = new Graphics();
+      w2.circle(0, 0, BASE).stroke({ color: ctx.gold, width: 8, alpha: 0.3 });
+      w2.blendMode = 'add';
+      const w3 = new Graphics();
+      w3.circle(0, 0, BASE).stroke({ color: 0xffffff, width: 2, alpha: 0.8 });
+      w3.blendMode = 'add';
+      wave.addChild(w1, w2, w3);
+      wave.scale.set(0.12);
+      wave.alpha = 0;
+      ctx.overlay.addChild(wave);
+      const wtl = ctx.track(ctx.gsap.timeline());
+      // SFX: wave rush
+      wtl.to(wave, { alpha: 1, duration: 0.06, ease: 'power1.out' }, 0)
+        .to(wave.scale, { x: R / BASE, y: R / BASE, duration: D, ease: 'power2.out' }, 0)
+        .to(wave, { alpha: 0, duration: D * 0.45, ease: 'power2.in' }, D * 0.6);
+      others.forEach((m) => {
+        const cr = ctx.cellRect(m.reel, m.row);
+        const c = mid(cr);
+        // invert power2.out: p = 1-(1-t)^2  =>  t = 1 - sqrt(1-p)
+        const p = Math.min(1, Math.hypot(c.x - ec.x, c.y - ec.y) / R);
+        const when = D * (1 - Math.sqrt(1 - p)) + ctx.rand(0, 0.04);
+        cellFlash(ctx, cr, ctx.gold, Math.max(0, when - 0.04));
+        // SFX: chime — pitch climbs with distance from the epicentre
+        ctx.track(
+          ctx.gsap.delayedCall(when, () => {
             if (!ctx.alive()) return;
             ctx.setCellSymbol(m.reel, m.row, to);
             ctx.playCellState(m.reel, m.row, 'win');
-          },
-          undefined,
-          0.08,
+          }),
         );
-        cellFlash(ctx, cr, ctx.gold, Math.max(0, when - 0.05));
-        starPop(ctx, c.x + cr.w * ctx.rand(-0.12, 0.12), c.y - cr.h * 0.2, cr.w * 0.16, ctx.gold, Math.max(0, when + 0.06 + ctx.rand(0, 0.05)));
-        sparkBurst(ctx, c.x, c.y, ctx.gold, 5, cr.w * 0.7, Math.max(0, when + 0.04 + ctx.rand(0, 0.03)));
       });
+      ctx.track(
+        ctx.gsap.delayedCall(D * 0.55, () => {
+          if (ctx.alive()) ctx.undimBoard();
+        }),
+      );
 
-      await new Promise((r) => setTimeout(r, (recoil + dur) * 1000 + 150));
-      if (!ctx.alive()) return;
-      ctx.undimBoard();
-
-      // Tail — upgraded cells breathe as a set behind a fading grid pulse.
-      ringBurst(ctx, gr.x + gr.w / 2, gr.y + gr.h / 2, Math.hypot(gr.w, gr.h) * 0.4, ctx.gold, 0.05);
-      await new Promise((r) => setTimeout(r, 1100));
+      // RESOLUTION — the upgraded set breathes; nothing new enters the frame.
+      await wait(Math.round(D * 1000) + 750);
     },
   },
 
@@ -397,122 +497,131 @@ export const MECH_PACK_A: readonly MechEntry[] = [
     id: 'reel-nudge',
     name: 'Reel Nudge',
     description:
-      'One reel darkens under a pulsing arrow, nudges a full cell downward, and a shining WILD thunks into the top row.',
+      'A gold spotlight frame singles out one reel; a chevron presses it a full cell downward and a real WILD thunks into the vacated top row.',
     async run(ctx: MechContext): Promise<void> {
       const reel = randInt(ctx, ctx.grid.reels);
       const rr = ctx.reelRect(reel);
       const c0 = ctx.cellRect(reel, 0);
-      const pitch = ctx.grid.rows > 1 ? ctx.cellRect(reel, 1).y - c0.y : c0.h;
 
-      // Telegraph — dark veil over the reel + a down-arrow whose bob DECAYS
-      // (each dip shallower than the last) instead of ticking like a metronome.
-      const veil = new Graphics();
-      veil.roundRect(rr.x, rr.y, rr.w, rr.h, 12).fill({ color: 0x000000, alpha: 1 });
-      veil.alpha = 0;
-      ctx.overlay.addChild(veil);
-      ctx.track(ctx.gsap.to(veil, { alpha: 0.5, duration: 0.28, ease: 'power2.out' }));
+      // SETUP — the board dims; a 3-layer gold frame picks the actor.
+      // SFX: spotlight on
+      ctx.dimBoard(0.5);
+      const frame = new Container();
+      frame.position.set(rr.x + rr.w / 2, rr.y + rr.h / 2);
+      const fg = new Graphics();
+      fg.roundRect(-rr.w / 2 - 4, -rr.h / 2 - 4, rr.w + 8, rr.h + 8, 14).stroke({ color: ctx.gold, width: 11, alpha: 0.1 });
+      fg.roundRect(-rr.w / 2 - 4, -rr.h / 2 - 4, rr.w + 8, rr.h + 8, 14).stroke({ color: ctx.gold, width: 5, alpha: 0.32 });
+      fg.roundRect(-rr.w / 2 - 4, -rr.h / 2 - 4, rr.w + 8, rr.h + 8, 14).stroke({ color: 0xffffff, width: 1.5, alpha: 0.7 });
+      fg.blendMode = 'add';
+      frame.addChild(fg);
+      frame.alpha = 0;
+      ctx.overlay.addChild(frame);
+      ctx.track(ctx.gsap.to(frame, { alpha: 1, duration: 0.3, ease: 'power2.out' }));
+      await wait(420);
+      if (!ctx.alive()) return;
 
-      const aw = rr.w * 0.4;
-      const arrowY = rr.y - aw * 0.75;
+      // TELEGRAPH — a layered gold chevron presses down twice, each press
+      // shallower than the last (decay, not a metronome).
+      const aw = rr.w * 0.38;
+      const ay = rr.y - aw * 0.7;
       const arrow = new Container();
-      arrow.position.set(rr.x + rr.w / 2, arrowY);
       const aGlow = new Graphics();
-      aGlow.poly([-aw * 0.62, -aw * 0.1, aw * 0.62, -aw * 0.1, 0, aw * 0.72]).fill({ color: ctx.gold, alpha: 0.14 });
-      aGlow.poly([-aw * 0.54, -aw * 0.06, aw * 0.54, -aw * 0.06, 0, aw * 0.64]).fill({ color: ctx.gold, alpha: 0.24 });
+      aGlow.poly([-aw * 0.6, -aw * 0.08, aw * 0.6, -aw * 0.08, 0, aw * 0.7]).fill({ color: ctx.gold, alpha: 0.14 });
+      aGlow.poly([-aw * 0.52, -aw * 0.04, aw * 0.52, -aw * 0.04, 0, aw * 0.62]).fill({ color: ctx.gold, alpha: 0.26 });
       aGlow.blendMode = 'add';
       const aCore = new Graphics();
-      aCore.poly([-aw / 2, 0, aw / 2, 0, 0, aw * 0.6]).fill({ color: ctx.gold, alpha: 0.95 });
-      aCore.poly([-aw / 2, 0, aw / 2, 0, 0, aw * 0.6]).stroke({ color: 0xffffff, width: 2, alpha: 0.8 });
+      aCore.poly([-aw / 2, 0, aw / 2, 0, 0, aw * 0.58]).fill({ color: ctx.gold, alpha: 0.95 });
+      aCore.poly([-aw / 2, 0, aw / 2, 0, 0, aw * 0.58]).stroke({ color: 0xffffff, width: 2, alpha: 0.75 });
       arrow.addChild(aGlow, aCore);
+      arrow.position.set(rr.x + rr.w / 2, ay);
       arrow.scale.set(0);
       ctx.overlay.addChild(arrow);
       const atl = ctx.track(ctx.gsap.timeline());
-      atl.to(arrow.scale, { x: 1, y: 1, duration: 0.24, ease: 'back.out(3)' }, 0)
-        .to(arrow, { y: arrowY + 15, duration: 0.14, ease: 'power2.inOut' }, 0.22)
-        .to(arrow, { y: arrowY, duration: 0.13, ease: 'power2.inOut' }, 0.36)
-        .to(arrow, { y: arrowY + 9, duration: 0.12, ease: 'power2.inOut' }, 0.49)
-        .to(arrow, { y: arrowY, duration: 0.12, ease: 'power2.inOut' }, 0.61)
-        .to(arrow, { y: arrowY + 5, duration: 0.1, ease: 'power2.inOut' }, 0.73)
-        .to(arrow, { y: arrowY, duration: 0.1, ease: 'power2.inOut' }, 0.83);
-      await new Promise((r) => setTimeout(r, 700));
+      atl.to(arrow.scale, { x: 1, y: 1, duration: 0.22, ease: 'back.out(2)' }, 0)
+        // SFX: tick
+        .to(arrow, { y: ay + 14, duration: 0.13, ease: 'power2.inOut' }, 0.26)
+        .to(arrow, { y: ay, duration: 0.12, ease: 'power2.inOut' }, 0.39)
+        // SFX: tick (softer)
+        .to(arrow, { y: ay + 8, duration: 0.11, ease: 'power2.inOut' }, 0.53)
+        .to(arrow, { y: ay, duration: 0.11, ease: 'power2.inOut' }, 0.64);
+      await wait(800);
       if (!ctx.alive()) return;
 
-      // The nudge — the ghost strip PULLS UP first (anticipation counter-move)
-      // then accelerates one full cell down with power3.in, selling the shove.
+      // THE SHOVE — counter-move up, then the reel is rammed one cell down.
+      // Three masked motion streaks + a snap flash cover the symbol shift, so
+      // it reads as the strip physically moving, not a re-skin.
+      const stl = ctx.track(ctx.gsap.timeline());
+      stl.to(arrow, { y: ay - 8, duration: 0.1, ease: 'power2.out' }, 0)
+        // SFX: ratchet clunk
+        .to(arrow, { y: ay + 22, alpha: 0, duration: 0.13, ease: 'power3.in' }, 0.1);
       const maskG = new Graphics();
       maskG.rect(rr.x, rr.y, rr.w, rr.h).fill({ color: 0xffffff });
       ctx.overlay.addChild(maskG);
-      const strip = new Container();
-      strip.mask = maskG;
-      for (let row = -1; row < ctx.grid.rows; row++) {
-        const gy = c0.y + pitch * row;
-        const ghost = new Graphics();
-        ghost.roundRect(c0.x + 4, gy + 4, c0.w - 8, c0.h - 8, 10).fill({ color: ctx.accent, alpha: 0.16 });
-        ghost.roundRect(c0.x + 4, gy + 4, c0.w - 8, c0.h - 8, 10).stroke({ color: 0xffffff, width: 1.6, alpha: 0.4 });
-        ghost.roundRect(c0.x + 4, gy + 4, c0.w - 8, c0.h * 0.16, 10).fill({ color: 0xffffff, alpha: 0.05 });
-        ghost.blendMode = 'add';
-        strip.addChild(ghost);
-      }
-      ctx.overlay.addChild(strip);
-      const ntl = ctx.track(ctx.gsap.timeline());
-      ntl.to(strip, { y: -pitch * 0.09, duration: 0.11, ease: 'power2.out' }, 0)
-        .to(strip, { y: pitch, duration: 0.34, ease: 'power3.in' }, 0.11)
-        .to(arrow, { y: arrowY + 10, duration: 0.12, ease: 'power3.in' }, 0.33);
-      await new Promise((r) => setTimeout(r, 470));
-      if (!ctx.alive()) return;
-
-      // Commit the illusion: shift the underlying symbols one row down while
-      // a white snap-flash covers the swap, then drop the strip.
-      for (let row = ctx.grid.rows - 1; row >= 1; row--) {
-        ctx.setCellSymbol(reel, row, ctx.getCellSymbol(reel, row - 1));
+      const streaks = new Container();
+      streaks.mask = maskG;
+      ctx.overlay.addChild(streaks);
+      for (let i = 0; i < 3; i++) {
+        const h = rr.h * ctx.rand(0.38, 0.6);
+        const s = new Graphics();
+        s.roundRect(-7, -h / 2, 14, h, 7).fill({ color: ctx.gold, alpha: 0.1 });
+        s.roundRect(-3, -h / 2, 6, h, 3).fill({ color: 0xffffff, alpha: 0.3 });
+        s.blendMode = 'add';
+        s.position.set(rr.x + rr.w * (0.25 + 0.25 * i) + ctx.rand(-5, 5), rr.y - h / 2);
+        streaks.addChild(s);
+        ctx.track(
+          ctx.gsap.to(s, {
+            y: rr.y + rr.h + h / 2,
+            duration: 0.17,
+            delay: 0.1 + i * 0.02 + ctx.rand(0, 0.02),
+            ease: 'power2.in',
+          }),
+        );
       }
       const snap = new Graphics();
-      snap.roundRect(rr.x, rr.y, rr.w, rr.h, 12).fill({ color: 0xffffff, alpha: 0.38 });
-      snap.roundRect(rr.x + 6, rr.y + 6, rr.w - 12, rr.h - 12, 10).fill({ color: ctx.gold, alpha: 0.12 });
+      snap.roundRect(rr.x, rr.y, rr.w, rr.h, 12).fill({ color: 0xffffff, alpha: 0.32 });
       snap.blendMode = 'add';
+      snap.alpha = 0;
       ctx.overlay.addChild(snap);
-      ctx.track(ctx.gsap.to(snap, { alpha: 0, duration: 0.3, ease: 'power2.out' }));
-      ctx.track(ctx.gsap.to(strip, { alpha: 0, duration: 0.2, ease: 'power1.in' }));
-      ctx.track(ctx.gsap.to(arrow, { alpha: 0, y: arrowY + 18, duration: 0.2, ease: 'power1.in' }));
-      await new Promise((r) => setTimeout(r, 180));
+      const ktl = ctx.track(ctx.gsap.timeline({ delay: 0.16 }));
+      ktl.to(snap, { alpha: 1, duration: 0.04, ease: 'power1.out' }, 0)
+        .to(snap, { alpha: 0, duration: 0.26, ease: 'power2.in' }, 0.05);
+      ctx.track(
+        ctx.gsap.delayedCall(0.18, () => {
+          if (!ctx.alive()) return;
+          for (let row = ctx.grid.rows - 1; row >= 1; row--) {
+            ctx.setCellSymbol(reel, row, ctx.getCellSymbol(reel, row - 1));
+          }
+        }),
+      );
+      await wait(340);
       if (!ctx.alive()) return;
 
-      // The WILD lands in the vacated top row — a landing glow blooms on the
-      // cell as it falls, power4.in slam, hard squash, a beat of hold, then an
-      // elastic settle. Thunk flash + shockwave + jittered dust sparks.
-      const cc = mid(c0);
-      const pad = glowDot(ctx.accent, Math.max(c0.w, c0.h) * 0.55, 0.7);
-      pad.position.set(cc.x, cc.y + c0.h * 0.18);
-      pad.alpha = 0;
-      pad.scale.set(0.4);
-      ctx.overlay.addChild(pad);
-      const padTl = ctx.track(ctx.gsap.timeline());
-      padTl.to(pad, { alpha: 0.8, duration: 0.2, ease: 'power2.in' }, 0)
-        .to(pad.scale, { x: 1, y: 1, duration: 0.24, ease: 'power2.in' }, 0)
-        .to(pad, { alpha: 0, duration: 0.3, ease: 'power2.in' }, 0.3);
-
+      // THE WILD — hero beat. Pad glow blooms in the vacated top cell, then the
+      // real WILD tile drops with power4.in, squashes hard, holds, settles.
+      landingPad(ctx, c0, ctx.accent, 0);
+      await wait(160);
+      if (!ctx.alive()) return;
       const tile = ctx.spawnTile(0, reel, 0, true);
-      const ty = tile.y;
-      const bsx = tile.scale.x;
-      const bsy = tile.scale.y;
-      tile.y = ty - c0.h * 1.35;
-      const dtl = ctx.track(ctx.gsap.timeline());
-      dtl.to(tile, { y: ty, duration: 0.26, ease: 'power4.in' }, 0)
-        .to(tile.scale, { x: bsx * 1.14, y: bsy * 0.8, duration: 0.08, ease: 'power3.out' }, 0.26)
-        .to(tile.scale, { x: bsx, y: bsy, duration: 0.5, ease: 'elastic.out(1, 0.4)' }, 0.4);
-      const thunk = new Graphics();
-      thunk.roundRect(rr.x, rr.y, rr.w, rr.h, 12).fill({ color: 0xffffff, alpha: 0.55 });
-      thunk.roundRect(rr.x + 5, rr.y + 5, rr.w - 10, c0.h - 10, 10).fill({ color: 0xffffff, alpha: 0.3 });
-      thunk.blendMode = 'add';
-      thunk.alpha = 0;
-      ctx.overlay.addChild(thunk);
-      const ttl = ctx.track(ctx.gsap.timeline({ delay: 0.26 }));
-      ttl.to(thunk, { alpha: 1, duration: 0.04, ease: 'power1.out' }, 0).to(thunk, { alpha: 0, duration: 0.38, ease: 'power2.in' }, 0.05);
-      ringBurst(ctx, cc.x, cc.y, Math.max(c0.w, c0.h) * 1.1, ctx.accent, 0.27);
-      sparkBurst(ctx, cc.x, cc.y + c0.h * 0.3, ctx.gold, 7, c0.w * 0.9, 0.28);
-      ctx.track(ctx.gsap.to(veil, { alpha: 0, duration: 0.4, delay: 0.3, ease: 'power2.out' }));
+      const impactAt = slamDown(ctx, tile, c0.h * 1.4);
+      ctx.track(
+        ctx.gsap.delayedCall(impactAt, () => {
+          if (!ctx.alive()) return;
+          ctx.setCellSymbol(reel, 0, 0); // board state matches the overlay wild
+        }),
+      );
+      // SFX: heavy wild thunk
+      ringBurst(ctx, c0.x + c0.w / 2, c0.y + c0.h / 2, Math.max(c0.w, c0.h) * 1.05, ctx.accent, impactAt + 0.02);
+      sparkBurst(ctx, c0.x + c0.w / 2, c0.y + c0.h * 0.8, ctx.gold, 7, c0.w * 0.7, impactAt + 0.03);
+      const ptl = ctx.track(ctx.gsap.timeline({ delay: impactAt }));
+      ptl.to(frame.scale, { x: 1.02, y: 1.01, duration: 0.09, ease: 'power2.out' }, 0)
+        .to(frame.scale, { x: 1, y: 1, duration: 0.26, ease: 'back.out(1.8)' }, 0.09);
+      await wait(Math.round((impactAt + 0.6) * 1000));
+      if (!ctx.alive()) return;
 
-      await new Promise((r) => setTimeout(r, 1300));
+      // RESOLUTION — lights back up; the spotlight lets go with a slow fade.
+      ctx.undimBoard();
+      ctx.track(ctx.gsap.to(frame, { alpha: 0, duration: 0.45, ease: 'power2.in', overwrite: true }));
+      await wait(650);
     },
   },
 
@@ -521,7 +630,7 @@ export const MECH_PACK_A: readonly MechEntry[] = [
     id: 'colossal-symbol',
     name: 'Colossal Symbol',
     description:
-      'A 2x2 colossal premium block slams onto the board from above the screen plane with a shockwave and a unified gold frame.',
+      'Corner brackets lock a 2x2 zone, then a REAL colossal premium slams in from the screen plane and stays under a unified gold frame.',
     async run(ctx: MechContext): Promise<void> {
       const reel = randInt(ctx, ctx.grid.reels - 1);
       const row = randInt(ctx, ctx.grid.rows - 1);
@@ -535,87 +644,97 @@ export const MECH_PACK_A: readonly MechEntry[] = [
       const cy = by + bh / 2;
       const sym = ctx.pick([2, 3] as const);
 
-      // Telegraph — the board dims and an accent target frame pulses on the
-      // 2x2 landing zone.
+      // SETUP — the board falls away; four gold corner brackets contract onto
+      // the 2x2 landing zone and pulse once. Nothing else moves.
+      // SFX: target lock
       ctx.dimBoard(0.55);
-      const target = new Graphics();
-      target.roundRect(-bw / 2, -bh / 2, bw, bh, 16).stroke({ color: ctx.accent, width: 3, alpha: 0.9 });
-      target.blendMode = 'add';
-      target.position.set(cx, cy);
-      target.alpha = 0;
-      target.scale.set(0.88);
-      ctx.overlay.addChild(target);
-      const ttl = ctx.track(ctx.gsap.timeline());
-      ttl.to(target, { alpha: 0.95, duration: 0.14, ease: 'power2.out' }, 0)
-        .to(target.scale, { x: 1, y: 1, duration: 0.3, ease: 'back.out(2.5)' }, 0)
-        .to(target, { alpha: 0.35, duration: 0.14, repeat: 2, yoyo: true, ease: 'sine.inOut' }, 0.3)
-        .to(target.scale, { x: 1.04, y: 1.04, duration: 0.14, ease: 'power2.out' }, 0.46)
-        .to(target, { alpha: 0, duration: 0.12, ease: 'power1.in' }, 0.6);
-      await new Promise((r) => setTimeout(r, 650));
+      const brackets = new Container();
+      brackets.position.set(cx, cy);
+      const bg = new Graphics();
+      const L = Math.min(bw, bh) * 0.2;
+      for (const [dx, dy] of [[-1, -1], [1, -1], [1, 1], [-1, 1]] as const) {
+        const px = dx * (bw / 2 + 7);
+        const py = dy * (bh / 2 + 7);
+        bg.moveTo(px - dx * L, py).lineTo(px, py).lineTo(px, py - dy * L)
+          .stroke({ color: ctx.gold, width: 9, alpha: 0.14 });
+        bg.moveTo(px - dx * L, py).lineTo(px, py).lineTo(px, py - dy * L)
+          .stroke({ color: ctx.gold, width: 3.5, alpha: 0.9 });
+      }
+      bg.blendMode = 'add';
+      brackets.addChild(bg);
+      brackets.alpha = 0;
+      brackets.scale.set(1.18);
+      ctx.overlay.addChild(brackets);
+      const btl = ctx.track(ctx.gsap.timeline());
+      btl.to(brackets, { alpha: 1, duration: 0.16, ease: 'power2.out' }, 0)
+        .to(brackets.scale, { x: 1, y: 1, duration: 0.34, ease: 'power3.out' }, 0)
+        .to(brackets, { alpha: 0.55, duration: 0.16, ease: 'sine.inOut' }, 0.36)
+        .to(brackets, { alpha: 0.95, duration: 0.14, ease: 'sine.inOut' }, 0.52);
+      await wait(560);
       if (!ctx.alive()) return;
 
-      // The block — dark plate (with a subtle top sheen) + unified gold frame.
-      // It INHALES upward first (scale 1.55 -> 1.64, anticipation), then slams
-      // to 1 with power4.in so it accelerates INTO the board.
-      const block = new Container();
-      block.position.set(cx, cy);
-      const plate = new Graphics();
-      plate.roundRect(-bw / 2, -bh / 2, bw, bh, 16).fill({ color: 0x000000, alpha: 0.9 });
-      plate.roundRect(-bw / 2, -bh / 2, bw, bh, 16).fill({ color: ctx.gold, alpha: 0.18 });
-      plate.roundRect(-bw / 2 + 6, -bh / 2 + 6, bw - 12, bh * 0.18, 12).fill({ color: 0xffffff, alpha: 0.05 });
+      // ARRIVAL — the hero is the REAL premium tile at 2x2, wrapped so its
+      // spawn pop becomes the materialize inside the descent. It inhales
+      // toward the camera first, then slams INTO the board plane (power4.in).
+      const wrapper = new Container();
+      wrapper.position.set(cx, cy);
+      const tile = ctx.spawnTile(sym, reel, row, false);
+      wrapper.addChild(tile); // reparent out of the overlay root
+      tile.position.set(0, 0);
       const frame = new Graphics();
-      frame.roundRect(-bw / 2, -bh / 2, bw, bh, 16).stroke({ color: ctx.gold, width: 6, alpha: 1 });
-      frame.roundRect(-bw / 2 + 7, -bh / 2 + 7, bw - 14, bh - 14, 12).stroke({ color: 0xffffff, width: 2, alpha: 0.6 });
-      block.addChild(plate, frame);
-      block.alpha = 0;
-      block.scale.set(1.55);
-      ctx.overlay.addChild(block);
+      frame.roundRect(-a.w / 2 - 1, -a.h / 2 - 1, a.w + 2, a.h + 2, 9).stroke({ color: ctx.gold, width: 3, alpha: 1 });
+      frame.roundRect(-a.w / 2 + 3, -a.h / 2 + 3, a.w - 6, a.h - 6, 7).stroke({ color: 0xffffff, width: 1, alpha: 0.55 });
+      frame.alpha = 0;
+      wrapper.addChild(frame);
+      wrapper.alpha = 0;
+      const sx = bw / a.w;
+      const sy = bh / a.h;
+      wrapper.scale.set(sx * 1.55, sy * 1.55);
+      ctx.overlay.addChild(wrapper);
       const dtl = ctx.track(ctx.gsap.timeline());
-      dtl.to(block, { alpha: 1, duration: 0.1, ease: 'power1.out' }, 0)
-        .to(block.scale, { x: 1.64, y: 1.64, duration: 0.12, ease: 'power2.out' }, 0)
-        .to(block.scale, { x: 1, y: 1, duration: 0.28, ease: 'power4.in' }, 0.12);
-      await new Promise((r) => setTimeout(r, 440));
+      // SFX: descent whoosh
+      dtl.to(wrapper, { alpha: 1, duration: 0.12, ease: 'power1.out' }, 0)
+        .to(wrapper.scale, { x: sx * 1.66, y: sy * 1.66, duration: 0.13, ease: 'power2.out' }, 0)
+        .to(wrapper.scale, { x: sx, y: sy, duration: 0.3, ease: 'power4.in' }, 0.13);
+      await wait(440);
       if (!ctx.alive()) return;
 
-      // Impact — the four cells become the same premium under the frame, the
-      // plate burns off to reveal them; squash-stretch on the block, a held
-      // beat, elastic recover, dual shockwave + sparks + impact shake.
+      // IMPACT — squash with a held beat, the unified frame snaps on, ONE
+      // shockwave, a short spray of dust, brackets blown outward as
+      // follow-through. Board cells re-skin beneath for coherence.
       for (let dr = 0; dr < 2; dr++) {
-        for (let dw = 0; dw < 2; dw++) {
-          ctx.setCellSymbol(reel + dr, row + dw, sym);
-          ctx.playCellState(reel + dr, row + dw, 'featured');
-        }
+        for (let dc = 0; dc < 2; dc++) ctx.setCellSymbol(reel + dr, row + dc, sym);
       }
       ctx.undimBoard();
       const flash = new Graphics();
       flash.roundRect(bx, by, bw, bh, 16).fill({ color: 0xffffff, alpha: 0.5 });
-      flash.roundRect(bx + bw * 0.28, by + bh * 0.28, bw * 0.44, bh * 0.44, 12).fill({ color: 0xffffff, alpha: 0.4 });
       flash.blendMode = 'add';
       ctx.overlay.addChild(flash);
-      ctx.track(ctx.gsap.to(flash, { alpha: 0, duration: 0.4, ease: 'power2.in' }));
-      ctx.track(ctx.gsap.to(plate, { alpha: 0, duration: 0.3, delay: 0.08, ease: 'power2.in' }));
-      const shake = ctx.track(ctx.gsap.timeline());
-      shake
-        .to(block, { y: cy + 7, duration: 0.05, ease: 'power2.out' }, 0)
-        .to(block.scale, { x: 1.05, y: 0.94, duration: 0.06, ease: 'power3.out' }, 0)
-        .to(block, { y: cy - 4, duration: 0.06, ease: 'power2.inOut' }, 0.05)
-        .to(block, { y: cy, duration: 0.3, ease: 'elastic.out(1, 0.4)' }, 0.11)
-        .to(block.scale, { x: 1, y: 1, duration: 0.36, ease: 'elastic.out(1, 0.45)' }, 0.14);
-      ringBurst(ctx, cx, cy, Math.hypot(bw, bh) * 0.85, ctx.accent, 0.02);
-      ringBurst(ctx, cx, cy, Math.hypot(bw, bh) * 0.55, ctx.gold, 0.1);
-      sparkBurst(ctx, cx, cy, ctx.gold, 13, Math.max(bw, bh) * 0.85, 0.03);
-      await new Promise((r) => setTimeout(r, 500));
+      ctx.track(ctx.gsap.to(flash, { alpha: 0, duration: 0.38, ease: 'power2.in' }));
+      const itl = ctx.track(ctx.gsap.timeline());
+      // SFX: colossal slam
+      itl.to(frame, { alpha: 1, duration: 0.05, ease: 'power1.out' }, 0)
+        .to(wrapper.scale, { x: sx * 1.06, y: sy * 0.92, duration: 0.06, ease: 'power3.out' }, 0)
+        .to(wrapper, { y: cy + 6, duration: 0.06, ease: 'power3.out' }, 0)
+        // (0.08s held beat at full squash)
+        .to(wrapper.scale, { x: sx, y: sy, duration: 0.4, ease: 'back.out(1.7)' }, 0.14)
+        .to(wrapper, { y: cy, duration: 0.34, ease: 'back.out(1.6)' }, 0.14);
+      const xtl = ctx.track(ctx.gsap.timeline());
+      xtl.to(brackets.scale, { x: 1.16, y: 1.16, duration: 0.22, ease: 'power2.out' }, 0)
+        .to(brackets, { alpha: 0, duration: 0.2, ease: 'power2.out' }, 0.02);
+      ringBurst(ctx, cx, cy, Math.hypot(bw, bh) * 0.62, ctx.accent, 0.02);
+      sparkBurst(ctx, cx, cy + bh * 0.42, ctx.gold, 9, bw * 0.55, 0.04);
+      await wait(560);
       if (!ctx.alive()) return;
 
-      // Settle — the unified frame pumps twice and stays as a sticky border
-      // marking the colossal footprint until the next spin clears it.
-      const ptl = ctx.track(ctx.gsap.timeline());
-      ptl.to(frame.scale, { x: 1.03, y: 1.03, duration: 0.16, ease: 'back.out(2.5)' }, 0)
-        .to(frame.scale, { x: 1, y: 1, duration: 0.3, ease: 'elastic.out(1, 0.5)' }, 0.16)
-        .to(frame, { alpha: 0.85, duration: 0.25, ease: 'sine.inOut' }, 0.5);
-      starPop(ctx, bx + bw * 0.85, by + bh * 0.14, bw * 0.07, ctx.gold, 0.2);
-      starPop(ctx, bx + bw * 0.14, by + bh * 0.82, bw * 0.055, 0xffffff, 0.37);
-      await new Promise((r) => setTimeout(r, 900));
+      // RESOLUTION — the frame pumps once and stays as the colossal's border
+      // (sticky until the next spin). One star. Done.
+      const rtl = ctx.track(ctx.gsap.timeline());
+      rtl.to(frame.scale, { x: 1.035, y: 1.035, duration: 0.14, ease: 'power2.out' }, 0)
+        .to(frame.scale, { x: 1, y: 1, duration: 0.3, ease: 'back.out(1.8)' }, 0.14)
+        .to(frame, { alpha: 0.88, duration: 0.3, ease: 'sine.inOut' }, 0.44);
+      starPop(ctx, bx + bw * 0.86, by + bh * 0.12, bw * 0.06, ctx.gold, 0.18);
+      await wait(880);
     },
   },
 
@@ -624,73 +743,83 @@ export const MECH_PACK_A: readonly MechEntry[] = [
     id: 'walking-wild',
     name: 'Walking Wild',
     description:
-      'A shining WILD lands on the rightmost reel and hops one reel left every beat, leaving fading gold footprints.',
+      'A WILD lands hard on the last reel and walks left one heavy hop per beat — crouch, leap, slam, hold — leaving a single fading footprint each time.',
     async run(ctx: MechContext): Promise<void> {
       const midRow = Math.floor(ctx.grid.rows / 2);
       const startReel = ctx.grid.reels - 1;
 
-      // Arrival — the tile pops in with its premium landing beat + a ring.
-      const tile = ctx.spawnTile(0, startReel, midRow, true);
-      const sc = mid(ctx.cellRect(startReel, midRow));
-      ringBurst(ctx, sc.x, sc.y, ctx.cellRect(startReel, midRow).w * 0.95, ctx.gold, 0.12);
-      await new Promise((r) => setTimeout(r, 700));
+      // SETUP — soft dim so the walker owns the frame.
+      ctx.dimBoard(0.35);
+      await wait(300);
       if (!ctx.alive()) return;
-      const bsx = tile.scale.x;
-      const bsy = tile.scale.y;
 
-      // The walk — one hop per beat, each beat humanized a few percent:
-      // crouch (anticipation squash), stretch into an arced jump with a
-      // randomized apex, hard landing squash, a held beat, elastic recover.
-      // Departure cells keep footprints that fade AND shrink as they age.
+      // ARRIVAL — pad glow, then the real WILD drops in with full weight.
+      const sr = ctx.cellRect(startReel, midRow);
+      const sc = mid(sr);
+      landingPad(ctx, sr, ctx.gold, 0);
+      await wait(160);
+      if (!ctx.alive()) return;
+      const tile = ctx.spawnTile(0, startReel, midRow, false);
+      const impactAt = slamDown(ctx, tile, sr.h * 1.3);
+      // SFX: wild lands
+      ringBurst(ctx, sc.x, sc.y, sr.w * 0.95, ctx.gold, impactAt + 0.02);
+      sparkBurst(ctx, sc.x, sc.y + sr.h * 0.35, ctx.gold, 5, sr.w * 0.55, impactAt + 0.03);
+      await wait(Math.round((impactAt + 0.55) * 1000));
+      if (!ctx.alive()) return;
+
+      // THE WALK — one hop per beat, each beat humanized: crouch (anticipation
+      // squash), stretch into an arced leap, power4.in slam, hard squash with a
+      // 0.08s held beat, back.out settle. The departure cell keeps ONE simple
+      // footprint that fades and shrinks — the trail decays behind the walker.
       for (let reel = startReel; reel > 0; reel--) {
-        const T = ctx.rand(0.92, 1.08);
+        const T = ctx.rand(0.85, 1.1);
         const from = ctx.cellRect(reel, midRow);
         const to = ctx.cellRect(reel - 1, midRow);
         const fc = mid(from);
         const tx = tile.x + (to.x + to.w / 2 - fc.x);
         const ty = tile.y;
-        const apex = from.h * ctx.rand(0.48, 0.64);
+        const apex = from.h * ctx.rand(0.5, 0.68);
 
-        // Footprint under the tile at the departure cell — older prints end
-        // dimmer and smaller, so the trail decays behind the walker.
         const fp = new Graphics();
-        fp.roundRect(-from.w / 2 + 6, -from.h / 2 + 6, from.w - 12, from.h - 12, 10).fill({ color: ctx.gold, alpha: 0.1 });
-        fp.roundRect(-from.w / 2 + 10, -from.h / 2 + 10, from.w - 20, from.h - 20, 8).fill({ color: ctx.gold, alpha: 0.18 });
-        fp.roundRect(-from.w / 2 + 6, -from.h / 2 + 6, from.w - 12, from.h - 12, 10).stroke({ color: ctx.gold, width: 2, alpha: 0.7 });
+        fp.roundRect(-from.w / 2 + 8, -from.h / 2 + 8, from.w - 16, from.h - 16, 10).fill({ color: ctx.gold, alpha: 0.16 });
+        fp.roundRect(-from.w / 2 + 8, -from.h / 2 + 8, from.w - 16, from.h - 16, 10).stroke({ color: ctx.gold, width: 2, alpha: 0.55 });
         fp.blendMode = 'add';
         fp.position.set(fc.x, fc.y);
         ctx.overlay.addChildAt(fp, 0);
         const fptl = ctx.track(ctx.gsap.timeline());
-        fptl.to(fp.scale, { x: 0.86, y: 0.86, duration: 0.85, ease: 'power1.in' }, 0)
-          .to(fp, { alpha: 0, duration: 0.72, ease: 'power2.in' }, 0.13);
+        fptl.to(fp.scale, { x: 0.85, y: 0.85, duration: 0.8, ease: 'power1.in' }, 0)
+          .to(fp, { alpha: 0, duration: 0.6, ease: 'power2.in' }, 0.2);
 
-        // The hop — crouch, launch, arc, slam, hold, recover.
         const hop = ctx.track(ctx.gsap.timeline());
-        hop
-          .to(tile.scale, { x: bsx * 1.16, y: bsy * 0.8, duration: 0.1 * T, ease: 'power2.out' }, 0)
-          .to(tile.scale, { x: bsx * 0.9, y: bsy * 1.14, duration: 0.12 * T, ease: 'power2.in' }, 0.1 * T)
-          .to(tile, { x: tx, duration: 0.32 * T, ease: 'power1.inOut' }, 0.1 * T)
-          .to(tile, { y: ty - apex, duration: 0.16 * T, ease: 'power2.out' }, 0.1 * T)
-          .to(tile, { y: ty, duration: 0.16 * T, ease: 'power3.in' }, 0.26 * T)
-          .to(tile.scale, { x: bsx * 1.14, y: bsy * 0.82, duration: 0.07 * T, ease: 'power3.out' }, 0.42 * T)
-          .to(tile.scale, { x: bsx, y: bsy, duration: 0.32 * T, ease: 'elastic.out(1, 0.45)' }, 0.55 * T);
-        sparkBurst(ctx, to.x + to.w / 2, to.y + to.h * 0.82, ctx.gold, 5, to.w * 0.45, 0.42 * T);
-        await new Promise((r) => setTimeout(r, Math.round(620 * T)));
+        // SFX: crouch
+        hop.to(tile.scale, { x: 1.1, y: 0.86, duration: 0.12 * T, ease: 'power2.out', overwrite: true }, 0)
+          // SFX: hop launch
+          .to(tile.scale, { x: 0.92, y: 1.12, duration: 0.1 * T, ease: 'power2.in' }, 0.12 * T)
+          .to(tile, { x: tx, duration: 0.3 * T, ease: 'power1.inOut' }, 0.14 * T)
+          .to(tile, { y: ty - apex, duration: 0.15 * T, ease: 'power2.out' }, 0.14 * T)
+          .to(tile, { y: ty, duration: 0.15 * T, ease: 'power4.in' }, 0.29 * T)
+          // SFX: thump
+          .to(tile.scale, { x: 1.14, y: 0.8, duration: 0.06 * T, ease: 'power3.out' }, 0.44 * T)
+          // (0.08s held beat at full squash)
+          .to(tile.scale, { x: 1, y: 1, duration: 0.3 * T, ease: 'back.out(1.9)' }, 0.5 * T + 0.08);
+        sparkBurst(ctx, to.x + to.w / 2, to.y + to.h * 0.82, ctx.gold, 3, to.w * 0.4, 0.44 * T);
+        await wait(Math.round(740 * T));
         if (!ctx.alive()) return;
       }
 
-      // Finale on reel 0 — a quick dip (anticipation), victory pump, elastic
-      // settle, gold ring + offset star accents.
+      // FINALE — reel 0: lights up, a quick dip (anticipation), one victory
+      // pump with back.out, gold ring, a single star. Then stillness.
       const er = ctx.cellRect(0, midRow);
       const ec = mid(er);
+      ctx.undimBoard();
       const ftl = ctx.track(ctx.gsap.timeline());
-      ftl.to(tile.scale, { x: bsx * 0.92, y: bsy * 0.92, duration: 0.09, ease: 'power2.in' }, 0)
-        .to(tile.scale, { x: bsx * 1.22, y: bsy * 1.22, duration: 0.16, ease: 'back.out(3)' }, 0.09)
-        .to(tile.scale, { x: bsx, y: bsy, duration: 0.5, ease: 'elastic.out(1, 0.4)' }, 0.25);
-      ringBurst(ctx, ec.x, ec.y, er.w * 1.15, ctx.gold, 0.13);
-      starPop(ctx, ec.x - er.w * 0.3, ec.y - er.h * 0.3, 12, ctx.gold, 0.19);
-      starPop(ctx, ec.x + er.w * 0.32, ec.y + er.h * 0.24, 9, 0xffffff, 0.31);
-      await new Promise((r) => setTimeout(r, 750));
+      // SFX: fanfare hit
+      ftl.to(tile.scale, { x: 0.93, y: 0.93, duration: 0.09, ease: 'power2.in', overwrite: true }, 0)
+        .to(tile.scale, { x: 1.16, y: 1.16, duration: 0.16, ease: 'back.out(2)' }, 0.09)
+        .to(tile.scale, { x: 1, y: 1, duration: 0.42, ease: 'back.out(1.6)' }, 0.25);
+      ringBurst(ctx, ec.x, ec.y, er.w * 1.1, ctx.gold, 0.16);
+      starPop(ctx, ec.x + er.w * 0.28, ec.y - er.h * 0.3, er.w * 0.13, 0xffffff, 0.26);
+      await wait(780);
     },
   },
 ];

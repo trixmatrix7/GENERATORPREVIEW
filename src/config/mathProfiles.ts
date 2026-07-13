@@ -10,6 +10,7 @@ import type { PayEntry } from './paytable';
 import { getThemeByName } from './themes';
 import vol3x5 from '@/data/math_vol3_5x5.json';
 import vol3x3 from '@/data/math_vol3_5x3.json';
+import viceHeat from '@/data/math_vice_heat.json';
 
 const KEY_TO_ID: Record<string, number> = {
   wild: SymbolId.WILD, scatter: SymbolId.SCATTER,
@@ -64,6 +65,11 @@ export const MATH_PROFILES: readonly MathProfileOption[] = [
     id: 'vol3-5x3', name: 'Lively 5×3 (vol3)',
     description: 'Aktuelle Dev-Library rtp96.0_vol3: ALLE Symbole zahlen ab 3er — ständig sichtbare Connections, 243 Ways.',
     build: () => fromManifest(vol3x3 as Record<string, unknown>),
+  },
+  {
+    id: 'vice-heat-custom', name: '⭐ Vice Heat 96% (Custom)',
+    description: 'UNSER Modell: alles zahlt ab 3er (Hit 47%!), FS = Expanding Wilds (EV ~13.6× pro FS-Spin), Hot-Spin 1-in-40. RTP exakt-analytisch 96.0003%, 5M-Sim 96.11%.',
+    build: () => fromManifest(viceHeat as Record<string, unknown>),
   },
 ];
 

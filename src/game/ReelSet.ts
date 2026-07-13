@@ -96,6 +96,11 @@ export class ReelSet {
   private readonly waysLightContainer: Container = new Container();
   /** Sticky-wild AAA overlays (border + shine), per wild cell. */
   private readonly stickyContainer: Container = new Container();
+  /** Wild cells' OWN symbol art, lifted ABOVE the sticky border while it's
+   *  applied — the money sack must sit on top of its gold frame, never
+   *  under it. Restored with the sticky lifecycle. */
+  private readonly stickyObjectsContainer: Container = new Container();
+  private stickyLiftedCells: AnimatedSymbol[] = [];
   private stickyHandles: StickyHandle[] = [];
   private lastStickyBoard: number[][] | null = null;
   /** Atlas map — kept so the sticky-wild reveal can render real WILD tiles. */
@@ -215,6 +220,8 @@ export class ReelSet {
     this.container.addChild(this.winObjectsContainer);  // lifted winning objects — above line
     this.stickyContainer.eventMode = 'none';            // overlays never eat click-to-edit taps
     this.container.addChild(this.stickyContainer);      // sticky-wild overlays — above symbols
+    this.stickyObjectsContainer.eventMode = 'none';
+    this.container.addChild(this.stickyObjectsContainer); // wild art ABOVE its gold frame
     // Floating amounts sit ABOVE the sticky layer: an expanded tower is fully
     // opaque, and a combo amount whose centroid falls on a tower reel must
     // never be swallowed by the column.
@@ -288,6 +295,13 @@ export class ReelSet {
         if (cols[reel] !== SymbolId.WILD) continue;
         const rect = resolveAnchor(cellAnchor(reel, row), this.grid);
         this.stickyHandles.push(applyStickyWild(this.stickyContainer, rect));
+        // The wild's own art rides ABOVE its gold frame — lift the object
+        // layer over the sticky border (restored with the sticky lifecycle).
+        const cell = this.reels[reel]?.getVisibleCell(row);
+        if (cell) {
+          cell.liftObject(this.stickyObjectsContainer, rect.x + rect.w / 2, rect.y + rect.h / 2);
+          this.stickyLiftedCells.push(cell);
+        }
       }
     }
   }
@@ -306,6 +320,9 @@ export class ReelSet {
     this.stickyRevealGen++;
     this.expandedReels.clear();
     this.expandedTowerSprites.clear();
+    // Return wild art lifted above its gold frame to the cells.
+    for (const c of this.stickyLiftedCells) c.restoreObject();
+    this.stickyLiftedCells.length = 0;
     for (const t of this.stickyRevealTweens) t.kill();
     this.stickyRevealTweens = [];
     for (const obj of this.stickyRevealObjects) {
@@ -1049,6 +1066,10 @@ export class ReelSet {
       if (this.expandedReels.has(reel)) continue; // hidden behind the tower
       const cell = this.reels[reel]?.getVisibleCell(row);
       if (!cell) continue;
+      // A sticky-lifted wild already sits above its gold frame (and the win
+      // line) — re-lifting/restoring it here would drop it back UNDER the
+      // frame mid-cycle. Leave it in the sticky objects layer.
+      if (this.stickyLiftedCells.includes(cell)) continue;
       const r = resolveAnchor(cellAnchor(reel, row), this.grid);
       cell.liftObject(this.winObjectsContainer, r.x + r.w / 2, r.y + r.h / 2);
       this.liftedCells.push(cell);

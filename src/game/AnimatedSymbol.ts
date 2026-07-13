@@ -27,6 +27,7 @@ import {
 import { symbolSizing } from '@/config/symbolSizing';
 import { presetTimings } from '@/config/statePresets';
 import { drawCellPocket } from '@/config/cellBackdrop';
+import { waysImmersiveConfig } from './effects/WaysImmersive';
 import type { SymbolAtlasMap } from './SymbolAtlasLoader';
 import type { GameTheme } from '@/engine/GameConfig';
 import { SYMBOL_HEIGHT, SYMBOL_WIDTH } from './symbolMetrics';
@@ -301,12 +302,22 @@ export class AnimatedSymbol extends Container {
     }
   }
 
-  /** Dim to 25% alpha when the cell is not part of a winning combination. */
+  /** Dim when the cell is not part of the winning connection. Ways-immersive
+   *  dims deeper and EASES the change (the smooth drop reads premium, a snap
+   *  reads mechanical); the classic path keeps the instant 25% dim. The alpha
+   *  tween is always killed first so rapid combo cycling never stacks. */
   highlight(isWinning: boolean) {
-    this.alpha = isWinning ? 1.0 : 0.25;
+    gsap.killTweensOf(this, 'alpha');
+    if (waysImmersiveConfig.enabled) {
+      const target = isWinning ? 1.0 : waysImmersiveConfig.dimAlpha;
+      gsap.to(this, { alpha: target, duration: 0.18, ease: 'power2.out' });
+    } else {
+      this.alpha = isWinning ? 1.0 : 0.25;
+    }
   }
 
   clearHighlight() {
+    gsap.killTweensOf(this, 'alpha');
     this.alpha = 1.0;
   }
 
@@ -321,6 +332,13 @@ export class AnimatedSymbol extends Container {
    *  setSymbol(); a subsequent play()/clearState() resets it back to 1. */
   enlargeObject(mul: number): void {
     this.inner.scale.set(mul);
+  }
+
+  /** The symbol's OBJECT LAYER (icon/glyph/win-sheet root) — exposed so the
+   *  ways-immersive presentation can move the symbol itself (leap/wiggle);
+   *  win-state pulses and sheets live on the same container, so they compose. */
+  get objectLayer(): Container {
+    return this.inner;
   }
 
   private lifted = false;
@@ -391,6 +409,7 @@ export class AnimatedSymbol extends Container {
    *  `app.destroy({ children: true })`; this method exists purely to stop
    *  tweens from ticking on destroyed containers. */
   dispose(): void {
+    gsap.killTweensOf(this); // stray highlight-alpha tweens die with the cell
     this.killTween();
     if (this.sprite) {
       try {

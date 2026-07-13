@@ -7,6 +7,7 @@ import { ReelSet, type ReelSetAudioHooks } from './ReelSet';
 import { setActiveGrid, type GridConfig } from '@/config/gridConfig';
 import { WIN_LINE_PRESETS, WIN_COIN_PRESETS, ACCENT_PRESETS } from '@/config/adjustableParams';
 import { waysLightConfig, WAYS_LIGHT_PRESETS, WAYS_LIGHT_SPEED_MS, WAYS_LIGHT_WIDTH_PX } from './effects/WaysLightComet';
+import { waysImmersiveConfig } from './effects/WaysImmersive';
 import { stickyWildConfig, STICKY_WILD_PRESETS, STICKY_WILD_SPEED_MS } from './effects/StickyWildShine';
 import { SYMBOL_WIN_SHEETS, AnimatedSymbol } from './AnimatedSymbol';
 import { fxById } from './effects/fxRegistry';
@@ -1324,6 +1325,10 @@ export class PixiApp {
         if (fsOverlay.counter) {
           fsOverlay.counter.text = `FREE SPIN ${i + 1} / ${outcome.freeSpinsPlayed}`;
         }
+        // Stop the PREVIOUS spin's resting pattern loop before the reels roll —
+        // it re-applies revealCombo every 800ms and would keep popping the old
+        // winners behind/beside the fresh towers (only spin() bumps the id).
+        this._winRevealId++;
         const chosen = await this.reelSet.playExpandingWildReveal({ isLive: () => this.isLive, turbo: this.turbo });
         if (!this.isLive) break;
         if (chosen.length > 0) {
@@ -1337,7 +1342,8 @@ export class PixiApp {
               scatterCount: 0, freeSpinsTriggered: false, freeSpinsPlayed: 0,
               holdWinTriggered: false, holdWinWin: 0n, holdWin: null, winResult,
             };
-            this.reelSet.highlightWins(winResult);
+            // playWinSequence presents the win itself (tally → finale) — a
+            // preceding highlightWins would double-start the presentation.
             await this.playWinSequence(spinOutcome, tokenSymbol, decimals);
             if (!this.isLive) break;
             this.reelSet.clearHighlights();
@@ -1357,7 +1363,11 @@ export class PixiApp {
     if (!this.isLive) return;
 
     // Sticky-wild AAA treatment on the settled board's wilds (visual feature).
-    this.reelSet.applyStickyWilds(outcome.board);
+    // SKIPPED after a free-spins round: outcome.board is the TRIGGER board while
+    // the display still shows the last free spin (+ towers) — the borders would
+    // mark cells showing unrelated symbols, and applyStickyWilds' internal clear
+    // would tear the towers down mid-ceremony.
+    if (!fsOverlayToClose) this.reelSet.applyStickyWilds(outcome.board);
 
     // Hold & Win bonus — coins lock on the board and respins auto-run, before the
     // win ceremony tallies the payout. The round was derived deterministically
@@ -1373,9 +1383,18 @@ export class PixiApp {
     }
 
     if (outcome.winAmount > 0n) {
-      // Awaited: the spin HOLDS until the win ceremony (counting number + coins
-      // flying from the winning symbols) finishes, like the reference game.
-      await this.playWinSequence(outcome, tokenSymbol, decimals);
+      if (fsOverlayToClose) {
+        // Free-spins ROUND TOTAL: outcome.winResult's combos belong to the
+        // TRIGGER board, not the board on display (the last free spin) —
+        // highlighting them would light unrelated cells. Each free spin
+        // already presented its own connections; the total gets the marquee
+        // ceremony only (coins from the grid centre).
+        await this.playCoinWin(outcome.winAmount, outcome.wager ?? 1n, tokenSymbol, decimals, []);
+      } else {
+        // Awaited: the spin HOLDS until the win ceremony (counting number + coins
+        // flying from the winning symbols) finishes, like the reference game.
+        await this.playWinSequence(outcome, tokenSymbol, decimals);
+      }
     }
 
     // Closing iris — bookends the free-spins round like the entry: the screen
@@ -1843,7 +1862,13 @@ export class PixiApp {
         break;
       }
       case 'waysLight': {
-        waysLightConfig.enabled = String(value) !== 'off';
+        // Explicitly turning the comet ON is an opt-out of the (default)
+        // ways-immersive presentation — otherwise the studio's live comet
+        // controls would appear dead while immersive owns the win. Turning
+        // it 'off' returns to the immersive default.
+        const on = String(value) !== 'off';
+        waysLightConfig.enabled = on;
+        waysImmersiveConfig.enabled = !on;
         break;
       }
       case 'waysLightColor': {
@@ -2073,6 +2098,9 @@ export class PixiApp {
    *  reels roll, then leaves them stuck. Never rewrites the board or the math. */
   public __testStickyWildReveal(): void {
     if (!this.isLive) return;
+    // Stop a previous win's resting pattern loop — it would keep re-applying
+    // highlights every 800ms over the showcase (only spin() bumps the id).
+    this._winRevealId++;
     void this.reelSet.playStickyWildReveal({ isLive: () => this.isLive, turbo: this.turbo });
   }
 
@@ -2096,6 +2124,9 @@ export class PixiApp {
   public __testExpandingWild(symbol = 'WIN', decimals = 6, wager = 1_000_000n): void {
     if (!this.isLive) return;
     void (async () => {
+      // Stop a previous round's resting pattern loop — it would keep popping
+      // the old winners behind the fresh towers (only spin() bumps the id).
+      this._winRevealId++;
       const chosen = await this.reelSet.playExpandingWildReveal({ isLive: () => this.isLive, turbo: this.turbo });
       if (!this.isLive || chosen.length === 0) return;
       // Effective board: the expanded reels are ENTIRELY wild.
@@ -2114,7 +2145,7 @@ export class PixiApp {
         holdWinTriggered: false, holdWinWin: 0n, holdWin: null,
         winResult,
       };
-      this.reelSet.highlightWins(winResult);
+      // playWinSequence presents the win itself — no pre-highlight needed.
       await this.playWinSequence(outcome, symbol, decimals);
     })();
   }
@@ -2124,6 +2155,11 @@ export class PixiApp {
     if (!this.isLive) return;
     const entry = mechById(id);
     if (!entry) { console.warn('[PixiApp] unknown mechanic:', id); return; }
+    // Stop a previous win's resting pattern loop and clear its presentation —
+    // mechanics may roll via startSpinKeepShowcase, which deliberately keeps
+    // overlays and would leave the old win cycling underneath.
+    this._winRevealId++;
+    this.reelSet.clearHighlights();
     void this.reelSet.runMechanic(entry);
   }
 

@@ -24,6 +24,7 @@ import { HW_START_RESPINS, type HwRound } from '@/engine/holdAndWin';
 import { DEFAULT_GAME_CONFIG, type GameConfig } from '@/engine/GameConfig';
 import type { SymbolAtlasMap } from './SymbolAtlasLoader';
 import { playWaysLight, clearAllWaysLight, waysLightConfig } from './effects/WaysLightComet';
+import { waysImmersiveConfig, danceWinningObject, prefersReducedMotion } from './effects/WaysImmersive';
 import { applyStickyWild, clearAllStickyWild, stickyWildConfig, type StickyHandle } from './effects/StickyWildShine';
 import type { MechEntry, MechContext } from './effects/mechTypes';
 import { getActiveTeasePreset } from './effects/teaseRegistry';
@@ -103,6 +104,15 @@ export class ReelSet {
   private stickyRevealObjects: Container[] = [];
   /** Money-tower art for the expanding-wild showcase (set via PixiApp). */
   private expandWildTexture: Texture | null = null;
+  /** Reels currently covered by a full expanding-wild tower. Their cells are
+   *  hidden behind the opaque clear-beat + tower art, so EVERY win
+   *  presentation (win states, dim/highlight, object lifts, sticky borders)
+   *  must skip them — ONLY the tower may show; it pulses as the wild instead.
+   *  Cleared with the sticky-reveal lifecycle (next spin / clear). */
+  private readonly expandedReels = new Set<number>();
+  /** Each expanded reel's tower sprite + rest pose — the win presentation
+   *  THUMPS the column (physical motion, no overlay flash) when it pays. */
+  private readonly expandedTowerSprites = new Map<number, { spr: Sprite; baseY: number; baseScale: number }>();
   /** The momentary board-dim veil shown during a sticky-wild reveal. */
   private stickyDimVeil: Graphics | null = null;
   /** Tweens owned by the reveal (pop-ins, veil fades), killed on clear. */
@@ -196,9 +206,12 @@ export class ReelSet {
       if (hit) { hit.cell.playLandBounce(); this.symbolPickHandler(hit.id); } // bounce = visible click feedback
     });
     this.container.addChild(this.winObjectsContainer);  // lifted winning objects — above line
-    this.container.addChild(this.winAmountsContainer);  // floating amounts — top
     this.stickyContainer.eventMode = 'none';            // overlays never eat click-to-edit taps
     this.container.addChild(this.stickyContainer);      // sticky-wild overlays — above symbols
+    // Floating amounts sit ABOVE the sticky layer: an expanded tower is fully
+    // opaque, and a combo amount whose centroid falls on a tower reel must
+    // never be swallowed by the column.
+    this.container.addChild(this.winAmountsContainer);  // floating amounts — top
     this.container.addChild(this.waysLightContainer);   // ways-light comet — topmost fx
     // scale the comet head to this grid's cell size
     waysLightConfig.cellSize = resolveAnchor(cellAnchor(0, 0), grid).w;
@@ -246,7 +259,12 @@ export class ReelSet {
     // the previous one.
     this.clearScheduledCallbacks();
     this.clearStickyWilds();
-    for (const reel of this.reels) { reel.clearHighlights(); reel.startSpin(); }
+    // Full win-presentation teardown — kills motion tweens, un-lifts objects
+    // (they must never float over rolling reels), clears amounts/comets/dims.
+    // Matters for the showcase paths (expanding/sticky tests, FS loop) that
+    // start rolls without going through PixiApp.spin().
+    this.clearHighlights();
+    for (const reel of this.reels) reel.startSpin();
   }
 
   /** AAA sticky-wild treatment on every WILD cell of the settled board.
@@ -266,14 +284,20 @@ export class ReelSet {
     }
   }
 
-  /** Re-apply to the last settled board (used by the live studio toggle). */
+  /** Re-apply to the last settled board (used by the live studio toggle).
+   *  No-op while expanding towers own the display: lastStickyBoard is stale
+   *  there (the trigger board, not what's shown), and the internal clear
+   *  would rip the standing towers down mid-display. */
   refreshStickyWilds(): void {
+    if (this.expandedReels.size > 0) return;
     if (this.lastStickyBoard) this.applyStickyWilds(this.lastStickyBoard);
   }
 
   clearStickyWilds(): void {
     // Cancel any staggered reveal still in flight (its pop loop checks the gen).
     this.stickyRevealGen++;
+    this.expandedReels.clear();
+    this.expandedTowerSprites.clear();
     for (const t of this.stickyRevealTweens) t.kill();
     this.stickyRevealTweens = [];
     for (const obj of this.stickyRevealObjects) {
@@ -638,6 +662,9 @@ export class ReelSet {
    *  lifecycle, so the next spin clears everything. */
   private expandOneWildReel(reelIdx: number, row: number, turbo: boolean): Promise<void> {
     return new Promise(resolve => {
+      // From here on the reel belongs to the tower — its cells are excluded
+      // from every win presentation until the sticky lifecycle clears.
+      this.expandedReels.add(reelIdx);
       const rr = resolveAnchor(reelAnchor(reelIdx), this.grid);
       const cellR = resolveAnchor(cellAnchor(reelIdx, row), this.grid);
       const cx = rr.x + rr.w / 2;
@@ -650,8 +677,10 @@ export class ReelSet {
       this.popOneStickyWild(reelIdx, row, false);
 
 
-      // 2) clear-beat — opaque panel over the reel so no symbol shows behind
-      //    the column while it races out.
+      // 2) clear-beat — FULLY opaque panel over the reel so no symbol shows
+      //    behind the column, neither while it races out nor afterwards
+      //    (win sheets/pops on covered cells are also skipped via
+      //    expandedReels — only the tower may show).
       const clear = new Graphics();
       clear.roundRect(rr.x, rr.y, rr.w, rr.h, rad).fill({ color: 0x0b0d14, alpha: 1 });
       clear.alpha = 0;
@@ -683,6 +712,7 @@ export class ReelSet {
       spr.mask = mask;
       this.stickyContainer.addChild(spr);
       this.stickyRevealObjects.push(mask, spr);
+      this.expandedTowerSprites.set(reelIdx, { spr, baseY: rr.y, baseScale: spr.scale.x });
 
       // 4) impact flash at full extension.
       const flash = new Graphics();
@@ -695,7 +725,7 @@ export class ReelSet {
 
       const tl = gsap.timeline({ onComplete: resolve });
       this.stickyRevealTweens.push(tl);
-      tl.to(clear, { alpha: 0.92, duration: 0.14 * speed, ease: 'power2.out' }, 0.42 * speed);
+      tl.to(clear, { alpha: 1, duration: 0.14 * speed, ease: 'power2.out' }, 0.42 * speed);
       tl.to(spr, { alpha: 1, duration: 0.08 * speed, ease: 'power1.out' }, 0.5 * speed);
       const reveal = { t: 0 };
       tl.to(reveal, {
@@ -871,8 +901,9 @@ export class ReelSet {
    *  single-combo wins and as the final "all lit" state after a sequential
    *  multi-combo reveal. */
   highlightWins(winResult: WinResult) {
-    this.restoreLiftedObjects();
+    // Same order as revealCombo: kill motion tweens while objects are lifted.
     this.clearWinLines();
+    this.restoreLiftedObjects();
     const allCells: Array<[number, number]> = [];
     for (const combo of winResult.combinations) {
       for (const c of combo.cells) allCells.push(c);
@@ -880,8 +911,11 @@ export class ReelSet {
     this.applyCellHighlight(allCells);
     this.buildDecoration(winResult.combinations);
     this.liftWinningObjects(allCells);
+    // Finale detonation: every winner bursts in one left→right wave.
+    this.playImmersiveReveal(winResult.combinations, true);
     // ways-light comet through the winning connections — LINE BY LINE (each
     // combo's comet runs through, then the next), matching the original.
+    // (No-ops while the ways-immersive presentation owns the win.)
     void this.fireWaysLightSequential(winResult.combinations);
   }
 
@@ -924,11 +958,16 @@ export class ReelSet {
   }
 
   revealCombo(combo: WinCombination, amountText?: string) {
+    // Kill motion tweens FIRST (their interrupt-restore writes lifted-space
+    // poses), THEN un-lift the previous combo's objects.
+    this.clearWinLines();                 // clear the previous combo's fx
     this.restoreLiftedObjects();          // return the previous combo's objects
-    this.clearWinLines();                 // clear the previous combo's line
     this.applyCellHighlight(combo.cells); // enlarge-pulse this combo
     this.buildDecoration([combo]);
     this.liftWinningObjects(combo.cells); // raise this combo's objects above the line
+    // Immersive detonation — full punch during the tally (amount showing),
+    // softer breathing pulse in the resting pattern loop.
+    this.playImmersiveReveal([combo], !!amountText);
     // amount shown during the one-time tally; omitted in the resting loop.
     if (amountText) this.spawnComboAmount(combo, amountText);
   }
@@ -936,7 +975,9 @@ export class ReelSet {
   /** Winning cells grouped left→right by reel → comet through the connection.
    *  Purely visual; self-cleaning (winPresentation `ways-light-comet`). */
   private fireWaysLight(combo: WinCombination): Promise<void> {
-    if (!waysLightConfig.enabled) return Promise.resolve();
+    // Ways-immersive owns the win: no line, no comet — the detonating
+    // connection + dim board ARE the presentation.
+    if (waysImmersiveConfig.enabled || !waysLightConfig.enabled) return Promise.resolve();
     const byReel = new Map<number, Array<{ x: number; y: number }>>();
     for (const [row, reel] of combo.cells) {
       const r = resolveAnchor(cellAnchor(reel, row), this.grid);
@@ -953,7 +994,7 @@ export class ReelSet {
    *  all at once — matches the original wayslight "line nach line" behaviour. */
   private async fireWaysLightSequential(combos: readonly WinCombination[]): Promise<void> {
     for (const combo of combos) {
-      if (!waysLightConfig.enabled) return;
+      if (waysImmersiveConfig.enabled || !waysLightConfig.enabled) return;
       await this.fireWaysLight(combo);
     }
   }
@@ -980,12 +1021,14 @@ export class ReelSet {
   }
 
   clearHighlights() {
+    // Motion tweens die first (interrupt-restore needs the lifted poses),
+    // then the objects return to their cells.
+    this.clearWinLines();
     this.restoreLiftedObjects();
     for (const reel of this.reels) {
       reel.clearHighlights();
       reel.clearAllStates();
     }
-    this.clearWinLines();
     this.clearWinAmounts();
     clearAllWaysLight(); // kill any in-flight comet
   }
@@ -993,6 +1036,7 @@ export class ReelSet {
   /** Lift each winning cell's object layer above the win line. */
   private liftWinningObjects(cells: ReadonlyArray<[number, number]>): void {
     for (const [row, reel] of cells) {
+      if (this.expandedReels.has(reel)) continue; // hidden behind the tower
       const cell = this.reels[reel]?.getVisibleCell(row);
       if (!cell) continue;
       const r = resolveAnchor(cellAnchor(reel, row), this.grid);
@@ -1017,8 +1061,15 @@ export class ReelSet {
       winningRows.get(reel)!.add(row);
     }
     for (let i = 0; i < this.grid.reelCount; i++) {
-      this.reels[i].clearAllStates();
       const rows = winningRows.get(i);
+      // An expanded reel is ALL tower: its cells are hidden and must never
+      // play win states / dim / pop (they'd peek out beside the column).
+      // When the combo pays through it, the column itself pulses instead.
+      if (this.expandedReels.has(i)) {
+        if (rows && rows.size > 0) this.pulseExpandedReel(i);
+        continue;
+      }
+      this.reels[i].clearAllStates();
       if (rows && rows.size > 0) this.reels[i].playWinStateOnRows(Array.from(rows));
       // Classic ways highlight: the CONNECTION carries the read — every cell
       // that is not part of it dims, so the win line + winners pop instantly.
@@ -1026,6 +1077,84 @@ export class ReelSet {
         this.reels[i].getVisibleCell(row)?.highlight(!!rows && rows.has(row));
       }
     }
+  }
+
+  /** The expanded tower's "I'm in this win" beat: a physical column THUMP —
+   *  the tower dips and squashes, then springs back (top-anchored, so it
+   *  compresses downward like weight landing on it). No overlay flash.
+   *  Tweens ride the sticky lifecycle; pose is reset before each thump. */
+  private pulseExpandedReel(reelIdx: number): void {
+    const tower = this.expandedTowerSprites.get(reelIdx);
+    if (!tower || !tower.spr.parent) return;
+    const { spr, baseY, baseScale } = tower;
+    // A new thump replaces a mid-flight one cleanly (y/scale only — the
+    // reveal's alpha fade is finished by the time wins present).
+    gsap.killTweensOf(spr, 'y');
+    gsap.killTweensOf(spr.scale);
+    spr.y = baseY;
+    spr.scale.set(baseScale);
+    const tl = gsap.timeline({
+      // The resting pattern loop thumps every ~800ms — self-splice completed
+      // timelines so stickyRevealTweens can't grow unbounded during idle.
+      onComplete: () => {
+        const i = this.stickyRevealTweens.indexOf(tl);
+        if (i >= 0) this.stickyRevealTweens.splice(i, 1);
+      },
+    });
+    tl.to(spr, { y: baseY + 5, duration: 0.09, ease: 'power3.out' }, 0)
+      .to(spr.scale, { y: baseScale * 0.985, duration: 0.09, ease: 'power3.out' }, 0)
+      .to(spr, { y: baseY, duration: 0.55, ease: 'elastic.out(1, 0.45)' }, 0.09)
+      .to(spr.scale, { y: baseScale, duration: 0.55, ease: 'elastic.out(1, 0.45)' }, 0.09);
+    this.stickyRevealTweens.push(tl);
+  }
+
+  /** WAYS-IMMERSIVE presentation: the OBJECTS carry the win — no overlays.
+   *  Every unique winning symbol LEAPS out of its cell left→right (jump +
+   *  mid-air wiggle + bounce landing on its own object layer, composing with
+   *  the win-state pulse/sheet), expanded towers thump via applyCellHighlight,
+   *  and a 4+/full-board match punches the board with a decaying micro-shake.
+   *  Tweens go into winFxTweens — killed by clearWinLines BEFORE the objects
+   *  un-lift, so the interrupt-restore always writes lifted-space poses. */
+  private playImmersiveReveal(combos: ReadonlyArray<WinCombination>, intense: boolean): void {
+    if (!waysImmersiveConfig.enabled || prefersReducedMotion()) return;
+    const seen = new Set<string>();
+    for (const combo of combos) {
+      for (const [row, reel] of combo.cells) {
+        const key = `${reel},${row}`;
+        if (seen.has(key) || this.expandedReels.has(reel)) continue;
+        seen.add(key);
+        const cell = this.reels[reel]?.getVisibleCell(row);
+        if (!cell) continue;
+        danceWinningObject(
+          cell.objectLayer, reel * waysImmersiveConfig.stagger, intense, this.winFxTweens,
+        );
+      }
+    }
+    const maxMatch = combos.reduce((m, c) => Math.max(m, c.matchCount), 0);
+    if (intense && maxMatch >= 4) {
+      this.microShake(maxMatch >= this.grid.reelCount ? 4 : 2.5);
+    }
+  }
+
+  /** Tiny decaying board punch for big matches. Restores the exact base
+   *  position on completion AND on interrupt (clearWinLines can kill a
+   *  mid-flight shake), so the board never drifts. */
+  private microShake(amp: number): void {
+    const base = { x: this.container.x, y: this.container.y };
+    const restore = () => { this.container.position.set(base.x, base.y); };
+    const tl = gsap.timeline({ onComplete: restore, onInterrupt: restore });
+    const steps = 5;
+    for (let i = 0; i < steps; i++) {
+      const f = 1 - i / steps;
+      tl.to(this.container, {
+        x: base.x + (Math.random() - 0.5) * 2 * amp * f,
+        y: base.y + (Math.random() - 0.5) * 2 * amp * f,
+        duration: 0.035,
+        ease: 'sine.inOut',
+      });
+    }
+    tl.to(this.container, { x: base.x, y: base.y, duration: 0.05 });
+    this.winFxTweens.push(tl);
   }
 
   /** Unique winning cell centres (ReelSet-local coords) across all combos —
@@ -1107,6 +1236,9 @@ export class ReelSet {
    *  in winLinesContainer (below the lifted symbol objects), so the symbols sit
    *  on top of the line. No frames, no glow wash, no dimming. */
   private buildDecoration(combos: ReadonlyArray<WinCombination>): void {
+    // Ways-immersive: NO decoration at all — no line, no dots, no sparkles,
+    // no light sweep. The winners' own motion + the deep dim carry the win.
+    if (waysImmersiveConfig.enabled) return;
     const group = new Container();
     this.winLinesContainer.addChild(group);
 
@@ -1170,24 +1302,27 @@ export class ReelSet {
     }
 
     // Reveal mask anchored at the left edge (minX); scaling its x sweeps the
-    // line — and its node dots — into view from left to right.
-    const pad = 16;
-    const mask = new Graphics();
-    mask.rect(0, 0, (maxX - minX) + pad * 2, (maxY - minY) + pad * 2).fill(0xffffff);
-    mask.x = minX - pad;
-    mask.y = minY - pad;
-    lineLayer.addChild(mask);
-    lineLayer.mask = mask;
+    // line — and its node dots — into view from left to right. Skipped when
+    // the layer is empty (immersive mode draws no line/dots).
+    if (lineLayer.children.length > 0) {
+      const pad = 16;
+      const mask = new Graphics();
+      mask.rect(0, 0, (maxX - minX) + pad * 2, (maxY - minY) + pad * 2).fill(0xffffff);
+      mask.x = minX - pad;
+      mask.y = minY - pad;
+      lineLayer.addChild(mask);
+      lineLayer.mask = mask;
 
-    // Periodic draw-on: sweep left→right, hold, fade out, pause, repeat — so the
-    // line keeps animating rather than drawing once and sitting still.
-    const sweep = gsap.timeline({ repeat: -1, repeatDelay: 0.5 });
-    sweep
-      .set(mask.scale, { x: 0 })
-      .set(lineLayer, { alpha: 1 })
-      .to(mask.scale, { x: 1, duration: 0.5, ease: 'power2.out' })
-      .to(lineLayer, { alpha: 0, duration: 0.35, ease: 'power1.in' }, '+=1.1');
-    this.winFxTweens.push(sweep);
+      // Periodic draw-on: sweep left→right, hold, fade out, pause, repeat — so the
+      // line keeps animating rather than drawing once and sitting still.
+      const sweep = gsap.timeline({ repeat: -1, repeatDelay: 0.5 });
+      sweep
+        .set(mask.scale, { x: 0 })
+        .set(lineLayer, { alpha: 1 })
+        .to(mask.scale, { x: 1, duration: 0.5, ease: 'power2.out' })
+        .to(lineLayer, { alpha: 0, duration: 0.35, ease: 'power1.in' }, '+=1.1');
+      this.winFxTweens.push(sweep);
+    }
 
     // Full-board win (matched across every reel) → a light band sweeps the line.
     // Suppressed when the ways-light comet owns the win-line.
@@ -1265,11 +1400,14 @@ export class ReelSet {
     cx /= pts.length;
     cy /= pts.length;
 
+    // Immersive mode carries the amount as the win's headline — bigger type,
+    // plus a "N WAYS" subline so the connection's weight reads instantly.
+    const immersive = waysImmersiveConfig.enabled;
     const label = new Text({
       text,
       style: new TextStyle({
         fontFamily: "'Rubik', ui-sans-serif, system-ui, sans-serif",
-        fontSize: 28,
+        fontSize: immersive ? 34 : 28,
         fontWeight: '900',
         fill: WIN_AMOUNT_COLOR,
         stroke: { color: 0x3a2400, width: 5 },
@@ -1277,17 +1415,38 @@ export class ReelSet {
       }),
     });
     label.anchor.set(0.5);
-    label.x = cx;
-    label.y = cy;
-    label.alpha = 0;
-    label.scale.set(0.6);
-    this.winAmountsContainer.addChild(label);
+    const group = new Container();
+    group.eventMode = 'none';
+    group.x = cx;
+    group.y = cy;
+    group.alpha = 0;
+    group.scale.set(0.6);
+    group.addChild(label);
+    if (immersive && combo.ways > 1) {
+      const ways = new Text({
+        text: `${combo.ways} WAYS`,
+        style: new TextStyle({
+          fontFamily: "'Poppins', ui-sans-serif, sans-serif",
+          fontSize: 15,
+          fontWeight: '800',
+          fontStyle: 'italic',
+          fill: this.winFrameColor,
+          letterSpacing: 2,
+          stroke: { color: 0x3a2400, width: 4 },
+          dropShadow: { color: 0x000000, alpha: 0.5, blur: 4, distance: 2, angle: Math.PI / 2 },
+        }),
+      });
+      ways.anchor.set(0.5, 0);
+      ways.y = label.height * 0.46;
+      group.addChild(ways);
+    }
+    this.winAmountsContainer.addChild(group);
 
-    const tl = gsap.timeline({ onComplete: () => label.destroy() });
-    tl.to(label, { alpha: 1, duration: 0.15, ease: 'power2.out' }, 0)
-      .to(label.scale, { x: 1, y: 1, duration: 0.32, ease: 'back.out(2.5)' }, 0)
-      .to(label, { y: cy - 42, duration: 1.1, ease: 'power1.out' }, 0)
-      .to(label, { alpha: 0, duration: 0.4, ease: 'power1.in' }, 0.7);
+    const tl = gsap.timeline({ onComplete: () => group.destroy({ children: true }) });
+    tl.to(group, { alpha: 1, duration: 0.15, ease: 'power2.out' }, 0)
+      .to(group.scale, { x: 1, y: 1, duration: 0.32, ease: 'back.out(2.5)' }, 0)
+      .to(group, { y: cy - 42, duration: 1.1, ease: 'power1.out' }, 0)
+      .to(group, { alpha: 0, duration: 0.4, ease: 'power1.in' }, 0.7);
     this.winAmountTweens.push(tl);
   }
 

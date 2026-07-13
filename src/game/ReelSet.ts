@@ -623,27 +623,11 @@ export class ReelSet {
     }
     if (this.stickyRevealGen !== gen || !live()) return [];
 
-    // Final beat: the locked wilds CONNECT like ways — comet path left→right
-    // through every reel up to the rightmost column (column middles on wild
-    // reels, a random row on the reels between). Showcase of the real ways
-    // logic the evaluator would run with full-reel wilds.
-    const rightmost = chosen[chosen.length - 1];
-    const path: Array<Array<{ x: number; y: number }>> = [];
-    for (let reel = 0; reel <= rightmost; reel++) {
-      const rr = resolveAnchor(reelAnchor(reel), this.grid);
-      const row = chosen.includes(reel)
-        ? undefined
-        : Math.floor(Math.random() * this.grid.visibleRows);
-      const y = row === undefined
-        ? rr.y + rr.h / 2
-        : resolveAnchor(cellAnchor(reel, row), this.grid).y + resolveAnchor(cellAnchor(reel, row), this.grid).h / 2;
-      path.push([{ x: rr.x + rr.w / 2, y }]);
-    }
-    if (path.length >= 2) {
-      await new Promise(res => setTimeout(res, 220));
-      if (this.stickyRevealGen !== gen || !live()) return [];
-      void playWaysLight(this.waysLightContainer, path, { ...waysLightConfig, enabled: true });
-    }
+    // (The synthetic ways-beat comet is GONE — it drew a path through random
+    // cells of the in-between reels, visually "connecting" different symbols.
+    // Real connections are presented by the callers: they evaluate the board
+    // with the dev's WinEvaluator and run the standard per-combo win lines —
+    // only same-symbol ways, wilds substituting, exactly like the math.)
     return chosen;
   }
 

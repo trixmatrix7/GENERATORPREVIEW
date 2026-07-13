@@ -58,7 +58,7 @@ export function App() {
   }, [gridId]);
 
   useEffect(() => {
-    const mock = new MockHost(snap => setSnapshot(snap));
+    const mock = new MockHost(snap => setSnapshot(snap), gameConfig);
     setHostApi(mock.getHostApi());
     setSnapshot(mock.getSnapshot());
   }, []);

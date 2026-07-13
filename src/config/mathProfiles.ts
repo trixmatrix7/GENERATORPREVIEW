@@ -49,7 +49,10 @@ function fromManifest(m: Record<string, unknown>): GameConfig {
     freeSpinsMultiplier: (m['freeSpinMultiplier'] as number) ?? 5,
     maxWinMultiplier: (m['maxWinMultiplier'] as number) ?? 5000,
     theme: getThemeByName('Fantasy'),
-  } as GameConfig;
+    // Vice-Heat custom rule: FS wild reels expand before evaluation (the mock
+    // settles with it so display and payout match).
+    expandingWildsInFS: !!(m['custom'] as { expandingWildsInFreeSpins?: boolean } | undefined)?.expandingWildsInFreeSpins,
+  } as unknown as GameConfig;
 }
 
 export const MATH_PROFILES: readonly MathProfileOption[] = [

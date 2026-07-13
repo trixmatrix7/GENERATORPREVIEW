@@ -10,6 +10,7 @@ import { buildBoard } from '@/config/reels';
 import { evaluateWins } from '@/engine/WinEvaluator';
 import { deriveStopsFromRandomness } from '@/engine/SlotEngine';
 import { GAME_CONFIG } from '@/config/gameConfig';
+import type { GameConfig } from '@/engine/GameConfig';
 import { SymbolId } from '@/config/symbols';
 import { playDeterministicHoldAndWin, HW_TRIGGER_MIN } from '@/engine/holdAndWin';
 
@@ -28,8 +29,42 @@ export class MockHost {
   private sessionCounter = 1;
   private onStateChange: OnStateChange;
 
-  constructor(onStateChange: OnStateChange) {
+  /** The ACTIVE game config — outcomes (stops, board, evaluation, FS params)
+   *  must derive from the SAME config the display renders, or win combos point
+   *  at cells showing different symbols. Defaults to the baked Fantasy spec. */
+  private readonly config: GameConfig;
+
+  constructor(onStateChange: OnStateChange, config: GameConfig = GAME_CONFIG as unknown as GameConfig) {
     this.onStateChange = onStateChange;
+    this.config = config;
+  }
+
+  /** Stops from randomness against THIS config's strip lengths (mirrors
+   *  SlotEngine.deriveStopsFromRandomness, config-injected). */
+  private deriveStops(randomness: `0x${string}`): number[] {
+    let seed = BigInt(randomness);
+    const stops: number[] = [];
+    for (let i = 0; i < this.config.reelLengths.length; i++) {
+      stops.push(Number(seed % BigInt(this.config.reelLengths[i])));
+      seed = seed / BigInt(this.config.reelLengths[i]);
+    }
+    return stops;
+  }
+
+  /** Visible board from stops against THIS config's strips + grid. */
+  private buildBoardCfg(stops: number[]): number[][] {
+    const rows = this.config.gridConfig.visibleRows;
+    const reels = this.config.reelStrips.length;
+    const board: number[][] = [];
+    for (let row = 0; row < rows; row++) {
+      const r: number[] = [];
+      for (let reel = 0; reel < reels; reel++) {
+        const strip = this.config.reelStrips[reel];
+        r.push(strip[(stops[reel] + row) % strip.length]);
+      }
+      board.push(r);
+    }
+    return board;
   }
 
   getSnapshot(): HostSnapshotV1 {
@@ -113,7 +148,7 @@ export class MockHost {
     // Bonus buy (gameData = abi.encode(true)): the wager is the premium, and the
     // free-spins round plays at the BASE bet derived from the configured cost.
     // Mirrors SlotGame.sol onRandomness exactly.
-    const bonusBuyCost = (GAME_CONFIG as { bonusBuyCost?: number }).bonusBuyCost;
+    const bonusBuyCost = (this.config as { bonusBuyCost?: number }).bonusBuyCost;
     const buyBonus = !!bonusBuyCost
       && typeof gameData === 'string' && gameData.length >= 66
       && decodeAbiParameters([{ type: 'bool' }], gameData as `0x${string}`)[0] === true;
@@ -121,9 +156,9 @@ export class MockHost {
     const maxWin = bet * BigInt(5000);
 
     // 1. Base spin (evaluated at the base bet; a purchased round skips its win)
-    const stops = deriveStopsFromRandomness(randomness);
-    const board = buildBoard(stops);
-    const baseEval = evaluateWins(board, bet);
+    const stops = this.deriveStops(randomness);
+    const board = this.buildBoardCfg(stops);
+    const baseEval = evaluateWins(board, bet, this.config);
     const scatterCount = baseEval.scatterCount;
     let totalWin = 0n;
     let freeSpinsTriggered: boolean;
@@ -138,21 +173,30 @@ export class MockHost {
     // 2. Free spins loop — mirrors SlotGame.sol onRandomness exactly
     let freeSpinsPlayed = 0;
     if (freeSpinsTriggered) {
-      let remaining = GAME_CONFIG.freeSpinsCount;
-      while (remaining > 0 && freeSpinsPlayed < GAME_CONFIG.freeSpinsCap) {
+      let remaining = this.config.freeSpinsCount;
+      while (remaining > 0 && freeSpinsPlayed < this.config.freeSpinsCap) {
         const seed = keccak256(
           encodeAbi(
             [{ type: 'bytes32' }, { type: 'uint256' }],
             [randomness, BigInt(freeSpinsPlayed)],
           ),
         );
-        const fsStops = deriveStopsFromRandomness(seed);
-        const fsBoard = buildBoard(fsStops);
-        const { totalWin: rawFsWin, scatterCount: fsScatter } = evaluateWins(fsBoard, bet);
-        const fsWin = rawFsWin * BigInt(GAME_CONFIG.freeSpinsMultiplier);
+        const fsStops = this.deriveStops(seed);
+        const fsBoard = this.buildBoardCfg(fsStops);
+        // Vice-Heat style FS: wild-carrying reels become FULLY WILD before
+        // ways evaluation (settlement matches the displayed expansion).
+        if ((this.config as { expandingWildsInFS?: boolean }).expandingWildsInFS) {
+          for (let reel = 0; reel < fsBoard[0].length; reel++) {
+            if (fsBoard.some(r => r[reel] === 0)) {
+              for (let row = 0; row < fsBoard.length; row++) fsBoard[row][reel] = 0;
+            }
+          }
+        }
+        const { totalWin: rawFsWin, scatterCount: fsScatter } = evaluateWins(fsBoard, bet, this.config);
+        const fsWin = rawFsWin * BigInt(this.config.freeSpinsMultiplier);
         totalWin += fsWin;
         if (totalWin > maxWin) totalWin = maxWin;
-        if (fsScatter >= 3) remaining += GAME_CONFIG.freeSpinsCount;
+        if (fsScatter >= 3) remaining += this.config.freeSpinsCount;
         remaining--;
         freeSpinsPlayed++;
       }

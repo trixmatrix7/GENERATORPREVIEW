@@ -1330,9 +1330,8 @@ export class PixiApp {
         if (fsOverlay.counter) {
           fsOverlay.counter.text = `FREE SPIN ${i + 1} / ${outcome.freeSpinsPlayed}`;
         }
-        // Stop the PREVIOUS spin's resting pattern loop before the reels roll —
-        // it re-applies revealCombo every 800ms and would keep popping the old
-        // winners behind/beside the fresh towers (only spin() bumps the id).
+        // Abort the PREVIOUS spin's win presentation (a tally could still be
+        // mid-flight) before the reels roll — only spin() bumps the id.
         this._winRevealId++;
         const expanded = await this.reelSet.playExpandingWildReveal(
           { isLive: () => this.isLive, turbo: this.turbo, sticky: stickyMode },
@@ -1433,16 +1432,19 @@ export class PixiApp {
   ): Promise<void> {
     const id = ++this._winRevealId;
     const combos = outcome.winResult.combinations.filter(c => c.winAmount > 0n);
-    const multi = combos.length > 1 && !this.turbo && !prefersReducedMotion();
-    const ordered = multi
+    // EVERY connection gets its one tally step with its own +amount — single
+    // combos included (they used to skip straight to the finale, so no
+    // per-connection amount ever showed once the win lines were removed).
+    const tally = combos.length > 0 && !this.turbo && !prefersReducedMotion();
+    const ordered = tally
       ? [...combos].sort((a, b) =>
           a.winAmount < b.winAmount ? -1 : a.winAmount > b.winAmount ? 1 : 0,
         )
       : [];
 
-    // 1. Tally: alternate through each winning pattern once, smallest→largest,
-    //    floating its sub-amount.
-    if (multi) {
+    // 1. Tally: each winning connection revealed exactly ONCE, smallest→
+    //    largest, floating its sub-amount. No repeat afterwards.
+    if (tally) {
       const stepMs = ordered.length > 5 ? 380 : 600;
       for (let i = 0; i < ordered.length; i++) {
         if (id !== this._winRevealId || !this.isLive) return; // aborted by next spin
@@ -1453,34 +1455,14 @@ export class PixiApp {
       if (id !== this._winRevealId || !this.isLive) return;
     }
 
-    // 2. Finale: every winner lit + the grand-total coin ceremony (awaited → the
-    //    next spin holds until it finishes).
+    // 2. Finale: every winner lit together + the grand-total coin ceremony
+    //    (awaited → the next spin holds until it finishes). This all-lit state
+    //    then simply RESTS until the next spin — each connection was already
+    //    shown once; no cycling re-reveal.
     this.reelSet.highlightWins(outcome.winResult);
     if (id !== this._winRevealId || !this.isLive) return;
     const origins = this.reelSet.getWinningCellCenters(outcome.winResult);
     await this.playCoinWin(outcome.winAmount, outcome.wager ?? 1n, symbol, decimals, origins);
-    if (id !== this._winRevealId || !this.isLive) return;
-
-    // 3. Resting display: keep cycling the patterns one at a time (alternating)
-    //    AFTER the total has shown, until the next spin. Fire-and-forget so the
-    //    state machine stays free; spin() bumps _winRevealId to stop the loop.
-    if (multi) void this.cyclePatternsLoop(ordered, id);
-  }
-
-  /** After the grand total is shown, loop the winning patterns one at a time
-   *  (the alternating "show each win" continues as the resting display) until a
-   *  new spin bumps _winRevealId. No floating amounts — just cycling highlights. */
-  private async cyclePatternsLoop(
-    ordered: SpinOutcome['winResult']['combinations'],
-    id: number,
-  ): Promise<void> {
-    while (id === this._winRevealId && this.isLive) {
-      for (const combo of ordered) {
-        if (id !== this._winRevealId || !this.isLive) return;
-        this.reelSet.revealCombo(combo); // resting loop: highlight only, no +amount
-        await new Promise(r => setTimeout(r, 800));
-      }
-    }
   }
 
   /** Free-spins entry: the live board is sucked into a shrinking BLACK circle
@@ -2109,8 +2091,8 @@ export class PixiApp {
    *  reels roll, then leaves them stuck. Never rewrites the board or the math. */
   public __testStickyWildReveal(): void {
     if (!this.isLive) return;
-    // Stop a previous win's resting pattern loop — it would keep re-applying
-    // highlights every 800ms over the showcase (only spin() bumps the id).
+    // Abort a previous win's presentation (mid-flight tally) so it never
+    // draws over the showcase (only spin() bumps the id).
     this._winRevealId++;
     void this.reelSet.playStickyWildReveal({ isLive: () => this.isLive, turbo: this.turbo });
   }
@@ -2135,8 +2117,8 @@ export class PixiApp {
   public __testExpandingWild(symbol = 'WIN', decimals = 6, wager = 1_000_000n): void {
     if (!this.isLive) return;
     void (async () => {
-      // Stop a previous round's resting pattern loop — it would keep popping
-      // the old winners behind the fresh towers (only spin() bumps the id).
+      // Abort a previous round's win presentation (mid-flight tally) — it
+      // would draw over the fresh towers (only spin() bumps the id).
       this._winRevealId++;
       const chosen = await this.reelSet.playExpandingWildReveal({ isLive: () => this.isLive, turbo: this.turbo });
       if (!this.isLive || chosen.length === 0) return;
@@ -2166,9 +2148,9 @@ export class PixiApp {
     if (!this.isLive) return;
     const entry = mechById(id);
     if (!entry) { console.warn('[PixiApp] unknown mechanic:', id); return; }
-    // Stop a previous win's resting pattern loop and clear its presentation —
-    // mechanics may roll via startSpinKeepShowcase, which deliberately keeps
-    // overlays and would leave the old win cycling underneath.
+    // Abort a previous win's presentation and clear its remains — mechanics
+    // may roll via startSpinKeepShowcase, which deliberately keeps overlays
+    // and would leave the old win's state underneath.
     this._winRevealId++;
     this.reelSet.clearHighlights();
     void this.reelSet.runMechanic(entry);

@@ -843,6 +843,9 @@ export class ReelSet {
       // Hand control back just after the impact — the elastic settle plays
       // out on its own so multi-tower sequences keep their pace.
       tl.call(() => resolve(), undefined, T_LOCK + 0.16 * speed);
+      // Once the settle has run out, the tower starts BREATHING (idle life
+      // while it stands).
+      tl.call(() => this.startTowerIdle(reelIdx), undefined, T_LOCK + 0.68 * speed);
     });
   }
 
@@ -1197,7 +1200,8 @@ export class ReelSet {
   /** The expanded tower's "I'm in this win" beat: a physical column THUMP —
    *  the tower dips and squashes, then springs back (top-anchored, so it
    *  compresses downward like weight landing on it). No overlay flash.
-   *  Tweens ride the sticky lifecycle; pose is reset before each thump. */
+   *  Tweens ride the sticky lifecycle; pose is reset before each thump,
+   *  and the idle breathing resumes once the thump settles. */
   private pulseExpandedReel(reelIdx: number): void {
     const tower = this.expandedTowerSprites.get(reelIdx);
     if (!tower || !tower.spr.parent) return;
@@ -1214,6 +1218,7 @@ export class ReelSet {
       onComplete: () => {
         const i = this.stickyRevealTweens.indexOf(tl);
         if (i >= 0) this.stickyRevealTweens.splice(i, 1);
+        this.startTowerIdle(reelIdx);
       },
     });
     tl.to(spr, { y: baseY + 5, duration: 0.09, ease: 'power3.out' }, 0)
@@ -1221,6 +1226,28 @@ export class ReelSet {
       .to(spr, { y: baseY, duration: 0.55, ease: 'elastic.out(1, 0.45)' }, 0.09)
       .to(spr.scale, { y: baseScale, duration: 0.55, ease: 'elastic.out(1, 0.45)' }, 0.09);
     this.stickyRevealTweens.push(tl);
+  }
+
+  /** IDLE LIFE for a standing tower: organic breathing — width and height
+   *  swell at two incommensurate periods (so the loop never reads as
+   *  mechanical), each tower phase-shifted at random. Pure scale motion:
+   *  no y-bob (the reveal mask would crop the head), no overlays. Tweens
+   *  ride the sticky lifecycle; thumps kill + restart the breathing. */
+  private startTowerIdle(reelIdx: number): void {
+    const tower = this.expandedTowerSprites.get(reelIdx);
+    if (!tower || !tower.spr.parent) return;
+    const { spr, baseScale } = tower;
+    const phase = Math.random() * 1.3;
+    this.stickyRevealTweens.push(
+      gsap.to(spr.scale, {
+        y: baseScale * 1.007, duration: 1.7, yoyo: true, repeat: -1,
+        ease: 'sine.inOut', delay: phase,
+      }),
+      gsap.to(spr.scale, {
+        x: baseScale * 1.004, duration: 2.45, yoyo: true, repeat: -1,
+        ease: 'sine.inOut', delay: phase * 0.6,
+      }),
+    );
   }
 
   /** WAYS-IMMERSIVE presentation: the OBJECTS carry the win — no overlays.

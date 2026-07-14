@@ -18,6 +18,7 @@ import { PresetDock, loadGridId, type GridId } from '@/dev/PresetDock';
 import { mathProfileById, loadMathProfileId, saveMathProfileId } from '@/config/mathProfiles';
 import { getThemeByName } from '@/config/themes';
 import { viceSymbolMap, VICE_INTRO_URL } from '@/config/viceAssets';
+import introLayers from '@/data/introLayers.json';
 import { loadAssets } from '@/studio/assetPersistence';
 import type { PixiApp } from '@/game/PixiApp';
 
@@ -123,6 +124,14 @@ export function App() {
       [`${T}coinrain3_0.webp`, `${T}coinrain3_1.webp`, `${T}coinrain3_2.webp`], 10, 10, 300, 45,
     );
     if (VICE_INTRO_URL) void pixiAppRef.setFreeSpinsIntroImage(VICE_INTRO_URL);
+    // LAYERED intro screens — game start + tiered FS intros, every layer
+    // breathing. The game intro shows once its layers are in; its dismiss
+    // tap doubles as the audio gesture, so the music starts instantly.
+    const mapSet = (arr: Array<{ file: string; role: string; cx: number; cy: number; tw?: number }>) =>
+      arr.map(l => ({ file: `${import.meta.env.BASE_URL}${l.file}`, role: l.role, cx: l.cx, cy: l.cy, tw: l.tw }));
+    void pixiAppRef.setLayeredIntro('fs3', mapSet(introLayers.fs3));
+    void pixiAppRef.setLayeredIntro('fs4', mapSet(introLayers.fs4));
+    void pixiAppRef.setLayeredIntro('game', mapSet(introLayers.game)).then(() => pixiAppRef.showGameIntro());
   }, [pixiAppRef]);
 
   const handlePixiReady = useCallback((app: PixiApp) => {

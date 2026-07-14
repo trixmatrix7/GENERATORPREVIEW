@@ -102,6 +102,10 @@ export class PixiApp {
   private fsDancerFrames: Texture[][] | null = null;
   private fsDancerFps = 12;
   private fsDancerTweens: gsap.core.Tween[] = [];
+  /** Layered intro screens (game start / 3-scatter FS / 4-scatter FS) —
+   *  every layer breathes so the whole screen reads ALIVE. */
+  private introSets: Partial<Record<'game' | 'fs3' | 'fs4', Array<{ tex: Texture; role: string; cx: number; cy: number; tw?: number }>>> = {};
+  private gameIntroShown = false;
   private fsBgSavedBase: Texture | null = null;
   private fsBgActive = false;
   private ambientLayer: Container | null = null;
@@ -991,6 +995,131 @@ export class PixiApp {
     }
   }
 
+  /** Load a LAYERED intro screen (design space 1920×1080; each layer is a
+   *  cropped element with its centre position). kinds: 'game' (start screen),
+   *  'fs3' / 'fs4' (tiered free-spins intros). */
+  async setLayeredIntro(
+    kind: 'game' | 'fs3' | 'fs4',
+    defs: Array<{ file: string; role: string; cx: number; cy: number; tw?: number }>,
+  ): Promise<void> {
+    if (this._aborted) return;
+    try {
+      const layers: Array<{ tex: Texture; role: string; cx: number; cy: number; tw?: number }> = [];
+      for (const d of defs) {
+        layers.push({ tex: await Assets.load<Texture>(d.file), role: d.role, cx: d.cx, cy: d.cy, tw: d.tw });
+      }
+      if (!this._aborted) this.introSets[kind] = layers;
+    } catch (err) {
+      console.warn('[PixiApp] failed to load intro layers:', kind, err);
+    }
+  }
+
+  /** Assemble a layered intro scene, EVERY layer breathing: background zooms
+   *  slowly, cards/texts float, symbols and logos swell on incommensurate
+   *  periods with random phases (organic, never mechanical), the hero logo
+   *  sways, PRESS-TO-CONTINUE pulses. Cover-fits the 1920×1080 design space;
+   *  caller centres the returned node and kills `sink` on teardown. */
+  private buildLayeredIntroScene(
+    kind: 'game' | 'fs3' | 'fs4',
+    sw: number,
+    sh: number,
+    sink: gsap.core.Animation[],
+  ): Container | null {
+    const set = this.introSets[kind];
+    if (!set || set.length === 0) return null;
+    const root = new Container();
+    // BACKGROUND covers the canvas (cropping allowed); the CONTENT layers
+    // contain-fit so nothing (press-to-continue!) ever crops off-screen.
+    const bgRoot = new Container();
+    bgRoot.scale.set(Math.max(sw / 1920, sh / 1080));
+    const fgRoot = new Container();
+    fgRoot.scale.set(Math.min(sw / 1920, sh / 1080) * 0.98);
+    root.addChild(bgRoot, fgRoot);
+    let hero: Sprite | null = null;
+    let heroW = 0;
+    for (const l of set) {
+      const spr = new Sprite(l.tex);
+      spr.anchor.set(0.5);
+      spr.position.set(l.cx - 960, l.cy - 540);
+      (l.role === 'bg' ? bgRoot : fgRoot).addChild(spr);
+      // Element-centred exports carry a target width (design px); breathing
+      // scales stay RELATIVE to that base so nothing pops to full size.
+      const s0 = l.tw ? l.tw / l.tex.width : 1;
+      spr.scale.set(s0);
+      spr.eventMode = 'none';
+      const ph = Math.random() * 2;
+      switch (l.role) {
+        case 'bg':
+          sink.push(gsap.to(spr.scale, { x: s0 * 1.012, y: s0 * 1.012, duration: 7, yoyo: true, repeat: -1, ease: 'sine.inOut' }));
+          break;
+        case 'card':
+          sink.push(gsap.to(spr, { y: spr.y - 3, duration: 3.4, yoyo: true, repeat: -1, ease: 'sine.inOut', delay: ph }));
+          break;
+        case 'symbol':
+          sink.push(
+            gsap.to(spr, { y: spr.y - 5, duration: 2.6, yoyo: true, repeat: -1, ease: 'sine.inOut', delay: ph }),
+            gsap.to(spr.scale, { x: s0 * 1.02, y: s0 * 1.02, duration: 3.3, yoyo: true, repeat: -1, ease: 'sine.inOut', delay: ph * 0.7 }),
+          );
+          break;
+        case 'logo':
+          sink.push(
+            gsap.to(spr, { y: spr.y - 4, duration: 2.9, yoyo: true, repeat: -1, ease: 'sine.inOut', delay: ph }),
+            gsap.to(spr.scale, { x: s0 * 1.015, y: s0 * 1.015, duration: 4.1, yoyo: true, repeat: -1, ease: 'sine.inOut', delay: ph * 0.5 }),
+          );
+          if (spr.width > heroW) { heroW = spr.width; hero = spr; }
+          break;
+        case 'press':
+          spr.alpha = 0.9;
+          sink.push(
+            gsap.to(spr, { alpha: 0.5, duration: 0.85, yoyo: true, repeat: -1, ease: 'sine.inOut' }),
+            gsap.to(spr.scale, { x: s0 * 1.03, y: s0 * 1.03, duration: 0.85, yoyo: true, repeat: -1, ease: 'sine.inOut' }),
+          );
+          break;
+        default: // 'text' + any deco
+          sink.push(gsap.to(spr, { y: spr.y - 2.5, duration: 3.8, yoyo: true, repeat: -1, ease: 'sine.inOut', delay: ph }));
+      }
+    }
+    // The HERO logo (biggest on screen) gets an extra gentle sway.
+    if (hero) sink.push(gsap.to(hero, { rotation: 0.01, duration: 3.6, yoyo: true, repeat: -1, ease: 'sine.inOut' }));
+    return root;
+  }
+
+  /** GAME INTRO: full-canvas living title screen shown once on load. The
+   *  dismiss tap doubles as the browser's audio gesture, so the background
+   *  music starts THE moment the player enters — "ab Intro instant". */
+  showGameIntro(): void {
+    if (!this._initialized || this._aborted || this.gameIntroShown) return;
+    const sw = this.app.screen.width;
+    const sh = this.app.screen.height;
+    const tweens: gsap.core.Animation[] = [];
+    const scene = this.buildLayeredIntroScene('game', sw, sh, tweens);
+    if (!scene) return;
+    this.gameIntroShown = true;
+    const overlay = new Container();
+    overlay.zIndex = 30000;
+    const black = new Graphics();
+    black.rect(0, 0, sw, sh).fill({ color: 0x000000, alpha: 1 });
+    overlay.addChild(black);
+    scene.position.set(sw / 2, sh / 2);
+    overlay.addChild(scene);
+    overlay.eventMode = 'static';
+    overlay.cursor = 'pointer';
+    overlay.hitArea = new Rectangle(0, 0, sw, sh);
+    this.app.stage.addChild(overlay);
+    let done = false;
+    overlay.on('pointertap', () => {
+      if (done) return;
+      done = true;
+      gsap.to(overlay, {
+        alpha: 0, duration: 0.45, ease: 'power2.in',
+        onComplete: () => {
+          for (const t of tweens) t.kill();
+          try { overlay.destroy({ children: true }); } catch { /* torn down */ }
+        },
+      });
+    });
+  }
+
   /** Free-spins-ONLY background. Shown while the round runs: swapped in at the
    *  iris's full-black beat (never visibly), swapped back when the round ends.
    *  Pass null to clear (round then keeps the base background). */
@@ -1312,7 +1441,7 @@ export class PixiApp {
       // Straight into the iris — NO gold flash / shock-wave "sun" first. The live
       // board is pulled into a shrinking black circle, opens onto the intro
       // screen, then dismisses into the round. Counter shows AFTER the iris.
-      await this.playFreeSpinsIris(outcome.freeSpinsPlayed);
+      await this.playFreeSpinsIris(outcome.freeSpinsPlayed, outcome.scatterCount);
       if (!this.isLive) return;
       const fsOverlay = this.showFreeSpinOverlay(outcome.freeSpinsPlayed);
 
@@ -1491,7 +1620,7 @@ export class PixiApp {
    *  Pixi-v8 .cut() op (NOT even-odd fill, which unions in v8) against an
    *  OVERSIZED field rect so the cut is always fully contained. Awaited: the
    *  caller holds until the intro is dismissed. */
-  private playFreeSpinsIris(count: number): Promise<void> {
+  private playFreeSpinsIris(count: number, scatterCount = 3): Promise<void> {
     if (!this.isLive) return Promise.resolve();
 
     const sw = this.app.screen.width;
@@ -1524,7 +1653,13 @@ export class PixiApp {
     const introContent = new Container();
     introContent.position.set(cx, cy);
     let introArt: Sprite | null = null;
-    if (this.fsIntroTexture) {
+    // LAYERED tier intro (3sc vs 4sc sticky) — every layer breathing. Falls
+    // back to the single-texture art, then to plain text.
+    const introLayerTweens: gsap.core.Animation[] = [];
+    const layered = this.buildLayeredIntroScene(scatterCount >= 4 ? 'fs4' : 'fs3', sw, sh, introLayerTweens);
+    if (layered) {
+      introContent.addChild(layered);
+    } else if (this.fsIntroTexture) {
       const tex = this.fsIntroTexture;
       const k = Math.min(sw / tex.width, sh / tex.height) * 0.98; // contain-fit
       introArt = new Sprite(tex);
@@ -1593,6 +1728,7 @@ export class PixiApp {
         gsap.killTweensOf(st);
         gsap.killTweensOf(overlay);
         gsap.killTweensOf(introContent); gsap.killTweensOf(introContent.scale);
+        for (const t of introLayerTweens) { try { t.kill(); } catch { /* torn down */ } }
         if (this.irisTl === tl) this.irisTl = null;
         if (this.irisState === st) this.irisState = null;
         if (this.irisOverlay === overlay) this.irisOverlay = null;
@@ -1626,8 +1762,17 @@ export class PixiApp {
       if (introArt) {
         tl.to(introArt, { rotation: 0.012, duration: 0.9 * S, yoyo: true, repeat: 1, ease: 'sine.inOut' }, 1.0 * S);
       }
-      // HOLD on the intro, then DISMISS: fade out into the round.
+      // HOLD on the intro, then DISMISS: fade out into the round. A tap
+      // during the hold skips ahead (the layered intros carry a PRESS TO
+      // CONTINUE); the timed dismiss stays as the autoplay-safe fallback.
       tl.to(overlay, { alpha: 0, duration: 0.50 * S, ease: 'power2.inOut' }, 2.70 * S);
+      overlay.eventMode = 'static';
+      overlay.cursor = 'pointer';
+      overlay.hitArea = new Rectangle(0, 0, sw, sh);
+      overlay.on('pointertap', () => {
+        const t = tl.time();
+        if (t > 1.5 * S && t < 2.68 * S) tl.seek(2.70 * S);
+      });
     });
   }
 

@@ -1,0 +1,205 @@
+{
+ "game": [
+  {
+   "file": "theme/vice/intro/game/background_intro_screen_vice.webp",
+   "role": "bg",
+   "cx": 960,
+   "cy": 540
+  },
+  {
+   "file": "theme/vice/intro/game/card_intro_screen_vice.webp",
+   "role": "card",
+   "cx": 532,
+   "cy": 545,
+   "tw": 300
+  },
+  {
+   "file": "theme/vice/intro/game/card_intro_screen_vice.webp",
+   "role": "card",
+   "cx": 963,
+   "cy": 655,
+   "tw": 300
+  },
+  {
+   "file": "theme/vice/intro/game/card_intro_screen_vice.webp",
+   "role": "card",
+   "cx": 1385,
+   "cy": 540,
+   "tw": 300
+  },
+  {
+   "file": "theme/vice/intro/game/bonus_logo_intro_screen_vice.webp",
+   "role": "logo",
+   "cx": 963,
+   "cy": 472,
+   "tw": 250
+  },
+  {
+   "file": "theme/vice/intro/game/expanding_logo_intro_screen_vice.webp",
+   "role": "logo",
+   "cx": 534,
+   "cy": 345,
+   "tw": 265
+  },
+  {
+   "file": "theme/vice/intro/game/max_logo_intro_screen_vice.webp",
+   "role": "logo",
+   "cx": 1385,
+   "cy": 298,
+   "tw": 175
+  },
+  {
+   "file": "theme/vice/intro/game/max_win_symbol_intro_screen_vice.webp",
+   "role": "symbol",
+   "cx": 1385,
+   "cy": 535,
+   "tw": 275
+  },
+  {
+   "file": "theme/vice/intro/game/max_win_text_intro_screen_vice.webp",
+   "role": "text",
+   "cx": 1385,
+   "cy": 688,
+   "tw": 205
+  },
+  {
+   "file": "theme/vice/intro/game/press_to_continue_intro_screen_vice.webp",
+   "role": "press",
+   "cx": 960,
+   "cy": 985,
+   "tw": 360
+  },
+  {
+   "file": "theme/vice/intro/game/scatter_symbol_ntro_screen_vice.webp",
+   "role": "symbol",
+   "cx": 963,
+   "cy": 615,
+   "tw": 240
+  },
+  {
+   "file": "theme/vice/intro/game/scatter_text_ntro_screen_vice.webp",
+   "role": "text",
+   "cx": 963,
+   "cy": 792,
+   "tw": 255
+  },
+  {
+   "file": "theme/vice/intro/game/sticky_logo_intro_screen_vice.webp",
+   "role": "logo",
+   "cx": 532,
+   "cy": 295,
+   "tw": 210
+  },
+  {
+   "file": "theme/vice/intro/game/vice_heat_logo_intro_screen_vice.webp",
+   "role": "logo",
+   "cx": 963,
+   "cy": 200,
+   "tw": 440
+  },
+  {
+   "file": "theme/vice/intro/game/vice_logo_intro_screen_vice.webp",
+   "role": "logo",
+   "cx": 963,
+   "cy": 425,
+   "tw": 180
+  },
+  {
+   "file": "theme/vice/intro/game/wild_symbol_intro_screen_vice.webp",
+   "role": "symbol",
+   "cx": 532,
+   "cy": 550,
+   "tw": 130
+  },
+  {
+   "file": "theme/vice/intro/game/wild_text_intro_screen_vice.webp",
+   "role": "text",
+   "cx": 532,
+   "cy": 705,
+   "tw": 245
+  },
+  {
+   "file": "theme/vice/intro/game/win_logo_intro_screen_vice.webp",
+   "role": "logo",
+   "cx": 1385,
+   "cy": 352,
+   "tw": 205
+  }
+ ],
+ "fs3": [
+  {
+   "file": "theme/vice/intro/fs3/background_3_scatter_intro_screen_vice.webp",
+   "role": "bg",
+   "cx": 960,
+   "cy": 540
+  },
+  {
+   "file": "theme/vice/intro/fs3/card_3_scatter_intro_screen_vice.webp",
+   "role": "card",
+   "cx": 960,
+   "cy": 544
+  },
+  {
+   "file": "theme/vice/intro/fs3/logo_3_scatter_intro_screen_vice.webp",
+   "role": "logo",
+   "cx": 960,
+   "cy": 232
+  },
+  {
+   "file": "theme/vice/intro/fs3/press_to_continue_3_scatter_intro_screen.webp",
+   "role": "press",
+   "cx": 960,
+   "cy": 972
+  },
+  {
+   "file": "theme/vice/intro/fs3/symbol_3_scatter_intro_screen_vice.webp",
+   "role": "symbol",
+   "cx": 960,
+   "cy": 472
+  },
+  {
+   "file": "theme/vice/intro/fs3/text_3_scatter_intro_screen_vice.webp",
+   "role": "text",
+   "cx": 960,
+   "cy": 711
+  }
+ ],
+ "fs4": [
+  {
+   "file": "theme/vice/intro/fs4/background_4_scatter_intro_screen_vice.webp",
+   "role": "bg",
+   "cx": 960,
+   "cy": 540
+  },
+  {
+   "file": "theme/vice/intro/fs4/card_4_scatter_intro_screen_vice.webp",
+   "role": "card",
+   "cx": 960,
+   "cy": 544
+  },
+  {
+   "file": "theme/vice/intro/fs4/logo_4_scatter_intro_screen_vice.webp",
+   "role": "logo",
+   "cx": 959,
+   "cy": 233
+  },
+  {
+   "file": "theme/vice/intro/fs4/press_to_continue_4_scatter_intro_screen.webp",
+   "role": "press",
+   "cx": 960,
+   "cy": 826
+  },
+  {
+   "file": "theme/vice/intro/fs4/symbol_4_scatter_intro_screen_vice.webp",
+   "role": "symbol",
+   "cx": 960,
+   "cy": 472
+  },
+  {
+   "file": "theme/vice/intro/fs4/text_4_scatter_intro_screen_vice.webp",
+   "role": "text",
+   "cx": 960,
+   "cy": 704
+  }
+ ]
+}

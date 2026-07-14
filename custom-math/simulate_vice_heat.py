@@ -53,17 +53,19 @@ else:
     ]
 
 # ── relative paytable (bps of total bet per way, [3,4,5]) ───────────────────
-# STEEP curve: 3-oaks are pocket change, 5-oaks are events — a fully expanded
-# sticky board (4 towers + a premium reel-1 window) stacks toward MAX WIN
-# within its own round. That's where the volatility lives.
+# STEEP curve at the TOP (5-oaks are events; the sticky/simul patterns stack
+# toward MAX WIN), but with a hard 3-OAK FLOOR: a connection that highlights
+# and pays a sub-cent "+0.00" is broken UX ("3x HIGH_B = 0 ist quatsch") —
+# every single-way 3-oak must display at ≥ $0.01 on a $1 bet (≥100 bps
+# post-k). Costs only ~2-3% RTP because per-way bps are tiny vs the divisor.
 BASE_PAYS = {
-    2: [40, 300, 3000],
-    3: [30, 220, 1800],
-    4: [22, 150, 1000],
-    5: [18, 120, 800],
-    6: [14, 80, 450],
-    7: [12, 60, 350],
-    8: [10, 50, 250],
+    2: [170, 500, 3000],
+    3: [150, 400, 1800],
+    4: [135, 300, 1000],
+    5: [130, 250, 800],
+    6: [125, 160, 450],
+    7: [120, 140, 350],
+    8: [120, 130, 250],
 }
 SCATTER_PAY = [100, 400, 2000]   # 3/4/5 scatters, x total bet bps
 # Retrigger awards a SMALL fixed amount (custom contract rule

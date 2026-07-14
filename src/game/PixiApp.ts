@@ -2758,11 +2758,20 @@ function randomBytes32(): `0x${string}` {
 
 function formatWin(amount: bigint, decimals: number): string {
   const divisor = 10n ** BigInt(decimals);
-  const whole = amount / divisor;
+  let whole = amount / divisor;
   const frac = amount % divisor;
   // Round to 2 decimal places
   const scale = 10n ** BigInt(decimals - 2);
-  const rounded = (frac + scale / 2n) / scale;
+  let rounded = (frac + scale / 2n) / scale;
+  // Carry: 0.999 must round to 1.00, not "0.100".
+  if (rounded >= 100n) { whole += 1n; rounded -= 100n; }
+  // A real win must NEVER read "+0.00" — widen sub-cent amounts to 4
+  // decimals instead of rounding them into nothing.
+  if (amount > 0n && whole === 0n && rounded === 0n) {
+    const scale4 = 10n ** BigInt(decimals - 4);
+    const r4 = (frac + scale4 / 2n) / scale4;
+    return `0.${r4.toString().padStart(4, '0')}`;
+  }
   const fracStr = rounded.toString().padStart(2, '0');
   return `${whole}.${fracStr}`;
 }

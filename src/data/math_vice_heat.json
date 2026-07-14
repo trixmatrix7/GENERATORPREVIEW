@@ -1,8 +1,8 @@
 {
  "gridId": "5x5",
  "targetRtpPct": 96.0,
- "rtpBps": 9703,
- "rtpMethod": "MC 8M spins, volatile tiered sticky model + simul-mult ladder (k=1.031); heavy tails => seed noise ~\u00b11.5%",
+ "rtpBps": 9698,
+ "rtpMethod": "MC 8M spins, volatile tiered model + simul ladder + 3-oak display floor (k=0.981); heavy tails => seed noise ~\u00b11.5%",
  "reelStrips": [
   [
    5,
@@ -218,50 +218,50 @@
  "reelLength": 40,
  "payTable": {
   "wild": [
-   41,
-   309,
-   3093
+   167,
+   490,
+   2943
   ],
   "highA": [
-   41,
-   309,
-   3093
+   167,
+   490,
+   2943
   ],
   "highB": [
-   31,
-   227,
-   1856
+   147,
+   392,
+   1766
   ],
   "midC": [
-   23,
-   155,
-   1031
+   132,
+   294,
+   981
   ],
   "midD": [
-   19,
-   124,
-   825
+   128,
+   245,
+   785
   ],
   "lowE": [
-   14,
-   82,
-   464
+   123,
+   157,
+   441
   ],
   "lowF": [
-   12,
-   62,
-   361
+   118,
+   137,
+   343
   ],
   "lowG": [
-   10,
-   52,
-   258
+   118,
+   128,
+   245
   ]
  },
  "scatterPay": [
-  103,
-  412,
-  2062
+  98,
+  392,
+  1962
  ],
  "freeSpinsCount": 8,
  "freeSpinsCap": 13,
@@ -282,31 +282,31 @@
   "notes": "Wild expands to full reel BEFORE ways evaluation in FS and hot spins. A 4+-scatter trigger plays STICKY expansion: expanded reels stay fully wild for the rest of the round. Fully wild reels contribute no scatters. Reel 1 carries no wilds (no wild-line double count). Wild pays as highA."
  },
  "simResults": {
-  "rtp_pct": 97.0297511425,
+  "rtp_pct": 96.98466598249999,
   "hit_freq_pct": 82.693375,
   "fs3_trigger_1_in": 43.86566141192598,
   "fs4_trigger_1_in": 519.8518422249659,
-  "avg_fs3_round_x": 14.086989143248802,
-  "avg_fs4_round_x": 232.4275889336539,
+  "avg_fs3_round_x": 14.070104759424265,
+  "avg_fs4_round_x": 223.78269332640198,
   "fs3_dist_x": {
-   "p50": 3.3567,
-   "p90": 18.3686,
-   "p99": 134.4988,
-   "max": 5162.8102
+   "p50": 3.7903,
+   "p90": 18.2691,
+   "p99": 130.0833,
+   "max": 4912.6212
   },
   "fs4_dist_x": {
-   "p50": 62.6013,
-   "p90": 769.1749,
-   "p99": 1912.4333,
-   "max": 3517.4357
+   "p50": 62.7104,
+   "p90": 734.6044,
+   "p99": 1820.3253,
+   "max": 3347.6632
   },
-  "fs4_ge_800x_pct": 9.584768341022809,
+  "fs4_ge_800x_pct": 9.038923906686595,
   "fs4_ge_maxwin_pct": 0.0,
-  "fs3_ge_800x_pct": 0.1973954763536669,
-  "fs3_ge_maxwin_pct": 0.006579849211788897,
-  "base_pct": 15.797189795,
-  "hot_pct": 4.427004806249999,
-  "fs3_pct": 32.1139330625,
-  "fs4_pct": 44.71035207625
+  "fs3_ge_800x_pct": 0.18697738176833448,
+  "fs3_ge_maxwin_pct": 0.0,
+  "base_pct": 17.45337304,
+  "hot_pct": 4.40845265375,
+  "fs3_pct": 32.07544194375,
+  "fs4_pct": 43.047398345
  }
 }

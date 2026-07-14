@@ -23,8 +23,8 @@ const DEFAULT_VOLUMES: Record<string, number> = {
   'win-mega': 1.0,
   'scatter-land': 0.8,
   'free-spin-trigger': 1.0,
-  'near-miss-tease': 0.6,
-  'reel-spin-loop': 0.25,
+  'near-miss-tease': 0.4,
+  'reel-spin-loop': 0.1,
   'coin-chime': 0.75,
   'ambient-music': 0.35,
 };

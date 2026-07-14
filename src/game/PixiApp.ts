@@ -1061,37 +1061,37 @@ export class PixiApp {
       const ph = Math.random() * 2;
       switch (l.role) {
         case 'bg':
-          sink.push(gsap.to(spr.scale, { x: s0 * 1.012, y: s0 * 1.012, duration: 7, yoyo: true, repeat: -1, ease: 'sine.inOut' }));
+          sink.push(gsap.to(spr.scale, { x: s0 * 1.017, y: s0 * 1.017, duration: 7, yoyo: true, repeat: -1, ease: 'sine.inOut' }));
           break;
         case 'card':
-          sink.push(gsap.to(spr, { y: spr.y - 3, duration: 3.4, yoyo: true, repeat: -1, ease: 'sine.inOut', delay: ph }));
+          sink.push(gsap.to(spr, { y: spr.y - 4.2, duration: 3.4, yoyo: true, repeat: -1, ease: 'sine.inOut', delay: ph }));
           break;
         case 'symbol':
           sink.push(
-            gsap.to(spr, { y: spr.y - 5, duration: 2.6, yoyo: true, repeat: -1, ease: 'sine.inOut', delay: ph }),
-            gsap.to(spr.scale, { x: s0 * 1.02, y: s0 * 1.02, duration: 3.3, yoyo: true, repeat: -1, ease: 'sine.inOut', delay: ph * 0.7 }),
+            gsap.to(spr, { y: spr.y - 7, duration: 2.6, yoyo: true, repeat: -1, ease: 'sine.inOut', delay: ph }),
+            gsap.to(spr.scale, { x: s0 * 1.028, y: s0 * 1.028, duration: 3.3, yoyo: true, repeat: -1, ease: 'sine.inOut', delay: ph * 0.7 }),
           );
           break;
         case 'logo':
           sink.push(
-            gsap.to(spr, { y: spr.y - 4, duration: 2.9, yoyo: true, repeat: -1, ease: 'sine.inOut', delay: ph }),
-            gsap.to(spr.scale, { x: s0 * 1.015, y: s0 * 1.015, duration: 4.1, yoyo: true, repeat: -1, ease: 'sine.inOut', delay: ph * 0.5 }),
+            gsap.to(spr, { y: spr.y - 5.6, duration: 2.9, yoyo: true, repeat: -1, ease: 'sine.inOut', delay: ph }),
+            gsap.to(spr.scale, { x: s0 * 1.021, y: s0 * 1.021, duration: 4.1, yoyo: true, repeat: -1, ease: 'sine.inOut', delay: ph * 0.5 }),
           );
           if (spr.width > heroW) { heroW = spr.width; hero = spr; }
           break;
         case 'press':
           spr.alpha = 0.9;
           sink.push(
-            gsap.to(spr, { alpha: 0.5, duration: 0.85, yoyo: true, repeat: -1, ease: 'sine.inOut' }),
-            gsap.to(spr.scale, { x: s0 * 1.03, y: s0 * 1.03, duration: 0.85, yoyo: true, repeat: -1, ease: 'sine.inOut' }),
+            gsap.to(spr, { alpha: 0.34, duration: 0.85, yoyo: true, repeat: -1, ease: 'sine.inOut' }),
+            gsap.to(spr.scale, { x: s0 * 1.042, y: s0 * 1.042, duration: 0.85, yoyo: true, repeat: -1, ease: 'sine.inOut' }),
           );
           break;
         default: // 'text' + any deco
-          sink.push(gsap.to(spr, { y: spr.y - 2.5, duration: 3.8, yoyo: true, repeat: -1, ease: 'sine.inOut', delay: ph }));
+          sink.push(gsap.to(spr, { y: spr.y - 3.5, duration: 3.8, yoyo: true, repeat: -1, ease: 'sine.inOut', delay: ph }));
       }
     }
     // The HERO logo (biggest on screen) gets an extra gentle sway.
-    if (hero) sink.push(gsap.to(hero, { rotation: 0.01, duration: 3.6, yoyo: true, repeat: -1, ease: 'sine.inOut' }));
+    if (hero) sink.push(gsap.to(hero, { rotation: 0.014, duration: 3.6, yoyo: true, repeat: -1, ease: 'sine.inOut' }));
     return root;
   }
 

@@ -1147,33 +1147,6 @@ export class PixiApp {
       }),
       gsap.to(scene.scale, { x: sceneBase, y: sceneBase, duration: 1.1, delay: 0.25, ease: 'power2.out' }),
     );
-    // Explicit CONFIRM button bottom-left (in addition to tap-anywhere) —
-    // neon-styled to the theme, gentle pulse.
-    const btn = new Container();
-    const bw = 176;
-    const bh = 50;
-    const bg2 = new Graphics();
-    bg2.roundRect(0, 0, bw, bh, 12).fill({ color: 0x12060f, alpha: 0.92 });
-    bg2.roundRect(0, 0, bw, bh, 12).stroke({ color: 0xff3fa4, width: 2.5, alpha: 1 });
-    bg2.roundRect(3, 3, bw - 6, bh - 6, 9).stroke({ color: 0x67e8f9, width: 1, alpha: 0.55 });
-    const lbl = new Text({
-      text: 'CONTINUE',
-      style: new TextStyle({
-        fontFamily: "'Poppins', ui-sans-serif, sans-serif", fontSize: 18, fontWeight: '800',
-        fontStyle: 'italic', fill: 0xffffff, letterSpacing: 2,
-        dropShadow: { color: 0xff3fa4, blur: 6, distance: 0, alpha: 0.8 },
-      }),
-    });
-    lbl.anchor.set(0.5);
-    lbl.position.set(bw / 2, bh / 2);
-    btn.addChild(bg2, lbl);
-    btn.position.set(26, sh - bh - 26);
-    btn.eventMode = 'static';
-    btn.cursor = 'pointer';
-    btn.hitArea = new Rectangle(0, 0, bw, bh);
-    overlay.addChild(btn);
-    tweens.push(gsap.to(btn, { alpha: 0.78, duration: 0.85, yoyo: true, repeat: -1, ease: 'sine.inOut' }));
-
     let done = false;
     const dismiss = () => {
       if (done) return;
@@ -1207,14 +1180,13 @@ export class PixiApp {
       tl.call(() => {
         scene.visible = false;
         black.visible = false;
-        btn.visible = false;
         onDismiss?.();
       }, undefined, 0.62);
       // …and OPEN onto the game.
       tl.to(st2, { r: rDiag, duration: 0.6, ease: 'power2.out', onUpdate: redraw2 }, 0.72);
     };
+    // Tap ANYWHERE on the intro continues into the game.
     overlay.on('pointertap', dismiss);
-    btn.on('pointertap', dismiss);
     return true;
   }
 

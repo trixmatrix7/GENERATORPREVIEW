@@ -35,12 +35,20 @@ const EXCLUSIVE_EVENTS = new Set<string>(['ambient-music']);
 
 const AUDIO_DIR = '/audio';
 
+// Events shipped as OGG (music tracks — MP3 drops get converted to .ogg).
+// These must try .ogg FIRST: a missing .wav makes the SPA dev server answer
+// with index.html (HTTP 200), which Howler then fails to DECODE — and it
+// never falls through to the real file ("Decoding audio data failed").
+const OGG_FIRST = new Set<string>(['ambient-music']);
+
 function bindingForEvent(id: string): SoundEventBinding {
   return {
     id,
     // Howler tries each format in order. WAV is the primary format (Mixkit
     // CC-free assets); .ogg and .mp3 kept as fallbacks for legacy packs.
-    src: [`${AUDIO_DIR}/${id}.wav`, `${AUDIO_DIR}/${id}.ogg`, `${AUDIO_DIR}/${id}.mp3`],
+    src: OGG_FIRST.has(id)
+      ? [`${AUDIO_DIR}/${id}.ogg`, `${AUDIO_DIR}/${id}.mp3`]
+      : [`${AUDIO_DIR}/${id}.wav`, `${AUDIO_DIR}/${id}.ogg`, `${AUDIO_DIR}/${id}.mp3`],
     volume: DEFAULT_VOLUMES[id] ?? 0.7,
     loop: LOOP_EVENTS.has(id),
     exclusive: EXCLUSIVE_EVENTS.has(id),

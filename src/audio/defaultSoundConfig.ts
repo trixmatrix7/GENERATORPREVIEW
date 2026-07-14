@@ -24,7 +24,10 @@ const DEFAULT_VOLUMES: Record<string, number> = {
   'scatter-land': 0.8,
   'free-spin-trigger': 1.0,
   'near-miss-tease': 0.4,
-  'reel-spin-loop': 0.1,
+  // Spin loop is OFF (silent file + zero volume): no bed under the spin —
+  // the music + stop thumps carry it. Noski killed both the hiss and the
+  // rumble variants ("brummen raus damit").
+  'reel-spin-loop': 0,
   'coin-chime': 0.75,
   'ambient-music': 0.35,
 };

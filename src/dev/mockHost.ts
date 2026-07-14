@@ -219,7 +219,13 @@ export class MockHost {
         const fsWin = rawFsWin * BigInt(this.config.freeSpinsMultiplier);
         totalWin += fsWin;
         if (totalWin > maxWin) totalWin = maxWin;
-        if (fsScatter >= 3) remaining += this.config.freeSpinsCount;
+        // Retrigger awards the custom `retriggerSpins` (small, the tight
+        // freeSpinsCap allows at most one) — falls back to the template's
+        // re-award-freeSpinsCount when the rule is absent.
+        if (fsScatter >= 3) {
+          remaining += (this.config as { retriggerSpins?: number }).retriggerSpins
+            ?? this.config.freeSpinsCount;
+        }
         remaining--;
         freeSpinsPlayed++;
       }

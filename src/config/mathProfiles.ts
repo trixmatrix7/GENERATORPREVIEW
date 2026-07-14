@@ -54,6 +54,9 @@ function fromManifest(m: Record<string, unknown>): GameConfig {
     // mock settles with both so display and payout match).
     expandingWildsInFS: !!(m['custom'] as { expandingWildsInFreeSpins?: boolean } | undefined)?.expandingWildsInFreeSpins,
     stickyTowerCap: (m['custom'] as { stickyTowerCap?: number } | undefined)?.stickyTowerCap ?? 2,
+    // Small fixed retrigger award (custom rule) — undefined keeps the
+    // template's re-award-freeSpinsCount behaviour.
+    retriggerSpins: (m['custom'] as { retriggerSpins?: number } | undefined)?.retriggerSpins,
   } as unknown as GameConfig;
 }
 

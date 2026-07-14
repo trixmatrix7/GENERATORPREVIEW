@@ -66,11 +66,11 @@ BASE_PAYS = {
     8: [10, 50, 250],
 }
 SCATTER_PAY = [100, 400, 2000]   # 3/4/5 scatters, x total bet bps
-# Retrigger awards a FULL freeSpinsCount again (contract/mock parity — the
-# template's SlotGame.sol re-awards freeSpinsCount, not a separate amount).
-# TIGHT total cap: max win must come from the SETUP (early towers), never
-# from grinding endless retriggered spins.
-FS_COUNT, FS_CAP = (8 if ROWS == 5 else 10), 16
+# Retrigger awards a SMALL fixed amount (custom contract rule
+# `retriggerSpins`, NOT the template's re-award-freeSpinsCount), and the
+# TIGHT total cap allows at most ONE retrigger: max win must come from the
+# SETUP (early towers), never from grinding endless retriggered spins.
+FS_COUNT, FS_RETRIG, FS_CAP = (8 if ROWS == 5 else 10), 5, 13
 HOT_CHANCE = 40                   # 1-in-40 base spins are HOT (expansion mode)
 MAX_WIN_X = 5000
 # Sticky rounds: the first N wild-landing reels become permanent towers
@@ -170,10 +170,10 @@ def simulate(n, pays, scatter_pay, seed=42):
                     w2, sc2, _ = eval_spin(st, True, sticky, pays, scatter_pay)
                 round_win += w2
                 session += w2
-                # Retrigger re-awards the full freeSpinsCount (contract/mock
-                # parity), bounded by the tight total cap.
+                # Retrigger awards retriggerSpins (custom rule), bounded by
+                # the tight total cap (at most one retrigger fits).
                 if sc2 >= 3 and fs_played < FS_CAP:
-                    fs_left = min(fs_left + FS_COUNT, FS_CAP - fs_played)
+                    fs_left = min(fs_left + FS_RETRIG, FS_CAP - fs_played)
             if sticky_round:
                 fs4_total += round_win; fs4_rounds.append(round_win)
             else:
@@ -234,12 +234,14 @@ if __name__ == '__main__':
             'lowE': pays[6], 'lowF': pays[7], 'lowG': pays[8],
         },
         'scatterPay': scat,
-        'freeSpinsCount': FS_COUNT, 'freeSpinsCap': FS_CAP, 'freeSpinMultiplier': 1,
+        'freeSpinsCount': FS_COUNT, 'freeSpinsCap': FS_CAP, 'retriggerSpins': FS_RETRIG,
+        'freeSpinMultiplier': 1,
         'maxWinMultiplier': MAX_WIN_X, 'minWager': 10000,
         'custom': {
             'expandingWildsInFreeSpins': True,
             'stickyExpandingFrom4Scatters': True,
             'stickyTowerCap': STICKY_CAP,
+            'retriggerSpins': FS_RETRIG,
             'hotSpinChance1In': HOT_CHANCE,
             'hotSpinExpandsWilds': True,
             'notes': 'Wild expands to full reel BEFORE ways evaluation in FS and hot spins. '

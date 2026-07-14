@@ -24,6 +24,10 @@ export interface TeaseContext {
   track<T extends { kill(): void }>(t: T): T;
   rand(min: number, max: number): number;
   pick<T>(arr: readonly T[]): T;
+  /** Stage-dim a settled cell (eased). The runtime RESTORES every dimmed
+   *  cell when the tease resolves — presets never need their own cleanup.
+   *  No-ops on cells hidden behind expanding towers. */
+  dimCell(reel: number, row: number, alpha: number): void;
 }
 
 export interface TeasePreset {

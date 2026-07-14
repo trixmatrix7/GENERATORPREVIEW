@@ -1,8 +1,8 @@
 {
  "gridId": "5x5",
  "targetRtpPct": 96.0,
- "rtpBps": 9589,
- "rtpMethod": "MC 8M spins, volatile tiered sticky model (k=1.1614); heavy fs4 tail => seed noise ~\u00b11%",
+ "rtpBps": 9578,
+ "rtpMethod": "MC 8M spins, volatile tiered sticky model (k=1.212); heavy fs4 tail => seed noise ~\u00b11%",
  "reelStrips": [
   [
    5,
@@ -218,53 +218,53 @@
  "reelLength": 40,
  "payTable": {
   "wild": [
-   46,
-   348,
-   3484
+   48,
+   364,
+   3636
   ],
   "highA": [
-   46,
-   348,
-   3484
+   48,
+   364,
+   3636
   ],
   "highB": [
-   35,
-   256,
-   2091
+   36,
+   267,
+   2182
   ],
   "midC": [
-   26,
-   174,
-   1161
+   27,
+   182,
+   1212
   ],
   "midD": [
-   21,
-   139,
-   929
+   22,
+   145,
+   970
   ],
   "lowE": [
-   16,
-   93,
-   523
+   17,
+   97,
+   545
   ],
   "lowF": [
-   14,
-   70,
-   406
+   15,
+   73,
+   424
   ],
   "lowG": [
    12,
-   58,
-   290
+   61,
+   303
   ]
  },
  "scatterPay": [
-  116,
-  465,
-  2323
+  121,
+  485,
+  2424
  ],
  "freeSpinsCount": 8,
- "freeSpinsCap": 16,
+ "freeSpinsCap": 13,
  "freeSpinMultiplier": 1,
  "maxWinMultiplier": 5000,
  "minWager": 10000,
@@ -272,34 +272,35 @@
   "expandingWildsInFreeSpins": true,
   "stickyExpandingFrom4Scatters": true,
   "stickyTowerCap": 4,
+  "retriggerSpins": 5,
   "hotSpinChance1In": 40,
   "hotSpinExpandsWilds": true,
   "notes": "Wild expands to full reel BEFORE ways evaluation in FS and hot spins. A 4+-scatter trigger plays STICKY expansion: expanded reels stay fully wild for the rest of the round. Fully wild reels contribute no scatters. Reel 1 carries no wilds (no wild-line double count). Wild pays as highA."
  },
  "simResults": {
-  "rtp_pct": 95.89417479,
-  "hit_freq_pct": 82.6875875,
-  "fs3_trigger_1_in": 44.02256156280094,
-  "fs4_trigger_1_in": 516.9628432956381,
-  "avg_fs3_round_x": 9.395388670793782,
-  "avg_fs4_round_x": 279.26183008723746,
+  "rtp_pct": 95.7816978025,
+  "hit_freq_pct": 82.693375,
+  "fs3_trigger_1_in": 43.86566141192598,
+  "fs4_trigger_1_in": 519.8518422249659,
+  "avg_fs3_round_x": 9.560123556408499,
+  "avg_fs4_round_x": 273.18551490025345,
   "fs3_dist_x": {
-   "p50": 3.8934,
-   "p90": 19.9172,
-   "p99": 86.7368,
-   "max": 726.5566
+   "p50": 3.944,
+   "p90": 20.036,
+   "p99": 89.975,
+   "max": 773.9482
   },
   "fs4_dist_x": {
-   "p50": 73.7823,
-   "p90": 909.4365,
-   "p99": 2366.868,
-   "max": 4917.9931
+   "p50": 73.5625,
+   "p90": 904.0273,
+   "p99": 2247.5947,
+   "max": 4134.673
   },
-  "fs4_ge_800x_pct": 11.560581583198708,
+  "fs4_ge_800x_pct": 11.443238676977062,
   "fs4_ge_maxwin_pct": 0.0,
-  "base_pct": 17.793151327500002,
-  "hot_pct": 2.7391006275,
-  "fs3_pct": 21.3422125775,
-  "fs4_pct": 54.019710257499995
+  "base_pct": 18.5650959625,
+  "hot_pct": 2.87185906,
+  "fs3_pct": 21.79409417,
+  "fs4_pct": 52.550648609999996
  }
 }

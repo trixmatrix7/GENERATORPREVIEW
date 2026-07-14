@@ -1317,6 +1317,8 @@ export class ReelSet {
   /** Warm halo behind a scatter during a near-miss tease — a "bonus incoming"
    *  cue under the featured pulse. Lives in teaseGlowContainer (auto-cleared). */
   private teaseTweens: gsap.core.Animation[] = [];
+  /** Cells stage-dimmed by the active tease preset — restored on tease end. */
+  private teaseDimmedCells = new Set<AnimatedSymbol>();
 
   private buildTeaseCtx(): TeaseContext {
     return {
@@ -1331,6 +1333,14 @@ export class ReelSet {
       track: <T extends { kill(): void }>(t: T): T => { this.teaseTweens.push(t as unknown as gsap.core.Animation); return t; },
       rand: (min, max) => min + Math.random() * (max - min),
       pick: (arr) => arr[Math.floor(Math.random() * arr.length)],
+      dimCell: (reel, row, alpha) => {
+        if (this.expandedReels.has(reel)) return; // hidden behind a tower
+        const cell = this.reels[reel]?.getVisibleCell(row);
+        if (!cell) return;
+        this.teaseDimmedCells.add(cell);
+        gsap.killTweensOf(cell, 'alpha');
+        this.teaseTweens.push(gsap.to(cell, { alpha, duration: 0.28, ease: 'power2.out' }));
+      },
     };
   }
 
@@ -1349,6 +1359,12 @@ export class ReelSet {
     for (const t of this.teaseTweens) { try { t.kill(); } catch { /* torn down */ } }
     this.teaseTweens = [];
     for (const c of this.teaseGlowContainer.removeChildren()) c.destroy();
+    // Restore every cell the tease preset stage-dimmed.
+    for (const cell of this.teaseDimmedCells) {
+      gsap.killTweensOf(cell, 'alpha');
+      cell.alpha = 1;
+    }
+    this.teaseDimmedCells.clear();
   }
 
   /** Build the win decoration, Fruit-Fortune style: a bold gold line through

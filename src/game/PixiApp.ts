@@ -1120,13 +1120,32 @@ export class PixiApp {
     overlay.cursor = 'pointer';
     overlay.hitArea = new Rectangle(0, 0, sw, sh);
     this.app.stage.addChild(overlay);
-    // Smooth ENTRANCE: fade in while the scene settles from a slight zoom.
-    overlay.alpha = 0;
+    // ENTRANCE like the FS transition: the screen starts FULLY BLACK and a
+    // circle irises open from the centre onto the breathing intro, while
+    // the scene settles from a gentle zoom. Same v8-safe .cut() technique
+    // as playFreeSpinsIris (oversized field so the hole is always inside).
+    const rDiag = 0.5 * Math.sqrt(sw * sw + sh * sh);
+    const outer = rDiag * 2.4;
+    const iris = new Graphics();
+    iris.eventMode = 'none';
+    overlay.addChild(iris); // above the scene
+    const st = { r: 0 };
+    const redraw = () => {
+      if (this._aborted || iris.destroyed) return;
+      iris.clear();
+      iris.rect(sw / 2 - outer / 2, sh / 2 - outer / 2, outer, outer);
+      iris.fill({ color: 0x000000, alpha: 1 });
+      if (st.r > 0.5) { iris.circle(sw / 2, sh / 2, st.r); iris.cut(); }
+    };
+    redraw();
     const sceneBase = scene.scale.x;
     scene.scale.set(sceneBase * 1.045);
     tweens.push(
-      gsap.to(overlay, { alpha: 1, duration: 0.55, ease: 'power2.out' }),
-      gsap.to(scene.scale, { x: sceneBase, y: sceneBase, duration: 0.9, ease: 'power2.out' }),
+      gsap.to(st, {
+        r: rDiag, duration: 0.85, delay: 0.25, ease: 'power2.out', onUpdate: redraw,
+        onComplete: () => { if (iris.parent) iris.parent.removeChild(iris); iris.destroy(); },
+      }),
+      gsap.to(scene.scale, { x: sceneBase, y: sceneBase, duration: 1.1, delay: 0.25, ease: 'power2.out' }),
     );
     let done = false;
     overlay.on('pointertap', () => {

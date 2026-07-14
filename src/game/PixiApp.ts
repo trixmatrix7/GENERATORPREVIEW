@@ -745,8 +745,12 @@ export class PixiApp {
    */
   /** Preview-only: overlay a custom frame PNG over the procedural reel frame.
    *  Use a frame image with a transparent centre window so the reels show
-   *  through. Sized to the frame bounds; scales with the scene. `null` clears. */
-  async setFrameImage(dataUrl: string | null): Promise<void> {
+   *  through. `frameWindow` (texture px) marks WHERE that window sits in the
+   *  art — it gets mapped exactly onto the frame bounds, so decorations
+   *  outside it (palm, marquee arrow) hang over the background instead of
+   *  the reels. Without it, the whole texture stretches (legacy uploads).
+   *  `null` clears. */
+  async setFrameImage(dataUrl: string | null, frameWindow?: { x: number; y: number; w: number; h: number }): Promise<void> {
     if (!this._initialized || this._aborted) return;
     const myToken = ++this.frameToken;
     if (!dataUrl) {
@@ -767,8 +771,15 @@ export class PixiApp {
     this.clearFrameImage();
     this.frameTexture = tex;
     const sp = new Sprite(tex);
-    sp.width = this.frameW;
-    sp.height = this.frameH;
+    if (frameWindow) {
+      const sx = this.frameW / frameWindow.w;
+      const sy = this.frameH / frameWindow.h;
+      sp.scale.set(sx, sy);
+      sp.position.set(-frameWindow.x * sx, -frameWindow.y * sy);
+    } else {
+      sp.width = this.frameW;
+      sp.height = this.frameH;
+    }
     this.frameImageSprite = sp;
     this.gameContainer.addChild(sp); // topmost child → border sits over the reels
   }

@@ -101,7 +101,12 @@ export function App() {
     // Expected art: 512×2560 px (5×5 grid) / 512×1484 px (5×3) — one reel's
     // aspect; setExpandingWildImage height-fits whichever grid is active.
     void pixiAppRef.setExpandingWildImage(saved.expandingWild ?? `${B}wild_column.webp`);
+    // Custom neon frame (palm + marquee arrow). The window rect marks the
+    // neon box inside the 1500² art — mapped onto the frame bounds so the
+    // palm/arrow hang over the background, not the reels. Custom upload wins
+    // (legacy full-stretch, no window).
     if (saved.frame) void pixiAppRef.setFrameImage(saved.frame);
+    else void pixiAppRef.setFrameImage(`${B}frame_neon.webp`, { x: 148, y: 265, w: 922, h: 955 });
     // FS-only background: custom static upload wins; otherwise the Vice
     // NIGHTCLUB scene (disco ball + neon crowd, static art — cover-fit).
     if (saved.fsBg) void pixiAppRef.setFreeSpinsBackgroundImage(saved.fsBg);

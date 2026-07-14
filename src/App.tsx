@@ -105,9 +105,10 @@ export function App() {
     // NIGHTCLUB scene (disco ball + neon crowd, static art — cover-fit).
     if (saved.fsBg) void pixiAppRef.setFreeSpinsBackgroundImage(saved.fsBg);
     else void pixiAppRef.setFreeSpinsBackgroundImage(`${B}fsbg_nightclub.webp`);
-    // Vice dancers left + right of the grid, dancing through the FS round
-    // (8×12 = 96 frames @ 12fps each, 224×398, seamless 8s loops).
-    void pixiAppRef.setFreeSpinsDancers([`${B}dancer_a.webp`, `${B}dancer_b.webp`], 8, 12, 96, 12);
+    // Vice dancer: ONLY the blonde, right of the grid, dancing through the
+    // FS round (8×12 = 96 frames, 224×398, seamless loop — the source video
+    // wraps without a trailing hold) at 18fps = 1.5× speed.
+    void pixiAppRef.setFreeSpinsDancers([`${B}dancer_pink.webp`], 8, 12, 96, 18);
     // Layered win-marquee art (BIG/MEGA/EPIC/MAX + WIN + number plate).
     const T = `${import.meta.env.BASE_URL}theme/win-tiers/`;
     void pixiAppRef.setWinTierImages({

@@ -2534,8 +2534,12 @@ export class PixiApp {
     // round (frame tweens live in fsDancerTweens, killed on overlay hide).
     if (this.fsDancerFrames && this.fsDancerFrames.length > 0) {
       const h = rh * 0.62;
-      this.fsDancerFrames.slice(0, 2).forEach((frames, side) => {
+      // A single dancer takes the RIGHT side (her established spot); with
+      // two sheets, index 0 = left and index 1 = right as before.
+      const solo = this.fsDancerFrames.length === 1;
+      this.fsDancerFrames.slice(0, 2).forEach((frames, idx) => {
         if (frames.length === 0) return;
+        const side = solo ? 1 : idx;
         const t0 = frames[0];
         const w = h * (t0.width / t0.height);
         const spr = new Sprite(t0);

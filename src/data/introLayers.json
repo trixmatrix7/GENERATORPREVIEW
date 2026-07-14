@@ -59,7 +59,7 @@
    "file": "theme/vice/intro/game/max_win_text_intro_screen_vice.webp",
    "role": "text",
    "cx": 1385,
-   "cy": 688,
+   "cy": 664,
    "tw": 205
   },
   {
@@ -80,7 +80,7 @@
    "file": "theme/vice/intro/game/scatter_text_ntro_screen_vice.webp",
    "role": "text",
    "cx": 963,
-   "cy": 792,
+   "cy": 772,
    "tw": 255
   },
   {
@@ -108,14 +108,14 @@
    "file": "theme/vice/intro/game/wild_symbol_intro_screen_vice.webp",
    "role": "symbol",
    "cx": 532,
-   "cy": 550,
+   "cy": 528,
    "tw": 130
   },
   {
    "file": "theme/vice/intro/game/wild_text_intro_screen_vice.webp",
    "role": "text",
    "cx": 532,
-   "cy": 705,
+   "cy": 686,
    "tw": 245
   },
   {

@@ -78,12 +78,11 @@ export function App() {
       ? new Map(Object.entries(saved.symbols).map(([k, v]) => [Number(k), v]))
       : viceSymbolMap();
     void pixiAppRef.setUserAssetTextures(symbols);
-    // Custom upload wins; otherwise the animated Vice spritesheet background
-    // (Ocean-Drive night loop): ONE sheet × (8×8) = 60 frames @ 12fps, 800×824
-    // box-aspect crop + ticker cross-fade = fluid at a lean 4.7MB.
+    // Custom upload wins; otherwise the Vice MOTEL-BEACH base background
+    // (sunset parking lot, static art — cover-fit).
     const B = `${import.meta.env.BASE_URL}theme/vice/`;
     if (saved.bg) void pixiAppRef.setBackgroundImage(saved.bg);
-    else void pixiAppRef.setBackgroundSpritesheet(`${B}bg_sheet2.webp`, 8, 8, 60, 12);
+    else void pixiAppRef.setBackgroundImage(`${B}bg_motel.webp`);
     // VICE HEAT logo above the grid (replaces the text title).
     void pixiAppRef.setTitleImage(`${B}logo.webp`);
     // Symbol WIN animations: looped spritesheets on connection (7×7 = 48

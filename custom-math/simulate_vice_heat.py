@@ -36,12 +36,17 @@ def build_strip(counts):
 if ROWS == 5:
     # 5x5 VOLATILE structure: RARE wilds (1 per strip on reels 2-5 — an
     # expansion is an EVENT, not the norm), leaner scatters, FS 8.
+    # ANTI-CLUSTERED lows: C/E/G run heavy on reels 1/3/5 and thin on 2/4,
+    # B/D/F the other way around — 3-in-a-row chains break at the thin reel,
+    # so the hit rate HALVES (~50% instead of 83%) while the hits that do
+    # land carry multiple ways on the heavy reels. Fewer, MEANINGFUL wins:
+    # that's what funds the >=0.10x-per-connection pay floor.
     STRIPS = [
-        build_strip({SC: 1, 2: 4, 3: 4, 4: 5, 5: 5, 6: 7, 7: 7, 8: 7}),        # R1: no wild
-        build_strip({W: 1, SC: 1, 2: 4, 3: 4, 4: 5, 5: 5, 6: 6, 7: 7, 8: 7}),  # R2
-        build_strip({W: 1, SC: 2, 2: 4, 3: 4, 4: 5, 5: 5, 6: 6, 7: 6, 8: 7}),  # R3
-        build_strip({W: 1, SC: 1, 2: 4, 3: 4, 4: 5, 5: 5, 6: 6, 7: 7, 8: 7}),  # R4
-        build_strip({W: 1, SC: 1, 2: 4, 3: 4, 4: 5, 5: 5, 6: 7, 7: 6, 8: 7}),  # R5
+        build_strip({SC: 1, 2: 4, 3: 2, 4: 8, 5: 2, 6: 10, 7: 2, 8: 11}),        # R1: no wild
+        build_strip({W: 1, SC: 1, 2: 4, 3: 7, 4: 2, 5: 8, 6: 2, 7: 13, 8: 2}),   # R2
+        build_strip({W: 1, SC: 1, 2: 4, 3: 2, 4: 8, 5: 2, 6: 10, 7: 2, 8: 10}),  # R3
+        build_strip({W: 1, SC: 1, 2: 4, 3: 7, 4: 2, 5: 8, 6: 2, 7: 13, 8: 2}),   # R4
+        build_strip({W: 1, SC: 1, 2: 4, 3: 2, 4: 8, 5: 2, 6: 10, 7: 2, 8: 10}),  # R5
     ]
 else:
     STRIPS = [
@@ -53,27 +58,32 @@ else:
     ]
 
 # ── relative paytable (bps of total bet per way, [3,4,5]) ───────────────────
-# STEEP curve at the TOP (5-oaks are events; the sticky/simul patterns stack
-# toward MAX WIN), but with a hard 3-OAK FLOOR: a connection that highlights
-# and pays a sub-cent "+0.00" is broken UX ("3x HIGH_B = 0 ist quatsch") —
-# every single-way 3-oak must display at ≥ $0.01 on a $1 bet (≥100 bps
-# post-k). Costs only ~2-3% RTP because per-way bps are tiny vs the divisor.
+# HARD PAY FLOOR: the smallest possible connection (single-way 3-oak lowG)
+# pays >= 1000 bps = 0.10x bet — $0.02 on a $0.20 spin, always visible at
+# 2 decimals. Noski: "selbst auf 20 Cent würde ich safe 0.02 kriegen
+# minimum". The per-way curve is deliberately FLAT-ish — with 3125 ways the
+# TOP comes from ways mass x expansion x simul-mult (a full-tower spin
+# multiplies 625-3125 ways into the 5-oak row), not from per-way steepness.
 BASE_PAYS = {
-    2: [170, 500, 3000],
-    3: [150, 400, 1800],
-    4: [135, 300, 1000],
-    5: [130, 250, 800],
-    6: [125, 160, 450],
-    7: [120, 140, 350],
-    8: [120, 130, 250],
+    2: [1100, 1800, 3200],
+    3: [1060, 1600, 2600],
+    4: [1030, 1400, 2100],
+    5: [1030, 1300, 1900],
+    6: [1030, 1200, 1600],
+    7: [1030, 1150, 1450],
+    8: [1030, 1100, 1300],
 }
-SCATTER_PAY = [100, 400, 2000]   # 3/4/5 scatters, x total bet bps
+# Scatter pay floored too (it shows in the tally like any connection).
+SCATTER_PAY = [1030, 2000, 6000]   # 3/4/5 scatters, x total bet bps
 # Retrigger awards a SMALL fixed amount (custom contract rule
 # `retriggerSpins`, NOT the template's re-award-freeSpinsCount), and the
 # TIGHT total cap allows at most ONE retrigger: max win must come from the
 # SETUP (early towers), never from grinding endless retriggered spins.
-FS_COUNT, FS_RETRIG, FS_CAP = (8 if ROWS == 5 else 10), 5, 13
-HOT_CHANCE = 40                   # 1-in-40 base spins are HOT (expansion mode)
+FS_COUNT, FS_RETRIG, FS_CAP = (5 if ROWS == 5 else 10), 3, 8
+# Sticky rounds (4+ scatters) run LONGER — the towers need spins to
+# accumulate; their own count/cap (custom rules stickyRoundSpins/-Cap).
+FS_COUNT_STICKY, FS_CAP_STICKY = 6, 9
+HOT_CHANCE = 80                   # 1-in-80 base spins are HOT (expansion mode)
 MAX_WIN_X = 5000
 # Sticky rounds: the first N wild-landing reels become permanent towers
 # (leftmost joins first on ties). Default = ALL wild-capable reels (4) — with
@@ -165,8 +175,10 @@ def simulate(n, pays, scatter_pay, seed=42):
             sticky_round = sc >= 4
             sticky = set()
             round_win = 0
-            fs_left, fs_played = FS_COUNT, 0
-            while fs_left > 0 and fs_played < FS_CAP:
+            fs_left = FS_COUNT_STICKY if sticky_round else FS_COUNT
+            cap = FS_CAP_STICKY if sticky_round else FS_CAP
+            fs_played = 0
+            while fs_left > 0 and fs_played < cap:
                 fs_left -= 1; fs_played += 1
                 st = [rng.randrange(lens[r]) for r in range(REELS)]
                 if sticky_round:
@@ -183,9 +195,9 @@ def simulate(n, pays, scatter_pay, seed=42):
                 round_win += w2
                 session += w2
                 # Retrigger awards retriggerSpins (custom rule), bounded by
-                # the tight total cap (at most one retrigger fits).
-                if sc2 >= 3 and fs_played < FS_CAP:
-                    fs_left = min(fs_left + FS_RETRIG, FS_CAP - fs_played)
+                # the tight per-tier cap (at most one retrigger fits).
+                if sc2 >= 3 and fs_played < cap:
+                    fs_left = min(fs_left + FS_RETRIG, cap - fs_played)
             if sticky_round:
                 fs4_total += round_win; fs4_rounds.append(round_win)
             else:
@@ -256,6 +268,8 @@ if __name__ == '__main__':
             'stickyExpandingFrom4Scatters': True,
             'stickyTowerCap': STICKY_CAP,
             'retriggerSpins': FS_RETRIG,
+            'stickyRoundSpins': FS_COUNT_STICKY,
+            'stickyRoundCap': FS_CAP_STICKY,
             'simulExpandMultipliers': {str(k): v for k, v in SIMUL_MULTS.items()},
             'hotSpinChance1In': HOT_CHANCE,
             'hotSpinExpandsWilds': True,

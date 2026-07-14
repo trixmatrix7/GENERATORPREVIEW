@@ -61,6 +61,9 @@ function fromManifest(m: Record<string, unknown>): GameConfig {
     // n reels expanding in ONE spin multiply the spin win per this map
     // (late ladder, e.g. {"3": 2, "4": 8}).
     simulExpandMultipliers: (m['custom'] as { simulExpandMultipliers?: Record<string, number> } | undefined)?.simulExpandMultipliers,
+    // Sticky rounds run longer than 3sc rounds (own spin count + cap).
+    stickyRoundSpins: (m['custom'] as { stickyRoundSpins?: number } | undefined)?.stickyRoundSpins,
+    stickyRoundCap: (m['custom'] as { stickyRoundCap?: number } | undefined)?.stickyRoundCap,
   } as unknown as GameConfig;
 }
 

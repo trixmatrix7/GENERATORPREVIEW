@@ -184,7 +184,16 @@ export class MockHost {
       const stickyFS = expandFS && !buyBonus && scatterCount >= 4;
       const stickyCap = (this.config as { stickyTowerCap?: number }).stickyTowerCap ?? 2;
       const stickyReels = new Set<number>();
-      while (remaining > 0 && freeSpinsPlayed < this.config.freeSpinsCap) {
+      // Sticky rounds run LONGER (towers need spins to accumulate) — their
+      // own count/cap via the custom rules; 3sc rounds use the template's.
+      if (stickyFS) {
+        remaining = (this.config as { stickyRoundSpins?: number }).stickyRoundSpins
+          ?? this.config.freeSpinsCount;
+      }
+      const fsCap = stickyFS
+        ? ((this.config as { stickyRoundCap?: number }).stickyRoundCap ?? this.config.freeSpinsCap)
+        : this.config.freeSpinsCap;
+      while (remaining > 0 && freeSpinsPlayed < fsCap) {
         const seed = keccak256(
           encodeAbi(
             [{ type: 'bytes32' }, { type: 'uint256' }],

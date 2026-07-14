@@ -2007,8 +2007,12 @@ export class PixiApp {
    *  so exactly 3 or 4 scatters visibly hit (one per chosen reel, natural
    *  anticipation tease included), then the full FS flow runs: scatter BONUS
    *  animation → iris → round → total marquee → closing iris. */
-  public __testScatterTrigger(symbol: string, decimals: number, wager: bigint, scatters: 3 | 4 = 3, count = 8): void {
+  public __testScatterTrigger(symbol: string, decimals: number, wager: bigint, scatters: 3 | 4 = 3, count?: number): void {
     if (!this.isLive) return;
+    // Default round length follows the ACTIVE math's tier rules
+    // (3sc = freeSpinsCount, 4+sc = stickyRoundSpins).
+    const cfg = this.config as { freeSpinsCount: number; stickyRoundSpins?: number };
+    const spins = count ?? (scatters >= 4 ? (cfg.stickyRoundSpins ?? cfg.freeSpinsCount) : cfg.freeSpinsCount);
     const SCATTER = 1;
     const rows = this.grid.visibleRows;
     const strips = this.config.reelStrips;
@@ -2037,7 +2041,7 @@ export class PixiApp {
       stops, board, winAmount, wager,
       scatterCount: scatters,
       freeSpinsTriggered: true,
-      freeSpinsPlayed: count,
+      freeSpinsPlayed: spins,
       holdWinTriggered: false, holdWinWin: 0n, holdWin: null,
       winResult: {
         totalWin: winAmount,
@@ -2765,13 +2769,8 @@ function formatWin(amount: bigint, decimals: number): string {
   let rounded = (frac + scale / 2n) / scale;
   // Carry: 0.999 must round to 1.00, not "0.100".
   if (rounded >= 100n) { whole += 1n; rounded -= 100n; }
-  // A real win must NEVER read "+0.00" — widen sub-cent amounts to 4
-  // decimals instead of rounding them into nothing.
-  if (amount > 0n && whole === 0n && rounded === 0n) {
-    const scale4 = 10n ** BigInt(decimals - 4);
-    const r4 = (frac + scale4 / 2n) / scale4;
-    return `0.${r4.toString().padStart(4, '0')}`;
-  }
+  // Strictly 2 decimals — the MATH guarantees the smallest connection pays
+  // >= 0.10x bet, so a real win can never round to "0.00".
   const fracStr = rounded.toString().padStart(2, '0');
   return `${whole}.${fracStr}`;
 }

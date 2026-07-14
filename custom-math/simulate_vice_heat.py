@@ -34,13 +34,14 @@ def build_strip(counts):
     return s
 
 if ROWS == 5:
-    # 5x5 structure: leaner scatters (windows are taller), tamer wilds, FS 8.
+    # 5x5 VOLATILE structure: RARE wilds (1 per strip on reels 2-5 — an
+    # expansion is an EVENT, not the norm), leaner scatters, FS 8.
     STRIPS = [
         build_strip({SC: 1, 2: 4, 3: 4, 4: 5, 5: 5, 6: 7, 7: 7, 8: 7}),        # R1: no wild
-        build_strip({W: 2, SC: 1, 2: 4, 3: 4, 4: 5, 5: 5, 6: 6, 7: 6, 8: 7}),  # R2
-        build_strip({W: 2, SC: 2, 2: 4, 3: 4, 4: 5, 5: 5, 6: 6, 7: 6, 8: 6}),  # R3
-        build_strip({W: 2, SC: 1, 2: 4, 3: 4, 4: 5, 5: 5, 6: 6, 7: 6, 8: 7}),  # R4
-        build_strip({W: 2, SC: 1, 2: 4, 3: 4, 4: 5, 5: 5, 6: 6, 7: 7, 8: 6}),  # R5
+        build_strip({W: 1, SC: 1, 2: 4, 3: 4, 4: 5, 5: 5, 6: 6, 7: 7, 8: 7}),  # R2
+        build_strip({W: 1, SC: 2, 2: 4, 3: 4, 4: 5, 5: 5, 6: 6, 7: 6, 8: 7}),  # R3
+        build_strip({W: 1, SC: 1, 2: 4, 3: 4, 4: 5, 5: 5, 6: 6, 7: 7, 8: 7}),  # R4
+        build_strip({W: 1, SC: 1, 2: 4, 3: 4, 4: 5, 5: 5, 6: 7, 7: 6, 8: 7}),  # R5
     ]
 else:
     STRIPS = [
@@ -52,23 +53,30 @@ else:
     ]
 
 # ── relative paytable (bps of total bet per way, [3,4,5]) ───────────────────
+# STEEP curve: 3-oaks are pocket change, 5-oaks are events — a fully expanded
+# sticky board (4 towers + a premium reel-1 window) stacks toward MAX WIN
+# within its own round. That's where the volatility lives.
 BASE_PAYS = {
-    2: [60, 250, 1200],
-    3: [45, 180, 800],
-    4: [30, 120, 500],
-    5: [25, 100, 400],
-    6: [18, 70, 250],
-    7: [15, 55, 200],
-    8: [12, 45, 160],
+    2: [40, 300, 3000],
+    3: [30, 220, 1800],
+    4: [22, 150, 1000],
+    5: [18, 120, 800],
+    6: [14, 80, 450],
+    7: [12, 60, 350],
+    8: [10, 50, 250],
 }
 SCATTER_PAY = [100, 400, 2000]   # 3/4/5 scatters, x total bet bps
-FS_COUNT, FS_RETRIG, FS_CAP = (8 if ROWS == 5 else 10), 5, 50
+# Retrigger awards a FULL freeSpinsCount again (contract/mock parity — the
+# template's SlotGame.sol re-awards freeSpinsCount, not a separate amount).
+# TIGHT total cap: max win must come from the SETUP (early towers), never
+# from grinding endless retriggered spins.
+FS_COUNT, FS_CAP = (8 if ROWS == 5 else 10), 16
 HOT_CHANCE = 40                   # 1-in-40 base spins are HOT (expansion mode)
 MAX_WIN_X = 5000
-# Sticky rounds: only the FIRST N wild-landing reels become permanent towers
-# (leftmost joins first on ties); later wilds play as regular 1:1 wilds.
-# Uncapped sticky (cap=4) blows the model up: avg round 317x, k=0.34.
-STICKY_CAP = int(os.environ.get('VH_STICKY_CAP', '2'))
+# Sticky rounds: the first N wild-landing reels become permanent towers
+# (leftmost joins first on ties). Default = ALL wild-capable reels (4) — with
+# RARE wilds the full board is the jackpot event, not the norm.
+STICKY_CAP = int(os.environ.get('VH_STICKY_CAP', '4'))
 
 # ── precompute visible windows per reel/stop: (counts per symbol incl. wild-as-any, wilds, scatters)
 def precompute(strips):
@@ -120,14 +128,19 @@ def eval_spin(stops, per_spin_expand, sticky_set, pays, scatter_pay):
     return win, scatters, full
 
 
+def pct(sorted_xs, q):
+    if not sorted_xs: return 0.0
+    i = min(len(sorted_xs) - 1, int(q * len(sorted_xs)))
+    return sorted_xs[i]
+
+
 def simulate(n, pays, scatter_pay, seed=42):
     rng = random.Random(seed)
     lens = [len(s) for s in STRIPS]
     total = 0
     hits = 0
     base_total = 0; fs3_total = 0; fs4_total = 0; hot_total = 0
-    fs3_triggers = 0; fs4_triggers = 0
-    fs3_round_sum = 0; fs4_round_sum = 0
+    fs3_rounds = []; fs4_rounds = []
     empty = set()
     for _ in range(n):
         stops = [rng.randrange(lens[r]) for r in range(REELS)]
@@ -139,8 +152,6 @@ def simulate(n, pays, scatter_pay, seed=42):
         # free spins (tiered: 3sc = per-spin expansion, 4+sc = STICKY cap-N)
         if sc >= 3:
             sticky_round = sc >= 4
-            if sticky_round: fs4_triggers += 1
-            else: fs3_triggers += 1
             sticky = set()
             round_win = 0
             fs_left, fs_played = FS_COUNT, 0
@@ -159,28 +170,38 @@ def simulate(n, pays, scatter_pay, seed=42):
                     w2, sc2, _ = eval_spin(st, True, sticky, pays, scatter_pay)
                 round_win += w2
                 session += w2
+                # Retrigger re-awards the full freeSpinsCount (contract/mock
+                # parity), bounded by the tight total cap.
                 if sc2 >= 3 and fs_played < FS_CAP:
-                    fs_left = min(fs_left + FS_RETRIG, FS_CAP - fs_played)
+                    fs_left = min(fs_left + FS_COUNT, FS_CAP - fs_played)
             if sticky_round:
-                fs4_total += round_win; fs4_round_sum += round_win
+                fs4_total += round_win; fs4_rounds.append(round_win)
             else:
-                fs3_total += round_win; fs3_round_sum += round_win
+                fs3_total += round_win; fs3_rounds.append(round_win)
         if session > MAX_WIN_X * 10000:
             session = MAX_WIN_X * 10000
         total += session
         if session > 0: hits += 1
     rtp = total / (n * 10000)
+    fs3_rounds.sort(); fs4_rounds.sort()
+    X = 10000
     return {
         'rtp_pct': rtp * 100,
         'hit_freq_pct': hits / n * 100,
-        'fs3_trigger_1_in': n / max(1, fs3_triggers),
-        'fs4_trigger_1_in': n / max(1, fs4_triggers),
-        'avg_fs3_round_x': fs3_round_sum / max(1, fs3_triggers) / 10000,
-        'avg_fs4_round_x': fs4_round_sum / max(1, fs4_triggers) / 10000,
-        'base_pct': base_total / (n * 10000) * 100,
-        'hot_pct': hot_total / (n * 10000) * 100,
-        'fs3_pct': fs3_total / (n * 10000) * 100,
-        'fs4_pct': fs4_total / (n * 10000) * 100,
+        'fs3_trigger_1_in': n / max(1, len(fs3_rounds)),
+        'fs4_trigger_1_in': n / max(1, len(fs4_rounds)),
+        'avg_fs3_round_x': sum(fs3_rounds) / max(1, len(fs3_rounds)) / X,
+        'avg_fs4_round_x': sum(fs4_rounds) / max(1, len(fs4_rounds)) / X,
+        'fs3_dist_x': {'p50': pct(fs3_rounds, 0.50) / X, 'p90': pct(fs3_rounds, 0.90) / X,
+                       'p99': pct(fs3_rounds, 0.99) / X, 'max': (fs3_rounds[-1] / X) if fs3_rounds else 0},
+        'fs4_dist_x': {'p50': pct(fs4_rounds, 0.50) / X, 'p90': pct(fs4_rounds, 0.90) / X,
+                       'p99': pct(fs4_rounds, 0.99) / X, 'max': (fs4_rounds[-1] / X) if fs4_rounds else 0},
+        'fs4_ge_800x_pct': 100 * sum(1 for w in fs4_rounds if w >= 800 * X) / max(1, len(fs4_rounds)),
+        'fs4_ge_maxwin_pct': 100 * sum(1 for w in fs4_rounds if w >= MAX_WIN_X * X) / max(1, len(fs4_rounds)),
+        'base_pct': base_total / (n * X) * 100,
+        'hot_pct': hot_total / (n * X) * 100,
+        'fs3_pct': fs3_total / (n * X) * 100,
+        'fs4_pct': fs4_total / (n * X) * 100,
     }
 
 if __name__ == '__main__':

@@ -1337,12 +1337,9 @@ export class PixiApp {
           { isLive: () => this.isLive, turbo: this.turbo, sticky: stickyMode },
         );
         if (!this.isLive) break;
-        // Non-sticky: an empty result means NO spin ran (math without wilds)
-        // — evaluating the stale board would re-present old wins.
-        if (!stickyMode && expanded.length === 0) { await new Promise(r => setTimeout(r, 350)); continue; }
         // Evaluate the DISPLAYED board with every standing tower fully wild.
-        // In sticky mode a spin may add no tower — the plain board can still
-        // connect, so the evaluation always runs.
+        // A spin may expand nothing (rare wilds) — the plain board still
+        // pays its natural connections, so the evaluation always runs.
         const board = this.reelSet.getVisibleBoard();
         for (const reel of expanded) for (let row = 0; row < this.grid.visibleRows; row++) board[row][reel] = 0; // WILD
         const winResult = evaluateWins(board, outcome.wager ?? 1n, this.config);
@@ -2120,7 +2117,9 @@ export class PixiApp {
       // Abort a previous round's win presentation (mid-flight tally) — it
       // would draw over the fresh towers (only spin() bumps the id).
       this._winRevealId++;
-      const chosen = await this.reelSet.playExpandingWildReveal({ isLive: () => this.isLive, turbo: this.turbo });
+      // force: the showcase button always demonstrates towers (live FS spins
+      // expand organically instead).
+      const chosen = await this.reelSet.playExpandingWildReveal({ isLive: () => this.isLive, turbo: this.turbo, force: true });
       if (!this.isLive || chosen.length === 0) return;
       // Effective board: the expanded reels are ENTIRELY wild.
       const board = this.reelSet.getVisibleBoard();

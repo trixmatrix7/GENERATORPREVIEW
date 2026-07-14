@@ -630,7 +630,7 @@ export class ReelSet {
    *  organic strip probability paces the fill-up). Returns ALL expanded reels
    *  (old + new) so the caller evaluates the full sticky board. */
   async playExpandingWildReveal(
-    opts: { isLive?: () => boolean; turbo?: boolean; sticky?: boolean } = {},
+    opts: { isLive?: () => boolean; turbo?: boolean; sticky?: boolean; force?: boolean } = {},
   ): Promise<number[]> {
     const live = opts.isLive ?? (() => true);
 
@@ -686,7 +686,9 @@ export class ReelSet {
         const hitRow = wildRowInWindow(r, displayStops[r]);
         if (hitRow !== null) { chosen.push(r); landingRows.push(hitRow); }
       }
-    } else {
+    } else if (opts.force) {
+      // SHOWCASE (test button): guarantee 1-3 towers — each chosen reel's
+      // stop is picked so a sack visibly lands.
       for (let i = reelIdxs.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1));
         [reelIdxs[i], reelIdxs[j]] = [reelIdxs[j], reelIdxs[i]];
@@ -703,6 +705,15 @@ export class ReelSet {
         displayStops[reel] = hit.stop; // the sack visibly lands at this exact cell
         landingRows.push(hit.row);
       }
+    } else {
+      // LIVE 3-scatter FS spin: ORGANIC — the spin always rolls, and reels
+      // expand exactly where the settling window naturally shows a sack.
+      // With rare wilds most spins expand nothing; the plain board still
+      // pays its natural connections. That's the volatility.
+      this.startSpin();
+      gen = this.stickyRevealGen;
+      chosen = reelIdxs.filter(r => wildRowInWindow(r, displayStops[r]) !== null).sort((a, b) => a - b);
+      for (const reel of chosen) landingRows.push(wildRowInWindow(reel, displayStops[reel])!);
     }
 
     const allExpanded = () => Array.from(this.expandedReels).sort((a, b) => a - b);

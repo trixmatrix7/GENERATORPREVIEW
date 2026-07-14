@@ -64,15 +64,19 @@ export function useSoundLayer(state: GameState | null): SoundManager {
   // Cancel any pending accents when the hook unmounts.
   useEffect(() => () => clearAccents(), []);
 
-  // Ambient music starts on the FIRST interaction anywhere (intro screen,
-  // UI, canvas) — the earliest moment browsers allow audio. The first-spin
-  // path below stays as a fallback; ambientStartedRef guards double-starts.
+  // Ambient music: ATTEMPT autoplay immediately on mount — browsers with
+  // prior engagement (or relaxed policies) start it with zero clicks, so
+  // the user lands straight in the vibe. Where the policy blocks it, the
+  // WebAudio context sits suspended and Howler's autoUnlock resumes the
+  // already-started loop on the very first interaction — the gesture
+  // listeners below are the belt-and-braces for that path. The first-spin
+  // path further down stays as the last fallback; the exclusive flag on
+  // ambient-music makes any double play() a no-op.
   useEffect(() => {
+    manager.play('ambient-music');
+    ambientStartedRef.current = true;
     const kick = () => {
-      if (!ambientStartedRef.current) {
-        manager.play('ambient-music');
-        ambientStartedRef.current = true;
-      }
+      manager.play('ambient-music'); // no-op if already running (exclusive)
       window.removeEventListener('pointerdown', kick);
       window.removeEventListener('keydown', kick);
     };

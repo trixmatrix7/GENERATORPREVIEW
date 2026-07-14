@@ -10,7 +10,7 @@
 import { Container, Graphics, Text, TextStyle, Rectangle, Sprite, Texture } from 'pixi.js';
 import { gsap } from 'gsap';
 import { Reel } from './Reel';
-import { AnimatedSymbol, SYMBOL_WIDTH, SYMBOL_HEIGHT } from './AnimatedSymbol';
+import { AnimatedSymbol, SYMBOL_WIDTH, SYMBOL_HEIGHT, SYMBOL_WIN_SHEETS } from './AnimatedSymbol';
 import { CELL_HEIGHT, REEL_GAP } from './symbolMetrics';
 import { getActiveGrid, type GridConfig } from '@/config/gridConfig';
 import { resolveAnchor, cell as cellAnchor, reel as reelAnchor, grid as gridAnchor } from '@/engine/anchors';
@@ -1214,6 +1214,10 @@ export class ReelSet {
         seen.add(key);
         const cell = this.reels[reel]?.getVisibleCell(row);
         if (!cell) continue;
+        // Symbols with a WIN SHEET play their animation ON POSITION, dead
+        // still — the board dim carries the read; any leap/zoom would warp
+        // the sheet ("maximum clean"). Sheet-less symbols keep the leap.
+        if (SYMBOL_WIN_SHEETS.has(cell.symbol)) continue;
         danceWinningObject(
           cell.objectLayer, reel * waysImmersiveConfig.stagger, intense, this.winFxTweens,
         );

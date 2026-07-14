@@ -231,15 +231,16 @@ export class AnimatedSymbol extends Container {
     if (this.winSheetSprite) return;
     const sheet = SYMBOL_WIN_SHEETS.get(this.symbolId);
     if (!sheet || sheet.frames.length === 0) return;
-    // 1:1 VOM STAND: the sheet SPAWNS on the resting art's exact footprint
-    // and cross-fades over it — no hard swap, no zoom-in pop. Because the
-    // sprite is a child of `inner`, it inherits whatever transform the
-    // previous state left (e.g. a mid-pulse 'featured' scatter during the
-    // near-miss tease), so tease → win reads as ONE continuous motion.
+    // 1:1 VOM STAND, ZERO ZOOM: the sheet SPAWNS on the resting art's exact
+    // footprint, cross-fades over it and STAYS there — no grow, no settle
+    // zoom, nothing that could warp the art. The emphasis comes from the
+    // board dimming around it, not from scaling. Because the sprite is a
+    // child of `inner`, it inherits whatever transform the previous state
+    // left (e.g. a featured scatter during the near-miss tease), so
+    // tease → win reads as ONE continuous, still image swap.
     const cell = Math.min(SYMBOL_WIDTH, SYMBOL_HEIGHT);
     const frameW = sheet.frames[0].width || 256;
     const restScale = (cell * 0.94) / frameW;  // the static art's footprint
-    const popScale = (cell * 1.22) / frameW;   // the win presentation size
     const spr = new Sprite(sheet.frames[0]);
     spr.anchor.set(0.5);
     spr.scale.set(restScale);
@@ -257,9 +258,8 @@ export class AnimatedSymbol extends Container {
     spr.mask = mask;
     this.preSheetIconVisible = this.iconSprite?.visible ?? false;
     this.preSheetShadowVisible = this.iconShadow?.visible ?? false;
-    // Cross-fade: the sheet fades IN on the same footprint while the static
-    // art fades OUT underneath, then the sheet eases up to the win size —
-    // smooth power curve, no back-overshoot zoom.
+    // Cross-fade ONLY: the sheet fades IN on the footprint while the static
+    // art fades OUT underneath. The sheet never scales.
     gsap.to(spr, { alpha: 1, duration: 0.12, ease: 'power1.out' });
     for (const layer of [this.iconSprite, this.iconShadow]) {
       if (!layer) continue;
@@ -269,7 +269,6 @@ export class AnimatedSymbol extends Container {
         onComplete: () => { layer.visible = false; layer.alpha = 1; },
       });
     }
-    gsap.to(spr.scale, { x: popScale, y: popScale, duration: 0.38, ease: 'power2.inOut', delay: 0.06 });
     // Blend any inherited state transform (featured pulse scale/rotation/
     // alpha) smoothly back to neutral instead of snapping.
     gsap.to(this.inner.scale, { x: 1, y: 1, duration: 0.3, ease: 'power2.out' });
@@ -292,10 +291,9 @@ export class AnimatedSymbol extends Container {
     this.winSheetSprite = null;
     gsap.killTweensOf(spr.scale);
     gsap.killTweensOf(spr);
-    // The exact REVERSE of the intro: the sheet settles back down onto the
-    // static art's footprint while the art cross-fades back in underneath,
-    // then the sheet dissolves — one continuous motion, no snap-back zoom.
-    const back = (Math.min(SYMBOL_WIDTH, SYMBOL_HEIGHT) * 0.94) / (spr.texture.width || 256);
+    // The exact REVERSE of the intro: pure cross-fade on the same footprint —
+    // the static art comes back underneath while the sheet dissolves. ZERO
+    // zoom in either direction.
     const restore: Array<[Sprite | null, boolean]> = [
       [this.iconSprite, this.preSheetIconVisible],
       [this.iconShadow, this.preSheetShadowVisible],
@@ -305,11 +303,10 @@ export class AnimatedSymbol extends Container {
       gsap.killTweensOf(layer, 'alpha');
       layer.visible = true;
       layer.alpha = 0;
-      gsap.to(layer, { alpha: 1, duration: 0.24, ease: 'power1.out', delay: 0.08 });
+      gsap.to(layer, { alpha: 1, duration: 0.22, ease: 'power1.out' });
     }
-    gsap.to(spr.scale, { x: back, y: back, duration: 0.26, ease: 'power2.inOut' });
     gsap.to(spr, {
-      alpha: 0, duration: 0.2, ease: 'power1.in', delay: 0.12,
+      alpha: 0, duration: 0.22, ease: 'power1.in',
       onComplete: () => {
         spr.parent?.removeChild(spr);
         try { spr.destroy({ children: true }); } catch { /* torn down */ }
@@ -818,6 +815,17 @@ export class AnimatedSymbol extends Container {
   }
 
   private playFallbackFeatured() {
+    // Symbols with a WIN SHEET stay STILL during the tease — the sheet takes
+    // over at the trigger anyway, and the Universal Anticipation preset
+    // (stage dim + glow + marquee frame) carries the tension. The aggressive
+    // wobble on a scatter that's about to play its BONUS animation read as
+    // dirt ("dieses Wackeln während 2 Scatter da sind").
+    if (SYMBOL_WIN_SHEETS.has(this.symbolId)) {
+      this.inner.alpha = 1;
+      this.inner.scale.set(1);
+      this.inner.rotation = 0;
+      return;
+    }
     const t = presetTimings('featured');
     this.inner.alpha = 1;
     this.inner.scale.set(1);

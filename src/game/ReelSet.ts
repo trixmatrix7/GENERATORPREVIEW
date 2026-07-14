@@ -806,22 +806,43 @@ export class ReelSet {
       this.stickyContainer.addChild(flash);
       this.stickyRevealObjects.push(flash);
 
+      // Choreography: land-beat → clear → the column RACES out (expo.inOut:
+      // gathers momentum, then glides into place — no hard snap) → LOCK-IN
+      // with real weight: the tower squash-settles like mass landing, an
+      // impact flash washes the column, the whole BOARD slams (landing-thud
+      // with the hard elastic settle), and the shine border ignites.
+      const baseScale = spr.scale.x;
       const tl = gsap.timeline({ onComplete: resolve });
       this.stickyRevealTweens.push(tl);
-      tl.to(clear, { alpha: 1, duration: 0.14 * speed, ease: 'power2.out' }, 0.42 * speed);
-      tl.to(spr, { alpha: 1, duration: 0.08 * speed, ease: 'power1.out' }, 0.5 * speed);
+      const T_CLEAR = 0.32 * speed;
+      const T_RACE = 0.40 * speed;
+      const T_LOCK = T_RACE + 0.46 * speed;
+      tl.to(clear, { alpha: 1, duration: 0.12 * speed, ease: 'power2.out' }, T_CLEAR);
+      tl.to(spr, { alpha: 1, duration: 0.07 * speed, ease: 'power1.out' }, T_RACE - 0.02 * speed);
       const reveal = { t: 0 };
       tl.to(reveal, {
-        t: 1, duration: 0.34 * speed, ease: 'power3.out',
+        t: 1, duration: 0.46 * speed, ease: 'expo.inOut',
         onUpdate: () => drawReveal(reveal.t),
-      }, 0.5 * speed);
-      tl.to(flash, { alpha: 0.55, duration: 0.07 * speed, ease: 'power2.out' }, 0.78 * speed);
+      }, T_RACE);
+      // LOCK-IN — squash-settle: the column compresses under its own weight
+      // and springs back (top-anchored, so it visibly sits down).
+      tl.to(spr, { y: rr.y + 6, duration: 0.08 * speed, ease: 'power3.out' }, T_LOCK);
+      tl.to(spr.scale, { y: baseScale * 0.972, duration: 0.08 * speed, ease: 'power3.out' }, T_LOCK);
+      tl.to(spr, { y: rr.y, duration: 0.55 * speed, ease: 'elastic.out(1, 0.4)' }, T_LOCK + 0.08 * speed);
+      tl.to(spr.scale, { y: baseScale, duration: 0.55 * speed, ease: 'elastic.out(1, 0.4)' }, T_LOCK + 0.08 * speed);
+      // Impact flash — brighter, faster decay: a hit, not a glow.
+      tl.to(flash, { alpha: 0.7, duration: 0.05 * speed, ease: 'power2.out' }, T_LOCK);
       tl.to(flash, {
-        alpha: 0, duration: 0.32 * speed, ease: 'power2.in',
+        alpha: 0, duration: 0.26 * speed, ease: 'power2.in',
         onComplete: () => { if (flash.parent) flash.parent.removeChild(flash); },
-      }, 0.85 * speed);
+      }, T_LOCK + 0.05 * speed);
+      // The board itself takes the hit (hard landing-thud slam).
+      tl.call(() => { this.playLandingThud(this.grid.reelCount - 1); }, undefined, T_LOCK);
       // AAA shine border around the whole reel at lock-in.
-      tl.call(() => { this.stickyHandles.push(applyStickyWild(this.stickyContainer, rr)); }, undefined, 0.8 * speed);
+      tl.call(() => { this.stickyHandles.push(applyStickyWild(this.stickyContainer, rr)); }, undefined, T_LOCK);
+      // Hand control back just after the impact — the elastic settle plays
+      // out on its own so multi-tower sequences keep their pace.
+      tl.call(() => resolve(), undefined, T_LOCK + 0.16 * speed);
     });
   }
 

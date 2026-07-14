@@ -101,10 +101,10 @@ export function App() {
     // aspect; setExpandingWildImage height-fits whichever grid is active.
     void pixiAppRef.setExpandingWildImage(saved.expandingWild ?? `${B}wild_column.webp`);
     if (saved.frame) void pixiAppRef.setFrameImage(saved.frame);
-    // FS-only background: custom static upload wins; otherwise the ANIMATED
-    // speedboat loop (1 sheet × 8×8 = 60 frames @ 12fps, same pipeline as base).
+    // FS-only background: custom static upload wins; otherwise the Vice
+    // NIGHTCLUB scene (disco ball + neon crowd, static art — cover-fit).
     if (saved.fsBg) void pixiAppRef.setFreeSpinsBackgroundImage(saved.fsBg);
-    else void pixiAppRef.setFreeSpinsBackgroundSpritesheet(`${B}fsbg_sheet.webp`, 8, 8, 60, 12);
+    else void pixiAppRef.setFreeSpinsBackgroundImage(`${B}fsbg_nightclub.webp`);
     // Vice dancers left + right of the grid, dancing through the FS round
     // (8×12 = 96 frames @ 12fps each, 224×398, seamless 8s loops).
     void pixiAppRef.setFreeSpinsDancers([`${B}dancer_a.webp`, `${B}dancer_b.webp`], 8, 12, 96, 12);

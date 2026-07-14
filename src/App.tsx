@@ -92,6 +92,7 @@ export function App() {
     void pixiAppRef.setSymbolWinSheet(2, `${B}prem_a_win.webp`, 7, 7, 48, 12);
     void pixiAppRef.setSymbolWinSheet(3, `${B}prem_b_win.webp`, 7, 7, 48, 12);
     void pixiAppRef.setSymbolWinSheet(0, `${B}wild_win.webp`, 7, 7, 48, 12);
+    void pixiAppRef.setSymbolWinSheet(4, `${B}car_win.webp`, 7, 7, 48, 12); // MID_C pink car
     // Scatter(1) BONUS animation — plays on the landed scatters at the FS
     // trigger (the iris cuts in just before it ends). 8×10 = 74 frames @ 15fps.
     void pixiAppRef.setSymbolWinSheet(1, `${B}scatterwin.webp`, 8, 10, 74, 15);

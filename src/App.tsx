@@ -27,6 +27,9 @@ export function App() {
   const [snapshot, setSnapshot] = useState<HostSnapshotV1 | null>(null);
   const [pixiAppRef, setPixiAppRef] = useState<PixiApp | null>(null);
   const [turbo, setTurbo] = useState(false);
+  // While the game intro screen is up, the control bar stays hidden and
+  // fades in smoothly once the player taps through.
+  const [introOpen, setIntroOpen] = useState(false);
 
   // The loaded game = the stamped Fantasy spec (config/reels+paytable+gameConfig
   // are the ZIP's generated files, so DEFAULT_GAME_CONFIG IS the Fantasy math)
@@ -136,7 +139,9 @@ export function App() {
       arr.map(l => ({ file: `${import.meta.env.BASE_URL}${l.file}`, role: l.role, cx: l.cx, cy: l.cy, tw: l.tw }));
     void pixiAppRef.setLayeredIntro('fs3', mapSet(introLayers.fs3));
     void pixiAppRef.setLayeredIntro('fs4', mapSet(introLayers.fs4));
-    void pixiAppRef.setLayeredIntro('game', mapSet(introLayers.game)).then(() => pixiAppRef.showGameIntro());
+    void pixiAppRef.setLayeredIntro('game', mapSet(introLayers.game)).then(() => {
+      if (pixiAppRef.showGameIntro(() => setIntroOpen(false))) setIntroOpen(true);
+    });
   }, [pixiAppRef]);
 
   const handlePixiReady = useCallback((app: PixiApp) => {
@@ -207,19 +212,21 @@ export function App() {
         onPixiReady={handlePixiReady}
         config={gameConfig}
         controls={
-          <ControlBar
-            gameState={state}
-            snapshot={snapshot}
-            onBetChange={handleBetChange}
-            onSpin={handleSpin}
-            onSkip={handleSkip}
-            onAutoSpin={handleAutoSpin}
-            onStopAuto={handleStopAuto}
-            onBuyBonus={handleBuyBonus}
-            turbo={turbo}
-            onTurboToggle={handleTurboToggle}
-            soundManager={soundManager}
-          />
+          <div style={{ opacity: introOpen ? 0 : 1, pointerEvents: introOpen ? 'none' : 'auto', transition: 'opacity 0.6s ease' }}>
+            <ControlBar
+              gameState={state}
+              snapshot={snapshot}
+              onBetChange={handleBetChange}
+              onSpin={handleSpin}
+              onSkip={handleSkip}
+              onAutoSpin={handleAutoSpin}
+              onStopAuto={handleStopAuto}
+              onBuyBonus={handleBuyBonus}
+              turbo={turbo}
+              onTurboToggle={handleTurboToggle}
+              soundManager={soundManager}
+            />
+          </div>
         }
       />
 

@@ -1097,14 +1097,17 @@ export class PixiApp {
 
   /** GAME INTRO: full-canvas living title screen shown once on load. The
    *  dismiss tap doubles as the browser's audio gesture, so the background
-   *  music starts THE moment the player enters — "ab Intro instant". */
-  showGameIntro(): void {
-    if (!this._initialized || this._aborted || this.gameIntroShown) return;
+   *  music starts THE moment the player enters — "ab Intro instant".
+   *  Opens SMOOTHLY (fade + gentle scale settle); returns whether it showed
+   *  so the host can hide the control bar; `onDismiss` fires when the tap
+   *  fade completes. */
+  showGameIntro(onDismiss?: () => void): boolean {
+    if (!this._initialized || this._aborted || this.gameIntroShown) return false;
     const sw = this.app.screen.width;
     const sh = this.app.screen.height;
     const tweens: gsap.core.Animation[] = [];
     const scene = this.buildLayeredIntroScene('game', sw, sh, tweens);
-    if (!scene) return;
+    if (!scene) return false;
     this.gameIntroShown = true;
     const overlay = new Container();
     overlay.zIndex = 30000;
@@ -1117,6 +1120,14 @@ export class PixiApp {
     overlay.cursor = 'pointer';
     overlay.hitArea = new Rectangle(0, 0, sw, sh);
     this.app.stage.addChild(overlay);
+    // Smooth ENTRANCE: fade in while the scene settles from a slight zoom.
+    overlay.alpha = 0;
+    const sceneBase = scene.scale.x;
+    scene.scale.set(sceneBase * 1.045);
+    tweens.push(
+      gsap.to(overlay, { alpha: 1, duration: 0.55, ease: 'power2.out' }),
+      gsap.to(scene.scale, { x: sceneBase, y: sceneBase, duration: 0.9, ease: 'power2.out' }),
+    );
     let done = false;
     overlay.on('pointertap', () => {
       if (done) return;
@@ -1126,9 +1137,11 @@ export class PixiApp {
         onComplete: () => {
           for (const t of tweens) t.kill();
           try { overlay.destroy({ children: true }); } catch { /* torn down */ }
+          onDismiss?.();
         },
       });
     });
+    return true;
   }
 
   /** Free-spins-ONLY background. Shown while the round runs: swapped in at the

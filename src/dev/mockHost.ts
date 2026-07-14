@@ -123,10 +123,12 @@ export class MockHost {
         const sessionKey = `${MOCK_CHAIN_ID}:${sessionId}`;
         const txHash = `0x${sessionId.padStart(64, '0')}` as `0x${string}`;
 
-        // Simulate VRF fulfillment delay ~1.5s
+        // Simulate VRF fulfillment delay ~0.9s — devnet-realistic while the
+        // roll still masks it (Noski: click→drop was too slow; the live
+        // chain dictates the real value, the reels stop whenever it lands).
         setTimeout(() => {
           this.settleSession(sessionId, sessionKey, wagerBig, gameData);
-        }, 1500);
+        }, 900);
 
         return { sessionKey, transactionHash: txHash };
       },

@@ -886,9 +886,11 @@ export class ReelSet {
       const stopPromise = (() => {
         if (fast) return reel.stopOn(stops[i], 0, true);
 
-        // Per-reel stop stagger — a more deliberate left-to-right cascade
-        // reads like a real slot rather than a rushed simultaneous stop.
-        const baseDelay = i * 0.22;
+        // Per-reel stop stagger — a deliberate left-to-right cascade that
+        // still reads like a real slot. Tightened (0.22 → 0.15) with the
+        // shorter decel below: click→drop was too slow (the roll only has
+        // to mask the on-chain settle, not stretch past it).
+        const baseDelay = i * 0.15;
         const teaseIdx = teaseOrder.get(i);
         if (teaseIdx !== undefined) {
           // Progressive tease: each subsequent reel adds another full
@@ -916,7 +918,10 @@ export class ReelSet {
             true, // isTeased — triggers landing bounce on all symbols
           );
         }
-        return reel.stopOn(stops[i], baseDelay, false);
+        // Shorter normal-stop decel (1.4s default → 1.0s) via the existing
+        // override param — Reel.ts stays byte-identical. Teased reels above
+        // keep their long anticipation ladder.
+        return reel.stopOn(stops[i], baseDelay, false, 1.0);
       })();
 
       // Fire audio + featured-state callbacks once this reel has actually

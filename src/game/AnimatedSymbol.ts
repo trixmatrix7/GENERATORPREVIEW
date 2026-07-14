@@ -231,29 +231,49 @@ export class AnimatedSymbol extends Container {
     if (this.winSheetSprite) return;
     const sheet = SYMBOL_WIN_SHEETS.get(this.symbolId);
     if (!sheet || sheet.frames.length === 0) return;
-    // Bigger than the resting art — the win animation pops OVER the cell
-    // (the lift keeps it above neighbours), with a quick back.out scale-in.
-    const size = Math.min(SYMBOL_WIDTH, SYMBOL_HEIGHT) * 1.22;
+    // 1:1 VOM STAND: the sheet SPAWNS on the resting art's exact footprint
+    // and cross-fades over it — no hard swap, no zoom-in pop. Because the
+    // sprite is a child of `inner`, it inherits whatever transform the
+    // previous state left (e.g. a mid-pulse 'featured' scatter during the
+    // near-miss tease), so tease → win reads as ONE continuous motion.
+    const cell = Math.min(SYMBOL_WIDTH, SYMBOL_HEIGHT);
+    const frameW = sheet.frames[0].width || 256;
+    const restScale = (cell * 0.94) / frameW;  // the static art's footprint
+    const popScale = (cell * 1.22) / frameW;   // the win presentation size
     const spr = new Sprite(sheet.frames[0]);
     spr.anchor.set(0.5);
-    const target = size / (sheet.frames[0].width || 256);
-    spr.scale.set(target * 0.78);
-    gsap.to(spr.scale, { x: target, y: target, duration: 0.28, ease: 'back.out(2.2)' });
+    spr.scale.set(restScale);
+    spr.alpha = 0;
     spr.eventMode = 'none';
     this.inner.addChild(spr);
     // Soft-edge mask: melts the square frame edges away so only the CHARACTER
     // pops — never a hard card. Parented to the sprite so it scales with it.
     const mask = new Sprite(getSoftEdgeMask());
     mask.anchor.set(0.5);
-    mask.width = (sheet.frames[0].width || 256);
+    mask.width = frameW;
     mask.height = (sheet.frames[0].height || 256);
     mask.eventMode = 'none';
     spr.addChild(mask);
     spr.mask = mask;
     this.preSheetIconVisible = this.iconSprite?.visible ?? false;
     this.preSheetShadowVisible = this.iconShadow?.visible ?? false;
-    if (this.iconSprite) this.iconSprite.visible = false;
-    if (this.iconShadow) this.iconShadow.visible = false;
+    // Cross-fade: the sheet fades IN on the same footprint while the static
+    // art fades OUT underneath, then the sheet eases up to the win size —
+    // smooth power curve, no back-overshoot zoom.
+    gsap.to(spr, { alpha: 1, duration: 0.12, ease: 'power1.out' });
+    for (const layer of [this.iconSprite, this.iconShadow]) {
+      if (!layer) continue;
+      gsap.killTweensOf(layer, 'alpha');
+      gsap.to(layer, {
+        alpha: 0, duration: 0.14, ease: 'power1.in',
+        onComplete: () => { layer.visible = false; layer.alpha = 1; },
+      });
+    }
+    gsap.to(spr.scale, { x: popScale, y: popScale, duration: 0.38, ease: 'power2.inOut', delay: 0.06 });
+    // Blend any inherited state transform (featured pulse scale/rotation/
+    // alpha) smoothly back to neutral instead of snapping.
+    gsap.to(this.inner.scale, { x: 1, y: 1, duration: 0.3, ease: 'power2.out' });
+    gsap.to(this.inner, { rotation: 0, alpha: 1, duration: 0.2, ease: 'power2.out' });
     this.winSheetSprite = spr;
     const proxy = { f: 0 };
     this.winSheetTween = gsap.to(proxy, {
@@ -271,15 +291,25 @@ export class AnimatedSymbol extends Container {
     if (!spr) return;
     this.winSheetSprite = null;
     gsap.killTweensOf(spr.scale);
-    // Clean handoff: the static art comes back UNDER the overlay, then the
-    // overlay shrinks back to symbol size while fading out — no hard snap
-    // from the zoomed animation to the resting art.
-    if (this.iconSprite) this.iconSprite.visible = this.preSheetIconVisible;
-    if (this.iconShadow) this.iconShadow.visible = this.preSheetShadowVisible;
+    gsap.killTweensOf(spr);
+    // The exact REVERSE of the intro: the sheet settles back down onto the
+    // static art's footprint while the art cross-fades back in underneath,
+    // then the sheet dissolves — one continuous motion, no snap-back zoom.
     const back = (Math.min(SYMBOL_WIDTH, SYMBOL_HEIGHT) * 0.94) / (spr.texture.width || 256);
-    gsap.to(spr.scale, { x: back, y: back, duration: 0.22, ease: 'power2.inOut' });
+    const restore: Array<[Sprite | null, boolean]> = [
+      [this.iconSprite, this.preSheetIconVisible],
+      [this.iconShadow, this.preSheetShadowVisible],
+    ];
+    for (const [layer, wasVisible] of restore) {
+      if (!layer || !wasVisible) continue;
+      gsap.killTweensOf(layer, 'alpha');
+      layer.visible = true;
+      layer.alpha = 0;
+      gsap.to(layer, { alpha: 1, duration: 0.24, ease: 'power1.out', delay: 0.08 });
+    }
+    gsap.to(spr.scale, { x: back, y: back, duration: 0.26, ease: 'power2.inOut' });
     gsap.to(spr, {
-      alpha: 0, duration: 0.24, ease: 'power1.in',
+      alpha: 0, duration: 0.2, ease: 'power1.in', delay: 0.12,
       onComplete: () => {
         spr.parent?.removeChild(spr);
         try { spr.destroy({ children: true }); } catch { /* torn down */ }

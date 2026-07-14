@@ -1342,7 +1342,10 @@ export class PixiApp {
         // pays its natural connections, so the evaluation always runs.
         const board = this.reelSet.getVisibleBoard();
         for (const reel of expanded) for (let row = 0; row < this.grid.visibleRows; row++) board[row][reel] = 0; // WILD
-        const winResult = evaluateWins(board, outcome.wager ?? 1n, this.config);
+        const winResult = this.applySimulMultiplier(
+          evaluateWins(board, outcome.wager ?? 1n, this.config),
+          stickyMode ? 0 : expanded.length,
+        );
         if (winResult.totalWin > 0n) {
           const spinOutcome: SpinOutcome = {
             stops: this.config.reelLengths.map(() => 0), board,
@@ -1422,6 +1425,23 @@ export class PixiApp {
    *  turn), then light all winners and play the grand-total coin ceremony.
    *  Single win / turbo / reduced-motion skip straight to the total. Awaited so
    *  the spin holds until it finishes. */
+  /** SIMULTANEOUS-EXPANSION MULTIPLIERS (per-spin expansion contexts: the
+   *  3-scatter bonus + the showcase; never sticky rounds): n reels expanding
+   *  in the SAME spin multiply the spin's win per the custom table (late
+   *  ladder — 3 towers x2, 4 towers x8). The 4-tower simultaneous spin is the
+   *  3sc bonus' MAX WIN pattern. Scales the total AND each combo so the
+   *  presented +amounts match the settlement rule. */
+  private applySimulMultiplier(winResult: WinResult, towers: number): WinResult {
+    const table = (this.config as { simulExpandMultipliers?: Record<string, number> }).simulExpandMultipliers ?? {};
+    const mult = BigInt(table[String(towers)] ?? 1);
+    if (mult <= 1n) return winResult;
+    return {
+      ...winResult,
+      totalWin: winResult.totalWin * mult,
+      combinations: winResult.combinations.map(c => ({ ...c, winAmount: c.winAmount * mult })),
+    };
+  }
+
   private async playWinSequence(
     outcome: SpinOutcome,
     symbol: string,
@@ -2124,7 +2144,7 @@ export class PixiApp {
       // Effective board: the expanded reels are ENTIRELY wild.
       const board = this.reelSet.getVisibleBoard();
       for (const reel of chosen) for (let row = 0; row < this.grid.visibleRows; row++) board[row][reel] = 0; // WILD
-      const winResult = evaluateWins(board, wager, this.config);
+      const winResult = this.applySimulMultiplier(evaluateWins(board, wager, this.config), chosen.length);
       if (winResult.totalWin <= 0n) return; // honest: dead-paytable connections stay silent
       const outcome: SpinOutcome = {
         stops: this.config.reelLengths.map(() => 0),

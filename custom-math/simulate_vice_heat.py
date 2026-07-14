@@ -77,6 +77,13 @@ MAX_WIN_X = 5000
 # (leftmost joins first on ties). Default = ALL wild-capable reels (4) — with
 # RARE wilds the full board is the jackpot event, not the norm.
 STICKY_CAP = int(os.environ.get('VH_STICKY_CAP', '4'))
+# SIMULTANEOUS-EXPANSION MULTIPLIERS (per-spin expansion contexts only: the
+# 3-scatter bonus + hot spins; NEVER sticky rounds): n reels expanding in the
+# SAME spin multiply that spin's win per this table. Deliberately LATE ladder
+# (2 towers pay plain — too common to multiply): the 1-in-4096 four-tower
+# alignment x8 with a premium reel-1 window IS the 3-scatter bonus' MAX WIN
+# pattern (much rarer than the 4-scatter sticky route).
+SIMUL_MULTS = {3: 2, 4: 8}
 
 # ── precompute visible windows per reel/stop: (counts per symbol incl. wild-as-any, wilds, scatters)
 def precompute(strips):
@@ -145,7 +152,9 @@ def simulate(n, pays, scatter_pay, seed=42):
     for _ in range(n):
         stops = [rng.randrange(lens[r]) for r in range(REELS)]
         hot = rng.randrange(HOT_CHANCE) == 0
-        win, sc, _ = eval_spin(stops, hot, empty, pays, scatter_pay)
+        win, sc, full = eval_spin(stops, hot, empty, pays, scatter_pay)
+        if hot:
+            win *= SIMUL_MULTS.get(len(full), 1)
         session = win
         if hot: hot_total += win
         else: base_total += win
@@ -167,7 +176,8 @@ def simulate(n, pays, scatter_pay, seed=42):
                             sticky.add(i)
                     w2, sc2, _ = eval_spin(st, False, sticky, pays, scatter_pay)
                 else:
-                    w2, sc2, _ = eval_spin(st, True, sticky, pays, scatter_pay)
+                    w2, sc2, full = eval_spin(st, True, sticky, pays, scatter_pay)
+                    w2 *= SIMUL_MULTS.get(len(full), 1)
                 round_win += w2
                 session += w2
                 # Retrigger awards retriggerSpins (custom rule), bounded by
@@ -198,6 +208,8 @@ def simulate(n, pays, scatter_pay, seed=42):
                        'p99': pct(fs4_rounds, 0.99) / X, 'max': (fs4_rounds[-1] / X) if fs4_rounds else 0},
         'fs4_ge_800x_pct': 100 * sum(1 for w in fs4_rounds if w >= 800 * X) / max(1, len(fs4_rounds)),
         'fs4_ge_maxwin_pct': 100 * sum(1 for w in fs4_rounds if w >= MAX_WIN_X * X) / max(1, len(fs4_rounds)),
+        'fs3_ge_800x_pct': 100 * sum(1 for w in fs3_rounds if w >= 800 * X) / max(1, len(fs3_rounds)),
+        'fs3_ge_maxwin_pct': 100 * sum(1 for w in fs3_rounds if w >= MAX_WIN_X * X) / max(1, len(fs3_rounds)),
         'base_pct': base_total / (n * X) * 100,
         'hot_pct': hot_total / (n * X) * 100,
         'fs3_pct': fs3_total / (n * X) * 100,
@@ -242,6 +254,7 @@ if __name__ == '__main__':
             'stickyExpandingFrom4Scatters': True,
             'stickyTowerCap': STICKY_CAP,
             'retriggerSpins': FS_RETRIG,
+            'simulExpandMultipliers': {str(k): v for k, v in SIMUL_MULTS.items()},
             'hotSpinChance1In': HOT_CHANCE,
             'hotSpinExpandsWilds': True,
             'notes': 'Wild expands to full reel BEFORE ways evaluation in FS and hot spins. '

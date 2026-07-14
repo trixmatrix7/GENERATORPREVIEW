@@ -193,6 +193,9 @@ export class MockHost {
         );
         const fsStops = this.deriveStops(seed);
         const fsBoard = this.buildBoardCfg(fsStops);
+        // Reels expanding in THIS spin (per-spin mode) — drives the
+        // simultaneous-expansion multiplier below.
+        let simulTowers = 0;
         // Vice-Heat style FS: wild-carrying reels become FULLY WILD before
         // ways evaluation (settlement matches the displayed expansion).
         if (expandFS) {
@@ -211,12 +214,19 @@ export class MockHost {
             for (let reel = 0; reel < fsBoard[0].length; reel++) {
               if (fsBoard.some(r => r[reel] === 0)) {
                 for (let row = 0; row < fsBoard.length; row++) fsBoard[row][reel] = 0;
+                simulTowers++;
               }
             }
           }
         }
         const { totalWin: rawFsWin, scatterCount: fsScatter } = evaluateWins(fsBoard, bet, this.config);
-        const fsWin = rawFsWin * BigInt(this.config.freeSpinsMultiplier);
+        // SIMULTANEOUS-EXPANSION MULTIPLIERS (3-scatter rounds only): n reels
+        // expanding in the SAME spin multiply the spin's win per the custom
+        // table (late ladder: 3 towers x2, 4 towers x8) — the four-tower
+        // simultaneous spin is the 3sc bonus' max-win pattern.
+        const simulTable = (this.config as { simulExpandMultipliers?: Record<string, number> }).simulExpandMultipliers ?? {};
+        const simulMult = BigInt(simulTable[String(simulTowers)] ?? 1);
+        const fsWin = rawFsWin * simulMult * BigInt(this.config.freeSpinsMultiplier);
         totalWin += fsWin;
         if (totalWin > maxWin) totalWin = maxWin;
         // Retrigger awards the custom `retriggerSpins` (small, the tight

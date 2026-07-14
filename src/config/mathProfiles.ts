@@ -57,6 +57,10 @@ function fromManifest(m: Record<string, unknown>): GameConfig {
     // Small fixed retrigger award (custom rule) — undefined keeps the
     // template's re-award-freeSpinsCount behaviour.
     retriggerSpins: (m['custom'] as { retriggerSpins?: number } | undefined)?.retriggerSpins,
+    // Simultaneous-expansion multiplier table (3sc bonus + hot spins):
+    // n reels expanding in ONE spin multiply the spin win per this map
+    // (late ladder, e.g. {"3": 2, "4": 8}).
+    simulExpandMultipliers: (m['custom'] as { simulExpandMultipliers?: Record<string, number> } | undefined)?.simulExpandMultipliers,
   } as unknown as GameConfig;
 }
 

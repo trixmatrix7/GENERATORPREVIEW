@@ -1,8 +1,8 @@
 {
  "gridId": "5x5",
  "targetRtpPct": 96.0,
- "rtpBps": 9578,
- "rtpMethod": "MC 8M spins, volatile tiered sticky model (k=1.212); heavy fs4 tail => seed noise ~\u00b11%",
+ "rtpBps": 9703,
+ "rtpMethod": "MC 8M spins, volatile tiered sticky model + simul-mult ladder (k=1.031); heavy tails => seed noise ~\u00b11.5%",
  "reelStrips": [
   [
    5,
@@ -218,50 +218,50 @@
  "reelLength": 40,
  "payTable": {
   "wild": [
-   48,
-   364,
-   3636
+   41,
+   309,
+   3093
   ],
   "highA": [
-   48,
-   364,
-   3636
+   41,
+   309,
+   3093
   ],
   "highB": [
-   36,
-   267,
-   2182
+   31,
+   227,
+   1856
   ],
   "midC": [
-   27,
-   182,
-   1212
+   23,
+   155,
+   1031
   ],
   "midD": [
-   22,
-   145,
-   970
+   19,
+   124,
+   825
   ],
   "lowE": [
-   17,
-   97,
-   545
+   14,
+   82,
+   464
   ],
   "lowF": [
-   15,
-   73,
-   424
+   12,
+   62,
+   361
   ],
   "lowG": [
-   12,
-   61,
-   303
+   10,
+   52,
+   258
   ]
  },
  "scatterPay": [
-  121,
-  485,
-  2424
+  103,
+  412,
+  2062
  ],
  "freeSpinsCount": 8,
  "freeSpinsCap": 13,
@@ -273,34 +273,40 @@
   "stickyExpandingFrom4Scatters": true,
   "stickyTowerCap": 4,
   "retriggerSpins": 5,
+  "simulExpandMultipliers": {
+   "3": 2,
+   "4": 8
+  },
   "hotSpinChance1In": 40,
   "hotSpinExpandsWilds": true,
   "notes": "Wild expands to full reel BEFORE ways evaluation in FS and hot spins. A 4+-scatter trigger plays STICKY expansion: expanded reels stay fully wild for the rest of the round. Fully wild reels contribute no scatters. Reel 1 carries no wilds (no wild-line double count). Wild pays as highA."
  },
  "simResults": {
-  "rtp_pct": 95.7816978025,
+  "rtp_pct": 97.0297511425,
   "hit_freq_pct": 82.693375,
   "fs3_trigger_1_in": 43.86566141192598,
   "fs4_trigger_1_in": 519.8518422249659,
-  "avg_fs3_round_x": 9.560123556408499,
-  "avg_fs4_round_x": 273.18551490025345,
+  "avg_fs3_round_x": 14.086989143248802,
+  "avg_fs4_round_x": 232.4275889336539,
   "fs3_dist_x": {
-   "p50": 3.944,
-   "p90": 20.036,
-   "p99": 89.975,
-   "max": 773.9482
+   "p50": 3.3567,
+   "p90": 18.3686,
+   "p99": 134.4988,
+   "max": 5162.8102
   },
   "fs4_dist_x": {
-   "p50": 73.5625,
-   "p90": 904.0273,
-   "p99": 2247.5947,
-   "max": 4134.673
+   "p50": 62.6013,
+   "p90": 769.1749,
+   "p99": 1912.4333,
+   "max": 3517.4357
   },
-  "fs4_ge_800x_pct": 11.443238676977062,
+  "fs4_ge_800x_pct": 9.584768341022809,
   "fs4_ge_maxwin_pct": 0.0,
-  "base_pct": 18.5650959625,
-  "hot_pct": 2.87185906,
-  "fs3_pct": 21.79409417,
-  "fs4_pct": 52.550648609999996
+  "fs3_ge_800x_pct": 0.1973954763536669,
+  "fs3_ge_maxwin_pct": 0.006579849211788897,
+  "base_pct": 15.797189795,
+  "hot_pct": 4.427004806249999,
+  "fs3_pct": 32.1139330625,
+  "fs4_pct": 44.71035207625
  }
 }

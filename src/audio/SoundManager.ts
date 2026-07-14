@@ -101,8 +101,10 @@ export class SoundManager {
     }
   }
 
-  /** Play a sound by registry ID. No-op if the binding is missing. */
-  play(eventId: string): void {
+  /** Play a sound by registry ID. No-op if the binding is missing.
+   *  `opts.rate` pitches THIS instance (1 = normal) — used for the rising
+   *  per-connection tally ladder. */
+  play(eventId: string, opts?: { rate?: number }): void {
     const howl = this.howls.get(eventId);
     const binding = this.bindings.get(eventId);
     if (!howl || !binding) return;
@@ -114,9 +116,11 @@ export class SoundManager {
         return;
       }
       const id = howl.play();
+      if (opts?.rate) howl.rate(opts.rate, id);
       this.exclusivePlaying.set(eventId, id);
     } else {
-      howl.play();
+      const id = howl.play();
+      if (opts?.rate) howl.rate(opts.rate, id);
     }
   }
 

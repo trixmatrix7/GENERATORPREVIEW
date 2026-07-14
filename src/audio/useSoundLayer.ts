@@ -64,6 +64,26 @@ export function useSoundLayer(state: GameState | null): SoundManager {
   // Cancel any pending accents when the hook unmounts.
   useEffect(() => () => clearAccents(), []);
 
+  // Ambient music starts on the FIRST interaction anywhere (intro screen,
+  // UI, canvas) — the earliest moment browsers allow audio. The first-spin
+  // path below stays as a fallback; ambientStartedRef guards double-starts.
+  useEffect(() => {
+    const kick = () => {
+      if (!ambientStartedRef.current) {
+        manager.play('ambient-music');
+        ambientStartedRef.current = true;
+      }
+      window.removeEventListener('pointerdown', kick);
+      window.removeEventListener('keydown', kick);
+    };
+    window.addEventListener('pointerdown', kick);
+    window.addEventListener('keydown', kick);
+    return () => {
+      window.removeEventListener('pointerdown', kick);
+      window.removeEventListener('keydown', kick);
+    };
+  }, [manager]);
+
   useEffect(() => {
     if (!state) return;
     const prev = prevPhaseRef.current;

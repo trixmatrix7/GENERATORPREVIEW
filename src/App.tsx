@@ -151,7 +151,9 @@ export function App() {
       onReelStopped: () => soundManager.play('reel-stop'),
       onScatterLanded: () => soundManager.play('scatter-land'),
       onNearMissTease: () => soundManager.play('near-miss-tease'),
-      onWinStep: () => soundManager.play('coin-chime'),
+      // Rising tally: each connection's chime pitches a step higher — the
+      // classic count-up ladder instead of a flat repeated tick.
+      onWinStep: (index) => soundManager.play('coin-chime', { rate: 1 + Math.min(index, 8) * 0.09 }),
     });
   }, [pixiApp, soundManager]);
 

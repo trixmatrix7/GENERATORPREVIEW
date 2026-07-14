@@ -18,9 +18,11 @@ import { gsap } from 'gsap';
 
 export const waysImmersiveConfig = {
   enabled: true,
-  /** Non-winning cells dim to this alpha during a combo reveal (deeper than
-   *  the classic 0.25 — the dark board makes the winners' motion read big). */
-  dimAlpha: 0.16,
+  /** Alpha for non-winning cells during a combo reveal. 1.0 = NO dim: the
+   *  win sheets ARE the presentation — the board stays fully lit while they
+   *  play (Noski: "wenn Scatter/High win kommt soll NUR meine Animation
+   *  triggern, das Dimmen beim Abspielen muss weg"). */
+  dimAlpha: 1.0,
   /** Per-reel stagger of the left→right leap wave, seconds. */
   stagger: 0.07,
 };

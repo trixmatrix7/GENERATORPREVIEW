@@ -76,6 +76,11 @@ interface NearMiss {
 export interface ReelSetAudioHooks {
   onReelStopped?: (reelIdx: number) => void;
   onScatterLanded?: (reelIdx: number) => void;
+  /** A money wild is visible on this stopped reel (cash-drop foley). */
+  onWildLanded?: (reelIdx: number) => void;
+  /** An expanding-wild reveal just started racing up this reel — the sound's
+   *  slam is authored to land on the tower's lock-in beat (~0.42s). */
+  onWildExpand?: (reelIdx: number) => void;
   /** Fires when a reel enters its near-miss slowdown phase, so the React
    *  layer can play a tease sound (rising tone, low rumble, etc.). */
   onNearMissTease?: (reelIdx: number) => void;
@@ -764,6 +769,9 @@ export class ReelSet {
    *  lifecycle, so the next spin clears everything. */
   private expandOneWildReel(reelIdx: number, row: number, turbo: boolean): Promise<void> {
     return new Promise(resolve => {
+      // Bill-riffle riser foley — its slam is authored to land on the
+      // lock-in beat (~0.42s), matching T_RACE + the settle.
+      this.audioHooks.onWildExpand?.(reelIdx);
       // From here on the reel belongs to the tower — its cells are excluded
       // from every win presentation until the sticky lifecycle clears.
       this.expandedReels.add(reelIdx);
@@ -976,6 +984,9 @@ export class ReelSet {
         .then(() => {
           if (!fast) this.playLandingThud(i); // board jolt — the stop has weight
           this.audioHooks.onReelStopped?.(i);
+          if (this.reelHasVisibleWild(i, stops[i])) {
+            this.audioHooks.onWildLanded?.(i); // cash-bundle drop foley
+          }
           if (this.reelHasVisibleScatter(i, stops[i])) {
             this.audioHooks.onScatterLanded?.(i);
             // The 2nd VISIBLE scatter opens the chain: arm the first gate.
@@ -2018,6 +2029,15 @@ export class ReelSet {
     const strip = this.config.reelStrips[reelIdx];
     for (let row = 0; row < this.grid.visibleRows; row++) {
       if (strip[(stop + row) % len] === SymbolId.SCATTER) return true;
+    }
+    return false;
+  }
+
+  private reelHasVisibleWild(reelIdx: number, stop: number): boolean {
+    const len = this.config.reelLengths[reelIdx];
+    const strip = this.config.reelStrips[reelIdx];
+    for (let row = 0; row < this.grid.visibleRows; row++) {
+      if (strip[(stop + row) % len] === SymbolId.WILD) return true;
     }
     return false;
   }

@@ -28,15 +28,19 @@ const DEFAULT_VOLUMES: Record<string, number> = {
   'win-mega': 0,
   'win-marquee': 0.95,
   'scatter-land': 0.8,
+  // Money foley: cash-bundle drop on wild land, bill-riffle riser + slam on
+  // the tower expansion.
+  'wild-land': 0.8,
+  'wild-expand': 0.85,
   'free-spin-trigger': 1.0,
   'near-miss-tease': 0.4,
   // Spin loop is OFF (silent file + zero volume): no bed under the spin —
   // the music + stop thumps carry it. Noski killed both the hiss and the
   // rumble variants ("brummen raus damit").
   'reel-spin-loop': 0,
-  // Chime fires once per connection (rapid ladder) — noticeably quieter than
-  // the one-shot stingers so the tally never dominates the mix (Noski).
-  'coin-chime': 0.55,
+  // Connection SWISH (noise foley) — fires once per connection on the rising
+  // rate ladder; sits soft and smooth under the mix (Noski: "kleiner Wisch").
+  'coin-chime': 0.5,
   'ambient-music': 0.35,
 };
 
@@ -52,7 +56,7 @@ const AUDIO_DIR = '/audio';
 // These must try .ogg FIRST: a missing .wav makes the SPA dev server answer
 // with index.html (HTTP 200), which Howler then fails to DECODE — and it
 // never falls through to the real file ("Decoding audio data failed").
-const OGG_FIRST = new Set<string>(['ambient-music', 'win-marquee', 'spin-start', 'reel-stop', 'coin-chime']);
+const OGG_FIRST = new Set<string>(['ambient-music', 'win-marquee', 'spin-start', 'reel-stop', 'coin-chime', 'wild-land', 'wild-expand']);
 
 function bindingForEvent(id: string): SoundEventBinding {
   return {

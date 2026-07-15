@@ -266,6 +266,8 @@ export function App() {
     pixiApp.setAudioHooks({
       onReelStopped: () => soundManager.play('reel-stop'),
       onScatterLanded: () => soundManager.play('scatter-land'),
+      onWildLanded: () => soundManager.play('wild-land'),
+      onWildExpand: () => soundManager.play('wild-expand'),
       onNearMissTease: () => soundManager.play('near-miss-tease'),
       // Rising tally: each connection's chime pitches a step higher — the
       // classic count-up ladder instead of a flat repeated tick.

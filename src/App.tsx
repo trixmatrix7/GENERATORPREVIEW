@@ -80,24 +80,38 @@ export function App() {
   useEffect(() => {
     if (!pixiAppRef) return;
     const saved = loadAssets();
+    // ── BOOT PROGRESS: the static loading screen (index.html #boot-screen)
+    // covers the bare skeleton until the CRITICAL theme visuals are loaded,
+    // then fades straight into the intro's iris-from-black entrance.
+    // Non-critical assets (win sheets, FS art, anim loops) keep loading in
+    // parallel behind it. Bar width = real completed-jobs fraction.
+    const bootJobs: Promise<unknown>[] = [];
+    const track = <T,>(p: Promise<T>): void => {
+      bootJobs.push(p.catch(() => undefined).then(() => {
+        const done = ++bootTracked.done;
+        const bar = document.getElementById('boot-bar');
+        if (bar) bar.style.width = `${Math.round((0.06 + 0.94 * (done / bootJobs.length)) * 100)}%`;
+      }));
+    };
+    const bootTracked = { done: 0 };
     const symbols = saved.symbols && Object.keys(saved.symbols).length
       ? new Map(Object.entries(saved.symbols).map(([k, v]) => [Number(k), v]))
       : viceSymbolMap();
-    void pixiAppRef.setUserAssetTextures(symbols);
+    track(pixiAppRef.setUserAssetTextures(symbols));
     // Custom upload wins; otherwise the Vice MOTEL-BEACH base background —
     // static art paints instantly, then the LIVING loop takes over (45-frame
     // seamless spritesheet, cross-faded @6fps: ocean rolls, palms sway).
     const B = `${import.meta.env.BASE_URL}theme/vice/`;
-    if (saved.bg) void pixiAppRef.setBackgroundImage(saved.bg);
+    if (saved.bg) track(pixiAppRef.setBackgroundImage(saved.bg));
     else {
-      void pixiAppRef.setBackgroundImage(`${B}bg_motel.webp`);
+      track(pixiAppRef.setBackgroundImage(`${B}bg_motel.webp`));
       void pixiAppRef.setBackgroundSpritesheet(
         [`${B}bg_motel_anim_1.webp`, `${B}bg_motel_anim_2.webp`, `${B}bg_motel_anim_3.webp`],
         4, 4, 45, 6,
       );
     }
     // VICE HEAT logo above the grid (replaces the text title).
-    void pixiAppRef.setTitleImage(`${B}logo.webp`);
+    track(pixiAppRef.setTitleImage(`${B}logo.webp`));
     // Symbol WIN animations: looped spritesheets on connection (7×7 = 48
     // frames @ 12fps each), color-matched to the static art. HIGH_A(2) =
     // shades guy, HIGH_B(3) = cigar boss, MID_C(4) = pink car, MID_D(5) =
@@ -121,8 +135,8 @@ export function App() {
     // transparent hole measured from the 1500² art's alpha — mapped onto the
     // frame bounds so the palm/arrow hang over the background, not the reels.
     // Custom uploads auto-detect their own window from alpha now.
-    if (saved.frame) void pixiAppRef.setFrameImage(saved.frame);
-    else void pixiAppRef.setFrameImage(`${B}frame_neon.webp`, { x: 197, y: 314, w: 832, h: 832 });
+    if (saved.frame) track(pixiAppRef.setFrameImage(saved.frame));
+    else track(pixiAppRef.setFrameImage(`${B}frame_neon.webp`, { x: 197, y: 314, w: 832, h: 832 }));
     // Frame WIN flash: the palm marquee's bulb chase + arrow strobe (chroma-
     // matted one-shot sheet) fires when the 3rd scatter lands. Region = where
     // those frames sit inside the 1500² frame texture.
@@ -164,8 +178,20 @@ export function App() {
     void pixiAppRef.setLayeredIntro('fs4', mapSet(introLayers.fs4));
     // TOTAL WIN outro after the free-spins round (iris-bookended, 15s max).
     void pixiAppRef.setLayeredIntro('outro', mapSet(introLayers.outro));
-    void pixiAppRef.setLayeredIntro('game', mapSet(introLayers.game)).then(() => {
+    track(pixiAppRef.setLayeredIntro('game', mapSet(introLayers.game)));
+    // Theme is IN: hold 100% for a beat, fade the boot screen — the intro's
+    // iris-from-black entrance begins underneath, so the handoff is seamless.
+    void Promise.all(bootJobs).then(() => {
       if (pixiAppRef.showGameIntro(() => setIntroOpen(false))) setIntroOpen(true);
+      const scr = document.getElementById('boot-screen');
+      if (scr) {
+        const bar = document.getElementById('boot-bar');
+        if (bar) bar.style.width = '100%';
+        setTimeout(() => {
+          scr.classList.add('boot-done');
+          setTimeout(() => scr.remove(), 650);
+        }, 180);
+      }
     });
   }, [pixiAppRef]);
 

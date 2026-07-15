@@ -16,9 +16,12 @@ interface Props {
   /** Bottom control bar rendered INSIDE the bounded game box, under the
    *  canvas (chaingames control-bar preset — a DOM layer, not canvas). */
   controls?: ReactNode;
+  /** Boot loading overlay rendered INSIDE the game box (the generator shows
+   *  it in the game iframe — never over the studio UI). */
+  bootScreen?: ReactNode;
 }
 
-export function GameCanvas({ lastOutcome, phase, onPixiReady, config, controls }: Props) {
+export function GameCanvas({ lastOutcome, phase, onPixiReady, config, controls, bootScreen }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const appRef = useRef<PixiApp | null>(null);
   const lastOutcomeRef = useRef(lastOutcome);
@@ -117,6 +120,7 @@ export function GameCanvas({ lastOutcome, phase, onPixiReady, config, controls }
                   {controls}
                 </div>
               )}
+              {bootScreen}
             </div>
           </div>
         </div>

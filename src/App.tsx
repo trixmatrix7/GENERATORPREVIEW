@@ -32,6 +32,11 @@ export function App() {
   // fades in smoothly once the player taps through.
   const [introOpen, setIntroOpen] = useState(false);
   const [fsIntroOpen, setFsIntroOpen] = useState(false);
+  // Boot loading screen INSIDE the game area (the generator shows it in the
+  // game iframe, never over the studio UI): real asset progress, then fade.
+  const [bootProgress, setBootProgress] = useState(0.06);
+  const [bootFade, setBootFade] = useState(false);
+  const [bootGone, setBootGone] = useState(false);
 
   // The loaded game = the stamped Fantasy spec (config/reels+paytable+gameConfig
   // are the ZIP's generated files, so DEFAULT_GAME_CONFIG IS the Fantasy math)
@@ -80,20 +85,19 @@ export function App() {
   useEffect(() => {
     if (!pixiAppRef) return;
     const saved = loadAssets();
-    // ── BOOT PROGRESS: the static loading screen (index.html #boot-screen)
-    // covers the bare skeleton until the CRITICAL theme visuals are loaded,
-    // then fades straight into the intro's iris-from-black entrance.
-    // Non-critical assets (win sheets, FS art, anim loops) keep loading in
-    // parallel behind it. Bar width = real completed-jobs fraction.
+    // ── BOOT PROGRESS: the loading overlay covers the GAME AREA (not the
+    // studio UI) until the CRITICAL theme visuals are loaded, then fades
+    // straight into the intro's iris-from-black entrance. Non-critical
+    // assets (win sheets, FS art, anim loops) keep loading in parallel
+    // behind it. Bar width = real completed-jobs fraction.
     const bootJobs: Promise<unknown>[] = [];
+    const bootTracked = { done: 0 };
     const track = <T,>(p: Promise<T>): void => {
       bootJobs.push(p.catch(() => undefined).then(() => {
         const done = ++bootTracked.done;
-        const bar = document.getElementById('boot-bar');
-        if (bar) bar.style.width = `${Math.round((0.06 + 0.94 * (done / bootJobs.length)) * 100)}%`;
+        setBootProgress(0.06 + 0.94 * (done / bootJobs.length));
       }));
     };
-    const bootTracked = { done: 0 };
     const symbols = saved.symbols && Object.keys(saved.symbols).length
       ? new Map(Object.entries(saved.symbols).map(([k, v]) => [Number(k), v]))
       : viceSymbolMap();
@@ -179,21 +183,47 @@ export function App() {
     // TOTAL WIN outro after the free-spins round (iris-bookended, 15s max).
     void pixiAppRef.setLayeredIntro('outro', mapSet(introLayers.outro));
     track(pixiAppRef.setLayeredIntro('game', mapSet(introLayers.game)));
-    // Theme is IN: hold 100% for a beat, fade the boot screen — the intro's
+    // Theme is IN: hold 100% for a beat, fade the boot overlay — the intro's
     // iris-from-black entrance begins underneath, so the handoff is seamless.
     void Promise.all(bootJobs).then(() => {
       if (pixiAppRef.showGameIntro(() => setIntroOpen(false))) setIntroOpen(true);
-      const scr = document.getElementById('boot-screen');
-      if (scr) {
-        const bar = document.getElementById('boot-bar');
-        if (bar) bar.style.width = '100%';
-        setTimeout(() => {
-          scr.classList.add('boot-done');
-          setTimeout(() => scr.remove(), 650);
-        }, 180);
-      }
+      setBootProgress(1);
+      setTimeout(() => setBootFade(true), 180);
+      setTimeout(() => setBootGone(true), 180 + 650);
     });
   }, [pixiAppRef]);
+
+  // Boot overlay node — rendered INSIDE the game-canvas container (like the
+  // generator's iframe). Per-game customization point: title + colors.
+  const bootScreen = bootGone ? null : (
+    <div style={{
+      position: 'absolute', inset: 0, zIndex: 30,
+      display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+      gap: 18, background: '#07070c',
+      opacity: bootFade ? 0 : 1, transition: 'opacity 0.55s ease',
+      pointerEvents: bootFade ? 'none' : 'auto',
+      fontFamily: 'ui-sans-serif, system-ui, sans-serif',
+    }}>
+      <style>{'@keyframes boot-breathe { 0%, 100% { opacity: 1; } 50% { opacity: 0.55; } }'}</style>
+      <div style={{
+        fontSize: 34, fontWeight: 900, fontStyle: 'italic', letterSpacing: 6,
+        background: 'linear-gradient(180deg, #ff64c8 0%, #ffd23f 100%)',
+        WebkitBackgroundClip: 'text', backgroundClip: 'text', color: 'transparent',
+        animation: 'boot-breathe 2.2s ease-in-out infinite',
+      }}>VICE&nbsp;HEAT</div>
+      <div style={{ width: 300, height: 5, borderRadius: 999, background: 'rgba(255,255,255,0.08)', overflow: 'hidden' }}>
+        <div style={{
+          width: `${Math.round(bootProgress * 100)}%`, height: '100%', borderRadius: 999,
+          background: 'linear-gradient(90deg, #ff64c8, #7de3ff)',
+          boxShadow: '0 0 12px rgba(255,100,200,0.55)', transition: 'width 0.35s ease',
+        }} />
+      </div>
+      <div style={{
+        fontSize: 11, fontWeight: 700, letterSpacing: 5, color: 'rgba(255,255,255,0.35)',
+        animation: 'boot-breathe 2.2s ease-in-out infinite',
+      }}>LOADING</div>
+    </div>
+  );
 
   const handlePixiReady = useCallback((app: PixiApp) => {
     setPixiAppRef(app);
@@ -271,6 +301,7 @@ export function App() {
         phase={state.phase}
         onPixiReady={handlePixiReady}
         config={gameConfig}
+        bootScreen={bootScreen}
         controls={
           <div style={{ opacity: introOpen || fsIntroOpen ? 0 : 1, pointerEvents: introOpen || fsIntroOpen ? 'none' : 'auto', transition: 'opacity 0.6s ease' }}>
             <ControlBar

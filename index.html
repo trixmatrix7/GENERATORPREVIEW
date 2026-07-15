@@ -8,50 +8,6 @@
     <meta name="description" content="Preview studio running the chain.wtf slot generator runtime 1:1 (Fantasy spec) with overlay tooling." />
   </head>
   <body>
-    <!-- BOOT LOADING SCREEN — static DOM, paints INSTANTLY (before any JS).
-         App.tsx drives #boot-bar's width with real asset progress and fades
-         the screen out once the theme is fully loaded, straight into the
-         intro's iris entrance. Generator note: this block is the per-game
-         customization point (swap title/colors per theme). -->
-    <div id="boot-screen">
-      <div class="boot-title">VICE&nbsp;HEAT</div>
-      <div class="boot-track"><div id="boot-bar"></div></div>
-      <div class="boot-hint">LOADING</div>
-    </div>
-    <style>
-      #boot-screen {
-        position: fixed; inset: 0; z-index: 99999;
-        display: flex; flex-direction: column; align-items: center; justify-content: center;
-        gap: 18px; background: #07070c;
-        transition: opacity 0.55s ease;
-        font-family: ui-sans-serif, system-ui, sans-serif;
-      }
-      #boot-screen.boot-done { opacity: 0; pointer-events: none; }
-      .boot-title {
-        font-size: 34px; font-weight: 900; font-style: italic; letter-spacing: 6px;
-        background: linear-gradient(180deg, #ff64c8 0%, #ffd23f 100%);
-        -webkit-background-clip: text; background-clip: text; color: transparent;
-        text-shadow: 0 0 28px rgba(255, 80, 190, 0.35);
-        animation: boot-breathe 2.2s ease-in-out infinite;
-      }
-      .boot-track {
-        width: 300px; height: 5px; border-radius: 999px;
-        background: rgba(255, 255, 255, 0.08);
-        overflow: hidden;
-      }
-      #boot-bar {
-        width: 6%; height: 100%; border-radius: 999px;
-        background: linear-gradient(90deg, #ff64c8, #7de3ff);
-        box-shadow: 0 0 12px rgba(255, 100, 200, 0.55);
-        transition: width 0.35s ease;
-      }
-      .boot-hint {
-        font-size: 11px; font-weight: 700; letter-spacing: 5px;
-        color: rgba(255, 255, 255, 0.35);
-        animation: boot-breathe 2.2s ease-in-out infinite;
-      }
-      @keyframes boot-breathe { 0%, 100% { opacity: 1; } 50% { opacity: 0.55; } }
-    </style>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

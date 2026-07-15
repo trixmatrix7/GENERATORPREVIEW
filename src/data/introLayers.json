@@ -70,7 +70,7 @@
    "tw": 360
   },
   {
-   "file": "theme/vice/intro/fs3/symbol_3_scatter_intro_screen_vice.webp",
+   "file": "theme/vice/symbol_scatter_landing.png",
    "role": "symbol",
    "cx": 963,
    "cy": 604,
@@ -152,10 +152,11 @@
    "cy": 972
   },
   {
-   "file": "theme/vice/intro/fs3/symbol_3_scatter_intro_screen_vice.webp",
+   "file": "theme/vice/symbol_scatter_landing.png",
    "role": "symbol",
    "cx": 960,
-   "cy": 472
+   "cy": 472,
+   "tw": 296
   },
   {
    "file": "theme/vice/intro/fs3/text_3_scatter_intro_screen_vice.webp",
@@ -190,10 +191,11 @@
    "cy": 826
   },
   {
-   "file": "theme/vice/intro/fs4/symbol_4_scatter_intro_screen_vice.webp",
+   "file": "theme/vice/symbol_scatter_landing.png",
    "role": "symbol",
    "cx": 960,
-   "cy": 472
+   "cy": 472,
+   "tw": 296
   },
   {
    "file": "theme/vice/intro/fs4/text_4_scatter_intro_screen_vice.webp",

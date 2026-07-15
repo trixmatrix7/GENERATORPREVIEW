@@ -3063,7 +3063,9 @@ export class PixiApp {
     amt.anchor.set(0.5);
     amt.position.set(0, 660 - 540);
     fg.addChild(amt);
-    tweens.push(gsap.to(amt.scale, { x: 1.045, y: 1.045, duration: 1.4, yoyo: true, repeat: -1, ease: 'sine.inOut' }));
+    const dp = decimals > 4 ? 2 : decimals;
+    const finalVal = Number(totalWin) / Math.pow(10, decimals);
+    amt.text = (0).toFixed(dp);
 
     content.scale.set(0.9);
     scene.addChild(content);
@@ -3112,6 +3114,24 @@ export class PixiApp {
       // …OPEN onto the breathing TOTAL WIN outro.
       tl.to(st, { r: rDiag, duration: 0.60 * S, ease: 'power2.out', onUpdate: redraw }, 0.82 * S);
       tl.fromTo(content.scale, { x: 0.86, y: 0.86 }, { x: 1, y: 1, duration: 0.55 * S, ease: 'power2.out' }, 0.84 * S);
+      // The amount COUNTS UP slowly once the outro is fully open — easing in
+      // (Steigerung) through the middle, steadying at the top — then POPS and
+      // settles into a gentle pulse for the rest of the hold.
+      const counter = { val: 0 };
+      tl.to(counter, {
+        val: finalVal, duration: 4.2, ease: 'power1.inOut',
+        onUpdate: () => { if (!amt.destroyed) amt.text = counter.val.toFixed(dp); },
+        onComplete: () => {
+          if (amt.destroyed) return;
+          amt.text = formatWin(totalWin, decimals);
+          tweens.push(gsap.fromTo(amt.scale, { x: 1.16, y: 1.16 }, {
+            x: 1, y: 1, duration: 0.5, ease: 'back.out(2.2)',
+            onComplete: () => {
+              if (!amt.destroyed) tweens.push(gsap.to(amt.scale, { x: 1.045, y: 1.045, duration: 1.3, yoyo: true, repeat: -1, ease: 'sine.inOut' }));
+            },
+          }));
+        },
+      }, 1.35 * S);
       // HOLD up to 15s, then the second blink back into the base game.
       const dismissAt = 0.84 * S + 15.0;
       tl.to(st, { r: 0, duration: 0.55 * S, ease: 'power3.in', onUpdate: redraw }, dismissAt);

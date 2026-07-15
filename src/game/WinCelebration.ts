@@ -30,8 +30,12 @@ export const WIN_CELEBRATION_CONFIG = {
    *  MAX is not a band — it fires only when the win hit the max-win cap. */
   bands: { mega: 25, epic: 100 },
   words: ['BIG WIN', 'MEGA WIN', 'EPIC WIN', 'MAX WIN'], // fallback-only (no art loaded)
-  countDur: [1.4, 2.0, 2.6, 3.2],
-  holdDur: [0.7, 0.9, 1.1, 1.5],
+  // Count-up durations per tier — SLOW enough that the marquee music is
+  // actually heard (Noski). Each tier counts faster in value/second (the
+  // escalation) but also LONGER in wall-clock; power1.inOut keeps the top
+  // end steady instead of snapping shut.
+  countDur: [2.6, 3.6, 4.6, 5.6],
+  holdDur: [1.0, 1.2, 1.4, 1.8],
   wordFontSize: [46, 52, 58, 64],   // fallback-only
   amountFontSize: [46, 50, 54, 58], // fallback-only
   shake: [0, 5, 8, 12],

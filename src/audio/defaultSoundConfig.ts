@@ -15,7 +15,7 @@ import { SoundManager, type SoundEventBinding, type SoundManagerConfig } from '.
 // avoid masking; win presentations are tuned to feel impactful. Values are
 // 0–1 and are multiplied by the user's master volume.
 const DEFAULT_VOLUMES: Record<string, number> = {
-  'spin-start': 0.7,
+  'spin-start': 0.78,
   // Fires 5x per spin — sits slightly under the one-shot clicks (Noski:
   // "etwas leiser") so the stop stagger doesn't hammer the mix.
   'reel-stop': 0.58,

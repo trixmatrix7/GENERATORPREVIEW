@@ -16,7 +16,9 @@ import { SoundManager, type SoundEventBinding, type SoundManagerConfig } from '.
 // 0–1 and are multiplied by the user's master volume.
 const DEFAULT_VOLUMES: Record<string, number> = {
   'spin-start': 0.7,
-  'reel-stop': 0.7,
+  // Fires 5x per spin — sits slightly under the one-shot clicks (Noski:
+  // "etwas leiser") so the stop stagger doesn't hammer the mix.
+  'reel-stop': 0.58,
   'win-small': 0.85,
   'win-normal': 0.9,
   'win-big': 1.0,

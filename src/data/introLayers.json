@@ -70,18 +70,18 @@
    "tw": 360
   },
   {
-   "file": "theme/vice/intro/game/scatter_symbol_ntro_screen_vice.webp",
+   "file": "theme/vice/intro/fs3/symbol_3_scatter_intro_screen_vice.webp",
    "role": "symbol",
    "cx": 963,
-   "cy": 608,
-   "tw": 228
+   "cy": 604,
+   "tw": 211
   },
   {
    "file": "theme/vice/intro/game/scatter_text_ntro_screen_vice.webp",
    "role": "text",
    "cx": 963,
-   "cy": 758,
-   "tw": 255
+   "cy": 774,
+   "tw": 222
   },
   {
    "file": "theme/vice/intro/game/sticky_logo_intro_screen_vice.webp",

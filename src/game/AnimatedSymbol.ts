@@ -37,6 +37,12 @@ import { SYMBOL_HEIGHT, SYMBOL_WIDTH } from './symbolMetrics';
  *  'win' state, replacing the static art). Filled by PixiApp.setSymbolWinSheet. */
 export const SYMBOL_WIN_SHEETS = new Map<number, { frames: Texture[]; fps: number }>();
 
+/** Symbols whose cell art must NEVER warp in place (no landing squash, no
+ *  idle breathing, no featured pulse) — in-place scaling pixelates upscaled
+ *  art. The WIN spritesheet stays as the only animation. Per-game wiring in
+ *  App.tsx (Vice: the scatter badge). */
+export const STATIC_LOOK_SYMBOLS = new Set<number>();
+
 /** Soft-edge mask for win-sheet overlays: the source video frames are square
  *  portraits whose art touches the frame edges — unmasked they pop as a hard
  *  CARD. A feathered rounded-rect alpha mask melts the edges away so only the
@@ -199,6 +205,16 @@ export class AnimatedSymbol extends Container {
     this.killTween();
     this.resetVisuals();
     this.activeState = state;
+
+    // STATIC-LOOK symbols (scatter badge): the art never warps in place —
+    // landing/idle/featured are absorbed into a clean still. Only the WIN
+    // sheet animates; the board's presentation carries the emphasis.
+    if (STATIC_LOOK_SYMBOLS.has(this.symbolId) &&
+        (state === 'landing' || state === 'idle' || state === 'featured')) {
+      this.setWinOutline(false);
+      this.stopWinSheet();
+      return;
+    }
 
     // Premiums with a WIN spritesheet get ONLY that animation: no white
     // outline (it flickered over the art), no win-juice pulse — the sheet IS
@@ -400,6 +416,7 @@ export class AnimatedSymbol extends Container {
    *  feeling busy. No-op under reduced motion or if a richer state is active. */
   playLandBounce(delay = 0): void {
     if (prefersReducedMotion()) return;
+    if (STATIC_LOOK_SYMBOLS.has(this.symbolId)) return; // never squash the scatter art
     // Don't fight a richer active state (win / featured / full landing).
     if (this.activeState !== 'static') return;
     this.killTween();

@@ -21,6 +21,7 @@ import { viceSymbolMap, VICE_INTRO_URL } from '@/config/viceAssets';
 import introLayers from '@/data/introLayers.json';
 import { loadAssets } from '@/studio/assetPersistence';
 import type { PixiApp } from '@/game/PixiApp';
+import { STATIC_LOOK_SYMBOLS } from '@/game/AnimatedSymbol';
 
 export function App() {
   const [hostApi, setHostApi] = useState<HostApiV1 | null>(null);
@@ -108,6 +109,10 @@ export function App() {
     // Scatter(1) BONUS animation — plays on the landed scatters at the FS
     // trigger (the iris cuts in just before it ends). 8×10 = 74 frames @ 15fps.
     void pixiAppRef.setSymbolWinSheet(1, `${B}scatterwin.webp`, 8, 10, 74, 15);
+    // The scatter badge keeps a clean STATIC look on the reels: no landing
+    // squash, no idle/featured warping (in-place scaling pixelates the art) —
+    // the win sheet above is its only animation.
+    STATIC_LOOK_SYMBOLS.add(1);
     // Expanding-wild column art (money tower; custom upload wins).
     // Expected art: 512×2560 px (5×5 grid) / 512×1484 px (5×3) — one reel's
     // aspect; setExpandingWildImage height-fits whichever grid is active.

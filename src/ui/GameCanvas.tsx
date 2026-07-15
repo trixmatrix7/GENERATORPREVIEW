@@ -19,9 +19,13 @@ interface Props {
   /** Boot loading overlay rendered INSIDE the game box (the generator shows
    *  it in the game iframe — never over the studio UI). */
   bootScreen?: ReactNode;
+  /** Build management bar ABOVE the game box (save/new/export). */
+  topBar?: ReactNode;
+  /** Build slot dock BELOW the game box, centred. */
+  bottomDock?: ReactNode;
 }
 
-export function GameCanvas({ lastOutcome, phase, onPixiReady, config, controls, bootScreen }: Props) {
+export function GameCanvas({ lastOutcome, phase, onPixiReady, config, controls, bootScreen, topBar, bottomDock }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const appRef = useRef<PixiApp | null>(null);
   const lastOutcomeRef = useRef(lastOutcome);
@@ -92,6 +96,7 @@ export function GameCanvas({ lastOutcome, phase, onPixiReady, config, controls, 
         </div>
       ) : (
         <div className="mx-auto w-full max-w-[960px] p-6">
+          {topBar}
           <div
             className="slot-preview-root relative rounded-xl overflow-hidden border border-white/[0.06]"
             style={{ background: '#0D1117' }}
@@ -123,6 +128,7 @@ export function GameCanvas({ lastOutcome, phase, onPixiReady, config, controls, 
               {bootScreen}
             </div>
           </div>
+          {bottomDock}
         </div>
       )}
 

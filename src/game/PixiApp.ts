@@ -183,7 +183,12 @@ export class PixiApp {
   private _scatterLands = 0;
   /** Host for the reel-set's presentation layers, kept ABOVE the frame art. */
   private overFrameObjects: Container | null = null;
-  /** Tease camera: sceneRoot scale at engagement (null = camera at rest). */
+  /** CAMERA ROOT: holds the background layers + sceneRoot. The tease POV
+   *  dolly scales THIS (the whole world moves toward the viewer, pinned on
+   *  the machine centre) while overlays (iris, marquee, boot) stay
+   *  screen-fixed on the stage above it. */
+  private readonly world = new Container();
+  /** Tease camera engaged flag (null = camera at rest). */
   private teaseZoomBase: number | null = null;
   /** Tears down the scatter-collect card + restores hidden cells (armed by
    *  playScatterCollect, fired at the FS iris' full-black beat). */
@@ -398,7 +403,10 @@ export class PixiApp {
 
   private buildScene() {
     const stage = this.app.stage;
-    stage.addChild(this.sceneRoot);
+    // Camera root FIRST — overlays appended to the stage later always render
+    // above the world (and stay screen-fixed during the POV dolly).
+    stage.addChild(this.world);
+    this.world.addChild(this.sceneRoot);
 
     const rw = this.reelSet.totalWidth + FRAME_PAD * 2;
     const rh = this.reelSet.totalHeight + FRAME_PAD * 2;
@@ -998,7 +1006,7 @@ export class PixiApp {
     this.bgSprite = new Sprite(tex);
     this.bgSprite.anchor.set(0.5);
     // Behind sceneRoot (added first in buildScene → currently at index 0).
-    this.app.stage.addChildAt(this.bgSprite, 0);
+    this.world.addChildAt(this.bgSprite, 0);
     // The gradient "stage" backdrop is opaque and lives in sceneRoot (above
     // bgSprite), so it would hide the user's background. The user bg and the
     // gradient stage are mutually-exclusive background layers — hide the
@@ -1054,13 +1062,13 @@ export class PixiApp {
     this.bgTexture = frames[0];
     this.bgSprite = new Sprite(frames[0]);
     this.bgSprite.anchor.set(0.5);
-    this.app.stage.addChildAt(this.bgSprite, 0);
+    this.world.addChildAt(this.bgSprite, 0);
     // Cross-fade overlay directly above the base bg (still behind sceneRoot).
     if (frames.length > 1) {
       this.bgSpriteB = new Sprite(frames[1]);
       this.bgSpriteB.anchor.set(0.5);
       this.bgSpriteB.alpha = 0;
-      this.app.stage.addChildAt(this.bgSpriteB, 1);
+      this.world.addChildAt(this.bgSpriteB, 1);
     }
     if (this.backdropGraphic) this.backdropGraphic.visible = false;
     this.fitBackground();
@@ -1492,7 +1500,7 @@ export class PixiApp {
     } else {
       this.bgSprite = new Sprite(tex);
       this.bgSprite.anchor.set(0.5);
-      this.app.stage.addChildAt(this.bgSprite, 0);
+      this.world.addChildAt(this.bgSprite, 0);
     }
     this.bgTexture = tex;
     if (this.backdropGraphic) this.backdropGraphic.visible = false;
@@ -3305,48 +3313,43 @@ export class PixiApp {
     });
   }
 
-  /** Tease CAMERA — step N zooms the whole scene toward the machine centre
-   *  (0 = 2nd scatter landed, +1 per landed teased reel: the tension arc). */
+  /** Tease CAMERA — a POV DOLLY: the WHOLE WORLD (background included)
+   *  moves toward the viewer, pinned on the machine centre. Step 0 = the
+   *  2nd scatter just landed, +1 per landed teased reel (the tension arc).
+   *  Overlays (iris, marquee, boot) live above the world and stay put. */
   private teaseZoomStep(step: number): void {
     if (!this.isLive || prefersReducedMotion()) return;
-    const { width, height } = this.app.screen;
-    const totalW = this.reelSet.totalWidth + FRAME_PAD * 2;
-    const totalH = HEADER_H + this.reelSet.totalHeight + FRAME_PAD * 2 + FOOTER_H;
-    if (this.teaseZoomBase === null) this.teaseZoomBase = this.sceneRoot.scale.x;
-    const s = this.teaseZoomBase * (1.05 + 0.045 * step);
-    const xAt = (sc: number) => Math.round((width - totalW * sc) / 2);
-    const yAt = (sc: number) => Math.round((height - totalH * sc) / 2);
-    gsap.to(this.sceneRoot.scale, { x: s, y: s, duration: 0.6, ease: 'power2.out', overwrite: 'auto' });
-    gsap.to(this.sceneRoot, { x: xAt(s), y: yAt(s), duration: 0.6, ease: 'power2.out', overwrite: 'auto' });
+    this.teaseZoomBase = 1;
+    const s = 1.06 + 0.05 * step;
+    const rw = this.reelSet.totalWidth + FRAME_PAD * 2;
+    const rh = this.reelSet.totalHeight + FRAME_PAD * 2;
+    // Machine centre in WORLD coords (world rests at identity = screen px).
+    const cx = this.sceneRoot.x + (rw / 2) * this.sceneRoot.scale.x;
+    const cy = this.sceneRoot.y + (HEADER_H + rh / 2) * this.sceneRoot.scale.y;
+    gsap.to(this.world.scale, { x: s, y: s, duration: 0.65, ease: 'power2.out', overwrite: 'auto' });
+    gsap.to(this.world.position, { x: cx * (1 - s), y: cy * (1 - s), duration: 0.65, ease: 'power2.out', overwrite: 'auto' });
   }
 
-  /** Tease resolution: MISS → the camera bounces back out, relaxed. HIT →
+  /** Tease resolution: MISS → the camera pulls back out, relaxed. HIT →
    *  the lock is KEPT (the scatter-collect + iris own the exit via
    *  resetTeaseZoom at the black beat). */
   private releaseTeaseZoom(hit: boolean): void {
     if (this.teaseZoomBase === null) return;
     if (hit) return;
-    const base = this.teaseZoomBase;
     this.teaseZoomBase = null;
     if (!this.isLive) return;
-    const { width, height } = this.app.screen;
-    const totalW = this.reelSet.totalWidth + FRAME_PAD * 2;
-    const totalH = HEADER_H + this.reelSet.totalHeight + FRAME_PAD * 2 + FOOTER_H;
-    gsap.to(this.sceneRoot.scale, { x: base, y: base, duration: 0.9, ease: 'back.out(1.4)', overwrite: 'auto' });
-    gsap.to(this.sceneRoot, {
-      x: Math.round((width - totalW * base) / 2),
-      y: Math.round((height - totalH * base) / 2),
-      duration: 0.9, ease: 'back.out(1.4)', overwrite: 'auto',
-      onComplete: () => { if (this.isLive) this.onResize(); }, // snap exact layout
-    });
+    gsap.to(this.world.scale, { x: 1, y: 1, duration: 0.9, ease: 'back.out(1.4)', overwrite: 'auto' });
+    gsap.to(this.world.position, { x: 0, y: 0, duration: 0.9, ease: 'back.out(1.4)', overwrite: 'auto' });
   }
 
   /** Hard camera reset (used at the FS iris' black beat — never visible). */
   private resetTeaseZoom(): void {
     this.teaseZoomBase = null;
-    gsap.killTweensOf(this.sceneRoot);
-    gsap.killTweensOf(this.sceneRoot.scale);
-    if (this.isLive) this.onResize();
+    gsap.killTweensOf(this.world);
+    gsap.killTweensOf(this.world.scale);
+    gsap.killTweensOf(this.world.position);
+    this.world.scale.set(1);
+    this.world.position.set(0, 0);
   }
 
   /** TRIGGER CHOREOGRAPHY: the landed scatters lift off, fly to the machine

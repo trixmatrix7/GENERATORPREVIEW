@@ -22,6 +22,8 @@ import introLayers from '@/data/introLayers.json';
 import { loadAssets } from '@/studio/assetPersistence';
 import type { PixiApp } from '@/game/PixiApp';
 import { STATIC_LOOK_SYMBOLS, NO_IDLE_SYMBOLS } from '@/game/AnimatedSymbol';
+import { BuildTopBar, BuildSlots } from '@/studio/BuildDock';
+import { isBareBuild } from '@/studio/buildPresets';
 
 export function App() {
   const [hostApi, setHostApi] = useState<HostApiV1 | null>(null);
@@ -84,6 +86,14 @@ export function App() {
   // deploy/reload and stay until the user swaps them in the Assets tab.
   useEffect(() => {
     if (!pixiAppRef) return;
+    // BARE BUILD ("Create New Build"): the naked scaffold — NO theme assets,
+    // NO spritesheets, no intros. The boot overlay clears immediately.
+    if (isBareBuild()) {
+      setBootProgress(1);
+      setTimeout(() => setBootFade(true), 150);
+      setTimeout(() => setBootGone(true), 800);
+      return;
+    }
     const saved = loadAssets();
     // ── BOOT PROGRESS: the loading overlay covers the GAME AREA (not the
     // studio UI) until the CRITICAL theme visuals are loaded, then fades
@@ -319,6 +329,8 @@ export function App() {
         onPixiReady={handlePixiReady}
         config={gameConfig}
         bootScreen={bootScreen}
+        topBar={<BuildTopBar />}
+        bottomDock={<BuildSlots />}
         controls={
           <div style={{ opacity: introOpen || fsIntroOpen ? 0 : 1, pointerEvents: introOpen || fsIntroOpen ? 'none' : 'auto', transition: 'opacity 0.6s ease' }}>
             <ControlBar

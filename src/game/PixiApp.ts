@@ -1696,6 +1696,9 @@ export class PixiApp {
     }
     // Set while a free-spins round is up; closed by the exit iris at the end.
     let fsOverlayToClose: { container: Container; counter: Text } | null = null;
+    // Sum of the DISPLAYED per-spin wins — the outro shows exactly what the
+    // TOTAL WIN plaque accumulated, never a diverging mock total.
+    let fsRoundDisplayTotal = 0n;
     if (outcome.freeSpinsTriggered && outcome.freeSpinsPlayed > 0 && !this.turbo && !prefersReducedMotion()) {
       // Land the TRIGGER board first — the 3+ scatters visibly hit (with the
       // natural near-miss anticipation) before anything else happens.
@@ -1739,7 +1742,6 @@ export class PixiApp {
       // spin); 4+ scatters = STICKY expansion — towers stay for the rest of
       // the round and new ones accumulate wherever a sack naturally lands.
       const stickyMode = outcome.scatterCount >= 4;
-      let fsRunningTotal = 0n; // live TOTAL WIN plaque — accumulates every spin's displayed win
       for (let i = 0; i < outcome.freeSpinsPlayed; i++) {
         if (!this.isLive) break;
         if (fsOverlay.counter) {
@@ -1776,8 +1778,8 @@ export class PixiApp {
           if (!this.isLive) break;
           this.reelSet.clearHighlights();
           // Roll the spin's win into the TOTAL WIN plaque (pop on update).
-          fsRunningTotal += winResult.totalWin;
-          fsOverlay.total.text = formatWin(fsRunningTotal, decimals);
+          fsRoundDisplayTotal += winResult.totalWin;
+          fsOverlay.total.text = formatWin(fsRoundDisplayTotal, decimals);
           fsOverlay.totalFit();
           const ts = fsOverlay.total.scale.x;
           gsap.fromTo(fsOverlay.total.scale, { x: ts * 1.22, y: ts * 1.22 }, { x: ts, y: ts, duration: 0.35, ease: 'back.out(2.5)' });
@@ -1815,19 +1817,13 @@ export class PixiApp {
       if (!this.isLive) return;
     }
 
-    if (outcome.winAmount > 0n) {
-      if (fsOverlayToClose) {
-        // Free-spins ROUND TOTAL: outcome.winResult's combos belong to the
-        // TRIGGER board, not the board on display (the last free spin) —
-        // highlighting them would light unrelated cells. Each free spin
-        // already presented its own connections; the total gets the marquee
-        // ceremony only (coins from the grid centre).
-        await this.playCoinWin(outcome.winAmount, outcome.wager ?? 1n, tokenSymbol, decimals, []);
-      } else {
-        // Awaited: the spin HOLDS until the win ceremony (counting number + coins
-        // flying from the winning symbols) finishes, like the reference game.
-        await this.playWinSequence(outcome, tokenSymbol, decimals);
-      }
+    if (outcome.winAmount > 0n && !fsOverlayToClose) {
+      // Awaited: the spin HOLDS until the win ceremony (counting number + coins
+      // flying from the winning symbols) finishes, like the reference game.
+      // After a FREE-SPINS round there is deliberately NO marquee here: each
+      // spin already showed its own tiered marquee (only when it actually
+      // won), and the round total is presented by the TOTAL-WIN OUTRO below.
+      await this.playWinSequence(outcome, tokenSymbol, decimals);
     }
 
     // TOTAL-WIN OUTRO — bookends the free-spins round like the entry: the
@@ -1837,7 +1833,7 @@ export class PixiApp {
     // blink lands back on the normal base screen.
     if (this.isLive && fsOverlayToClose) {
       const overlay = fsOverlayToClose;
-      await this.playFreeSpinsOutro(outcome.winAmount, decimals, () => {
+      await this.playFreeSpinsOutro(fsRoundDisplayTotal, decimals, () => {
         this.hideFreeSpinOverlay(overlay);
         if (this.fsOverlayOpen === overlay) this.fsOverlayOpen = null;
         this.exitFsBackground();

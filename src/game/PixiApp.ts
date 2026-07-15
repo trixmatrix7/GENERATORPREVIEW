@@ -211,6 +211,9 @@ export class PixiApp {
 
   /** Audio hooks set before init() completed; applied once reelSet exists. */
   private _pendingAudioHooks: ReelSetAudioHooks | null = null;
+  /** Host callback: the FS intro/iris is covering the screen — hide the DOM
+   *  control bar while true (same treatment as the game intro). */
+  onFsIntroVisible: ((visible: boolean) => void) | null = null;
 
   /** Instance-level lucide texture cache. Destroyed on app teardown so
    *  textures from past PixiApps never live on a different GL context. */
@@ -528,8 +531,8 @@ export class PixiApp {
 
     // Scale scene to fit viewport with margin. Frame art (palm marquee) may
     // hang OUTSIDE the machine box — include that overhang so it never clips.
-    const ovL = this.frameArtOvL * totalW;
-    const ovR = this.frameArtOvR * totalW;
+    const ovL = this.frameArtOvL;
+    const ovR = this.frameArtOvR;
     const availW = width - SCENE_MARGIN * 2;
     const availH = height - SCENE_MARGIN * 2;
     const scaleX = availW / (totalW + ovL + ovR);
@@ -827,23 +830,29 @@ export class PixiApp {
           for (let x = tw - 1; x > maxX; x--) if (a(x, y) > 16) { maxX = x; break; }
         }
         if (maxX >= 0) {
-          ovL = Math.max(0, (win.x - minX) / win.w);
-          ovR = Math.max(0, (maxX - (win.x + win.w)) / win.w);
+          ovL = Math.max(0, win.x - minX);
+          ovR = Math.max(0, maxX - (win.x + win.w));
         }
       }
     } catch { /* extract unavailable — keep explicit/legacy mapping */ }
     this.frameWindowUsed = win;
-    this.frameArtOvL = ovL;
-    this.frameArtOvR = ovR;
     const sp = new Sprite(tex);
     if (win) {
-      const sx = this.frameW / win.w;
-      const sy = this.frameH / win.h;
+      // The window maps onto the INNER reel rect (inside FRAME_PAD) so the
+      // neon tube sits flush on the slot window, not floating outside it.
+      const sx = (this.frameW - FRAME_PAD * 2) / win.w;
+      const sy = (this.frameH - FRAME_PAD * 2) / win.h;
       sp.scale.set(sx, sy);
-      sp.position.set(-win.x * sx, -win.y * sy);
+      sp.position.set(FRAME_PAD - win.x * sx, FRAME_PAD - win.y * sy);
+      // Visible-art overhang beyond the MACHINE box, in design px (layout
+      // keeps it on-canvas).
+      this.frameArtOvL = Math.max(0, ovL * sx - FRAME_PAD);
+      this.frameArtOvR = Math.max(0, ovR * sx - FRAME_PAD);
     } else {
       sp.width = this.frameW;
       sp.height = this.frameH;
+      this.frameArtOvL = 0;
+      this.frameArtOvR = 0;
     }
     this.frameImageSprite = sp;
     this.gameContainer.addChild(sp); // topmost child → border sits over the reels
@@ -1188,6 +1197,9 @@ export class PixiApp {
     let hero: Sprite | null = null;
     let heroW = 0;
     for (const l of set) {
+      // GAME intro: no baked bg layer — the LIVE animated base-game background
+      // (spritesheet loop) shows through instead (host hides the board).
+      if (kind === 'game' && l.role === 'bg') continue;
       const spr = new Sprite(l.tex);
       spr.anchor.set(0.5);
       spr.position.set(l.cx - 960, l.cy - 540);
@@ -1212,17 +1224,14 @@ export class PixiApp {
           break;
         }
         case 'card':
-          sink.push(
-            gsap.to(spr, { y: spr.y - 7, duration: 3.2, yoyo: true, repeat: -1, ease: 'sine.inOut', delay: ph }),
-            gsap.to(spr.scale, { x: s0 * 1.01, y: s0 * 1.01, duration: 4.4, yoyo: true, repeat: -1, ease: 'sine.inOut', delay: ph * 0.6 }),
-          );
+          // STATIC — cards anchor the composition; their captions are static
+          // too, so nothing ever drifts relative to the box borders.
           break;
         case 'symbol':
+          // The WHOLE object floats; no scale/rotation — in-place warping
+          // pixelates the upscaled art (Noski: "verzieht sich in sich").
           sink.push(
-            gsap.to(spr, { y: spr.y - 9, duration: 2.3, yoyo: true, repeat: -1, ease: 'sine.inOut', delay: ph }),
-            gsap.to(spr.scale, { x: s0 * 1.045, y: s0 * 1.045, duration: 2.9, yoyo: true, repeat: -1, ease: 'sine.inOut', delay: ph * 0.7 }),
-            gsap.to(spr, { rotation: 0.012, duration: 3.7, yoyo: true, repeat: -1, ease: 'sine.inOut', delay: ph * 0.4 }),
-            gsap.to(spr, { x: spr.x + 3, duration: 3.9, yoyo: true, repeat: -1, ease: 'sine.inOut', delay: ph * 0.9 }),
+            gsap.to(spr, { y: spr.y - 9, duration: 2.6, yoyo: true, repeat: -1, ease: 'sine.inOut', delay: ph }),
           );
           break;
         case 'logo':
@@ -1240,11 +1249,10 @@ export class PixiApp {
             gsap.to(spr.scale, { x: s0 * 1.05, y: s0 * 1.05, duration: 0.85, yoyo: true, repeat: -1, ease: 'sine.inOut' }),
           );
           break;
-        default: // 'text' + any deco
-          sink.push(
-            gsap.to(spr, { y: spr.y - 5.5, duration: 3.4, yoyo: true, repeat: -1, ease: 'sine.inOut', delay: ph }),
-            gsap.to(spr, { alpha: 0.92, duration: 2.8, yoyo: true, repeat: -1, ease: 'sine.inOut', delay: ph * 0.8 }),
-          );
+        default:
+          // 'text' + any deco: FULLY STATIC — floating/shimmering captions
+          // read as warped pixels and drift out of their card boxes.
+          break;
       }
     }
     // The HERO logo (biggest on screen) sways and drifts on top of its breath.
@@ -1274,10 +1282,14 @@ export class PixiApp {
     const scene = this.buildLayeredIntroScene('game', sw, sh, tweens);
     if (!scene) return false;
     this.gameIntroShown = true;
+    // The LIVE animated base-game background stays visible BEHIND the intro
+    // (bg sprite sits under sceneRoot on the stage) — only the board hides.
+    // A light scrim keeps the white captions readable over the bright art.
+    this.sceneRoot.visible = false;
     const overlay = new Container();
     overlay.zIndex = 30000;
     const black = new Graphics();
-    black.rect(0, 0, sw, sh).fill({ color: 0x000000, alpha: 1 });
+    black.rect(0, 0, sw, sh).fill({ color: 0x000000, alpha: 0.35 });
     overlay.addChild(black);
     scene.position.set(sw / 2, sh / 2);
     overlay.addChild(scene);
@@ -1341,10 +1353,12 @@ export class PixiApp {
       });
       // CLOSE over the intro…
       tl.to(st2, { r: 0, duration: 0.55, ease: 'power3.in', onUpdate: redraw2 }, 0);
-      // …full-black beat: drop the intro behind the field, bring the bar back…
+      // …full-black beat: drop the intro behind the field, reveal the board,
+      // bring the bar back…
       tl.call(() => {
         scene.visible = false;
         black.visible = false;
+        this.sceneRoot.visible = true;
         onDismiss?.();
       }, undefined, 0.62);
       // …and OPEN onto the game.
@@ -1868,6 +1882,7 @@ export class PixiApp {
    *  caller holds until the intro is dismissed. */
   private playFreeSpinsIris(count: number, scatterCount = 3): Promise<void> {
     if (!this.isLive) return Promise.resolve();
+    this.onFsIntroVisible?.(true); // hide the DOM control bar for the whole transition
 
     const sw = this.app.screen.width;
     const sh = this.app.screen.height;
@@ -1980,6 +1995,7 @@ export class PixiApp {
         if (this.irisOverlay === overlay) this.irisOverlay = null;
         this.irisResolve = null;
         try { overlay.destroy({ children: true }); } catch { /* already torn down */ }
+        this.onFsIntroVisible?.(false); // control bar may return
         resolve();
       };
 
@@ -2008,16 +2024,18 @@ export class PixiApp {
       if (introArt) {
         tl.to(introArt, { rotation: 0.012, duration: 0.9 * S, yoyo: true, repeat: 1, ease: 'sine.inOut' }, 1.0 * S);
       }
-      // HOLD on the intro, then DISMISS: fade out into the round. A tap
-      // during the hold skips ahead (the layered intros carry a PRESS TO
-      // CONTINUE); the timed dismiss stays as the autoplay-safe fallback.
-      tl.to(overlay, { alpha: 0, duration: 0.50 * S, ease: 'power2.inOut' }, 2.70 * S);
+      // HOLD on the intro for a full 7 SECONDS (Noski), then DISMISS: fade
+      // out into the round. A tap during the hold starts the free spins
+      // immediately (the layered intros carry a PRESS TO CONTINUE); the
+      // 7s timed dismiss is the autoplay-safe fallback.
+      const dismissAt = 0.84 * S + 7.0; // 7s from when the intro becomes visible
+      tl.to(overlay, { alpha: 0, duration: 0.50 * S, ease: 'power2.inOut' }, dismissAt);
       overlay.eventMode = 'static';
       overlay.cursor = 'pointer';
       overlay.hitArea = new Rectangle(0, 0, sw, sh);
       overlay.on('pointertap', () => {
         const t = tl.time();
-        if (t > 1.5 * S && t < 2.68 * S) tl.seek(2.70 * S);
+        if (t > 1.5 * S && t < dismissAt - 0.05) tl.seek(dismissAt);
       });
     });
   }

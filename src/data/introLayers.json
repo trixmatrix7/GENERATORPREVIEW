@@ -73,14 +73,14 @@
    "file": "theme/vice/intro/game/scatter_symbol_ntro_screen_vice.webp",
    "role": "symbol",
    "cx": 963,
-   "cy": 615,
-   "tw": 240
+   "cy": 608,
+   "tw": 228
   },
   {
    "file": "theme/vice/intro/game/scatter_text_ntro_screen_vice.webp",
    "role": "text",
    "cx": 963,
-   "cy": 772,
+   "cy": 758,
    "tw": 255
   },
   {
@@ -108,14 +108,14 @@
    "file": "theme/vice/intro/game/wild_symbol_intro_screen_vice.webp",
    "role": "symbol",
    "cx": 532,
-   "cy": 528,
-   "tw": 130
+   "cy": 514,
+   "tw": 112
   },
   {
    "file": "theme/vice/intro/game/wild_text_intro_screen_vice.webp",
    "role": "text",
    "cx": 532,
-   "cy": 686,
+   "cy": 672,
    "tw": 245
   },
   {

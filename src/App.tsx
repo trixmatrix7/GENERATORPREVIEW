@@ -30,6 +30,7 @@ export function App() {
   // While the game intro screen is up, the control bar stays hidden and
   // fades in smoothly once the player taps through.
   const [introOpen, setIntroOpen] = useState(false);
+  const [fsIntroOpen, setFsIntroOpen] = useState(false);
 
   // The loaded game = the stamped Fantasy spec (config/reels+paytable+gameConfig
   // are the ZIP's generated files, so DEFAULT_GAME_CONFIG IS the Fantasy math)
@@ -70,10 +71,6 @@ export function App() {
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', 'dark');
     pixiAppRef?.setTheme('dark');
-    // Dev-only debug handle (console/tooling): drive presentation APIs directly.
-    if (import.meta.env.DEV && pixiAppRef) {
-      (window as unknown as { __pixi?: PixiApp }).__pixi = pixiAppRef;
-    }
   }, [pixiAppRef]);
 
   // Baked asset pack: on mount, apply the user's persisted swaps if any, else
@@ -187,6 +184,8 @@ export function App() {
 
   useEffect(() => {
     if (!pixiApp) return;
+    // FS intro/iris covers the screen — hide the control bar like the game intro.
+    pixiApp.onFsIntroVisible = setFsIntroOpen;
     pixiApp.setAudioHooks({
       onReelStopped: () => soundManager.play('reel-stop'),
       onScatterLanded: () => soundManager.play('scatter-land'),
@@ -233,7 +232,7 @@ export function App() {
         onPixiReady={handlePixiReady}
         config={gameConfig}
         controls={
-          <div style={{ opacity: introOpen ? 0 : 1, pointerEvents: introOpen ? 'none' : 'auto', transition: 'opacity 0.6s ease' }}>
+          <div style={{ opacity: introOpen || fsIntroOpen ? 0 : 1, pointerEvents: introOpen || fsIntroOpen ? 'none' : 'auto', transition: 'opacity 0.6s ease' }}>
             <ControlBar
               gameState={state}
               snapshot={snapshot}

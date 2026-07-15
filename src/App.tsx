@@ -21,7 +21,7 @@ import { viceSymbolMap, VICE_INTRO_URL } from '@/config/viceAssets';
 import introLayers from '@/data/introLayers.json';
 import { loadAssets } from '@/studio/assetPersistence';
 import type { PixiApp } from '@/game/PixiApp';
-import { STATIC_LOOK_SYMBOLS } from '@/game/AnimatedSymbol';
+import { STATIC_LOOK_SYMBOLS, NO_IDLE_SYMBOLS } from '@/game/AnimatedSymbol';
 
 export function App() {
   const [hostApi, setHostApi] = useState<HostApiV1 | null>(null);
@@ -135,6 +135,9 @@ export function App() {
     // squash, no idle/featured warping (in-place scaling pixelates the art) —
     // the win sheet above is its only animation.
     STATIC_LOOK_SYMBOLS.add(1);
+    // The 1:1 WILD keeps its hard landing slam but loses the fallback idle
+    // breathing — a lone pulsing cell on a still board reads weird.
+    NO_IDLE_SYMBOLS.add(0);
     // Expanding-wild column art (money tower; custom upload wins).
     // Expected art: 512×2560 px (5×5 grid) / 512×1484 px (5×3) — one reel's
     // aspect; setExpandingWildImage height-fits whichever grid is active.

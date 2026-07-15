@@ -48,6 +48,11 @@ export const STATIC_LOOK_SYMBOLS = new Set<number>();
  *  covers it during 'win'). Filled by PixiApp.setSymbolIdleSheet. */
 export const SYMBOL_IDLE_SHEETS = new Map<number, { frames: Texture[]; fps: number }>();
 
+/** Symbols whose fallback IDLE breathing is suppressed (landing/win states
+ *  stay untouched) — a lone pulsing cell on an otherwise still board reads
+ *  weird. Per-game wiring in App.tsx (Vice: the 1:1 wild). */
+export const NO_IDLE_SYMBOLS = new Set<number>();
+
 /** Soft-edge mask for win-sheet overlays: the source video frames are square
  *  portraits whose art touches the frame edges — unmasked they pop as a hard
  *  CARD. A feathered rounded-rect alpha mask melts the edges away so only the
@@ -227,6 +232,15 @@ export class AnimatedSymbol extends Container {
     if (STATIC_LOOK_SYMBOLS.has(this.symbolId) &&
         (state === 'landing' || state === 'idle' || state === 'featured' ||
          (state === 'win' && !winSheetAvailable))) {
+      this.setWinOutline(false);
+      this.stopWinSheet();
+      return;
+    }
+
+    // NO-IDLE symbols (1:1 wild): the fallback idle breathing is absorbed —
+    // a single pulsing cell on an otherwise still board reads weird. The
+    // hard landing slam and win presentation stay untouched.
+    if (state === 'idle' && NO_IDLE_SYMBOLS.has(this.symbolId)) {
       this.setWinOutline(false);
       this.stopWinSheet();
       return;

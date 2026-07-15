@@ -931,6 +931,10 @@ export class ReelSet {
     // every further gate arms when the previous teased reel has landed.
     // Both transitions live in the post-stop hook below.
     let landedScatterReels = 0;
+    // Tease CAMERA: engaged at the 2nd landed scatter, one step closer per
+    // landed teased reel; released after ALL reels stop (bounce out on a
+    // miss, stay locked on a hit — PixiApp owns the motion).
+    let teaseZoomOn = false;
     if (nearMiss) {
       nearMiss.teasedReels.forEach((reelIdx, position) => teaseOrder.set(reelIdx, position));
     }
@@ -989,16 +993,23 @@ export class ReelSet {
           }
           if (this.reelHasVisibleScatter(i, stops[i])) {
             this.audioHooks.onScatterLanded?.(i);
-            // The 2nd VISIBLE scatter opens the chain: arm the first gate.
+            // The 2nd VISIBLE scatter opens the chain: arm the first gate
+            // and push the CAMERA in for the tease.
             landedScatterReels++;
+            if (landedScatterReels === 2 && !fast) {
+              teaseZoomOn = true;
+              this.cameraHooks?.zoomStep(0);
+            }
             if (nearMiss && landedScatterReels === 2 && nearMiss.teasedReels.length > 0) {
               this.teasePendingReel(nearMiss.teasedReels[0], 0);
             }
           }
           // Sequential tease: this teased reel just LANDED → arm the next
-          // gate in the chain (one reel after the other, never all at once).
+          // gate in the chain (one reel after the other, never all at once)
+          // and pull the camera one step CLOSER (the tension arc).
           const tPos = teaseOrder.get(i);
           if (nearMiss && tPos !== undefined) {
+            if (teaseZoomOn) this.cameraHooks?.zoomStep(tPos + 1);
             const nextReel = nearMiss.teasedReels[tPos + 1];
             if (nextReel !== undefined) this.teasePendingReel(nextReel, tPos + 1);
           }
@@ -1026,6 +1037,17 @@ export class ReelSet {
     });
     await Promise.all(stopPromises);
 
+    // Tease camera resolution: bounce RELAXED back out on a miss; on a hit
+    // (3+ scatters) the lock is kept — the trigger choreography + iris own
+    // the exit (PixiApp.resetTeaseZoom at the iris' black beat).
+    if (teaseZoomOn) {
+      let sc = 0;
+      for (let r = 0; r < this.grid.reelCount; r++) {
+        if (this.reelHasVisibleScatter(r, stops[r])) sc++;
+      }
+      this.cameraHooks?.release(sc >= 3);
+    }
+
     // Hold the featured glow briefly after the last teased reel lands so
     // the transition feels smooth rather than an abrupt snap. Without this
     // delay the glow vanishes the instant Promise.all resolves.
@@ -1046,6 +1068,7 @@ export class ReelSet {
     this.clearScheduledCallbacks();
     this.killThud();
     this.clearTeaseGlow();
+    this.cameraHooks?.release(false); // any tease zoom bounces back out
     for (const reel of this.reels) reel.cancelSpin();
   }
 
@@ -1417,6 +1440,11 @@ export class ReelSet {
 
   /** Warm halo behind a scatter during a near-miss tease — a "bonus incoming"
    *  cue under the featured pulse. Lives in teaseGlowContainer (auto-cleared). */
+  /** Tease CAMERA hooks (set by PixiApp): zoomStep(n) pushes the view closer
+   *  (0 = the 2nd scatter just landed, then +1 per landed teased reel);
+   *  release(hit) either bounces back out (miss) or keeps the lock (hit). */
+  cameraHooks: { zoomStep: (step: number) => void; release: (hit: boolean) => void } | null = null;
+
   private teaseTweens: gsap.core.Animation[] = [];
   /** Cells stage-dimmed by the active tease preset — restored on tease end. */
   private teaseDimmedCells = new Set<AnimatedSymbol>();

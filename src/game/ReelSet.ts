@@ -1395,6 +1395,9 @@ export class ReelSet {
   private teaseTweens: gsap.core.Animation[] = [];
   /** Cells stage-dimmed by the active tease preset — restored on tease end. */
   private teaseDimmedCells = new Set<AnimatedSymbol>();
+  /** Cells whose transform a tease preset drifted (ctx.cellNode) — rest
+   *  positions restored on tease end. */
+  private teaseMovedNodes = new Map<AnimatedSymbol, { x: number; y: number }>();
 
   private buildTeaseCtx(): TeaseContext {
     return {
@@ -1416,6 +1419,17 @@ export class ReelSet {
         this.teaseDimmedCells.add(cell);
         gsap.killTweensOf(cell, 'alpha');
         this.teaseTweens.push(gsap.to(cell, { alpha, duration: 0.28, ease: 'power2.out' }));
+      },
+      cellNode: (reel, row) => {
+        if (this.expandedReels.has(reel)) return null; // hidden behind a tower
+        const cell = this.reels[reel]?.getVisibleCell(row);
+        if (!cell) return null;
+        // Snapshot the rest transform ONCE — clearTeaseGlow restores it, so
+        // presets can drift the whole object without their own cleanup.
+        if (!this.teaseMovedNodes.has(cell)) {
+          this.teaseMovedNodes.set(cell, { x: cell.x, y: cell.y });
+        }
+        return cell;
       },
     };
   }
@@ -1441,6 +1455,12 @@ export class ReelSet {
       cell.alpha = 1;
     }
     this.teaseDimmedCells.clear();
+    // Restore every cell a preset drifted via ctx.cellNode.
+    for (const [cell, rest] of this.teaseMovedNodes) {
+      gsap.killTweensOf(cell, 'x,y');
+      if (!cell.destroyed) cell.position.set(rest.x, rest.y);
+    }
+    this.teaseMovedNodes.clear();
   }
 
   /** Build the win decoration, Fruit-Fortune style: a bold gold line through

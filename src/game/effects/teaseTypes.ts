@@ -28,6 +28,11 @@ export interface TeaseContext {
    *  cell when the tease resolves — presets never need their own cleanup.
    *  No-ops on cells hidden behind expanding towers. */
   dimCell(reel: number, row: number, alpha: number): void;
+  /** WHOLE-OBJECT motion handle for a settled cell — position drift only
+   *  (in-place scaling/rotation warps upscaled art). The runtime snapshots
+   *  the transform on first access and restores it when the tease resolves.
+   *  Null while the reel spins or the cell hides behind a tower. */
+  cellNode(reel: number, row: number): Container | null;
 }
 
 export interface TeasePreset {

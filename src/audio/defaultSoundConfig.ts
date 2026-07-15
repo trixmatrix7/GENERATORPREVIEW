@@ -45,7 +45,7 @@ const AUDIO_DIR = '/audio';
 // These must try .ogg FIRST: a missing .wav makes the SPA dev server answer
 // with index.html (HTTP 200), which Howler then fails to DECODE — and it
 // never falls through to the real file ("Decoding audio data failed").
-const OGG_FIRST = new Set<string>(['ambient-music', 'win-marquee']);
+const OGG_FIRST = new Set<string>(['ambient-music', 'win-marquee', 'spin-start']);
 
 function bindingForEvent(id: string): SoundEventBinding {
   return {

@@ -255,6 +255,10 @@ export class MockHost {
         }
         remaining--;
         freeSpinsPlayed++;
+        // HARD SESSION CAP: totalWin is already clamped to maxWin above —
+        // the round STOPS the moment the cap is reached (no further spins;
+        // payout locked at maxWinMultiplier x bet, mirrors the simulator).
+        if (totalWin >= maxWin) break;
       }
     }
 

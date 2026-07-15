@@ -1764,6 +1764,12 @@ export class PixiApp {
       // spin); 4+ scatters = STICKY expansion — towers stay for the rest of
       // the round and new ones accumulate wherever a sack naturally lands.
       const stickyMode = outcome.scatterCount >= 4;
+      // HARD SESSION CAP: the payout can NEVER exceed maxWinMultiplier x bet.
+      // The moment the running round total reaches it, the round STOPS, the
+      // plaque locks at the cap and the MAX WIN marquee takes over (the mock
+      // settlement + simulator stop at the same spin — same rule).
+      const capAmount = BigInt((this.config as { maxWinMultiplier?: number }).maxWinMultiplier ?? 5000)
+        * (outcome.wager ?? 1n);
       for (let i = 0; i < outcome.freeSpinsPlayed; i++) {
         if (!this.isLive) break;
         if (fsOverlay.counter) {
@@ -1790,7 +1796,8 @@ export class PixiApp {
         // FULL HOUSE: with every sticky tower standing the spin pays x2 —
         // displayed amounts mirror the settlement rule exactly.
         if (stickyMode) winResult = this.applyStickyFullBoard(winResult, expanded.length);
-        if (winResult.totalWin > 0n) {
+        const crossesCap = capAmount > 0n && fsRoundDisplayTotal + winResult.totalWin >= capAmount;
+        if (winResult.totalWin > 0n && !crossesCap) {
           const spinOutcome: SpinOutcome = {
             stops: this.config.reelLengths.map(() => 0), board,
             winAmount: winResult.totalWin, wager: outcome.wager ?? 1n,
@@ -1808,6 +1815,23 @@ export class PixiApp {
           fsOverlay.totalFit();
           const ts = fsOverlay.total.scale.x;
           gsap.fromTo(fsOverlay.total.scale, { x: ts * 1.22, y: ts * 1.22 }, { x: ts, y: ts, duration: 0.35, ease: 'back.out(2.5)' });
+        } else if (crossesCap) {
+          // ── MAX WIN: the cap is REACHED. The capping connections light up,
+          // the plaque locks at exactly the cap (whatever the spin "would
+          // have" paid beyond it is void — hard payout cap), the MAX WIN
+          // marquee takes over, and the round STOPS on the spot.
+          this.reelSet.highlightWins(winResult);
+          await new Promise(r => setTimeout(r, 900));
+          if (!this.isLive) break;
+          fsRoundDisplayTotal = capAmount;
+          fsOverlay.total.text = formatWin(capAmount, decimals);
+          fsOverlay.totalFit();
+          const ts = fsOverlay.total.scale.x;
+          gsap.fromTo(fsOverlay.total.scale, { x: ts * 1.35, y: ts * 1.35 }, { x: ts, y: ts, duration: 0.45, ease: 'back.out(2.5)' });
+          await this.playCoinWin(capAmount, outcome.wager ?? 1n, tokenSymbol, decimals, []);
+          if (!this.isLive) break;
+          this.reelSet.clearHighlights();
+          break;
         }
         await new Promise(r => setTimeout(r, 350));
       }

@@ -203,6 +203,10 @@ def simulate(n, pays, scatter_pay, seed=42):
                     w2 *= SIMUL_MULTS.get(len(full), 1)
                 round_win += w2
                 session += w2
+                # HARD SESSION CAP: the round STOPS the moment the cap is
+                # reached — no further spins, payout locked at MAX_WIN_X.
+                if session >= MAX_WIN_X * 10000:
+                    break
                 # Retrigger awards retriggerSpins (custom rule), bounded by
                 # the tight per-tier cap (at most one retrigger fits).
                 if sc2 >= 3 and fs_played < cap:

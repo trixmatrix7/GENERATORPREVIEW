@@ -1060,22 +1060,37 @@ export class PixiApp {
       spr.eventMode = 'none';
       const ph = Math.random() * 2;
       switch (l.role) {
-        case 'bg':
-          sink.push(gsap.to(spr.scale, { x: s0 * 1.017, y: s0 * 1.017, duration: 7, yoyo: true, repeat: -1, ease: 'sine.inOut' }));
+        case 'bg': {
+          // Rest slightly ABOVE cover so the slow drift never exposes an edge
+          // (margin at min zoom: 1920*0.018/2 ≈ 17px design > 12px pan).
+          const b0 = s0 * 1.018;
+          spr.scale.set(b0);
+          sink.push(
+            gsap.to(spr.scale, { x: b0 * 1.028, y: b0 * 1.028, duration: 5.5, yoyo: true, repeat: -1, ease: 'sine.inOut' }),
+            gsap.fromTo(spr, { x: spr.x - 12 }, { x: spr.x + 12, duration: 8, yoyo: true, repeat: -1, ease: 'sine.inOut' }),
+            gsap.fromTo(spr, { y: spr.y - 6 }, { y: spr.y + 6, duration: 6.3, yoyo: true, repeat: -1, ease: 'sine.inOut' }),
+          );
           break;
+        }
         case 'card':
-          sink.push(gsap.to(spr, { y: spr.y - 4.2, duration: 3.4, yoyo: true, repeat: -1, ease: 'sine.inOut', delay: ph }));
+          sink.push(
+            gsap.to(spr, { y: spr.y - 7, duration: 3.2, yoyo: true, repeat: -1, ease: 'sine.inOut', delay: ph }),
+            gsap.to(spr.scale, { x: s0 * 1.01, y: s0 * 1.01, duration: 4.4, yoyo: true, repeat: -1, ease: 'sine.inOut', delay: ph * 0.6 }),
+          );
           break;
         case 'symbol':
           sink.push(
-            gsap.to(spr, { y: spr.y - 7, duration: 2.6, yoyo: true, repeat: -1, ease: 'sine.inOut', delay: ph }),
-            gsap.to(spr.scale, { x: s0 * 1.028, y: s0 * 1.028, duration: 3.3, yoyo: true, repeat: -1, ease: 'sine.inOut', delay: ph * 0.7 }),
+            gsap.to(spr, { y: spr.y - 9, duration: 2.3, yoyo: true, repeat: -1, ease: 'sine.inOut', delay: ph }),
+            gsap.to(spr.scale, { x: s0 * 1.045, y: s0 * 1.045, duration: 2.9, yoyo: true, repeat: -1, ease: 'sine.inOut', delay: ph * 0.7 }),
+            gsap.to(spr, { rotation: 0.012, duration: 3.7, yoyo: true, repeat: -1, ease: 'sine.inOut', delay: ph * 0.4 }),
+            gsap.to(spr, { x: spr.x + 3, duration: 3.9, yoyo: true, repeat: -1, ease: 'sine.inOut', delay: ph * 0.9 }),
           );
           break;
         case 'logo':
           sink.push(
-            gsap.to(spr, { y: spr.y - 5.6, duration: 2.9, yoyo: true, repeat: -1, ease: 'sine.inOut', delay: ph }),
-            gsap.to(spr.scale, { x: s0 * 1.021, y: s0 * 1.021, duration: 4.1, yoyo: true, repeat: -1, ease: 'sine.inOut', delay: ph * 0.5 }),
+            gsap.to(spr, { y: spr.y - 10, duration: 2.6, yoyo: true, repeat: -1, ease: 'sine.inOut', delay: ph }),
+            gsap.to(spr.scale, { x: s0 * 1.05, y: s0 * 1.05, duration: 3.4, yoyo: true, repeat: -1, ease: 'sine.inOut', delay: ph * 0.5 }),
+            gsap.to(spr, { rotation: 0.008, duration: 3.1, yoyo: true, repeat: -1, ease: 'sine.inOut', delay: ph * 0.3 }),
           );
           if (spr.width > heroW) { heroW = spr.width; hero = spr; }
           break;
@@ -1083,15 +1098,26 @@ export class PixiApp {
           spr.alpha = 0.9;
           sink.push(
             gsap.to(spr, { alpha: 0.34, duration: 0.85, yoyo: true, repeat: -1, ease: 'sine.inOut' }),
-            gsap.to(spr.scale, { x: s0 * 1.042, y: s0 * 1.042, duration: 0.85, yoyo: true, repeat: -1, ease: 'sine.inOut' }),
+            gsap.to(spr.scale, { x: s0 * 1.05, y: s0 * 1.05, duration: 0.85, yoyo: true, repeat: -1, ease: 'sine.inOut' }),
           );
           break;
         default: // 'text' + any deco
-          sink.push(gsap.to(spr, { y: spr.y - 3.5, duration: 3.8, yoyo: true, repeat: -1, ease: 'sine.inOut', delay: ph }));
+          sink.push(
+            gsap.to(spr, { y: spr.y - 5.5, duration: 3.4, yoyo: true, repeat: -1, ease: 'sine.inOut', delay: ph }),
+            gsap.to(spr, { alpha: 0.92, duration: 2.8, yoyo: true, repeat: -1, ease: 'sine.inOut', delay: ph * 0.8 }),
+          );
       }
     }
-    // The HERO logo (biggest on screen) gets an extra gentle sway.
-    if (hero) sink.push(gsap.to(hero, { rotation: 0.014, duration: 3.6, yoyo: true, repeat: -1, ease: 'sine.inOut' }));
+    // The HERO logo (biggest on screen) sways and drifts on top of its breath.
+    if (hero) {
+      const h = hero as Sprite;
+      sink.push(
+        // overwrite:'auto' retires the smaller logo-role rotation wobble so the
+        // hero's stronger sway owns the property.
+        gsap.to(h, { rotation: 0.022, duration: 3.3, yoyo: true, repeat: -1, ease: 'sine.inOut', overwrite: 'auto' }),
+        gsap.to(h, { x: h.x + 6, duration: 4.7, yoyo: true, repeat: -1, ease: 'sine.inOut' }),
+      );
+    }
     return root;
   }
 

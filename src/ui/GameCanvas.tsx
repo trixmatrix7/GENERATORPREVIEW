@@ -110,7 +110,10 @@ export function GameCanvas({ lastOutcome, phase, onPixiReady, config, controls }
                   from #111 up INTO the slot (like the original game HUD),
                   no hard edge above the bar. */}
               {controls && (
-                <div className="absolute bottom-0 left-0 right-0 z-10">
+                // pointer-events-none: the strip itself must never eat canvas
+                // taps (intro "press to continue" sits under it) — the inner
+                // wrapper re-enables events for the bar when it's visible.
+                <div className="absolute bottom-0 left-0 right-0 z-10 pointer-events-none">
                   {controls}
                 </div>
               )}

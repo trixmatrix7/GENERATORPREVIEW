@@ -155,6 +155,19 @@ export class WinCelebration {
       this.tierTex = { big, mega, epic, max };
       this.winTex = win;
       this.plateTex = plate;
+      // Warm-up: upload all six layers to the GPU now — the first marquee
+      // otherwise hitches mid-entrance while the big PNGs upload.
+      try {
+        const warm = new Container();
+        warm.alpha = 0.001;
+        warm.eventMode = 'none';
+        for (const t of [big, mega, epic, max, win, plate]) {
+          warm.addChild(new Sprite(new Texture({ source: t.source, frame: new Rectangle(0, 0, 4, 4) })));
+        }
+        this.app.stage.addChild(warm);
+        await new Promise(r => setTimeout(r, 150)); // a few rendered frames
+        warm.destroy({ children: true });
+      } catch { /* best-effort */ }
     } catch (err) {
       console.warn('[WinCelebration] tier images failed to load:', err);
       this.disposeTierTextures();
@@ -432,8 +445,11 @@ export class WinCelebration {
       const baseScale = marquee.scale.x;
       const stampLand = 0.26;
       if (tierSpr) {
-        tl.to(tierSpr, { alpha: 1, duration: 0.05 }, 0);
-        tl.fromTo(marquee.scale, { x: baseScale * 2.3, y: baseScale * 2.3 },
+        // SMOOTH appearance: the word fades in over most of the drop (no
+        // 1-frame alpha pop) and starts from a less extreme scale — the
+        // stamp still lands hard, it just never reads as a glitch.
+        tl.fromTo(tierSpr, { alpha: 0 }, { alpha: 1, duration: 0.18, ease: 'power1.out' }, 0);
+        tl.fromTo(marquee.scale, { x: baseScale * 1.7, y: baseScale * 1.7 },
           { x: baseScale, y: baseScale, duration: stampLand, ease: 'power3.in' }, 0);
         tl.fromTo(marquee, { rotation: -0.045 }, { rotation: 0, duration: 0.34, ease: 'back.out(3)' }, 0.06);
         tl.call(() => {

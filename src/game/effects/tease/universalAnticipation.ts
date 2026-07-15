@@ -118,11 +118,10 @@ export const universalAnticipation: TeasePreset = {
   },
 
   onPendingReel(ctx: TeaseContext, reel: number, position: number): void {
-    // SEQUENTIAL arming: the runtime announces every pending reel at once —
-    // this gate delays each reel's visuals so they ignite ONE AFTER ANOTHER,
-    // roughly as the previous teased reel stops.
-    const armAt = position * 1.05;
-    ctx.track(ctx.gsap.delayedCall(armAt, () => {
+    // Timing is RUNTIME-DRIVEN: the ReelSet arms this hook for exactly one
+    // reel at a time — instantly when the 2nd scatter drops, then each next
+    // gate the moment the previous teased reel lands. Visuals fire at once.
+    {
       const rr = ctx.reelRect(reel);
 
       // GOLD GATE — clean double border, entry flash, calm breathing.
@@ -186,6 +185,6 @@ export const universalAnticipation: TeasePreset = {
       ctx.track(ctx.gsap.to({}, {
         duration: Math.max(0.1, 0.17 - position * 0.02), repeat: -1, onRepeat: spawnEmber,
       }));
-    }));
+    }
   },
 };

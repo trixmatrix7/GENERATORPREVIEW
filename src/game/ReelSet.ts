@@ -918,11 +918,13 @@ export class ReelSet {
     // wave of suspense across the remaining reels rather than a single focal
     // slowdown on just the last reel.
     const teaseOrder = new Map<number, number>();
+    // SEQUENTIAL GATES: the FIRST gate arms the moment the 2nd scatter
+    // VISIBLY lands (never at spin start — that would telegraph the tease);
+    // every further gate arms when the previous teased reel has landed.
+    // Both transitions live in the post-stop hook below.
+    let landedScatterReels = 0;
     if (nearMiss) {
-      nearMiss.teasedReels.forEach((reelIdx, position) => {
-        teaseOrder.set(reelIdx, position);
-        this.teasePendingReel(reelIdx, position); // preset visual on the spinning reel
-      });
+      nearMiss.teasedReels.forEach((reelIdx, position) => teaseOrder.set(reelIdx, position));
     }
 
     const stopPromises = this.reels.map((reel, i) => {
@@ -976,6 +978,18 @@ export class ReelSet {
           this.audioHooks.onReelStopped?.(i);
           if (this.reelHasVisibleScatter(i, stops[i])) {
             this.audioHooks.onScatterLanded?.(i);
+            // The 2nd VISIBLE scatter opens the chain: arm the first gate.
+            landedScatterReels++;
+            if (nearMiss && landedScatterReels === 2 && nearMiss.teasedReels.length > 0) {
+              this.teasePendingReel(nearMiss.teasedReels[0], 0);
+            }
+          }
+          // Sequential tease: this teased reel just LANDED → arm the next
+          // gate in the chain (one reel after the other, never all at once).
+          const tPos = teaseOrder.get(i);
+          if (nearMiss && tPos !== undefined) {
+            const nextReel = nearMiss.teasedReels[tPos + 1];
+            if (nextReel !== undefined) this.teasePendingReel(nextReel, tPos + 1);
           }
           // Defer featured state until the landing tween for this reel's
           // scatter cells has had time to finish — otherwise the immediate

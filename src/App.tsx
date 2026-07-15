@@ -258,10 +258,18 @@ export function App() {
     pixiApp.onFsIntroVisible = setFsIntroOpen;
     // Marquee music rides the celebration exactly: starts with the slam-in,
     // fades out WITH the staggered exit (0.9s) or fast on a skip (0.26s) —
-    // the track never outlasts the marquee.
+    // the track never outlasts the marquee. The ambient music DUCKS to
+    // silence underneath (keeps running muted) and fades back in PARALLEL
+    // to the marquee's exit — clean handoff, no restart.
     pixiApp.setMarqueeSoundHooks(
-      () => soundManager.play('win-marquee'),
-      smooth => soundManager.fadeStop('win-marquee', smooth ? 900 : 260),
+      () => {
+        soundManager.duck('ambient-music', 300);
+        soundManager.play('win-marquee');
+      },
+      smooth => {
+        soundManager.fadeStop('win-marquee', smooth ? 900 : 260);
+        soundManager.unduck('ambient-music', smooth ? 700 : 400);
+      },
     );
     pixiApp.setAudioHooks({
       onReelStopped: () => soundManager.play('reel-stop'),

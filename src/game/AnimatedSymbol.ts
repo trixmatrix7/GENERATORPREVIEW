@@ -281,10 +281,19 @@ export class AnimatedSymbol extends Container {
     // tease → win reads as ONE continuous, still image swap.
     const cell = Math.min(SYMBOL_WIDTH, SYMBOL_HEIGHT);
     const frameW = sheet.frames[0].width || 256;
-    const restScale = (cell * 0.94) / frameW;  // the static art's footprint
+    // Footprint: match whatever the RESTING art actually shows — the idle
+    // sheet's size when one runs (the scatter badge renders bigger than the
+    // generic cell fit), else the cell fit.
+    const restW = this.idleSheetSprite ? this.idleSheetSprite.width : cell * 0.94;
+    const restScale = restW / frameW;
     const spr = new Sprite(sheet.frames[0]);
     spr.anchor.set(0.5);
     spr.scale.set(restScale);
+    // Symbols with an idle loop (the bonus badge) GROW on win — the sheet
+    // swells ~28% over the resting look instead of reading as a shrink.
+    if (this.idleSheetSprite) {
+      gsap.to(spr.scale, { x: restScale * 1.28, y: restScale * 1.28, duration: 0.45, ease: 'back.out(1.8)' });
+    }
     spr.alpha = 0;
     spr.eventMode = 'none';
     this.inner.addChild(spr);

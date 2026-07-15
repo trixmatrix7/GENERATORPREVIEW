@@ -132,6 +132,24 @@ export class SoundManager {
     this.exclusivePlaying.delete(eventId);
   }
 
+  /** DUCK a playing loop to silence WITHOUT stopping it — the loop keeps
+   *  running muted underneath (used for ambient music while the win-marquee
+   *  track plays). unduck() fades the bound volume back in. */
+  duck(eventId: string, ms = 350): void {
+    const howl = this.howls.get(eventId);
+    if (!howl || !howl.playing()) return;
+    howl.fade(howl.volume() as number, 0, ms);
+  }
+
+  unduck(eventId: string, ms = 450): void {
+    const howl = this.howls.get(eventId);
+    const binding = this.bindings.get(eventId);
+    if (!howl || !binding || !howl.playing()) return;
+    // Restore the BOUND volume unconditionally — mute is an orthogonal layer
+    // (howl.mute()), so a muted session must still land on the right volume.
+    howl.fade(howl.volume() as number, binding.volume * this._volume, ms);
+  }
+
   /** Fade the currently-playing instance out over `ms`, then stop it. Only
    *  the captured instance is touched, so a NEW play() started during the
    *  fade (back-to-back celebrations) is never killed by the old fade. */

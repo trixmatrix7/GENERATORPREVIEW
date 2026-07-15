@@ -2024,12 +2024,15 @@ export class PixiApp {
       if (introArt) {
         tl.to(introArt, { rotation: 0.012, duration: 0.9 * S, yoyo: true, repeat: 1, ease: 'sine.inOut' }, 1.0 * S);
       }
-      // HOLD on the intro for a full 7 SECONDS (Noski), then DISMISS: fade
-      // out into the round. A tap during the hold starts the free spins
-      // immediately (the layered intros carry a PRESS TO CONTINUE); the
-      // 7s timed dismiss is the autoplay-safe fallback.
+      // HOLD on the intro for a full 7 SECONDS (Noski), then DISMISS with a
+      // second full iris blink ("Auge zu, wieder auf"): the circle CLOSES
+      // over the intro, the intro drops out behind the black, then the
+      // circle OPENS onto the free-spins board. A tap during the hold jumps
+      // straight to this blink; the 7s timer is the autoplay-safe fallback.
       const dismissAt = 0.84 * S + 7.0; // 7s from when the intro becomes visible
-      tl.to(overlay, { alpha: 0, duration: 0.50 * S, ease: 'power2.inOut' }, dismissAt);
+      tl.to(st, { r: 0, duration: 0.55 * S, ease: 'power3.in', onUpdate: redraw }, dismissAt);
+      tl.set(intro, { alpha: 0 }, dismissAt + 0.62 * S);
+      tl.to(st, { r: rDiag, duration: 0.60 * S, ease: 'power2.out', onUpdate: redraw }, dismissAt + 0.72 * S);
       overlay.eventMode = 'static';
       overlay.cursor = 'pointer';
       overlay.hitArea = new Rectangle(0, 0, sw, sh);

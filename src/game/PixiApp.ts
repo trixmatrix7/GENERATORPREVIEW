@@ -1739,6 +1739,7 @@ export class PixiApp {
       // spin); 4+ scatters = STICKY expansion — towers stay for the rest of
       // the round and new ones accumulate wherever a sack naturally lands.
       const stickyMode = outcome.scatterCount >= 4;
+      let fsRunningTotal = 0n; // live TOTAL WIN plaque — accumulates every spin's displayed win
       for (let i = 0; i < outcome.freeSpinsPlayed; i++) {
         if (!this.isLive) break;
         if (fsOverlay.counter) {
@@ -1774,6 +1775,12 @@ export class PixiApp {
           await this.playWinSequence(spinOutcome, tokenSymbol, decimals);
           if (!this.isLive) break;
           this.reelSet.clearHighlights();
+          // Roll the spin's win into the TOTAL WIN plaque (pop on update).
+          fsRunningTotal += winResult.totalWin;
+          fsOverlay.total.text = formatWin(fsRunningTotal, decimals);
+          fsOverlay.totalFit();
+          const ts = fsOverlay.total.scale.x;
+          gsap.fromTo(fsOverlay.total.scale, { x: ts * 1.22, y: ts * 1.22 }, { x: ts, y: ts, duration: 0.35, ease: 'back.out(2.5)' });
         }
         await new Promise(r => setTimeout(r, 350));
       }
@@ -2966,7 +2973,7 @@ export class PixiApp {
 
   /** Show a free-spin visual overlay: tinted ambient glow shift + counter badge.
    *  Returns a handle so the caller can update the counter and hide it. */
-  private showFreeSpinOverlay(totalSpins: number): { container: Container; counter: Text } {
+  private showFreeSpinOverlay(totalSpins: number): { container: Container; counter: Text; total: Text; totalFit: () => void } {
     const rw = this.reelSet.totalWidth + FRAME_PAD * 2;
     const rh = this.reelSet.totalHeight + FRAME_PAD * 2;
 
@@ -3044,11 +3051,50 @@ export class PixiApp {
     this.fsDancerTweens.push(gsap.to(plate, { alpha: 0.82, duration: 1.6, yoyo: true, repeat: -1, ease: 'sine.inOut' }));
     fsContainer.addChild(panel);
 
+    // TOTAL WIN plaque — same design, right below the spins counter; the
+    // round's wins accumulate into it spin by spin.
+    const panel2H = 86;
+    const panel2 = new Container();
+    panel2.position.set(-16 - panelW, HEADER_H + rh * 0.42 + panelH / 2 + 14 + panel2H / 2);
+    panel2.eventMode = 'none';
+    const plate2 = new Graphics();
+    plate2.roundRect(0, -panel2H / 2, panelW, panel2H, 14).fill({ color: 0x000000, alpha: 0.78 });
+    plate2.roundRect(0, -panel2H / 2, panelW, panel2H, 14).stroke({ color: 0xFF64C8, width: 2, alpha: 0.9 });
+    plate2.roundRect(3, -panel2H / 2 + 3, panelW - 6, panel2H - 6, 11).stroke({ color: 0x7DE3FF, width: 1, alpha: 0.35 });
+    panel2.addChild(plate2);
+    const label2 = new Text({
+      text: 'TOTAL WIN',
+      style: new TextStyle({
+        fontFamily: "'Rubik', ui-sans-serif, system-ui, sans-serif",
+        fontSize: 13, fontWeight: '800', fill: 0xFF9ED8, letterSpacing: 3,
+      }),
+    });
+    label2.anchor.set(0.5);
+    label2.position.set(panelW / 2, -panel2H / 2 + 22);
+    panel2.addChild(label2);
+    const total = new Text({
+      text: '0.00',
+      style: new TextStyle({
+        fontFamily: "'Rubik', ui-sans-serif, system-ui, sans-serif",
+        fontSize: 26, fontWeight: '900', fontStyle: 'italic', fill: 0xFFE9A0,
+        letterSpacing: 1,
+        stroke: { color: 0x1a0e02, width: 5 },
+        dropShadow: { color: 0x000000, blur: 6, distance: 0, alpha: 0.5 },
+      }),
+    });
+    total.anchor.set(0.5);
+    total.position.set(panelW / 2, 12);
+    panel2.addChild(total);
+    // Long amounts shrink to stay inside the plaque.
+    const totalFit = () => { total.scale.set(Math.min(1, (panelW - 24) / Math.max(1, total.width / total.scale.x))); };
+    this.fsDancerTweens.push(gsap.to(plate2, { alpha: 0.82, duration: 1.6, yoyo: true, repeat: -1, ease: 'sine.inOut', delay: 0.4 }));
+    fsContainer.addChild(panel2);
+
     // Animate in
     fsContainer.alpha = 0;
     gsap.to(fsContainer, { alpha: 1, duration: 0.3 });
 
-    return { container: fsContainer, counter };
+    return { container: fsContainer, counter, total, totalFit };
   }
 
   /** Iris OUT → midAction at full black → iris back IN. The same circle beat

@@ -43,6 +43,11 @@ export const SYMBOL_WIN_SHEETS = new Map<number, { frames: Texture[]; fps: numbe
  *  App.tsx (Vice: the scatter badge). */
 export const STATIC_LOOK_SYMBOLS = new Set<number>();
 
+/** symbolId → IDLE spritesheet frames: loops on the resting art's footprint,
+ *  permanently replacing the static icon while the cell rests (the win sheet
+ *  covers it during 'win'). Filled by PixiApp.setSymbolIdleSheet. */
+export const SYMBOL_IDLE_SHEETS = new Map<number, { frames: Texture[]; fps: number }>();
+
 /** Soft-edge mask for win-sheet overlays: the source video frames are square
  *  portraits whose art touches the frame edges — unmasked they pop as a hard
  *  CARD. A feathered rounded-rect alpha mask melts the edges away so only the
@@ -116,6 +121,10 @@ export class AnimatedSymbol extends Container {
   private winSheetTween: gsap.core.Tween | null = null;
   private preSheetIconVisible = false;
   private preSheetShadowVisible = false;
+  /** IDLE-spritesheet overlay (see SYMBOL_IDLE_SHEETS / syncIdleSheet). */
+  private idleSheetSprite: Sprite | null = null;
+  private idleSheetTween: gsap.core.Tween | null = null;
+  private idleSheetSymbol = -1;
   private activeState: SymbolState = 'static';
   private tween: gsap.core.Tween | gsap.core.Timeline | null = null;
   /** Bright outline traced around the symbol's silhouette while it's winning. */
@@ -276,6 +285,8 @@ export class AnimatedSymbol extends Container {
     spr.mask = mask;
     this.preSheetIconVisible = this.iconSprite?.visible ?? false;
     this.preSheetShadowVisible = this.iconShadow?.visible ?? false;
+    // The idle loop pauses out of sight while the win sheet owns the cell.
+    if (this.idleSheetSprite) this.idleSheetSprite.visible = false;
     // Cross-fade ONLY: the sheet fades IN on the footprint while the static
     // art fades OUT underneath. The sheet never scales.
     gsap.to(spr, { alpha: 1, duration: 0.12, ease: 'power1.out' });
@@ -302,6 +313,66 @@ export class AnimatedSymbol extends Container {
     });
   }
 
+  /** Per-symbol IDLE loop: replaces the static icon on ITS exact footprint
+   *  whenever the cell rests with a wired idle sheet. Runs independent of the
+   *  state machine; the win sheet hides it during 'win' and hands back.
+   *  Called at the end of every static render (enableStaticMode). */
+  private syncIdleSheet(): void {
+    const sheet = SYMBOL_IDLE_SHEETS.get(this.symbolId);
+    const icon = this.iconSprite;
+    if (!sheet || sheet.frames.length === 0 || !icon) { this.stopIdleSheet(); return; }
+    if (this.idleSheetSprite && this.idleSheetSymbol === this.symbolId) {
+      // Same symbol re-rendered (theme/size refresh) — just re-fit and keep looping.
+      this.idleSheetSprite.position.set(icon.x, icon.y);
+      this.idleSheetSprite.width = icon.width;
+      this.idleSheetSprite.height = icon.height;
+      icon.visible = false;
+      if (this.iconShadow) this.iconShadow.visible = false;
+      return;
+    }
+    this.stopIdleSheet();
+    const spr = new Sprite(sheet.frames[0]);
+    spr.anchor.set(0.5);
+    spr.position.set(icon.x, icon.y);
+    spr.width = icon.width;
+    spr.height = icon.height;
+    spr.eventMode = 'none';
+    // Same soft-edge mask as the win sheet — the square video frame melts
+    // into the cell, only the badge reads.
+    const fw = sheet.frames[0].width || 256;
+    const fh = sheet.frames[0].height || 256;
+    const mask = new Sprite(getSoftEdgeMask());
+    mask.anchor.set(0.5);
+    mask.width = fw;
+    mask.height = fh;
+    mask.eventMode = 'none';
+    spr.addChild(mask);
+    spr.mask = mask;
+    this.inner.addChild(spr);
+    icon.visible = false;
+    if (this.iconShadow) this.iconShadow.visible = false;
+    this.idleSheetSprite = spr;
+    this.idleSheetSymbol = this.symbolId;
+    const proxy = { f: Math.random() * sheet.frames.length }; // desync stacked scatters
+    this.idleSheetTween = gsap.to(proxy, {
+      f: proxy.f + sheet.frames.length,
+      duration: sheet.frames.length / sheet.fps,
+      ease: 'none',
+      repeat: -1,
+      onUpdate: () => { spr.texture = sheet.frames[Math.round(proxy.f) % sheet.frames.length]; },
+    });
+  }
+
+  private stopIdleSheet(): void {
+    if (this.idleSheetTween) { this.idleSheetTween.kill(); this.idleSheetTween = null; }
+    if (this.idleSheetSprite) {
+      this.idleSheetSprite.parent?.removeChild(this.idleSheetSprite);
+      try { this.idleSheetSprite.destroy({ children: true }); } catch { /* torn down */ }
+      this.idleSheetSprite = null;
+    }
+    this.idleSheetSymbol = -1;
+  }
+
   private stopWinSheet(): void {
     if (this.winSheetTween) { this.winSheetTween.kill(); this.winSheetTween = null; }
     const spr = this.winSheetSprite;
@@ -312,6 +383,9 @@ export class AnimatedSymbol extends Container {
     // The exact REVERSE of the intro: pure cross-fade on the same footprint —
     // the static art comes back underneath while the sheet dissolves. ZERO
     // zoom in either direction.
+    // Idle loop comes back the moment the win sheet dissolves (it kept
+    // running underneath, just hidden — the loop position stays organic).
+    if (this.idleSheetSprite) this.idleSheetSprite.visible = true;
     const restore: Array<[Sprite | null, boolean]> = [
       [this.iconSprite, this.preSheetIconVisible],
       [this.iconShadow, this.preSheetShadowVisible],
@@ -463,6 +537,7 @@ export class AnimatedSymbol extends Container {
   dispose(): void {
     gsap.killTweensOf(this); // stray highlight-alpha tweens die with the cell
     this.killTween();
+    this.stopIdleSheet();
     if (this.sprite) {
       try {
         this.sprite.destroy();
@@ -500,6 +575,7 @@ export class AnimatedSymbol extends Container {
   }
 
   private enableSpriteMode(atlas: Spritesheet) {
+    this.stopIdleSheet(); // atlas symbols animate themselves
     this.bg.visible = false;
     this.bigLabel.visible = false;
     this.nameLabel.visible = false;
@@ -696,6 +772,10 @@ export class AnimatedSymbol extends Container {
     // the gem colour, the icon, and the special gold rim carry identity (the
     // Gift Bonanza / Fruit Fortune convention). Caption stays hidden by default.
     this.nameLabel.visible = false;
+
+    // IDLE spritesheet takes over the resting art when one is wired for this
+    // symbol (replaces the icon on its exact footprint; no-op otherwise).
+    this.syncIdleSheet();
   }
 
   private playSpriteState(state: SymbolState) {

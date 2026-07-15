@@ -124,9 +124,13 @@ export function App() {
     void pixiAppRef.setSymbolWinSheet(3, `${B}prem_b_win.webp`, 7, 7, 48, 12);
     void pixiAppRef.setSymbolWinSheet(4, `${B}car_win.webp`, 7, 7, 48, 12);
     void pixiAppRef.setSymbolWinSheet(5, `${B}koffer_win.webp`, 7, 7, 48, 12);
-    // (Scatter win sheet REMOVED — it showed the OLD badge art. The trigger
-    // beat is carried by the frame marquee flash + tease glow; a new-art
-    // sheet can be re-wired here later via setSymbolWinSheet(1, ...).)
+    // Scatter(1) NEW-badge animations: a looping IDLE sheet replaces the
+    // static art on the board (10×9 = 90 frames @10fps, 9s seamless loop),
+    // and the WIN sheet plays on the landed scatters at the FS trigger
+    // (8×9 = 67 frames @15fps ≈ the 4.2s trigger beat). Clean: these two
+    // sheets ARE the scatter's entire presentation.
+    void pixiAppRef.setSymbolIdleSheet(1, `${B}scatteridle.webp`, 10, 9, 90, 10);
+    void pixiAppRef.setSymbolWinSheet(1, `${B}scatterwin.webp`, 8, 9, 67, 15);
     // The scatter badge keeps a clean STATIC look on the reels: no landing
     // squash, no idle/featured warping (in-place scaling pixelates the art) —
     // the win sheet above is its only animation.
@@ -148,12 +152,12 @@ export function App() {
       `${B}frame_win_flash_1.webp`, 8, 6, 48, 12, { x: 1025, y: 225, w: 475, h: 1062.5 },
     );
     // FS-only background: custom static upload wins; otherwise the LIVING
-    // Vice BEACH-CLUB scene (disco ball rays, torch flames, dancing crowd —
-    // 45-frame seamless spritesheet loop, cross-faded @6fps).
+    // Vice BEACH-CLUB LOUNGE (v3: cabanas + tiki bar + disco ball —
+    // 48-frame seamless spritesheet loop, cross-faded @6fps = full 8s take).
     if (saved.fsBg) void pixiAppRef.setFreeSpinsBackgroundImage(saved.fsBg);
     else void pixiAppRef.setFreeSpinsBackgroundSpritesheet(
       [`${B}fsbg_beachclub_anim_1.webp`, `${B}fsbg_beachclub_anim_2.webp`, `${B}fsbg_beachclub_anim_3.webp`],
-      4, 4, 45, 6,
+      4, 4, 48, 6,
     );
     // Vice dancer: ONLY the blonde, right of the grid, dancing through the
     // FS round (8×12 = 96 frames, 224×398, seamless loop — the source video

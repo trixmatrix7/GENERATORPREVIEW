@@ -19,10 +19,13 @@ const DEFAULT_VOLUMES: Record<string, number> = {
   // Fires 5x per spin — sits slightly under the one-shot clicks (Noski:
   // "etwas leiser") so the stop stagger doesn't hammer the mix.
   'reel-stop': 0.58,
-  'win-small': 0.85,
-  'win-normal': 0.9,
-  'win-big': 1.0,
-  'win-mega': 1.0,
+  // Connection-win stingers are OFF: the synthesized runs read as "AI sound"
+  // (Noski) — the coin-chime tally + marquee music carry the win audio until
+  // proper generated stingers get dropped in (just raise these again).
+  'win-small': 0,
+  'win-normal': 0,
+  'win-big': 0,
+  'win-mega': 0,
   'win-marquee': 0.95,
   'scatter-land': 0.8,
   'free-spin-trigger': 1.0,

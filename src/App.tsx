@@ -70,6 +70,10 @@ export function App() {
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', 'dark');
     pixiAppRef?.setTheme('dark');
+    // Dev-only debug handle (console/tooling): drive presentation APIs directly.
+    if (import.meta.env.DEV && pixiAppRef) {
+      (window as unknown as { __pixi?: PixiApp }).__pixi = pixiAppRef;
+    }
   }, [pixiAppRef]);
 
   // Baked asset pack: on mount, apply the user's persisted swaps if any, else
@@ -82,11 +86,18 @@ export function App() {
       ? new Map(Object.entries(saved.symbols).map(([k, v]) => [Number(k), v]))
       : viceSymbolMap();
     void pixiAppRef.setUserAssetTextures(symbols);
-    // Custom upload wins; otherwise the Vice MOTEL-BEACH base background
-    // (sunset parking lot, static art — cover-fit).
+    // Custom upload wins; otherwise the Vice MOTEL-BEACH base background —
+    // static art paints instantly, then the LIVING loop takes over (45-frame
+    // seamless spritesheet, cross-faded @6fps: ocean rolls, palms sway).
     const B = `${import.meta.env.BASE_URL}theme/vice/`;
     if (saved.bg) void pixiAppRef.setBackgroundImage(saved.bg);
-    else void pixiAppRef.setBackgroundImage(`${B}bg_motel.webp`);
+    else {
+      void pixiAppRef.setBackgroundImage(`${B}bg_motel.webp`);
+      void pixiAppRef.setBackgroundSpritesheet(
+        [`${B}bg_motel_anim_1.webp`, `${B}bg_motel_anim_2.webp`, `${B}bg_motel_anim_3.webp`],
+        4, 4, 45, 6,
+      );
+    }
     // VICE HEAT logo above the grid (replaces the text title).
     void pixiAppRef.setTitleImage(`${B}logo.webp`);
     // Symbol WIN animations: looped spritesheets on connection (7×7 = 48
@@ -104,16 +115,26 @@ export function App() {
     // Expected art: 512×2560 px (5×5 grid) / 512×1484 px (5×3) — one reel's
     // aspect; setExpandingWildImage height-fits whichever grid is active.
     void pixiAppRef.setExpandingWildImage(saved.expandingWild ?? `${B}wild_column.webp`);
-    // Custom neon frame (palm + marquee arrow). The window rect marks the
-    // neon box inside the 1500² art — mapped onto the frame bounds so the
-    // palm/arrow hang over the background, not the reels. Custom upload wins
-    // (legacy full-stretch, no window).
+    // Custom neon frame (palm + marquee arrow). The window rect is the TRUE
+    // transparent hole measured from the 1500² art's alpha — mapped onto the
+    // frame bounds so the palm/arrow hang over the background, not the reels.
+    // Custom uploads auto-detect their own window from alpha now.
     if (saved.frame) void pixiAppRef.setFrameImage(saved.frame);
-    else void pixiAppRef.setFrameImage(`${B}frame_neon.webp`, { x: 148, y: 265, w: 922, h: 955 });
-    // FS-only background: custom static upload wins; otherwise the Vice
-    // NIGHTCLUB scene (disco ball + neon crowd, static art — cover-fit).
+    else void pixiAppRef.setFrameImage(`${B}frame_neon.webp`, { x: 197, y: 314, w: 832, h: 832 });
+    // Frame WIN flash: the palm marquee's bulb chase + arrow strobe (chroma-
+    // matted one-shot sheet) fires when the 3rd scatter lands. Region = where
+    // those frames sit inside the 1500² frame texture.
+    void pixiAppRef.setFrameWinFlash(
+      `${B}frame_win_flash_1.webp`, 8, 6, 48, 12, { x: 1025, y: 225, w: 475, h: 1062.5 },
+    );
+    // FS-only background: custom static upload wins; otherwise the LIVING
+    // Vice BEACH-CLUB scene (disco ball rays, torch flames, dancing crowd —
+    // 45-frame seamless spritesheet loop, cross-faded @6fps).
     if (saved.fsBg) void pixiAppRef.setFreeSpinsBackgroundImage(saved.fsBg);
-    else void pixiAppRef.setFreeSpinsBackgroundImage(`${B}fsbg_nightclub.webp`);
+    else void pixiAppRef.setFreeSpinsBackgroundSpritesheet(
+      [`${B}fsbg_beachclub_anim_1.webp`, `${B}fsbg_beachclub_anim_2.webp`, `${B}fsbg_beachclub_anim_3.webp`],
+      4, 4, 45, 6,
+    );
     // Vice dancer: ONLY the blonde, right of the grid, dancing through the
     // FS round (8×12 = 96 frames, 224×398, seamless loop — the source video
     // wraps without a trailing hold) at 18fps = 1.5× speed.

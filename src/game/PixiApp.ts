@@ -166,6 +166,21 @@ export class PixiApp {
   private frameImageSprite: Sprite | null = null;
   private frameTexture: Texture | null = null;
   private frameW = 0;
+  // Frame-art metrics measured from the texture's alpha: the window actually
+  // used for mapping, and how far VISIBLE art hangs outside it (fractions of
+  // the window size) so layout can keep the palm marquee on-canvas.
+  private frameWindowUsed: { x: number; y: number; w: number; h: number } | null = null;
+  private frameArtOvL = 0;
+  private frameArtOvR = 0;
+  // Frame WIN flash: one-shot marquee-chase spritesheet over the frame art,
+  // fired the moment the 3rd scatter lands (the FS trigger beat).
+  private frameFlashSheet: Texture | null = null;
+  private frameFlashFrames: Texture[] | null = null;
+  private frameFlashRegion: { x: number; y: number; w: number; h: number } | null = null;
+  private frameFlashFps = 12;
+  private frameFlashSprite: Sprite | null = null;
+  private frameFlashTl: gsap.core.Timeline | null = null;
+  private _scatterLands = 0;
   private frameH = 0;
   private frameToken = 0;
   private titleText!: Text;
@@ -511,10 +526,13 @@ export class PixiApp {
     // it solely when it genuinely wouldn't fit over the bar.
     const hud = width * this.bottomHudFraction;
 
-    // Scale scene to fit viewport with margin
+    // Scale scene to fit viewport with margin. Frame art (palm marquee) may
+    // hang OUTSIDE the machine box — include that overhang so it never clips.
+    const ovL = this.frameArtOvL * totalW;
+    const ovR = this.frameArtOvR * totalW;
     const availW = width - SCENE_MARGIN * 2;
     const availH = height - SCENE_MARGIN * 2;
-    const scaleX = availW / totalW;
+    const scaleX = availW / (totalW + ovL + ovR);
     const scaleY = availH / totalH;
     // ×0.85 — grid sits 15% smaller in the bounded box (still centred below),
     // giving the animated background more breathing room around the reels.
@@ -525,7 +543,13 @@ export class PixiApp {
     }
 
     this.sceneRoot.scale.set(scale);
-    this.sceneRoot.x = Math.round((width - totalW * scale) / 2);
+    // Centre the machine, then nudge left/right only if the frame-art
+    // overhang would fall off the canvas (right side wins — the marquee).
+    let sx = Math.round((width - totalW * scale) / 2);
+    const artR = sx + (totalW + ovR) * scale;
+    if (artR > width - 2) sx -= Math.round(artR - (width - 2));
+    if (sx - ovL * scale < 2) sx = Math.round(2 + ovL * scale);
+    this.sceneRoot.x = sx;
     this.sceneRoot.y = Math.round((height - hud - totalH * scale) / 2);
 
     // Centre win banner over reels
@@ -770,21 +794,64 @@ export class PixiApp {
     }
     this.clearFrameImage();
     this.frameTexture = tex;
+    // Measure the texture's alpha ONCE: find the transparent centre window
+    // (auto-detected when the caller gave none — fixes legacy uploads that
+    // used to full-stretch) and the visible-art bbox, whose overhang beyond
+    // the window drives layout so decorations never clip at the canvas edge.
+    let win = frameWindow ?? null;
+    let ovL = 0, ovR = 0;
+    try {
+      const probe = new Sprite(tex);
+      const out = this.app.renderer.extract.pixels(probe) as unknown as
+        { pixels: Uint8ClampedArray; width: number; height: number };
+      probe.destroy();
+      const px = out.pixels, tw = out.width, th = out.height;
+      const a = (x: number, y: number) => px[(y * tw + x) * 4 + 3];
+      if (!win) {
+        const cx = tw >> 1, cy = th >> 1;
+        if (a(cx, cy) <= 16) {
+          let top = 0, bot = th - 1, lef = 0, rig = tw - 1;
+          for (let y = cy; y >= 0; y--) if (a(cx, y) > 16) { top = y + 1; break; }
+          for (let y = cy; y < th; y++) if (a(cx, y) > 16) { bot = y - 1; break; }
+          for (let x = cx; x >= 0; x--) if (a(x, cy) > 16) { lef = x + 1; break; }
+          for (let x = cx; x < tw; x++) if (a(x, cy) > 16) { rig = x - 1; break; }
+          if (rig - lef > tw * 0.2 && bot - top > th * 0.2) {
+            win = { x: lef, y: top, w: rig - lef + 1, h: bot - top + 1 };
+          }
+        }
+      }
+      if (win) {
+        let minX = tw, maxX = -1;
+        for (let y = 0; y < th; y += 2) {
+          for (let x = 0; x < minX; x++) if (a(x, y) > 16) { minX = x; break; }
+          for (let x = tw - 1; x > maxX; x--) if (a(x, y) > 16) { maxX = x; break; }
+        }
+        if (maxX >= 0) {
+          ovL = Math.max(0, (win.x - minX) / win.w);
+          ovR = Math.max(0, (maxX - (win.x + win.w)) / win.w);
+        }
+      }
+    } catch { /* extract unavailable — keep explicit/legacy mapping */ }
+    this.frameWindowUsed = win;
+    this.frameArtOvL = ovL;
+    this.frameArtOvR = ovR;
     const sp = new Sprite(tex);
-    if (frameWindow) {
-      const sx = this.frameW / frameWindow.w;
-      const sy = this.frameH / frameWindow.h;
+    if (win) {
+      const sx = this.frameW / win.w;
+      const sy = this.frameH / win.h;
       sp.scale.set(sx, sy);
-      sp.position.set(-frameWindow.x * sx, -frameWindow.y * sy);
+      sp.position.set(-win.x * sx, -win.y * sy);
     } else {
       sp.width = this.frameW;
       sp.height = this.frameH;
     }
     this.frameImageSprite = sp;
     this.gameContainer.addChild(sp); // topmost child → border sits over the reels
+    this.onResize(); // overhang changed — re-fit so the marquee side stays on-canvas
   }
 
   private clearFrameImage(): void {
+    this.stopFrameFlash();
     if (this.frameImageSprite) {
       this.frameImageSprite.parent?.removeChild(this.frameImageSprite);
       try { this.frameImageSprite.destroy(); } catch { /* torn down */ }
@@ -793,6 +860,78 @@ export class PixiApp {
     if (this.frameTexture) {
       try { this.frameTexture.destroy(true); } catch { /* torn down */ }
       this.frameTexture = null;
+    }
+    this.frameWindowUsed = null;
+    this.frameArtOvL = 0;
+    this.frameArtOvR = 0;
+  }
+
+  /** One-shot FRAME WIN animation (marquee bulb chase on the palm sign) from a
+   *  spritesheet, chroma-matted to alpha. `region` is WHERE the sheet's frames
+   *  sit inside the frame TEXTURE (texture px) — placement rides the same
+   *  window mapping as the frame art. Plays via playFrameWinFlash() the moment
+   *  the 3rd scatter lands. Pass null to clear. */
+  async setFrameWinFlash(
+    url: string | null, cols = 8, rows = 6, count = 48, fps = 12,
+    region?: { x: number; y: number; w: number; h: number },
+  ): Promise<void> {
+    if (this._aborted) return;
+    this.stopFrameFlash();
+    if (this.frameFlashFrames) { for (const f of this.frameFlashFrames) { try { f.destroy(false); } catch { /* torn down */ } } this.frameFlashFrames = null; }
+    if (this.frameFlashSheet) { try { this.frameFlashSheet.destroy(true); } catch { /* torn down */ } this.frameFlashSheet = null; }
+    this.frameFlashRegion = null;
+    if (!url || !region) return;
+    let sheet: Texture;
+    try { sheet = await Assets.load<Texture>(url); }
+    catch (err) { console.warn('[PixiApp] failed to load frame win flash:', err); return; }
+    if (this._aborted) { try { sheet.destroy(true); } catch { /* torn down */ } return; }
+    const fw = sheet.width / cols, fh = sheet.height / rows;
+    const frames: Texture[] = [];
+    for (let i = 0; i < count; i++) {
+      frames.push(new Texture({ source: sheet.source, frame: new Rectangle((i % cols) * fw, Math.floor(i / cols) * fh, fw, fh) }));
+    }
+    this.frameFlashSheet = sheet;
+    this.frameFlashFrames = frames;
+    this.frameFlashFps = Math.max(1, fps);
+    this.frameFlashRegion = region;
+  }
+
+  /** Fire the frame-win flash once (no-op without frames or a mapped frame). */
+  playFrameWinFlash(): void {
+    const fi = this.frameImageSprite;
+    if (!this.isLive || !this.frameFlashFrames?.length || !fi || !this.frameFlashRegion) return;
+    this.stopFrameFlash();
+    const reg = this.frameFlashRegion;
+    const frames = this.frameFlashFrames;
+    const sp = new Sprite(frames[0]);
+    sp.position.set(fi.x + reg.x * fi.scale.x, fi.y + reg.y * fi.scale.y);
+    sp.width = reg.w * fi.scale.x;
+    sp.height = reg.h * fi.scale.y;
+    sp.alpha = 0;
+    sp.eventMode = 'none';
+    this.gameContainer.addChild(sp); // above the frame art (added later)
+    this.frameFlashSprite = sp;
+    const state = { f: 0 };
+    const dur = frames.length / this.frameFlashFps;
+    const tl = gsap.timeline({ onComplete: () => this.stopFrameFlash() });
+    tl.to(sp, { alpha: 1, duration: 0.12, ease: 'sine.out' }, 0)
+      .to(state, {
+        f: frames.length - 1, duration: dur, ease: 'none',
+        onUpdate: () => {
+          const idx = Math.min(frames.length - 1, Math.round(state.f));
+          if (this.frameFlashSprite) this.frameFlashSprite.texture = frames[idx];
+        },
+      }, 0)
+      .to(sp, { alpha: 0, duration: 0.35, ease: 'sine.in' }, Math.max(0.2, dur - 0.3));
+    this.frameFlashTl = tl;
+  }
+
+  private stopFrameFlash(): void {
+    if (this.frameFlashTl) { this.frameFlashTl.kill(); this.frameFlashTl = null; }
+    if (this.frameFlashSprite) {
+      this.frameFlashSprite.parent?.removeChild(this.frameFlashSprite);
+      try { this.frameFlashSprite.destroy(); } catch { /* torn down */ }
+      this.frameFlashSprite = null;
     }
   }
 
@@ -1456,12 +1595,22 @@ export class PixiApp {
    * Pixi layer stays I/O-free.
    */
   setAudioHooks(hooks: ReelSetAudioHooks): void {
+    // Piggy-back on the scatter-landed beat: the 3rd landed scatter IS the
+    // FS-trigger moment — fire the frame marquee flash right there.
+    const wrapped: ReelSetAudioHooks = {
+      ...hooks,
+      onScatterLanded: (reelIdx: number) => {
+        hooks.onScatterLanded?.(reelIdx);
+        this._scatterLands++;
+        if (this._scatterLands === 3) this.playFrameWinFlash();
+      },
+    };
     if (!this.reelSet) {
       // Init not finished yet; defer.
-      this._pendingAudioHooks = hooks;
+      this._pendingAudioHooks = wrapped;
       return;
     }
-    this.reelSet.audioHooks = hooks;
+    this.reelSet.audioHooks = wrapped;
   }
 
   /** True only between init() completion and destroy(). Use as a precondition
@@ -1485,6 +1634,7 @@ export class PixiApp {
     this.winBanner.visible = false;
     this.winBanner.alpha = 0;
     this.reelSet.clearHighlights();
+    this._scatterLands = 0;
     this.reelSet.startSpin();
   }
 
@@ -2232,6 +2382,7 @@ export class PixiApp {
     }
     const chosen = fan ?? best;
     if (!chosen) return; // no ways win found (astronomically unlikely)
+    this._scatterLands = 0;
     this.reelSet.startSpin();
     void (async () => {
       await new Promise(r => setTimeout(r, 450));
@@ -2292,6 +2443,7 @@ export class PixiApp {
       },
     };
     // Roll visibly first, then resolve — exactly like a real spin.
+    this._scatterLands = 0;
     this.reelSet.startSpin();
     window.setTimeout(() => { if (this.isLive) void this.resolve(outcome, symbol, decimals); }, 600);
   }
@@ -2513,6 +2665,7 @@ export class PixiApp {
       return 0;
     };
     const stops = lens.map((_, r) => findStop(r, r < 2 ? 1 : 0));
+    this._scatterLands = 0;
     this.reelSet.startSpin();
     void (async () => {
       await new Promise(res => setTimeout(res, 400));

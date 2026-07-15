@@ -21,6 +21,7 @@ const DEFAULT_VOLUMES: Record<string, number> = {
   'win-normal': 0.9,
   'win-big': 1.0,
   'win-mega': 1.0,
+  'win-marquee': 0.95,
   'scatter-land': 0.8,
   'free-spin-trigger': 1.0,
   'near-miss-tease': 0.4,
@@ -33,8 +34,10 @@ const DEFAULT_VOLUMES: Record<string, number> = {
 };
 
 // Per-event flags. Ambient music is loop + exclusive (only one can play).
+// The marquee track is exclusive too: a re-triggered celebration must not
+// stack a second copy of the song.
 const LOOP_EVENTS = new Set<string>(['ambient-music', 'reel-spin-loop']);
-const EXCLUSIVE_EVENTS = new Set<string>(['ambient-music']);
+const EXCLUSIVE_EVENTS = new Set<string>(['ambient-music', 'win-marquee']);
 
 const AUDIO_DIR = '/audio';
 
@@ -42,7 +45,7 @@ const AUDIO_DIR = '/audio';
 // These must try .ogg FIRST: a missing .wav makes the SPA dev server answer
 // with index.html (HTTP 200), which Howler then fails to DECODE — and it
 // never falls through to the real file ("Decoding audio data failed").
-const OGG_FIRST = new Set<string>(['ambient-music']);
+const OGG_FIRST = new Set<string>(['ambient-music', 'win-marquee']);
 
 function bindingForEvent(id: string): SoundEventBinding {
   return {

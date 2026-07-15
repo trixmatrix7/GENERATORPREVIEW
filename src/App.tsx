@@ -191,6 +191,13 @@ export function App() {
     if (!pixiApp) return;
     // FS intro/iris covers the screen — hide the control bar like the game intro.
     pixiApp.onFsIntroVisible = setFsIntroOpen;
+    // Marquee music rides the celebration exactly: starts with the slam-in,
+    // fades out WITH the staggered exit (0.9s) or fast on a skip (0.26s) —
+    // the track never outlasts the marquee.
+    pixiApp.setMarqueeSoundHooks(
+      () => soundManager.play('win-marquee'),
+      smooth => soundManager.fadeStop('win-marquee', smooth ? 900 : 260),
+    );
     pixiApp.setAudioHooks({
       onReelStopped: () => soundManager.play('reel-stop'),
       onScatterLanded: () => soundManager.play('scatter-land'),

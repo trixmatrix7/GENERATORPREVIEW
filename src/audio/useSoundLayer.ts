@@ -17,6 +17,7 @@ import { useEffect, useRef } from 'react';
 import type { SoundManager } from './SoundManager';
 import { getSharedSoundManager } from './defaultSoundConfig';
 import type { GameState } from '@/state/types';
+import { WIN_CELEBRATION_CONFIG } from '@/game/WinCelebration';
 
 // Win-tier band thresholds (multiples of bet). Match winScreenTiers registry
 // bands so sound + visual stay in lockstep.
@@ -122,16 +123,21 @@ export function useSoundLayer(state: GameState | null): SoundManager {
       if (outcome) {
         const wager = BigInt(state.betBaseUnits || '0');
         const winSound = selectWinSound(outcome.winAmount, wager);
-        if (winSound) manager.play(winSound);
+        // When the MARQUEE celebration will play (>= minBigWin x bet), its
+        // music track owns the win audio — the stingers and coin-chime
+        // accents would double up under the song, so they stay silent.
+        const ratio = wager > 0n ? Number(outcome.winAmount) / Number(wager) : 0;
+        const marqueeOwnsAudio = ratio >= WIN_CELEBRATION_CONFIG.minBigWin;
+        if (winSound && !marqueeOwnsAudio) manager.play(winSound);
         // Coin-chime accent on big/mega tiers — timed to celebration timeline.
-        if (winSound === 'win-big' || winSound === 'win-mega') {
+        if (!marqueeOwnsAudio && (winSound === 'win-big' || winSound === 'win-mega')) {
           scheduleAccent(() => manager.play('coin-chime'), 200);
           scheduleAccent(() => manager.play('coin-chime'), 600);
-        }
-        if (winSound === 'win-mega') {
-          scheduleAccent(() => manager.play('coin-chime'), 1100);
-          scheduleAccent(() => manager.play('coin-chime'), 1700);
-          scheduleAccent(() => manager.play('coin-chime'), 2300);
+          if (winSound === 'win-mega') {
+            scheduleAccent(() => manager.play('coin-chime'), 1100);
+            scheduleAccent(() => manager.play('coin-chime'), 1700);
+            scheduleAccent(() => manager.play('coin-chime'), 2300);
+          }
         }
         if (outcome.freeSpinsTriggered) manager.play('free-spin-trigger');
       }

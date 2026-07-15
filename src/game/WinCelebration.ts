@@ -97,6 +97,18 @@ export class WinCelebration {
   private resolveActive: (() => void) | null = null;
   /** Standalone tweens (promotion punches) that live outside this.tl. */
   private extraTweens: gsap.core.Tween[] = [];
+  /** Host audio hooks: the marquee music starts/stops WITH the marquee.
+   *  `onMarqueeExit(smooth)` — smooth=true on the natural end (long fade),
+   *  false when the player skipped (fast fade). Fires exactly once per play. */
+  onMarqueeStart: (() => void) | null = null;
+  onMarqueeExit: ((smooth: boolean) => void) | null = null;
+  private exitSignalled = true; // no run active yet
+
+  private signalExit(smooth: boolean): void {
+    if (this.exitSignalled) return;
+    this.exitSignalled = true;
+    try { this.onMarqueeExit?.(smooth); } catch { /* host callback */ }
+  }
 
   /** The six marquee layer textures (null until setTierImages loads them). */
   private tierTex: Record<TierKey, Texture> | null = null;
@@ -196,6 +208,8 @@ export class WinCelebration {
 
   play(p: WinCelebrationParams): Promise<void> {
     this.cancel();
+    this.exitSignalled = false;
+    try { this.onMarqueeStart?.(); } catch { /* host callback */ }
 
     const sw = this.app.screen.width, sh = this.app.screen.height;
     const C = WIN_CELEBRATION_CONFIG;
@@ -366,6 +380,7 @@ export class WinCelebration {
         const tl = gsap.timeline({ onComplete: () => this.finish() });
         this.tl = tl;
         tl.to({}, { duration: 1.2 });
+        tl.call(() => this.signalExit(true));
         tl.to(marquee, { alpha: 0, duration: 0.3, ease: 'power1.in' });
       });
     }
@@ -479,19 +494,50 @@ export class WinCelebration {
       const maxBeat = finalTier === 3 ? 0.18 : 0;
       if (finalTier === 3) tl.call(() => promoteTier(3), undefined, at + maxBeat);
 
-      // HOLD, then EXIT: slight scale-drift out while fading.
+      // HOLD, then EXIT — a layered, staggered dismissal instead of one flat
+      // fade: plate+number sink away first, WIN follows, the tier word lifts
+      // off last while the coin rain melts out underneath. The music hook
+      // fires here so the track fades WITH the visual exit.
       const exitAt = at + maxBeat + C.holdDur[finalTier];
-      tl.to(marquee, { alpha: 0, duration: 0.38, ease: 'power1.in' }, exitAt);
+      tl.call(() => this.signalExit(true), undefined, exitAt);
+      const rain = this.coinSprite;
+      if (plateSpr) {
+        tl.to(plateSpr, { alpha: 0, y: '+=26', duration: 0.4, ease: 'power2.in' }, exitAt);
+        tl.to(amount, { alpha: 0, y: '+=26', duration: 0.4, ease: 'power2.in' }, exitAt);
+      } else {
+        tl.to(amount, { alpha: 0, duration: 0.4, ease: 'power2.in' }, exitAt);
+      }
+      if (winSpr) tl.to(winSpr, { alpha: 0, duration: 0.42, ease: 'power2.in' }, exitAt + 0.08);
+      if (tierSpr) tl.to(tierSpr, { alpha: 0, y: '-=18', duration: 0.45, ease: 'power2.in' }, exitAt + 0.14);
+      if (fallbackWord) tl.to(fallbackWord, { alpha: 0, duration: 0.45, ease: 'power2.in' }, exitAt + 0.14);
+      if (rain) tl.to(rain, { alpha: 0, duration: 0.55, ease: 'power1.in' }, exitAt);
       // Function-based values: evaluated when the tween STARTS, so the drift
       // grows from wherever the promotions left the marquee (not build-time).
       tl.to(marquee.scale, {
-        x: () => marquee.scale.x * 1.05, y: () => marquee.scale.y * 1.05,
-        duration: 0.38, ease: 'power1.in',
+        x: () => marquee.scale.x * 1.06, y: () => marquee.scale.y * 1.06,
+        duration: 0.6, ease: 'power1.in',
       }, exitAt);
     });
   }
 
   cancel(): void { this.finish(); }
+
+  /** Player-initiated dismissal: compress the exit into a fast, CLEAN fade
+   *  (~0.26s) instead of hard-killing the overlay mid-frame. The music hook
+   *  fires with smooth=false so the track fades out quickly alongside.
+   *  Safe to call at any time; no-op when nothing is showing. */
+  skip(): void {
+    if (!this.overlay) return;
+    this.signalExit(false);
+    if (this.tl) { this.tl.kill(); this.tl = null; }
+    for (const t of this.extraTweens) t.kill();
+    this.extraTweens.length = 0;
+    const ov = this.overlay;
+    gsap.killTweensOf(ov);
+    const tl = gsap.timeline({ onComplete: () => this.finish() });
+    tl.to(ov, { alpha: 0, duration: 0.26, ease: 'power2.in' }, 0);
+    this.tl = tl;
+  }
 
   dispose(): void {
     this.finish();
@@ -510,6 +556,7 @@ export class WinCelebration {
   }
 
   private finish(): void {
+    this.signalExit(false); // killed before the natural exit → fast music fade
     if (this.tl) { this.tl.kill(); this.tl = null; }
     for (const t of this.extraTweens) t.kill();
     this.extraTweens.length = 0;

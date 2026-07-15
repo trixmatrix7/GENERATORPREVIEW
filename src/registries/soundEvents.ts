@@ -75,6 +75,17 @@ const entries: readonly SoundEventEntry[] = [
     priority: 'high',
   },
   {
+    id: 'win-marquee',
+    name: 'Win Marquee Music',
+    description: 'Celebration track under the BIG/MEGA/EPIC/MAX marquee — starts with the marquee, fades out with it (fast on skip).',
+    version: '0.1.0',
+    implemented: true,
+    event: 'win:marquee',
+    trigger: 'marquee celebration start (win >= minBigWin x bet)',
+    loop: false,
+    priority: 'high',
+  },
+  {
     id: 'scatter-land',
     name: 'Scatter Land',
     description: 'Distinctive sound when a scatter symbol becomes visible.',

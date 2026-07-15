@@ -1090,6 +1090,15 @@ export class PixiApp {
     await this.winCelebration?.setCoinRain(urls, cols, rows, count, fps);
   }
 
+  /** Host audio hooks for the marquee celebration: `start` fires when the
+   *  marquee slams in, `exit(smooth)` exactly once when it leaves — smooth on
+   *  the natural end (long music fade), not smooth on a skip (fast fade). */
+  setMarqueeSoundHooks(start: (() => void) | null, exit: ((smooth: boolean) => void) | null): void {
+    if (!this.winCelebration) return;
+    this.winCelebration.onMarqueeStart = start;
+    this.winCelebration.onMarqueeExit = exit;
+  }
+
   /** Free-spins dancers: one spritesheet per side (urls[0] = left of the grid,
    *  urls[1] = right), looping through the whole FS round. Same grid slicing
    *  for both sheets. Pass null to clear. */
@@ -2697,9 +2706,11 @@ export class PixiApp {
   /** Destroy and refresh the celebration FX container so sparks/coins/glow
    *  from a previous win don't leak into the next one. */
   private clearCelebrationFx(): void {
-    // The AAA win celebration owns a SEPARATE app.stage overlay — settle it here
-    // too (safe: play() re-cancels itself on start).
-    this.winCelebration?.cancel();
+    // The AAA win celebration owns a SEPARATE app.stage overlay — settle it
+    // here with the GRACEFUL fast-out (skip), never a hard mid-frame kill;
+    // the music hook fades the track alongside. play() still re-cancels
+    // itself on start, so overlap is safe.
+    this.winCelebration?.skip();
     if (this.celebrationFx) {
       gsap.killTweensOf(this.celebrationFx.children);
       // Kill the off-graph spark-motion proxies too (not reachable via children).

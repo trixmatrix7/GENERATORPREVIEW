@@ -132,6 +132,25 @@ export class SoundManager {
     this.exclusivePlaying.delete(eventId);
   }
 
+  /** Fade the currently-playing instance out over `ms`, then stop it. Only
+   *  the captured instance is touched, so a NEW play() started during the
+   *  fade (back-to-back celebrations) is never killed by the old fade. */
+  fadeStop(eventId: string, ms = 600): void {
+    const howl = this.howls.get(eventId);
+    const binding = this.bindings.get(eventId);
+    if (!howl || !binding || !howl.playing()) return;
+    const id = this.exclusivePlaying.get(eventId);
+    const from = binding.volume * this._volume;
+    if (id !== undefined) {
+      howl.fade(from, 0, ms, id);
+      if (this.exclusivePlaying.get(eventId) === id) this.exclusivePlaying.delete(eventId);
+      setTimeout(() => { try { howl.stop(id); } catch { /* torn down */ } }, ms + 40);
+    } else {
+      howl.fade(from, 0, ms);
+      setTimeout(() => { try { howl.stop(); } catch { /* torn down */ } }, ms + 40);
+    }
+  }
+
   /**
    * Swap the source URL(s) of an existing event at runtime. Used by the
    * sound-swap UI to preview / commit user-uploaded replacements without

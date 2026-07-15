@@ -162,6 +162,8 @@ export function App() {
       arr.map(l => ({ file: `${import.meta.env.BASE_URL}${l.file}`, role: l.role, cx: l.cx, cy: l.cy, tw: l.tw }));
     void pixiAppRef.setLayeredIntro('fs3', mapSet(introLayers.fs3));
     void pixiAppRef.setLayeredIntro('fs4', mapSet(introLayers.fs4));
+    // TOTAL WIN outro after the free-spins round (iris-bookended, 15s max).
+    void pixiAppRef.setLayeredIntro('outro', mapSet(introLayers.outro));
     void pixiAppRef.setLayeredIntro('game', mapSet(introLayers.game)).then(() => {
       if (pixiAppRef.showGameIntro(() => setIntroOpen(false))) setIntroOpen(true);
     });

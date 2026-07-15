@@ -104,7 +104,7 @@ export class PixiApp {
   private fsDancerTweens: gsap.core.Tween[] = [];
   /** Layered intro screens (game start / 3-scatter FS / 4-scatter FS) —
    *  every layer breathes so the whole screen reads ALIVE. */
-  private introSets: Partial<Record<'game' | 'fs3' | 'fs4', Array<{ tex: Texture; role: string; cx: number; cy: number; tw?: number }>>> = {};
+  private introSets: Partial<Record<'game' | 'fs3' | 'fs4' | 'outro', Array<{ tex: Texture; role: string; cx: number; cy: number; tw?: number }>>> = {};
   private gameIntroShown = false;
   private fsBgSavedBase: Texture | null = null;
   private fsBgActive = false;
@@ -1165,9 +1165,9 @@ export class PixiApp {
 
   /** Load a LAYERED intro screen (design space 1920×1080; each layer is a
    *  cropped element with its centre position). kinds: 'game' (start screen),
-   *  'fs3' / 'fs4' (tiered free-spins intros). */
+   *  'fs3' / 'fs4' (tiered free-spins intros), 'outro' (total-win screen). */
   async setLayeredIntro(
-    kind: 'game' | 'fs3' | 'fs4',
+    kind: 'game' | 'fs3' | 'fs4' | 'outro',
     defs: Array<{ file: string; role: string; cx: number; cy: number; tw?: number }>,
   ): Promise<void> {
     if (this._aborted) return;
@@ -1188,7 +1188,7 @@ export class PixiApp {
    *  sways, PRESS-TO-CONTINUE pulses. Cover-fits the 1920×1080 design space;
    *  caller centres the returned node and kills `sink` on teardown. */
   private buildLayeredIntroScene(
-    kind: 'game' | 'fs3' | 'fs4',
+    kind: 'game' | 'fs3' | 'fs4' | 'outro',
     sw: number,
     sh: number,
     sink: gsap.core.Animation[],
@@ -1805,12 +1805,14 @@ export class PixiApp {
       }
     }
 
-    // Closing iris — bookends the free-spins round like the entry: the screen
-    // pulls into the black circle, the FS overlay + background swap back
-    // underneath, then it opens onto the normal base screen.
+    // TOTAL-WIN OUTRO — bookends the free-spins round like the entry: the
+    // screen pulls into the black circle after the last spin, the FS overlay
+    // + background swap back at the black beat, the iris opens onto the
+    // breathing TOTAL WIN screen (up to 15s, tap to continue), then a second
+    // blink lands back on the normal base screen.
     if (this.isLive && fsOverlayToClose) {
       const overlay = fsOverlayToClose;
-      await this.playExitIris(() => {
+      await this.playFreeSpinsOutro(outcome.winAmount, decimals, () => {
         this.hideFreeSpinOverlay(overlay);
         if (this.fsOverlayOpen === overlay) this.fsOverlayOpen = null;
         this.exitFsBackground();
@@ -3013,6 +3015,119 @@ export class PixiApp {
 
   /** Iris OUT → midAction at full black → iris back IN. The same circle beat
    *  as the FS entry, used to bring the round back to the base screen. */
+  /** TOTAL-WIN OUTRO after the free-spins round: a full iris blink onto the
+   *  layered outro screen (TOTAL WIN wordmark + the round's amount + press-
+   *  to-continue, every layer breathing over the club bg), holds up to 15
+   *  SECONDS — a tap anywhere continues immediately — then blinks back onto
+   *  the base game. `onBlackBeat` runs at the FIRST full-black beat (hide
+   *  the FS overlay, swap the background back) so no swap is ever visible.
+   *  The DOM control bar hides for the whole sequence (onFsIntroVisible).
+   *  Without outro art loaded this falls back to the plain exit iris. */
+  private playFreeSpinsOutro(totalWin: bigint, decimals: number, onBlackBeat: () => void): Promise<void> {
+    if (!this.isLive) return Promise.resolve();
+    const sw = this.app.screen.width;
+    const sh = this.app.screen.height;
+    const cx = sw / 2, cy = sh / 2;
+    const rDiag = 0.5 * Math.hypot(sw, sh);
+    const outer = rDiag * 2.4;
+    const ox = cx - outer / 2, oy = cy - outer / 2;
+
+    const tweens: gsap.core.Animation[] = [];
+    const layered = this.buildLayeredIntroScene('outro', sw, sh, tweens);
+    if (!layered) return this.playExitIris(onBlackBeat);
+    this.onFsIntroVisible?.(true);
+
+    const overlay = new Container();
+    overlay.zIndex = 10000;
+    this.irisOverlay = overlay;
+    const scene = new Container();
+    scene.alpha = 0;
+    const sceneBg = new Graphics();
+    sceneBg.rect(0, 0, sw, sh).fill({ color: 0x050509, alpha: 1 });
+    scene.addChild(sceneBg);
+    const content = new Container();
+    content.position.set(cx, cy);
+    content.addChild(layered);
+
+    // The round's TOTAL WIN amount — marquee-styled, breathing gently, set
+    // into the layered scene's CONTENT root (design space, centre origin).
+    const fg = layered.children[1] as Container;
+    const amt = new Text({
+      text: formatWin(totalWin, decimals), style: new TextStyle({
+        fontFamily: "'Rubik', ui-sans-serif, sans-serif", fontSize: 104, fontWeight: '800',
+        fontStyle: 'italic', letterSpacing: 2, fill: 0xffe9a0,
+        stroke: { color: 0x1a0e02, width: 10 },
+        dropShadow: { color: 0x000000, blur: 8, distance: 0, alpha: 0.55 },
+      }),
+    });
+    amt.anchor.set(0.5);
+    amt.position.set(0, 660 - 540);
+    fg.addChild(amt);
+    tweens.push(gsap.to(amt.scale, { x: 1.045, y: 1.045, duration: 1.4, yoyo: true, repeat: -1, ease: 'sine.inOut' }));
+
+    content.scale.set(0.9);
+    scene.addChild(content);
+    overlay.addChild(scene);
+    const iris = new Graphics();
+    overlay.addChild(iris);
+    this.app.stage.addChild(overlay);
+
+    const st = { r: rDiag, tint: 0 };
+    this.irisState = st;
+    const redraw = () => {
+      if (!this.isLive) return;
+      const r = Math.max(0, st.r);
+      iris.clear();
+      iris.rect(ox, oy, outer, outer);
+      iris.fill({ color: 0x000000, alpha: 1 });
+      if (r > 0.5) { iris.circle(cx, cy, r); iris.cut(); }
+    };
+    redraw();
+
+    return new Promise<void>((resolve) => {
+      const finish = () => {
+        gsap.killTweensOf(st);
+        gsap.killTweensOf(overlay);
+        gsap.killTweensOf(content); gsap.killTweensOf(content.scale);
+        for (const t of tweens) { try { t.kill(); } catch { /* torn down */ } }
+        if (this.irisTl === tl) this.irisTl = null;
+        if (this.irisState === st) this.irisState = null;
+        if (this.irisOverlay === overlay) this.irisOverlay = null;
+        this.irisResolve = null;
+        try { overlay.destroy({ children: true }); } catch { /* torn down */ }
+        this.onFsIntroVisible?.(false); // control bar may return
+        resolve();
+      };
+
+      const tl = gsap.timeline({ onComplete: finish });
+      this.irisTl = tl;
+      this.irisResolve = () => resolve();
+
+      const S = 1.3; // same tempo as the FS entry
+      // CLOSE over the last free-spin board ("von außen zugehen")…
+      tl.to(st, { r: 0, duration: 0.70 * S, ease: 'power3.in', onUpdate: redraw }, 0);
+      // …full-black beat: FS overlay + background swap back invisibly…
+      tl.call(() => { try { onBlackBeat(); } catch { /* keep the iris moving */ } }, undefined, 0.72 * S);
+      tl.set(scene, { alpha: 1 }, 0.74 * S);
+      // …OPEN onto the breathing TOTAL WIN outro.
+      tl.to(st, { r: rDiag, duration: 0.60 * S, ease: 'power2.out', onUpdate: redraw }, 0.82 * S);
+      tl.fromTo(content.scale, { x: 0.86, y: 0.86 }, { x: 1, y: 1, duration: 0.55 * S, ease: 'power2.out' }, 0.84 * S);
+      // HOLD up to 15s, then the second blink back into the base game.
+      const dismissAt = 0.84 * S + 15.0;
+      tl.to(st, { r: 0, duration: 0.55 * S, ease: 'power3.in', onUpdate: redraw }, dismissAt);
+      tl.set(scene, { alpha: 0 }, dismissAt + 0.62 * S);
+      tl.to(st, { r: rDiag, duration: 0.60 * S, ease: 'power2.out', onUpdate: redraw }, dismissAt + 0.72 * S);
+      // Tap ANYWHERE (incl. on the press art) continues immediately.
+      overlay.eventMode = 'static';
+      overlay.cursor = 'pointer';
+      overlay.hitArea = new Rectangle(0, 0, sw, sh);
+      overlay.on('pointertap', () => {
+        const t = tl.time();
+        if (t > 1.5 * S && t < dismissAt - 0.05) tl.seek(dismissAt);
+      });
+    });
+  }
+
   private async playExitIris(midAction: () => void): Promise<void> {
     const { width, height } = this.app.screen;
     const g = new Graphics();

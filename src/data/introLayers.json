@@ -201,5 +201,27 @@
    "cx": 960,
    "cy": 704
   }
+ ],
+ "outro": [
+  {
+   "file": "theme/vice/fsbg_beachclub.webp",
+   "role": "bg",
+   "cx": 960,
+   "cy": 540
+  },
+  {
+   "file": "theme/vice/intro/outro/totalwin.webp",
+   "role": "logo",
+   "cx": 960,
+   "cy": 355,
+   "tw": 640
+  },
+  {
+   "file": "theme/vice/intro/outro/press.webp",
+   "role": "press",
+   "cx": 960,
+   "cy": 962,
+   "tw": 360
+  }
  ]
 }

@@ -253,6 +253,10 @@ export class ReelSet {
    *  frame art, so win animations are never covered by the frame border.
    *  Children keep their coordinates (host mirrors the reel-set transform). */
   elevateOverlayLayers(host: Container): void {
+    // stickyContainer FIRST (under the wild art, per the layer contract) —
+    // it holds the expanding towers + their gold shine borders, which must
+    // breathe OVER the custom frame border too.
+    host.addChild(this.stickyContainer);
     host.addChild(this.stickyObjectsContainer);
     host.addChild(this.winObjectsContainer);
     host.addChild(this.winAmountsContainer);

@@ -206,20 +206,22 @@ export class AnimatedSymbol extends Container {
     this.resetVisuals();
     this.activeState = state;
 
-    // STATIC-LOOK symbols (scatter badge): the art never warps in place —
-    // landing/idle/featured are absorbed into a clean still. Only the WIN
-    // sheet animates; the board's presentation carries the emphasis.
-    if (STATIC_LOOK_SYMBOLS.has(this.symbolId) &&
-        (state === 'landing' || state === 'idle' || state === 'featured')) {
-      this.setWinOutline(false);
-      this.stopWinSheet();
-      return;
-    }
-
     // Premiums with a WIN spritesheet get ONLY that animation: no white
     // outline (it flickered over the art), no win-juice pulse — the sheet IS
     // the whole win presentation. Everything else keeps the outline.
     const winSheetAvailable = SYMBOL_WIN_SHEETS.has(this.symbolId);
+
+    // STATIC-LOOK symbols (scatter badge): the art never warps in place —
+    // landing/idle/featured are absorbed into a clean still, and 'win'
+    // WITHOUT a sheet too (the fallback pulse would scale-warp the art).
+    // A wired win sheet remains the one allowed animation.
+    if (STATIC_LOOK_SYMBOLS.has(this.symbolId) &&
+        (state === 'landing' || state === 'idle' || state === 'featured' ||
+         (state === 'win' && !winSheetAvailable))) {
+      this.setWinOutline(false);
+      this.stopWinSheet();
+      return;
+    }
     this.setWinOutline(state === 'win' && (!winSheetAvailable || prefersReducedMotion()));
 
     if (state === 'static' || prefersReducedMotion()) { this.stopWinSheet(); return; }

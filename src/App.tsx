@@ -124,9 +124,9 @@ export function App() {
     void pixiAppRef.setSymbolWinSheet(3, `${B}prem_b_win.webp`, 7, 7, 48, 12);
     void pixiAppRef.setSymbolWinSheet(4, `${B}car_win.webp`, 7, 7, 48, 12);
     void pixiAppRef.setSymbolWinSheet(5, `${B}koffer_win.webp`, 7, 7, 48, 12);
-    // Scatter(1) BONUS animation — plays on the landed scatters at the FS
-    // trigger (the iris cuts in just before it ends). 8×10 = 74 frames @ 15fps.
-    void pixiAppRef.setSymbolWinSheet(1, `${B}scatterwin.webp`, 8, 10, 74, 15);
+    // (Scatter win sheet REMOVED — it showed the OLD badge art. The trigger
+    // beat is carried by the frame marquee flash + tease glow; a new-art
+    // sheet can be re-wired here later via setSymbolWinSheet(1, ...).)
     // The scatter badge keeps a clean STATIC look on the reels: no landing
     // squash, no idle/featured warping (in-place scaling pixelates the art) —
     // the win sheet above is its only animation.

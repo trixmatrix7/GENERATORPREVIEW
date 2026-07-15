@@ -1702,9 +1702,11 @@ export class PixiApp {
       await this.reelSet.stopOnStops(outcome.stops, this.turbo);
       if (!this.isLive) return;
 
-      // Landed-scatter BONUS animation (spritesheet on each scatter cell);
-      // the iris cuts in shortly BEFORE the animation ends.
-      if (SYMBOL_WIN_SHEETS.has(1)) {
+      // TRIGGER CELEBRATION BEAT: hold on the landed board while the frame
+      // marquee flash (4s bulb chase, fired on the 3rd scatter) + tease glow
+      // celebrate. play('win') is a clean no-op for the static-look scatter
+      // unless a win sheet is wired — then it plays on each scatter cell.
+      {
         const scatterCells: AnimatedSymbol[] = [];
         const walkSc = (n: Container) => {
           for (const c of n.children) {
@@ -1715,7 +1717,7 @@ export class PixiApp {
         walkSc(this.reelSet.container);
         if (scatterCells.length >= 3) {
           for (const c of scatterCells) c.play('win');
-          await new Promise(r => setTimeout(r, 4200)); // anim ~4.9s → iris just before the end
+          await new Promise(r => setTimeout(r, 4200)); // flash runs ~4s → iris right after
           for (const c of scatterCells) { if (!c.destroyed) c.clearState(); }
           if (!this.isLive) return;
         }
@@ -1740,7 +1742,9 @@ export class PixiApp {
       for (let i = 0; i < outcome.freeSpinsPlayed; i++) {
         if (!this.isLive) break;
         if (fsOverlay.counter) {
-          fsOverlay.counter.text = `FREE SPIN ${i + 1} / ${outcome.freeSpinsPlayed}`;
+          fsOverlay.counter.text = `${i + 1} / ${outcome.freeSpinsPlayed}`;
+          // small pop so the count-change reads at a glance
+          gsap.fromTo(fsOverlay.counter.scale, { x: 1.22, y: 1.22 }, { x: 1, y: 1, duration: 0.35, ease: 'back.out(2.5)' });
         }
         // Abort the PREVIOUS spin's win presentation (a tally could still be
         // mid-flight) before the reels roll — only spin() bumps the id.
@@ -3002,23 +3006,43 @@ export class PixiApp {
       });
     }
 
-    // Counter — TOP-RIGHT, beside the slot frame (outside the grid's right
-    // edge), so the board stays clean during the expanding-wild free spins.
-    const counter = new Text({
-      text: `FREE SPIN 1 / ${totalSpins}`,
+    // Counter — a clean BLACK PLAQUE on the LEFT of the grid (mirrors the
+    // dancer's spot on the right): "FREE SPINS" label + a big readable count.
+    const panelW = 168, panelH = 92;
+    const panel = new Container();
+    panel.position.set(-16 - panelW, HEADER_H + rh * 0.42);
+    panel.eventMode = 'none';
+    const plate = new Graphics();
+    plate.roundRect(0, -panelH / 2, panelW, panelH, 14).fill({ color: 0x000000, alpha: 0.78 });
+    plate.roundRect(0, -panelH / 2, panelW, panelH, 14).stroke({ color: 0xFF64C8, width: 2, alpha: 0.9 });
+    plate.roundRect(3, -panelH / 2 + 3, panelW - 6, panelH - 6, 11).stroke({ color: 0x7DE3FF, width: 1, alpha: 0.35 });
+    panel.addChild(plate);
+    const label = new Text({
+      text: 'FREE SPINS',
       style: new TextStyle({
         fontFamily: "'Rubik', ui-sans-serif, system-ui, sans-serif",
-        fontSize: 14,
-        fontWeight: '700',
-        fill: 0xFFD700,
-        letterSpacing: 2,
-        dropShadow: { color: 0x000000, blur: 4, distance: 0, alpha: 0.6 },
+        fontSize: 13, fontWeight: '800', fill: 0xFF9ED8, letterSpacing: 3,
       }),
     });
-    counter.anchor.set(0, 0);
-    counter.x = rw + 12;
-    counter.y = HEADER_H + 2;
-    fsContainer.addChild(counter);
+    label.anchor.set(0.5);
+    label.position.set(panelW / 2, -panelH / 2 + 24);
+    panel.addChild(label);
+    const counter = new Text({
+      text: `1 / ${totalSpins}`,
+      style: new TextStyle({
+        fontFamily: "'Rubik', ui-sans-serif, system-ui, sans-serif",
+        fontSize: 32, fontWeight: '900', fontStyle: 'italic', fill: 0xFFE9A0,
+        letterSpacing: 1,
+        stroke: { color: 0x1a0e02, width: 5 },
+        dropShadow: { color: 0x000000, blur: 6, distance: 0, alpha: 0.5 },
+      }),
+    });
+    counter.anchor.set(0.5);
+    counter.position.set(panelW / 2, 14);
+    panel.addChild(counter);
+    // Soft breathing on the neon rim so the plaque feels alive, not stamped.
+    this.fsDancerTweens.push(gsap.to(plate, { alpha: 0.82, duration: 1.6, yoyo: true, repeat: -1, ease: 'sine.inOut' }));
+    fsContainer.addChild(panel);
 
     // Animate in
     fsContainer.alpha = 0;

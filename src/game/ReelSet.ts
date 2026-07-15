@@ -229,6 +229,9 @@ export class ReelSet {
     // on a tower reel must never be swallowed by the column.
     this.container.addChild(this.winAmountsContainer);  // floating amounts — top
     this.container.addChild(this.waysLightContainer);   // ways-light comet — topmost fx
+
+    // (elevateOverlayLayers() re-homes the four presentation layers above the
+    // custom frame art — see PixiApp.buildScene.)
     // scale the comet head to this grid's cell size
     waysLightConfig.cellSize = resolveAnchor(cellAnchor(0, 0), grid).w;
 
@@ -242,6 +245,18 @@ export class ReelSet {
       this.container.addChild(sep);
       this.separators.push(sep);
     }
+  }
+
+  /** Re-home the four PRESENTATION layers (sticky towers, lifted winning
+   *  objects, floating amounts, ways-light comet) into `host` — a container
+   *  the app positions exactly like this.container but ABOVE the custom
+   *  frame art, so win animations are never covered by the frame border.
+   *  Children keep their coordinates (host mirrors the reel-set transform). */
+  elevateOverlayLayers(host: Container): void {
+    host.addChild(this.stickyObjectsContainer);
+    host.addChild(this.winObjectsContainer);
+    host.addChild(this.winAmountsContainer);
+    host.addChild(this.waysLightContainer);
   }
 
   get totalWidth(): number {

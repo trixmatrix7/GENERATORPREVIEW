@@ -181,6 +181,8 @@ export class PixiApp {
   private frameFlashSprite: Sprite | null = null;
   private frameFlashTl: gsap.core.Timeline | null = null;
   private _scatterLands = 0;
+  /** Host for the reel-set's presentation layers, kept ABOVE the frame art. */
+  private overFrameObjects: Container | null = null;
   private frameH = 0;
   private frameToken = 0;
   private titleText!: Text;
@@ -475,6 +477,15 @@ export class PixiApp {
     this.reelSet.container.x = FRAME_PAD;
     this.reelSet.container.y = FRAME_PAD;
     this.gameContainer.addChild(this.reelSet.container);
+    // Presentation layers (towers, winning objects, amounts, comet) live in a
+    // separate host that mirrors the reel-set transform and is RE-RAISED above
+    // the custom frame art in setFrameImage — win animations must render over
+    // the frame border, never under it.
+    this.overFrameObjects = new Container();
+    this.overFrameObjects.eventMode = 'none';
+    this.overFrameObjects.position.set(FRAME_PAD, FRAME_PAD);
+    this.gameContainer.addChild(this.overFrameObjects);
+    this.reelSet.elevateOverlayLayers(this.overFrameObjects);
     this.spawnAmbientMotes();
 
     // (row indicator dots removed — the flat band frame has no side hardware)
@@ -855,7 +866,10 @@ export class PixiApp {
       this.frameArtOvR = 0;
     }
     this.frameImageSprite = sp;
-    this.gameContainer.addChild(sp); // topmost child → border sits over the reels
+    this.gameContainer.addChild(sp); // border sits over the reels…
+    // …but the PRESENTATION layers (towers, winning objects, amounts, comet)
+    // go back on top: re-adding moves the host above the fresh frame sprite.
+    if (this.overFrameObjects) this.gameContainer.addChild(this.overFrameObjects);
     this.onResize(); // overhang changed — re-fit so the marquee side stays on-canvas
   }
 

@@ -237,7 +237,13 @@ export class MockHost {
         // simultaneous spin is the 3sc bonus' max-win pattern.
         const simulTable = (this.config as { simulExpandMultipliers?: Record<string, number> }).simulExpandMultipliers ?? {};
         const simulMult = BigInt(simulTable[String(simulTowers)] ?? 1);
-        const fsWin = rawFsWin * simulMult * BigInt(this.config.freeSpinsMultiplier);
+        // FULL HOUSE (sticky rounds): while ALL stickyTowerCap towers stand,
+        // the spin pays x stickyFullBoardMultiplier — the 4-scatter route's
+        // max-win engine (mirrors custom-math/simulate_vice_heat.py).
+        const fullMult = stickyFS && stickyReels.size >= stickyCap
+          ? BigInt((this.config as { stickyFullBoardMultiplier?: number }).stickyFullBoardMultiplier ?? 1)
+          : 1n;
+        const fsWin = rawFsWin * simulMult * fullMult * BigInt(this.config.freeSpinsMultiplier);
         totalWin += fsWin;
         if (totalWin > maxWin) totalWin = maxWin;
         // Retrigger awards the custom `retriggerSpins` (small, the tight

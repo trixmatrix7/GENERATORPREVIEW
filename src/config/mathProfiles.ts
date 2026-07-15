@@ -64,6 +64,9 @@ function fromManifest(m: Record<string, unknown>): GameConfig {
     // Sticky rounds run longer than 3sc rounds (own spin count + cap).
     stickyRoundSpins: (m['custom'] as { stickyRoundSpins?: number } | undefined)?.stickyRoundSpins,
     stickyRoundCap: (m['custom'] as { stickyRoundCap?: number } | undefined)?.stickyRoundCap,
+    // FULL HOUSE: while ALL stickyTowerCap towers stand, every sticky spin
+    // pays x this multiplier — the 4-scatter route's max-win engine.
+    stickyFullBoardMultiplier: (m['custom'] as { stickyFullBoardMultiplier?: number } | undefined)?.stickyFullBoardMultiplier,
   } as unknown as GameConfig;
 }
 

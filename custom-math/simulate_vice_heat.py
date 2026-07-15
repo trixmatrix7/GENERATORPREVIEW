@@ -82,13 +82,18 @@ SCATTER_PAY = [1030, 2000, 6000]   # 3/4/5 scatters, x total bet bps
 FS_COUNT, FS_RETRIG, FS_CAP = (5 if ROWS == 5 else 10), 3, 8
 # Sticky rounds (4+ scatters) run LONGER — the towers need spins to
 # accumulate; their own count/cap (custom rules stickyRoundSpins/-Cap).
-FS_COUNT_STICKY, FS_CAP_STICKY = 6, 9
+FS_COUNT_STICKY = int(os.environ.get('VH_STICKY_SPINS', '6'))
+FS_CAP_STICKY = int(os.environ.get('VH_STICKY_ROUND_CAP', '9'))
 HOT_CHANCE = 80                   # 1-in-80 base spins are HOT (expansion mode)
 MAX_WIN_X = 5000
 # Sticky rounds: the first N wild-landing reels become permanent towers
 # (leftmost joins first on ties). Default = ALL wild-capable reels (4) — with
 # RARE wilds the full board is the jackpot event, not the norm.
 STICKY_CAP = int(os.environ.get('VH_STICKY_CAP', '4'))
+# FULL-BOARD BONUS (sticky rounds only): while ALL wild-capable reels stand
+# as towers, every spin pays xN. This is the 4-scatter route's max-win
+# engine — the full house must out-hit the 3-scatter simul-x8 fluke.
+STICKY_FULL_MULT = int(os.environ.get('VH_STICKY_FULL_MULT', '2'))
 # SIMULTANEOUS-EXPANSION MULTIPLIERS (per-spin expansion contexts only: the
 # 3-scatter bonus + hot spins; NEVER sticky rounds): n reels expanding in the
 # SAME spin multiply that spin's win per this table. Deliberately LATE ladder
@@ -157,6 +162,7 @@ def simulate(n, pays, scatter_pay, seed=42):
     rng = random.Random(seed)
     lens = [len(s) for s in STRIPS]
     total = 0
+    total_sq = 0.0  # per-session x-of-bet squared, for the RTP confidence interval
     hits = 0
     base_total = 0; fs3_total = 0; fs4_total = 0; hot_total = 0
     fs3_rounds = []; fs4_rounds = []
@@ -189,6 +195,9 @@ def simulate(n, pays, scatter_pay, seed=42):
                         if i not in sticky and PRE[i][st[i]][1] > 0:
                             sticky.add(i)
                     w2, sc2, _ = eval_spin(st, False, sticky, pays, scatter_pay)
+                    # FULL HOUSE: all towers standing -> the spin pays xN.
+                    if len(sticky) >= STICKY_CAP:
+                        w2 *= STICKY_FULL_MULT
                 else:
                     w2, sc2, full = eval_spin(st, True, sticky, pays, scatter_pay)
                     w2 *= SIMUL_MULTS.get(len(full), 1)
@@ -205,12 +214,20 @@ def simulate(n, pays, scatter_pay, seed=42):
         if session > MAX_WIN_X * 10000:
             session = MAX_WIN_X * 10000
         total += session
+        total_sq += (session / 10000.0) ** 2
         if session > 0: hits += 1
     rtp = total / (n * 10000)
+    # 99% CI half-width for the RTP estimate (CLT on per-session results).
+    mean_x = rtp
+    var_x = max(0.0, total_sq / n - mean_x * mean_x)
+    ci99_pp = 2.576 * (var_x ** 0.5) / (n ** 0.5) * 100
+    std_x = var_x ** 0.5
     fs3_rounds.sort(); fs4_rounds.sort()
     X = 10000
     return {
         'rtp_pct': rtp * 100,
+        'rtp_ci99_pp': ci99_pp,
+        'per_spin_std_x': std_x,
         'hit_freq_pct': hits / n * 100,
         'fs3_trigger_1_in': n / max(1, len(fs3_rounds)),
         'fs4_trigger_1_in': n / max(1, len(fs4_rounds)),
@@ -271,11 +288,14 @@ if __name__ == '__main__':
             'stickyRoundSpins': FS_COUNT_STICKY,
             'stickyRoundCap': FS_CAP_STICKY,
             'simulExpandMultipliers': {str(k): v for k, v in SIMUL_MULTS.items()},
+            'stickyFullBoardMultiplier': STICKY_FULL_MULT,
             'hotSpinChance1In': HOT_CHANCE,
             'hotSpinExpandsWilds': True,
             'notes': 'Wild expands to full reel BEFORE ways evaluation in FS and hot spins. '
                      'A 4+-scatter trigger plays STICKY expansion: expanded reels stay fully '
-                     'wild for the rest of the round. Fully wild reels contribute no scatters. '
+                     'wild for the rest of the round. While ALL stickyTowerCap towers stand, '
+                     'every sticky spin pays x stickyFullBoardMultiplier (FULL HOUSE — the '
+                     '4-scatter max-win engine). Fully wild reels contribute no scatters. '
                      'Reel 1 carries no wilds (no wild-line double count). Wild pays as highA.',
         },
         'simResults': r2,

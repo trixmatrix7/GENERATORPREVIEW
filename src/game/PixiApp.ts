@@ -1783,10 +1783,13 @@ export class PixiApp {
         // pays its natural connections, so the evaluation always runs.
         const board = this.reelSet.getVisibleBoard();
         for (const reel of expanded) for (let row = 0; row < this.grid.visibleRows; row++) board[row][reel] = 0; // WILD
-        const winResult = this.applySimulMultiplier(
+        let winResult = this.applySimulMultiplier(
           evaluateWins(board, outcome.wager ?? 1n, this.config),
           stickyMode ? 0 : expanded.length,
         );
+        // FULL HOUSE: with every sticky tower standing the spin pays x2 —
+        // displayed amounts mirror the settlement rule exactly.
+        if (stickyMode) winResult = this.applyStickyFullBoard(winResult, expanded.length);
         if (winResult.totalWin > 0n) {
           const spinOutcome: SpinOutcome = {
             stops: this.config.reelLengths.map(() => 0), board,
@@ -1877,6 +1880,23 @@ export class PixiApp {
   private applySimulMultiplier(winResult: WinResult, towers: number): WinResult {
     const table = (this.config as { simulExpandMultipliers?: Record<string, number> }).simulExpandMultipliers ?? {};
     const mult = BigInt(table[String(towers)] ?? 1);
+    if (mult <= 1n) return winResult;
+    return {
+      ...winResult,
+      totalWin: winResult.totalWin * mult,
+      combinations: winResult.combinations.map(c => ({ ...c, winAmount: c.winAmount * mult })),
+    };
+  }
+
+  /** FULL HOUSE (sticky rounds only): while ALL `stickyTowerCap` towers
+   *  stand, every spin pays x `stickyFullBoardMultiplier` — the 4-scatter
+   *  route's max-win engine. Scales the total AND each combo so the
+   *  presented +amounts match the settlement rule (mirrored in mockHost
+   *  and custom-math/simulate_vice_heat.py). */
+  private applyStickyFullBoard(winResult: WinResult, towers: number): WinResult {
+    const cfg = this.config as { stickyTowerCap?: number; stickyFullBoardMultiplier?: number };
+    const cap = cfg.stickyTowerCap ?? 2;
+    const mult = BigInt(towers >= cap ? (cfg.stickyFullBoardMultiplier ?? 1) : 1);
     if (mult <= 1n) return winResult;
     return {
       ...winResult,

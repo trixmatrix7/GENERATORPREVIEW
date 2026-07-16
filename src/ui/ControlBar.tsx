@@ -56,14 +56,27 @@ export function ControlBar({ gameState, snapshot, onBetChange, onSpin, onSkip, o
   const isAutoRunning = gameState.autoSpinsRemaining > 0;
 
   // ── responsive scale: strip is laid out at 1200 design-px, scaled to fit ──
+  // Desktop fits the full 1200 strip. On a narrow PHONE frame that shrinks the
+  // whole bar to ~0.31 (tiny taps, ~9px text). Compact instead fits just the
+  // 978px BAR (dropping the ~111px dead margins each side) and shifts it flush
+  // left — ~1.23× bigger, and since every element + hit-zone scales together
+  // the baked spin/bet cluster stays perfectly registered.
   const hostRef = useRef<HTMLDivElement>(null);
+  const BAR_W = 978;
   const [scale, setScale] = useState(912 / DESIGN_W);
+  const [compact, setCompact] = useState(false);
   useEffect(() => {
     const el = hostRef.current;
     if (!el) return;
-    const ro = new ResizeObserver(() => setScale(el.clientWidth / DESIGN_W));
+    const measure = () => {
+      const w = el.clientWidth;
+      const isCompact = w < 520;
+      setCompact(isCompact);
+      setScale(w / (isCompact ? BAR_W + 8 : DESIGN_W));
+    };
+    const ro = new ResizeObserver(measure);
     ro.observe(el);
-    setScale(el.clientWidth / DESIGN_W);
+    measure();
     return () => ro.disconnect();
   }, []);
 
@@ -140,7 +153,9 @@ export function ControlBar({ gameState, snapshot, onBetChange, onSpin, onSkip, o
         style={{
           width: DESIGN_W,
           height: STRIP_H,
-          transform: `scale(${scale})`,
+          // Compact shifts the strip left by (BX − 4)·scale so the 978px bar
+          // sits flush against the frame's left edge (drops the dead margin).
+          transform: `translateX(${compact ? -(BX - 4) * scale : 0}px) scale(${scale})`,
           transformOrigin: 'top left',
           // reference: vertical gradient, FULL width, height 150, transparent → #111
           background: 'linear-gradient(180deg, rgba(30,30,30,0) 0%, #111111 100%)',

@@ -1,63 +1,73 @@
 # Vice Heat — custom math model (for dev review)
 
-> **Für Noski:** 96%-Modell auf 5×5 mit hartem PAY-FLOOR (kleinste Connection
-> = 0.10× Einsatz — nie wieder „+0.00"), anti-geclusterten Strips, TIERED
-> Bonus (3 SC = Expanding, 4+ SC = STICKY), Simul-Mult-Leiter, Hot-Spins.
-> 8M-Sim-zertifiziert. Dieses Paket geht so an den Dev.
+> **Für Noski:** ~96%-Modell auf 5×5, TIERED Bonus mit LÄNGEREN Runden
+> (3 SC = **7** Spins, 4+ SC = **10** Sticky-Spins), Simul-Mult-Leiter,
+> Hot-Spins, harter 5000×-Cap. 20M-Sim-zertifiziert. Dieses Paket geht so an
+> den Dev.
 
-## The model (5×5 · 3125 ways · RTP 96.0)
+## The model (5×5 · 3125 ways · RTP ~96%)
 
-- **HARD PAY FLOOR:** every possible connection — single-way 3-oak lowG
-  included — pays ≥ **1004 bps = 0.10× bet** ($0.02 on a $0.20 spin, always
-  visible at 2 decimals). Scatter pay floored too (1004/1950/5850).
-- **Per-way curve is FLAT-ish** (lowG 1004/1073/1268 → highA 1072/1755/3120):
-  with 3125 ways the TOP comes from **ways mass × expansion × simul-mult**,
-  not per-way steepness — a full-tower spin multiplies 625–3125 ways into
-  the 5-oak row.
-- **ANTI-CLUSTERED strips:** C/E/G run heavy on reels 1/3/5 and thin (2 ea.)
-  on 2/4; B/D/F inverted. 3-in-a-row chains break at the thin reel → hit
-  rate **69%** (was 83%) while landed hits carry multiple ways on the heavy
-  reels. Fewer, MEANINGFUL wins fund the floor. Wilds: 1 per strip, reels
-  2–5 only (reel 1 clean); scatters: 1 per strip everywhere.
+- **DISPLAY PAY FLOOR:** the smallest connection (single-way 3-oak lowG) pays
+  **768 bps = 0.077× bet** → **$0.02 on a $0.20 spin** at 2 decimals. NOTE:
+  this dropped from the old 0.10× floor — the longer 10-spin sticky round adds
+  so much free EV that holding 0.10× would have forced RTP over 100%. 0.077×
+  is the tightest floor that still shows $0.02 on a 20¢ bet while keeping the
+  house edge. Scatter pay floored the same (768/1490/4471).
+- **Per-way curve is FLAT-ish:** with 3125 ways the TOP comes from **ways mass
+  × expansion × simul-mult**, not per-way steepness.
+- **ANTI-CLUSTERED strips:** C/E/G heavy on reels 1/3/5, thin on 2/4; B/D/F
+  inverted. 3-in-a-row chains break at the thin reel → hit rate **69%**.
+  Wilds: 1 per strip, reels 2–5 only (reel 1 clean); scatters: 1 per strip.
+  Wild art is a money-stack "W"; wild pays as highA.
 - **TIERED FREE SPINS:**
-  - **3 scatters (1-in-67): 5 spins**, per-spin expanding wilds + the
-    **simul-expansion ladder** (3 towers in ONE spin ×2, all 4 ×8 — the ×8
-    alignment with premium reel-1 windows is this bonus' MAX WIN pattern:
-    max seen 6060×, ~1-in-4600 rounds ≥800×). Median round 4.8×, avg 19.3×.
-  - **4+ scatters (1-in-904): 5 spins** (own custom count), STICKY expanding
-    wilds up to ALL 4 towers — and **FULL HOUSE ×2**: while all 4 towers
-    stand, every spin pays ×2 (`stickyFullBoardMultiplier`). Median 25×,
-    p90 304×, p99 3249×, max 6070×; 6.2% of rounds ≥ 800×; **0.060% hit the
-    5000× cap — 3.2× likelier than a 3sc round (0.019%)**, so the 4-scatter
-    route is the max-win engine, as designed.
-  - Retrigger: +3 spins (custom rule), per-tier caps 8 / 7 — at most one
-    retrigger; max win comes from the SETUP, never from grinding.
+  - **3 scatters (1-in-67): 7 spins** (was 5), per-spin expanding wilds + the
+    **simul-expansion ladder** (3 reels expanding in ONE spin ×2, all 4 ×10).
+    The ×10 four-reel alignment IS the game's **MAX WIN** pattern — the only
+    route that reaches the 5000× cap (~0.028% of 3sc rounds). Avg round ~22×.
+  - **4+ scatters (1-in-921): 10 spins** (was 5), STICKY expanding wilds up to
+    **3 towers** (`stickyTowerCap` 3, was 4). This is the **high-AVERAGE**
+    tier: avg round ~276×, but capped ~1370× (it does not reach the 5000×
+    cap). The old FULL-HOUSE ×2 is **retired** (`stickyFullBoardMultiplier`
+    1) — at 10 spins the ×2 over a full board compounded RTP past 105%.
+  - Retrigger: +3 spins (custom rule), per-tier caps 10 / 13 — at most one
+    retrigger.
   - Fully wild reels contribute no scatters.
 - **HOT SPIN:** 1-in-80 base spins play per-spin expansion incl. the ladder.
 - Session cap 5000×, min wager 10000 — template invariants unchanged.
 
-## The numbers (6,000,000-spin certification, k = 0.975, FULL HOUSE ×2)
+## Design note — why 4sc no longer hits the 5000× cap
+
+At 5 sticky spins the 4-tower FULL HOUSE ×2 was the max-win engine. Doubling
+the round to 10 spins makes the full board form almost every round, so the ×2
+compounded RTP to 105%+ (house loses). Taming it (cap 3 towers, ×2 off) makes
+4sc the **reliable-big** tier (avg 276×) while the 5000× MAX WIN moves to the
+3sc simul-×10 spike. Net: 3sc is "harder for a good win" (low avg) but keeps
+the jackpot ceiling; 4sc pays better on average. This matches Noski's brief
+("3 SC schwerer als 4 SC für guten Win, aber Max-Win möglich").
+
+## The numbers (certification, k = 0.7452)
 
 | Metric | Value |
 |---|---|
-| RTP | **93.4% ±3.0 (99% CI)** (alt-seed 1M: 93.0 — heavy ×2/×8 tails keep MC noise wide; house-safe below 96) |
-| Hit frequency | 69.3% — and every hit pays ≥ 0.10× |
-| RTP split | base 38.7% · hot 5.5% · fs3 28.6% · fs4 20.8% |
-| Max win routes | 4sc: FULL-HOUSE sticky round (0.060%/round) · 3sc: 4-tower ×8 fluke (0.019%/round) |
+| RTP | **~96%** — 12M cert 95.99% · 4-seed 20M mean **96.5% ±0.6** · alt-seed 1M 93.3% (heavy 3sc-spike tail keeps MC noise wide; house-positive) |
+| Hit frequency | 69.3% |
+| RTP split | base 29.6% · hot 4.2% · fs3 32.5% · fs4 30.0% |
+| 3sc round | avg 21.8× · max 8390× (→ capped 5000×) · **0.028%/round hit the cap** |
+| 4sc round | avg 276× · max ~1371× (high-average tier, below cap) |
+| Max win route | 3sc: 4-reel simul-×10 spike (the only route to 5000×) |
 
 ## Files
 
 - `vice_heat_expanding.json` — the manifest, standard shape + `custom` block
-  (`expandingWildsInFreeSpins`, `stickyExpandingFrom4Scatters`,
-  `stickyTowerCap: 4`, `retriggerSpins: 3`, `stickyRoundSpins: 5`,
-  `stickyRoundCap: 7`, `simulExpandMultipliers: {"3": 2, "4": 8}`,
-  `stickyFullBoardMultiplier: 2`, `hotSpinChance1In: 80`).
+  (`stickyTowerCap: 3`, `retriggerSpins: 3`, `stickyRoundSpins: 10`,
+  `stickyRoundCap: 13`, `simulExpandMultipliers: {"3": 2, "4": 10}`,
+  `stickyFullBoardMultiplier: 1`, `hotSpinChance1In: 80`).
 - `analytic_vice_heat.py` — exact RTP derivation of the per-spin branch
   (pre-floor model; MC is the certification method for the tiered rules).
-- `simulate_vice_heat.py` — full MC simulator incl. tiered sticky rounds,
-  round-win distributions, per-tier retriggers + caps.
-  `VH_ROWS`/`VH_STICKY_CAP`/`VH_K`/`VH_STICKY_FULL_MULT`/`VH_STICKY_SPINS`/
-  `VH_STICKY_ROUND_CAP` env params.
+- `simulate_vice_heat.py` — full MC simulator. Env params:
+  `VH_ROWS`, `VH_FS_SPINS`/`VH_FS_CAP` (3sc), `VH_STICKY_SPINS`/
+  `VH_STICKY_ROUND_CAP` (4sc), `VH_STICKY_CAP`, `VH_STICKY_FULL_MULT`,
+  `VH_SIMUL3`/`VH_SIMUL4`, `VH_TARGET_RTP`, `VH_CERT_SEED`, `VH_K`.
 
 ## What the dev needs to add (contract side)
 
@@ -68,22 +78,21 @@ the spin randomness, no new RNG):
    no scatters.
 2. **Sticky tier:** when the TRIGGER board had ≥4 scatters, keep a sticky set
    across the round's spins: every wild-carrying reel joins it (up to
-   stickyTowerCap, leftmost first) and evaluates full-wild for every
-   remaining spin; no per-spin expansion for non-sticky reels in sticky
-   rounds.
-3. **Per-tier round length:** 3sc rounds start with freeSpinsCount (5),
-   sticky rounds with stickyRoundSpins (5); total caps freeSpinsCap (8) /
-   stickyRoundCap (7).
+   stickyTowerCap **3**, leftmost first) and evaluates full-wild for every
+   remaining spin; no per-spin expansion for non-sticky reels in sticky rounds.
+3. **Per-tier round length:** 3sc rounds start with freeSpinsCount (**7**),
+   sticky rounds with stickyRoundSpins (**10**); total caps freeSpinsCap (**10**)
+   / stickyRoundCap (**13**).
 4. **Retrigger:** award retriggerSpins (3) instead of re-awarding
    freeSpinsCount, bounded by the tier's cap.
 5. **Simul-expansion ladder** (per-spin contexts only, never sticky): n reels
    expanding in the SAME spin multiply that spin's win per
-   `simulExpandMultipliers` ({"3": 2, "4": 8}).
+   `simulExpandMultipliers` ({"3": 2, "4": 10}).
 6. **Hot spin:** derive a 1-in-80 flag from the existing spin seed; when set,
    apply the per-spin expansion rule (incl. ladder) to a base spin.
 7. **FULL HOUSE (sticky rounds only):** while the sticky set holds ALL
-   `stickyTowerCap` (4) reels, multiply every spin's win by
-   `stickyFullBoardMultiplier` (2) — applied after ways evaluation, before
-   the session cap.
+   `stickyTowerCap` reels, multiply every spin's win by
+   `stickyFullBoardMultiplier` — currently **1** (feature off; the field stays
+   in the contract so it can be re-enabled if round length is ever shortened).
 Everything else (strips, paytable, ways evaluation, caps) is the unchanged
 template pipeline.

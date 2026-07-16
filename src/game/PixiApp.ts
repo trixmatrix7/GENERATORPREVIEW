@@ -190,9 +190,6 @@ export class PixiApp {
   private readonly world = new Container();
   /** Tease camera engaged flag (null = camera at rest). */
   private teaseZoomBase: number | null = null;
-  /** Tears down the scatter-collect card + restores hidden cells (armed by
-   *  playScatterCollect, fired at the FS iris' full-black beat). */
-  private scatterCollectCleanup: (() => void) | null = null;
   private frameH = 0;
   private frameToken = 0;
   private titleText!: Text;
@@ -1261,7 +1258,20 @@ export class PixiApp {
     const bgRoot = new Container();
     bgRoot.scale.set(Math.max(sw / 1920, sh / 1080));
     const fgRoot = new Container();
-    fgRoot.scale.set(Math.min(sw / 1920, sh / 1080) * 0.98);
+    // On a portrait phone the full 1920-wide frame contain-fits to WIDTH,
+    // shrinking the intro cards to ~0.19. On compact, fit the CARD BAND
+    // instead so the cards read large: the game title screen is a 3-across
+    // band (~1160 design-px of real content); fs/outro are a single centred
+    // card, so they get a gentler bump (a full band-fit would crop their sides).
+    const contain = Math.min(sw / 1920, sh / 1080) * 0.98;
+    const compactIntro = sw < 520;
+    const compactScale = kind === 'game'
+      ? Math.min((sw * 0.98) / 1160, (sh / 1080) * 1.4)
+      : Math.min((sw * 0.98) / 1500, (sh / 1080) * 1.4);
+    fgRoot.scale.set(compactIntro ? compactScale : contain);
+    // Re-centre the 3-card band on its real content (it sits below the design
+    // mid-line) so the enlarged cards stay vertically centred on the phone.
+    if (compactIntro && kind === 'game') fgRoot.y = -52 * compactScale;
     root.addChild(bgRoot, fgRoot);
     let hero: Sprite | null = null;
     let heroW = 0;
@@ -1752,9 +1762,9 @@ export class PixiApp {
       if (!this.isLive) return;
 
       // TRIGGER CHOREOGRAPHY: the camera is LOCKED in tight (tease zoom kept
-      // on the hit). The landed scatters fly to the machine centre and merge
-      // into ONE card playing the win sheet, while the frame marquee flash
-      // (fired on the 3rd scatter) chases underneath.
+      // on the hit). Each landed scatter plays its OWN win sheet ON ITS CELL
+      // (the normal scatter win — no fly-to-centre collect), while the frame
+      // marquee flash (fired on the 3rd scatter) chases underneath.
       {
         const scatterCells: AnimatedSymbol[] = [];
         const walkSc = (n: Container) => {
@@ -1765,15 +1775,16 @@ export class PixiApp {
         };
         walkSc(this.reelSet.container);
         if (scatterCells.length >= 3) {
-          await this.playScatterCollect(scatterCells);
+          for (const c of scatterCells) c.play('win');
+          // Hold on the per-cell scatter win (camera stays LOCKED) before the iris.
+          await new Promise<void>(r => { gsap.delayedCall(2.2, () => r()); });
           if (!this.isLive) return;
         }
       }
 
-      // Straight into the iris — the collect card + the locked camera are
-      // dropped at the iris' FULL-BLACK beat (never visibly).
+      // Straight into the iris — the locked camera is released at the iris'
+      // FULL-BLACK beat (never visibly).
       gsap.delayedCall(0.95, () => {
-        this.scatterCollectCleanup?.();
         this.resetTeaseZoom();
       });
       await this.playFreeSpinsIris(outcome.freeSpinsPlayed, outcome.scatterCount);
@@ -3104,13 +3115,14 @@ export class PixiApp {
 
     // Counter — a clean BLACK PLAQUE on the LEFT of the grid (mirrors the
     // dancer's spot on the right): "FREE SPINS" label + a big readable count.
-    // COMPACT (phone): the sides are off-canvas — both plaques move INSIDE
-    // the grid's top-left corner, scaled down (they float over the reels).
+    // COMPACT (phone): the sides are off-canvas — the plaques move UP into the
+    // top-left corner ABOVE the reel window (the letterbox/header band over the
+    // machine), so they never cover the symbols (which start at HEADER_H+FRAME_PAD).
     const panelW = 168, panelH = 92;
     const panel = new Container();
     if (compact) {
-      panel.scale.set(0.72);
-      panel.position.set(FRAME_PAD + 4, HEADER_H + FRAME_PAD + panelH * 0.36 + 4);
+      panel.scale.set(0.66);
+      panel.position.set(8, -20);
     } else {
       panel.position.set(-16 - panelW, HEADER_H + rh * 0.42);
     }
@@ -3152,8 +3164,8 @@ export class PixiApp {
     const panel2H = 86;
     const panel2 = new Container();
     if (compact) {
-      panel2.scale.set(0.72);
-      panel2.position.set(FRAME_PAD + 4, HEADER_H + FRAME_PAD + panelH * 0.72 + panel2H * 0.36 + 14);
+      panel2.scale.set(0.66);
+      panel2.position.set(8, 40);
     } else {
       panel2.position.set(-16 - panelW, HEADER_H + rh * 0.42 + panelH / 2 + 14 + panel2H / 2);
     }
@@ -3351,7 +3363,7 @@ export class PixiApp {
   }
 
   /** Tease resolution: MISS → the camera pulls back out, relaxed. HIT →
-   *  the lock is KEPT (the scatter-collect + iris own the exit via
+   *  the lock is KEPT (the win presentation + iris own the exit via
    *  resetTeaseZoom at the black beat). */
   private releaseTeaseZoom(hit: boolean): void {
     if (this.teaseZoomBase === null) return;
@@ -3370,93 +3382,6 @@ export class PixiApp {
     gsap.killTweensOf(this.world.position);
     this.world.scale.set(1);
     this.world.position.set(0, 0);
-  }
-
-  /** TRIGGER CHOREOGRAPHY: the landed scatters lift off, fly to the machine
-   *  centre (camera still LOCKED in tight) and merge into ONE big card that
-   *  plays the scatter win sheet — the frame marquee flash runs underneath.
-   *  Cleanup (restore cells, drop the card) is deferred to the FS iris'
-   *  black beat via this.scatterCollectCleanup. */
-  private async playScatterCollect(cells: AnimatedSymbol[]): Promise<void> {
-    const host = this.overFrameObjects;
-    const badge = this.config.theme.userAssetTextures?.get(1);
-    if (!host || !badge || !this.isLive) {
-      await new Promise(r => setTimeout(r, 1500));
-      return;
-    }
-    const rw = this.reelSet.totalWidth + FRAME_PAD * 2;
-    const rh = this.reelSet.totalHeight + FRAME_PAD * 2;
-    const centre = { x: rw / 2 - FRAME_PAD, y: rh / 2 - FRAME_PAD }; // host-local
-    const group = new Container();
-    group.eventMode = 'none';
-    host.addChild(group);
-    const sScale = this.sceneRoot.scale.x || 1;
-    const hidden: AnimatedSymbol[] = [];
-    const sprites: Sprite[] = [];
-    const tweens: gsap.core.Animation[] = [];
-    let badgeTex: Texture = badge instanceof Texture ? badge : Texture.from(badge as never);
-    for (const cell of cells) {
-      const gb = cell.getBounds();
-      const pos = group.toLocal({ x: gb.x + gb.width / 2, y: gb.y + gb.height / 2 });
-      const w = (gb.width / sScale) * 0.94;
-      const spr = new Sprite(badgeTex);
-      spr.anchor.set(0.5);
-      spr.position.set(pos.x, pos.y);
-      spr.width = w;
-      spr.height = w;
-      spr.eventMode = 'none';
-      group.addChild(spr);
-      sprites.push(spr);
-      cell.visible = false;
-      hidden.push(cell);
-    }
-    // 1) LIFT-OFF: each badge flies to the centre, staggered, growing.
-    sprites.forEach((spr, i) => {
-      const d = 0.12 + i * 0.09;
-      tweens.push(gsap.to(spr, {
-        x: centre.x, y: centre.y, rotation: (i % 2 ? 1 : -1) * 0.14,
-        duration: 0.55, delay: d, ease: 'power2.in',
-      }));
-      tweens.push(gsap.to(spr.scale, {
-        x: spr.scale.x * 1.3, y: spr.scale.y * 1.3,
-        duration: 0.55, delay: d, ease: 'power2.in',
-      }));
-    });
-    const mergeAt = 0.12 + (sprites.length - 1) * 0.09 + 0.55;
-    // 2) MERGE: one big CARD pops at the centre; the fliers vanish into it.
-    const card = new Sprite(badgeTex);
-    card.anchor.set(0.5);
-    card.position.set(centre.x, centre.y);
-    const cardW = Math.min(rw, rh) * 0.44;
-    card.width = cardW;
-    card.height = cardW;
-    const target = card.scale.x;
-    card.scale.set(target * 0.55);
-    card.alpha = 0;
-    card.eventMode = 'none';
-    group.addChild(card);
-    tweens.push(gsap.delayedCall(mergeAt, () => { for (const s of sprites) s.visible = false; }));
-    tweens.push(gsap.to(card, { alpha: 1, duration: 0.1, delay: mergeAt, ease: 'power1.out' }));
-    tweens.push(gsap.to(card.scale, { x: target, y: target, duration: 0.5, delay: mergeAt, ease: 'back.out(2.4)' }));
-    // 3) the merged card PLAYS the scatter win sheet while the view holds.
-    const sheet = SYMBOL_WIN_SHEETS.get(1);
-    if (sheet && sheet.frames.length > 0) {
-      const proxy = { f: 0 };
-      tweens.push(gsap.to(proxy, {
-        f: sheet.frames.length - 1, duration: sheet.frames.length / sheet.fps,
-        ease: 'none', delay: mergeAt + 0.08, repeat: -1,
-        onUpdate: () => { if (!card.destroyed) card.texture = sheet.frames[Math.round(proxy.f) % sheet.frames.length]; },
-      }));
-    }
-    this.scatterCollectCleanup = () => {
-      for (const t of tweens) { try { t.kill(); } catch { /* torn down */ } }
-      for (const c of hidden) { if (!c.destroyed) c.visible = true; }
-      try { group.destroy({ children: true }); } catch { /* torn down */ }
-      this.scatterCollectCleanup = null;
-    };
-    // Hold on the card (the marquee flash finishes underneath), then the
-    // caller cuts to the iris — cleanup fires at its black beat.
-    await new Promise<void>(r => { tweens.push(gsap.delayedCall(mergeAt + 1.7, () => r())); });
   }
 
   private async playExitIris(midAction: () => void): Promise<void> {

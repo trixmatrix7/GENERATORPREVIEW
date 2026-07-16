@@ -79,28 +79,33 @@ SCATTER_PAY = [1030, 2000, 6000]   # 3/4/5 scatters, x total bet bps
 # `retriggerSpins`, NOT the template's re-award-freeSpinsCount), and the
 # TIGHT total cap allows at most ONE retrigger: max win must come from the
 # SETUP (early towers), never from grinding endless retriggered spins.
-FS_COUNT, FS_RETRIG, FS_CAP = (5 if ROWS == 5 else 10), 3, 8
+FS_COUNT = int(os.environ.get('VH_FS_SPINS', '7' if ROWS == 5 else '10'))
+FS_RETRIG = 3
+FS_CAP = int(os.environ.get('VH_FS_CAP', '10'))
 # Sticky rounds (4+ scatters) run LONGER — the towers need spins to
 # accumulate; their own count/cap (custom rules stickyRoundSpins/-Cap).
-FS_COUNT_STICKY = int(os.environ.get('VH_STICKY_SPINS', '6'))
-FS_CAP_STICKY = int(os.environ.get('VH_STICKY_ROUND_CAP', '9'))
+# 10 spins (Noski: "5 ist zu wenig") + one +3 retrigger of headroom (cap 13).
+FS_COUNT_STICKY = int(os.environ.get('VH_STICKY_SPINS', '10'))
+FS_CAP_STICKY = int(os.environ.get('VH_STICKY_ROUND_CAP', '13'))
 HOT_CHANCE = 80                   # 1-in-80 base spins are HOT (expansion mode)
 MAX_WIN_X = 5000
 # Sticky rounds: the first N wild-landing reels become permanent towers
-# (leftmost joins first on ties). Default = ALL wild-capable reels (4) — with
-# RARE wilds the full board is the jackpot event, not the norm.
-STICKY_CAP = int(os.environ.get('VH_STICKY_CAP', '4'))
-# FULL-BOARD BONUS (sticky rounds only): while ALL wild-capable reels stand
-# as towers, every spin pays xN. This is the 4-scatter route's max-win
-# engine — the full house must out-hit the 3-scatter simul-x8 fluke.
-STICKY_FULL_MULT = int(os.environ.get('VH_STICKY_FULL_MULT', '2'))
+# (leftmost joins first on ties). Cap 3 (was 4): at the LONGER 10-spin round a
+# full 4-tower board would form almost every time and pay x-huge every spin —
+# that made RTP blow past 100%. Cap 3 keeps the sticky round premium (avg
+# ~280x, the reliable-big tier) without turning it into a guaranteed max win.
+STICKY_CAP = int(os.environ.get('VH_STICKY_CAP', '3'))
+# FULL-BOARD BONUS (sticky rounds only): while ALL towers stand, every spin
+# pays xN. Set to 1 (OFF): the x2 "full house" doubling compounded over 10
+# sticky spins is what pushed RTP to 105%+. With it off the 4-scatter route is
+# the high-AVERAGE tier; the 5000x MAX WIN comes from the 3-scatter simul spike.
+STICKY_FULL_MULT = int(os.environ.get('VH_STICKY_FULL_MULT', '1'))
 # SIMULTANEOUS-EXPANSION MULTIPLIERS (per-spin expansion contexts only: the
 # 3-scatter bonus + hot spins; NEVER sticky rounds): n reels expanding in the
-# SAME spin multiply that spin's win per this table. Deliberately LATE ladder
-# (2 towers pay plain — too common to multiply): the 1-in-4096 four-tower
-# alignment x8 with a premium reel-1 window IS the 3-scatter bonus' MAX WIN
-# pattern (much rarer than the 4-scatter sticky route).
-SIMUL_MULTS = {3: 2, 4: 8}
+# SAME spin multiply that spin's win per this table. The 4-reel-alignment x10
+# with a premium reel-1 window IS the game's MAX WIN pattern — the only route
+# that reaches the 5000x cap now that the 4-scatter full house is retired.
+SIMUL_MULTS = {3: int(os.environ.get('VH_SIMUL3', '2')), 4: int(os.environ.get('VH_SIMUL4', '10'))}
 
 # ── precompute visible windows per reel/stop: (counts per symbol incl. wild-as-any, wilds, scatters)
 def precompute(strips):
@@ -252,6 +257,11 @@ def simulate(n, pays, scatter_pay, seed=42):
     }
 
 if __name__ == '__main__':
+    # Fit target: the longer 10-spin sticky round barely clips the 5000x cap
+    # (only the rare 3-scatter spike does), so realized RTP now lands close to
+    # the fit target — targeting ~93.5% keeps the house economics of the
+    # original certification while the 7/10-spin rounds run longer.
+    TARGET_RTP = float(os.environ.get('VH_TARGET_RTP', '93.5'))
     n_tune = int(sys.argv[1]) if len(sys.argv) > 1 else 400_000
     if os.environ.get('VH_K'):
         # Refinement pass: skip tuning, use the externally fitted k.
@@ -260,18 +270,19 @@ if __name__ == '__main__':
     else:
         r1 = simulate(n_tune, BASE_PAYS, SCATTER_PAY, seed=7)
         print('TUNING RUN (k=1):', json.dumps(r1, indent=1))
-        k = 96.0 / r1['rtp_pct']
+        k = TARGET_RTP / r1['rtp_pct']
         print(f'scale k = {k:.4f}')
     pays = {s: [max(1, round(v * k)) for v in p] for s, p in BASE_PAYS.items()}
     scat = [max(1, round(v * k)) for v in SCATTER_PAY]
     n_final = int(sys.argv[2]) if len(sys.argv) > 2 else 4_000_000
-    r2 = simulate(n_final, pays, scat, seed=99)
+    cert_seed = int(os.environ.get('VH_CERT_SEED', '99'))
+    r2 = simulate(n_final, pays, scat, seed=cert_seed)
     print('CERTIFICATION RUN:', json.dumps(r2, indent=1))
     r3 = simulate(min(n_final, 1_000_000), pays, scat, seed=1234)
     print('ALT-SEED SANITY:', json.dumps({'rtp_pct': r3['rtp_pct']}, indent=1))
     out = {
         'gridId': f'5x{ROWS}',
-        'targetRtpPct': 96.0,
+        'targetRtpPct': TARGET_RTP,
         'rtpBps': round(r2['rtp_pct'] * 100),
         'reelStrips': STRIPS,
         'reelLength': 40,

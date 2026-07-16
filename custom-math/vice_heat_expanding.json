@@ -1,7 +1,7 @@
 {
  "gridId": "5x5",
- "targetRtpPct": 96.0,
- "rtpBps": 9337,
+ "targetRtpPct": 93.5,
+ "rtpBps": 9851,
  "reelStrips": [
   [
    5,
@@ -217,53 +217,53 @@
  "reelLength": 40,
  "payTable": {
   "wild": [
-   1072,
-   1755,
-   3120
+   820,
+   1341,
+   2385
   ],
   "highA": [
-   1072,
-   1755,
-   3120
+   820,
+   1341,
+   2385
   ],
   "highB": [
-   1034,
-   1560,
-   2535
+   790,
+   1192,
+   1938
   ],
   "midC": [
-   1004,
-   1365,
-   2048
+   768,
+   1043,
+   1565
   ],
   "midD": [
-   1004,
-   1268,
-   1852
+   768,
+   969,
+   1416
   ],
   "lowE": [
-   1004,
-   1170,
-   1560
+   768,
+   894,
+   1192
   ],
   "lowF": [
-   1004,
-   1121,
-   1414
+   768,
+   857,
+   1081
   ],
   "lowG": [
-   1004,
-   1072,
-   1268
+   768,
+   820,
+   969
   ]
  },
  "scatterPay": [
-  1004,
-  1950,
-  5850
+  768,
+  1490,
+  4471
  ],
- "freeSpinsCount": 5,
- "freeSpinsCap": 8,
+ "freeSpinsCount": 7,
+ "freeSpinsCap": 10,
  "retriggerSpins": 3,
  "freeSpinMultiplier": 1,
  "maxWinMultiplier": 5000,
@@ -271,47 +271,47 @@
  "custom": {
   "expandingWildsInFreeSpins": true,
   "stickyExpandingFrom4Scatters": true,
-  "stickyTowerCap": 4,
+  "stickyTowerCap": 3,
   "retriggerSpins": 3,
-  "stickyRoundSpins": 5,
-  "stickyRoundCap": 7,
+  "stickyRoundSpins": 10,
+  "stickyRoundCap": 13,
   "simulExpandMultipliers": {
    "3": 2,
-   "4": 8
+   "4": 10
   },
-  "stickyFullBoardMultiplier": 2,
+  "stickyFullBoardMultiplier": 1,
   "hotSpinChance1In": 80,
   "hotSpinExpandsWilds": true,
   "notes": "Wild expands to full reel BEFORE ways evaluation in FS and hot spins. A 4+-scatter trigger plays STICKY expansion: expanded reels stay fully wild for the rest of the round. While ALL stickyTowerCap towers stand, every sticky spin pays x stickyFullBoardMultiplier (FULL HOUSE \u2014 the 4-scatter max-win engine). Fully wild reels contribute no scatters. Reel 1 carries no wilds (no wild-line double count). Wild pays as highA."
  },
  "simResults": {
-  "rtp_pct": 93.370531275,
-  "rtp_ci99_pp": 3.0053271001871185,
-  "per_spin_std_x": 28.57732106217647,
-  "hit_freq_pct": 69.27533333333334,
-  "fs3_trigger_1_in": 66.90827989963758,
-  "fs4_trigger_1_in": 903.750564844103,
-  "avg_fs3_round_x": 19.15835985503206,
-  "avg_fs4_round_x": 187.772812803133,
+  "rtp_pct": 98.510495126,
+  "rtp_ci99_pp": 3.1514214870625197,
+  "per_spin_std_x": 27.355561610346534,
+  "hit_freq_pct": 69.29494000000001,
+  "fs3_trigger_1_in": 67.30924559797533,
+  "fs4_trigger_1_in": 940.5568096313017,
+  "avg_fs3_round_x": 23.77488104840881,
+  "avg_fs4_round_x": 281.81216708051164,
   "fs3_dist_x": {
-   "p50": 4.8531,
-   "p90": 25.9991,
-   "p99": 234.7078,
-   "max": 6049.1088
+   "p50": 5.9453,
+   "p90": 26.7969,
+   "p99": 210.4368,
+   "max": 5695.5284
   },
   "fs4_dist_x": {
-   "p50": 24.5932,
-   "p90": 304.3767,
-   "p99": 3249.4525,
-   "max": 6069.875
+   "p50": 226.9104,
+   "p90": 646.4729,
+   "p99": 943.779,
+   "max": 1243.65
   },
-  "fs4_ge_800x_pct": 6.220816388010243,
-  "fs4_ge_maxwin_pct": 0.060250037656273535,
-  "fs3_ge_800x_pct": 0.12043490381934764,
-  "fs3_ge_maxwin_pct": 0.018957345971563982,
-  "base_pct": 38.67892421166667,
-  "hot_pct": 5.487955516666667,
-  "fs3_pct": 28.633765333333333,
-  "fs4_pct": 20.777061736666667
+  "fs4_ge_800x_pct": 3.893905191873589,
+  "fs4_ge_maxwin_pct": 0.0,
+  "fs3_ge_800x_pct": 0.20731247644176404,
+  "fs3_ge_maxwin_pct": 0.024231328415271123,
+  "base_pct": 29.588152676,
+  "hot_pct": 3.774963744,
+  "fs3_pct": 35.321865276,
+  "fs4_pct": 29.962269604000003
  }
 }

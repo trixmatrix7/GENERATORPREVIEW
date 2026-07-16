@@ -40,7 +40,10 @@ export function App() {
   const [bootFade, setBootFade] = useState(false);
   const [bootGone, setBootGone] = useState(false);
   // Preview device: 'mobile' shows the game in a portrait phone frame.
-  const [device, setDevice] = useState<'desktop' | 'mobile'>('desktop');
+  const [device, setDevice] = useState<'desktop' | 'mobile'>(
+    () => (localStorage.getItem('studio-device') === 'mobile' ? 'mobile' : 'desktop'),
+  );
+  useEffect(() => { localStorage.setItem('studio-device', device); }, [device]);
 
   // The loaded game = the stamped Fantasy spec (config/reels+paytable+gameConfig
   // are the ZIP's generated files, so DEFAULT_GAME_CONFIG IS the Fantasy math)

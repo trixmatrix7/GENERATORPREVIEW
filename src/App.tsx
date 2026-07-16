@@ -174,10 +174,6 @@ export function App() {
       [`${B}fsbg_beachclub_anim_1.webp`, `${B}fsbg_beachclub_anim_2.webp`, `${B}fsbg_beachclub_anim_3.webp`],
       4, 4, 48, 6,
     );
-    // Vice dancer: ONLY the blonde, right of the grid, dancing through the
-    // FS round (8×12 = 96 frames, 224×398, seamless loop — the source video
-    // wraps without a trailing hold) at 18fps = 1.5× speed.
-    void pixiAppRef.setFreeSpinsDancers([`${B}dancer_pink.webp`], 8, 12, 96, 18);
     // Layered win-marquee art (BIG/MEGA/EPIC/MAX + WIN + number plate).
     const T = `${import.meta.env.BASE_URL}theme/win-tiers/`;
     void pixiAppRef.setWinTierImages({

@@ -140,7 +140,6 @@ export function buildExportPreset(name: string): Record<string, unknown> {
       idleSheets: { '1-scatter': { file: `${B}scatteridle.webp`, cols: 10, rows: 9, count: 90, fps: 10 } },
       staticLookSymbols: [1],
       noIdleSymbols: [0],
-      fsDancers: { sheets: [`${B}dancer_pink.webp`], cols: 8, rows: 12, count: 96, fps: 18 },
       winTiers: { dir: 'theme/win-tiers/', layers: ['big', 'mega', 'epic', 'max', 'win', 'plate'] },
       coinRain: { sheets: ['theme/win-tiers/coinrain3_0.webp', 'theme/win-tiers/coinrain3_1.webp', 'theme/win-tiers/coinrain3_2.webp'], cols: 10, rows: 10, count: 300, fps: 45 },
       introLayers,

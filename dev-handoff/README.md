@@ -17,7 +17,8 @@ dev-handoff/
 ├─ FLOW.md                   ← the full presentation pipeline + every transition
 ├─ ASSET_SPECS.md            ← spritesheet/symbol dimensions, 5x5 vs 5x3, auto-crop
 ├─ features/                 ← each feature = self-contained, universal, addable
-│  ├─ README.md              ← feature index
+│  ├─ README.md              ← feature index (13 features, 2 kinds)
+│  │  ── behaviour + asset (README + feature.json) ──
 │  ├─ expanding-wild/        ← "add one image" wild-reel expansion
 │  ├─ expanding-sticky-wild/ ← the sticky variant (towers persist the round)
 │  ├─ win-marquees/          ← tiered win celebration (universal, + music)
@@ -25,7 +26,13 @@ dev-handoff/
 │  ├─ tease-camera/          ← POV-dolly anticipation
 │  ├─ frame-win-flash/       ← frame lights up on trigger
 │  ├─ symbol-sheets/         ← per-symbol idle + win spritesheets
-│  └─ boot-loader/           ← in-iframe loading screen
+│  ├─ boot-loader/           ← in-iframe loading screen
+│  │  ── drop-in code modules (real .ts + integration) ──
+│  ├─ win-line/              ← ways-light comet (WaysLightComet.ts, 1:1)
+│  ├─ frame/                 ← procedural neon frame band (no-image fallback)
+│  ├─ cell-backdrop/         ← per-cell backing panels
+│  ├─ reel-background/       ← reel-window tint/wash
+│  └─ fs-background/         ← free-spins background swap
 ├─ flow/
 │  └─ intro-screens/         ← custom intro/outro screens (game/fs3/fs4/outro)
 ├─ math/

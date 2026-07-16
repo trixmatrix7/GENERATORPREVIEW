@@ -2,18 +2,34 @@
 
 Each subfolder here is one **self-contained, theme-agnostic** feature the dev's generator can rebuild from. *Vice Heat* is only the reference skin — every feature is described universally (driven by grid/scatter/reel state, not by any Vice-specific art), and each doc carries a settings table plus a `feature.json` snippet the generator can consume.
 
-## Features
+Two kinds of package live here. **Behaviour & asset features** are documented
+(README + `feature.json`) — the generator rebuilds them from its own registries
+using the settings + geometry given. **Drop-in code modules** ship the *actual
+runtime `.ts`* plus a 2–3-hook integration guide — copy the file in 1:1 and wire
+the named hooks. Both are theme-agnostic and RTP-neutral (purely presentational).
+
+## Behaviour & asset features (README + feature.json)
 
 | Feature | One-liner |
 |---|---|
-| [`expanding-wild/`](./expanding-wild/) | A landed wild expands to fill its whole reel with a tower graphic and acts wild for the full column. |
-| [`expanding-sticky-wild/`](./expanding-sticky-wild/) | Expanded wilds stay locked in place across subsequent (free) spins, re-presented each spin without re-rolling the math. |
-| [`win-marquees/`](./win-marquees/) | Tiered win banners (WIN → BIG → MEGA → EPIC → MAX) with layered art + number plate; music ducks the ambient bed under the fanfare. |
+| [`expanding-wild/`](./expanding-wild/) | A landed wild expands to fill its whole reel with a tower graphic and acts wild for the full column. **Add one image** — dims + auto-crop for 5×5 and 5×3 in the README. |
+| [`expanding-sticky-wild/`](./expanding-sticky-wild/) | Expanded wilds stay locked in place across the free-spins round (towers accumulate, cap 3); same visuals/sounds as expanding-wild. |
+| [`win-marquees/`](./win-marquees/) | Tiered win banners (WIN → BIG → MEGA → EPIC → MAX) with layered art + number plate; theme-neutral music ducks the ambient bed under the fanfare. |
 | [`coin-rain/`](./coin-rain/) | Chroma-keyed coin-shower spritesheet that rains over the board on big-tier wins (3 sheets × 10×10 = 300 frames @ 45 fps). |
 | [`tease-camera/`](./tease-camera/) | True POV dolly: the whole world (background included) pushes toward the machine centre in gated steps during a scatter tease; bounces out on a miss, locks on a hit. |
 | [`frame-win-flash/`](./frame-win-flash/) | The reel frame lights up via a chroma-matted spritesheet the instant the trigger scatter lands, pixel-aligned to the frame art via a region crop. |
 | [`symbol-sheets/`](./symbol-sheets/) | Per-symbol idle-loop and win spritesheets that render on the cell's exact footprint, with STATIC_LOOK / NO_IDLE opt-out guards. |
 | [`boot-loader/`](./boot-loader/) | In-iframe loading screen that fills a progress bar over the real settle-count of the critical asset loads, then cross-fades into the intro. |
+
+## Drop-in code modules (real `.ts` + integration guide)
+
+| Feature | One-liner |
+|---|---|
+| [`win-line/`](./win-line/) | The white **ways-light comet** — a light beam shoots through each ways-connection, line-by-line. `WaysLightComet.ts` drops in 1:1 (needs 2 hooks: `cellCentre`, a top container). |
+| [`frame/`](./frame/) | Procedural neon **frame band** (colour-tunable) for when no frame image is supplied — the bare-scaffold frame. |
+| [`cell-backdrop/`](./cell-backdrop/) | Per-cell backing panels behind the symbols (colour + integration params). |
+| [`reel-background/`](./reel-background/) | Tint/wash behind the reel window. |
+| [`fs-background/`](./fs-background/) | Free-spins background swap hook. |
 
 ## How the generator consumes a feature.json
 

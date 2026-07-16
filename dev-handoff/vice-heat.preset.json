@@ -87,7 +87,12 @@
     "tease-camera":          { "doc": "features/tease-camera/", "on": true, "povDolly": { "base": 1.06, "perStep": 0.05 } },
     "frame-win-flash":       { "doc": "features/frame-win-flash/", "on": true, "trigger": "3rd scatter lands" },
     "symbol-sheets":         { "doc": "features/symbol-sheets/", "on": true },
-    "boot-loader":           { "doc": "features/boot-loader/", "on": true, "insideIframe": true }
+    "boot-loader":           { "doc": "features/boot-loader/", "on": true, "insideIframe": true },
+    "win-line":              { "doc": "features/win-line/", "on": true, "kind": "code-module", "note": "ways-light comet; WaysLightComet.ts drops in 1:1" },
+    "frame":                 { "doc": "features/frame/", "on": false, "kind": "code-module", "note": "procedural neon frame — fallback when no frame image is supplied (Vice Heat uses frame_neon.webp)" },
+    "cell-backdrop":         { "doc": "features/cell-backdrop/", "on": false, "kind": "code-module" },
+    "reel-background":       { "doc": "features/reel-background/", "on": false, "kind": "code-module" },
+    "fs-background":         { "doc": "features/fs-background/", "on": true, "kind": "code-module" }
   },
 
   "flow": "See FLOW.md for the ordered pipeline: boot -> game intro -> base -> tease -> FS intro -> FS round -> win marquees -> TOTAL WIN outro -> base. Control bar is HIDDEN during game intro, FS intro, and outro."

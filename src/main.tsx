@@ -1,3 +1,4 @@
+import './motionOverride'; // MUST stay first — neutralizes prefers-reduced-motion before any module reads it
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import '@/styles/globals.css';

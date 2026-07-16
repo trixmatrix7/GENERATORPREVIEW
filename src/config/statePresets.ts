@@ -35,9 +35,12 @@ export const STATE_PRESETS: readonly StatePreset[] = [
   },
   {
     id: 'crack-slam', name: 'Crack Slam',
-    description: 'Crack Farm intensity — symbols SLAM in hard: fast heavy drop, deep wooden squash, sharp snap-back (pairs with the wood-clatter drop SFX).',
-    landing: { downDuration: 0.035, upDuration: 0.10, settleDuration: 0.16, scaleCompress: 0.58, scaleOvershoot: 1.32, rotationKick: 2 },
-    landBounce: { squashDuration: 0.04, overshootDuration: 0.07, settleDuration: 0.18, scaleSquashY: 0.76, scaleStretchY: 1.16 },
+    description: 'Crack Farm intensity — the BOARD slams deep on every stop (heavy y-jolt); the symbols themselves keep their shape (barely any squash). Pairs with the wood-clatter drop SFX.',
+    // Noski: "nicht so stark einklappen, lieber deeper runter slammen" — the
+    // depth comes from the amplified board THUD (landingImpactConfig, set in
+    // the Crack Farm boot branch), NOT from crunching the symbol art.
+    landing: { downDuration: 0.04, upDuration: 0.10, settleDuration: 0.16, scaleCompress: 0.88, scaleOvershoot: 1.10, rotationKick: 1 },
+    landBounce: { squashDuration: 0.045, overshootDuration: 0.07, settleDuration: 0.18, scaleSquashY: 0.93, scaleStretchY: 1.06 },
     win: { scalePeak: 1.46, pulseUp: 0.2, pulseHold: 0.3, pulseDown: 0.24, pulsePause: 0.45 },
   },
   {

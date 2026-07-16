@@ -53,6 +53,11 @@ export const SYMBOL_IDLE_SHEETS = new Map<number, { frames: Texture[]; fps: numb
  *  weird. Per-game wiring in App.tsx (Vice: the 1:1 wild). */
 export const NO_IDLE_SYMBOLS = new Set<number>();
 
+/** symbolId → per-symbol size multiplier override (replaces the built-in
+ *  defaults, e.g. the scatter's 1.2 presence boost). Populated by the game's
+ *  boot wiring, same pattern as STATIC_LOOK_SYMBOLS. */
+export const SYMBOL_SIZE_MULS = new Map<number, number>();
+
 /** Soft-edge mask for win-sheet overlays: the source video frames are square
  *  portraits whose art touches the frame edges — unmasked they pop as a hard
  *  CARD. A feathered rounded-rect alpha mask melts the edges away so only the
@@ -742,8 +747,9 @@ export class AnimatedSymbol extends Container {
         ? Math.round(Math.min(SYMBOL_WIDTH, SYMBOL_HEIGHT) * 0.88)
         : (isSpecial ? 64 : isHigh ? 58 : isLow ? 48 : 53);
       // Preview 'symbolSize' preset scales the object bigger/smaller in the cell.
-      // Scatter renders 20% bigger — the round BONUS badge needs more presence.
-      const perSymbolMul = def.isScatter ? 1.2 : 1;
+      // Scatter renders 20% bigger by default — the round BONUS badge needs more
+      // presence. Games can override per symbol via SYMBOL_SIZE_MULS.
+      const perSymbolMul = SYMBOL_SIZE_MULS.get(this.symbolId) ?? (def.isScatter ? 1.2 : 1);
       const targetSize = Math.round(baseTargetSize * symbolSizing.objectScale * perSymbolMul);
       this.iconSprite.y = iy;
       this.iconSprite.width = targetSize;

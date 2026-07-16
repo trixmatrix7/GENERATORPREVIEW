@@ -22,8 +22,9 @@ import { CRACKFARM, crackFarmSymbolMap, crackFarmGameIntro } from '@/config/crac
 import introLayers from '@/data/introLayers.json';
 import { loadAssets } from '@/studio/assetPersistence';
 import type { PixiApp } from '@/game/PixiApp';
-import { STATIC_LOOK_SYMBOLS, NO_IDLE_SYMBOLS } from '@/game/AnimatedSymbol';
+import { STATIC_LOOK_SYMBOLS, NO_IDLE_SYMBOLS, SYMBOL_SIZE_MULS } from '@/game/AnimatedSymbol';
 import { setActiveStatePreset } from '@/config/statePresets';
+import { landingImpactConfig } from '@/game/effects/LandingImpact';
 import { BuildTopBar, BuildSlots } from '@/studio/BuildDock';
 import { isBareBuild, loadActiveGame } from '@/studio/buildPresets';
 
@@ -119,7 +120,15 @@ export function App() {
     if (activeGame === 'crackfarm') {
       // ── CRACK FARM (5×3 barn theme) ──────────────────────────────────────
       // Intensity: symbols SLAM in hard (5×3 → each drop lands with weight).
+      // The weight reads as a DEEP downward board-jolt, not symbol squash
+      // (Noski: "nicht so stark einklappen, lieber deeper runter slammen"):
+      // crack-slam keeps the art near-rigid; the thud amps carry the impact.
       setActiveStatePreset('crack-slam');
+      landingImpactConfig.squashMul = 1.1;   // barely deepen the (already soft) squash
+      landingImpactConfig.thudAmp = 6;       // per-stop board slam (default 2.2)
+      landingImpactConfig.thudLastAmp = 11;  // final reel hits hardest (default 4)
+      // Scatter sack: 20% smaller than its default presence boost.
+      SYMBOL_SIZE_MULS.set(1, 0.96);
       const cfSymbols = saved.symbols && Object.keys(saved.symbols).length
         ? new Map(Object.entries(saved.symbols).map(([k, v]) => [Number(k), v]))
         : crackFarmSymbolMap();

@@ -15,6 +15,13 @@ const BUILDS_KEY = 'vice:builds';
 const BARE_KEY = 'vice:bare';
 const ACTIVE_KEY = 'vice:active-build';
 const GRID_KEY = 'studio-grid';
+const GAME_KEY = 'active-game';
+
+/** Which baked game theme the App wires (default Vice Heat). */
+export function loadActiveGame(): 'vice' | 'crackfarm' {
+  try { return localStorage.getItem(GAME_KEY) === 'crackfarm' ? 'crackfarm' : 'vice'; }
+  catch { return 'vice'; }
+}
 
 export interface SavedBuild {
   id: number;
@@ -97,6 +104,20 @@ export function applyViceBase(): void {
   try {
     localStorage.setItem(GRID_KEY, '5x5');
     localStorage.setItem(BARE_KEY, '0');
+    localStorage.setItem(GAME_KEY, 'vice');
+    localStorage.removeItem(ACTIVE_KEY);
+  } catch { /* quota */ }
+  window.location.reload();
+}
+
+/** Built-in CRACK FARM 5×3 game (barn theme, baked in public/theme/crackfarm/). */
+export function applyCrackFarm(): void {
+  replaceAssets({});
+  saveMathProfileId('vol3-5x3');
+  try {
+    localStorage.setItem(GRID_KEY, '5x3');
+    localStorage.setItem(BARE_KEY, '0');
+    localStorage.setItem(GAME_KEY, 'crackfarm');
     localStorage.removeItem(ACTIVE_KEY);
   } catch { /* quota */ }
   window.location.reload();

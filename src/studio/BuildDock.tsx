@@ -8,7 +8,7 @@
 import { useEffect, useState } from 'react';
 import {
   listBuilds, saveBuild, deleteBuild, applyBuild, createNewBuild,
-  applyViceBase, downloadExport, activeBuildId, isBareBuild, type SavedBuild,
+  applyViceBase, applyCrackFarm, loadActiveGame, downloadExport, activeBuildId, isBareBuild, type SavedBuild,
 } from './buildPresets';
 
 const chip: React.CSSProperties = {
@@ -68,6 +68,7 @@ export function BuildSlots() {
   const [builds, setBuilds] = useState<SavedBuild[]>(listBuilds);
   const active = activeBuildId();
   const bare = isBareBuild();
+  const game = loadActiveGame();
   // Refresh when the top bar saves a build.
   useEffect(() => {
     const cb = () => setBuilds(listBuilds());
@@ -79,12 +80,21 @@ export function BuildSlots() {
       <button
         style={{
           ...chip,
-          background: !bare && active === null ? '#c026d3' : '#15151d',
-          borderColor: !bare && active === null ? '#c026d3' : '#34344a',
+          background: !bare && active === null && game === 'vice' ? '#c026d3' : '#15151d',
+          borderColor: !bare && active === null && game === 'vice' ? '#c026d3' : '#34344a',
         }}
         onClick={() => applyViceBase()}
-        title="Das eingebaute Vice-Heat-Spiel (Basis)"
+        title="Das eingebaute Vice-Heat-Spiel (5×5, Basis)"
       >⭐ Vice Heat</button>
+      <button
+        style={{
+          ...chip,
+          background: !bare && active === null && game === 'crackfarm' ? '#3f7d34' : '#15151d',
+          borderColor: !bare && active === null && game === 'crackfarm' ? '#3f7d34' : '#34344a',
+        }}
+        onClick={() => applyCrackFarm()}
+        title="Das eingebaute Crack-Farm-Spiel (5×3, Scheunen-Theme)"
+      >🌾 Crack Farm 5×3</button>
       {builds.map(b => (
         <span key={b.id} style={{ position: 'relative', display: 'inline-flex' }}>
           <button

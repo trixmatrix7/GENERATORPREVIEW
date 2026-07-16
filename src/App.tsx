@@ -18,12 +18,13 @@ import { PresetDock, loadGridId, type GridId } from '@/dev/PresetDock';
 import { mathProfileById, loadMathProfileId, saveMathProfileId } from '@/config/mathProfiles';
 import { getThemeByName } from '@/config/themes';
 import { viceSymbolMap, VICE_INTRO_URL } from '@/config/viceAssets';
+import { CRACKFARM, crackFarmSymbolMap, crackFarmGameIntro } from '@/config/crackFarmTheme';
 import introLayers from '@/data/introLayers.json';
 import { loadAssets } from '@/studio/assetPersistence';
 import type { PixiApp } from '@/game/PixiApp';
 import { STATIC_LOOK_SYMBOLS, NO_IDLE_SYMBOLS } from '@/game/AnimatedSymbol';
 import { BuildTopBar, BuildSlots } from '@/studio/BuildDock';
-import { isBareBuild } from '@/studio/buildPresets';
+import { isBareBuild, loadActiveGame } from '@/studio/buildPresets';
 
 export function App() {
   const [hostApi, setHostApi] = useState<HostApiV1 | null>(null);
@@ -113,6 +114,34 @@ export function App() {
         setBootProgress(0.06 + 0.94 * (done / bootJobs.length));
       }));
     };
+    const activeGame = loadActiveGame();
+    if (activeGame === 'crackfarm') {
+      // ── CRACK FARM (5×3 barn theme) ──────────────────────────────────────
+      const cfSymbols = saved.symbols && Object.keys(saved.symbols).length
+        ? new Map(Object.entries(saved.symbols).map(([k, v]) => [Number(k), v]))
+        : crackFarmSymbolMap();
+      track(pixiAppRef.setUserAssetTextures(cfSymbols));
+      track(pixiAppRef.setBackgroundImage(saved.bg ?? CRACKFARM.bgBase));
+      track(pixiAppRef.setTitleImage(CRACKFARM.logo));
+      // Static 512² symbols (no per-symbol win sheets in this pack): scatter
+      // keeps a clean static look, the 1:1 wild drops the fallback idle breath.
+      STATIC_LOOK_SYMBOLS.add(1);
+      NO_IDLE_SYMBOLS.add(0);
+      // The tall 1×3 barn wild fills a reel on expansion (height-fits the grid).
+      void pixiAppRef.setExpandingWildImage(saved.expandingWild ?? CRACKFARM.expandingWild);
+      // Barn frame — alpha window auto-detected from the transparent centre.
+      track(pixiAppRef.setFrameImage(saved.frame ?? CRACKFARM.frame));
+      void pixiAppRef.setFreeSpinsBackgroundImage(saved.fsBg ?? CRACKFARM.bgFs);
+      // Win marquee: crack-farm wooden-slime tier badges + price-area plate
+      // (universal layered marquee); coin rain kept (theme-neutral gold shower).
+      void pixiAppRef.setWinTierImages(CRACKFARM.winTiers);
+      const Tc = `${import.meta.env.BASE_URL}theme/win-tiers/`;
+      void pixiAppRef.setWinCoinRain(
+        [`${Tc}coinrain3_0.webp`, `${Tc}coinrain3_1.webp`, `${Tc}coinrain3_2.webp`], 10, 10, 300, 45,
+      );
+      // Layered game intro (each element is a full pre-positioned 1920×1080 frame).
+      track(pixiAppRef.setLayeredIntro('game', crackFarmGameIntro()));
+    } else {
     const symbols = saved.symbols && Object.keys(saved.symbols).length
       ? new Map(Object.entries(saved.symbols).map(([k, v]) => [Number(k), v]))
       : viceSymbolMap();
@@ -201,6 +230,7 @@ export function App() {
     // TOTAL WIN outro after the free-spins round (iris-bookended, 15s max).
     void pixiAppRef.setLayeredIntro('outro', mapSet(introLayers.outro));
     track(pixiAppRef.setLayeredIntro('game', mapSet(introLayers.game)));
+    }
     // Theme is IN: hold 100% for a beat, fade the boot overlay — the intro's
     // iris-from-black entrance begins underneath, so the handoff is seamless.
     void Promise.all(bootJobs).then(() => {

@@ -40,25 +40,12 @@ export const CRACKFARM = {
   },
 };
 
-/** Layered GAME intro. Each element PNG is a full 1920×1080 pre-positioned
- *  frame, so every layer sits at the design centre (cx 960, cy 540) at natural
- *  size and they composite into the full intro. Roles drive the motion
- *  (logo floats/swells, press pulses, background + cards + text stay static). */
+/** GAME intro. The zip's separate element PNGs are each CENTRED in their own
+ *  1920×1080 frame (not pre-positioned to their final left/middle/right spots),
+ *  so compositing them all at centre just stacks them. `intro/full.png` is the
+ *  artist's correct one-piece assembly (barn scene + CRACK FARM logo + the 3
+ *  feature cards + PRESS TO CONTINUE), so we show it as a single full-cover
+ *  layer — guaranteed-correct, with the iris-open + gentle cover breath. */
 export function crackFarmGameIntro(): Array<{ file: string; role: string; cx: number; cy: number }> {
-  const I = `${C}intro/`;
-  const L = (name: string, role: string) => ({ file: `${I}${name}`, role, cx: 960, cy: 540 });
-  return [
-    L('bg.png', 'card'),  // the intro's own bg (static, shown)
-    L('card-left.png', 'card'),
-    L('card-mid.png', 'card'),
-    L('card-right.png', 'card'),
-    L('text-sticky.png', 'text'),
-    L('text-expanding.png', 'text'),
-    L('text-bonus.png', 'text'),
-    L('text-max.png', 'text'),
-    L('text-win.png', 'text'),
-    L('text-crack.png', 'text'),
-    L('logo.png', 'logo'),
-    L('press.png', 'press'),
-  ];
+  return [{ file: `${C}intro/full.png`, role: 'coverbg', cx: 960, cy: 540 }];
 }

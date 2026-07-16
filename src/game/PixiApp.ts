@@ -1282,7 +1282,11 @@ export class PixiApp {
       const spr = new Sprite(l.tex);
       spr.anchor.set(0.5);
       spr.position.set(l.cx - 960, l.cy - 540);
-      (l.role === 'bg' ? bgRoot : fgRoot).addChild(spr);
+      // 'coverbg' = a pre-assembled full-screen intro image (e.g. a theme's
+      // one-piece intro art). Like 'bg' it goes in the COVER-scaled root, but
+      // it is NOT skipped for the game kind (there's no separate live bg to
+      // reveal — the image IS the whole intro).
+      (l.role === 'bg' || l.role === 'coverbg' ? bgRoot : fgRoot).addChild(spr);
       // Element-centred exports carry a target width (design px); breathing
       // scales stay RELATIVE to that base so nothing pops to full size.
       const s0 = l.tw ? l.tw / l.tex.width : 1;
@@ -1290,6 +1294,7 @@ export class PixiApp {
       spr.eventMode = 'none';
       const ph = Math.random() * 2;
       switch (l.role) {
+        case 'coverbg':
         case 'bg': {
           // Rest slightly ABOVE cover so the slow drift never exposes an edge
           // (margin at min zoom: 1920*0.018/2 ≈ 17px design > 12px pan).

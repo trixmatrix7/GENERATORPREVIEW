@@ -564,10 +564,11 @@ export class PixiApp {
     const compact = width < 520;
     // Scale scene to fit viewport with margin. Frame art (palm marquee) may
     // hang OUTSIDE the machine box — include that overhang so it never clips.
-    // Frame-art overhang AND the side characters (farmer/pig) count into the
-    // width fit — otherwise they fall off the canvas at narrower viewports.
-    const ovL = compact ? 0 : Math.max(this.frameArtOvL, this.sideExtentL);
-    const ovR = compact ? 0 : Math.max(this.frameArtOvR, this.sideExtentR);
+    // Only the frame-art overhang shrinks the machine — the side characters
+    // do NOT (the grid keeps its size); they get CLAMPED inward instead
+    // (layoutSideActors below), overlapping the frame edge when space is tight.
+    const ovL = compact ? 0 : this.frameArtOvL;
+    const ovR = compact ? 0 : this.frameArtOvR;
     // Side character + mascot stand beside the machine — no room on compact.
     if (this.sideCharSprite) this.sideCharSprite.visible = !compact;
     if (this.mascotSprite) this.mascotSprite.visible = !compact;
@@ -594,6 +595,8 @@ export class PixiApp {
     if (sx - ovL * scale < 2) sx = Math.round(2 + ovL * scale);
     this.sceneRoot.x = sx;
     this.sceneRoot.y = Math.round((height - hud - totalH * scale) / 2);
+    // Side actors: keep beside the frame, clamped onto the canvas.
+    this.layoutSideActors();
 
     // Centre win banner over reels
     this.winBanner.x = rw / 2;
@@ -1201,15 +1204,53 @@ export class PixiApp {
    *  Pass url=null to clear. */
   private sideCharSprite: Sprite | null = null;
   private sideCharTween: gsap.core.Tween | null = null;
-  private sideCharSheet: Texture | null = null;
+  private sideCharSheets: Texture[] | null = null;
   private sideCharFrames: Texture[] | null = null;
-  /** Horizontal room (design px) the side characters need beyond the machine
-   *  box — merged into the onResize width fit so they never clip off-canvas. */
-  private sideExtentL = 0;
-  private sideExtentR = 0;
+  /** Layout configs for the side actors — re-applied on every resize:
+   *  desired position beside the frame, CLAMPED inward so they always stay
+   *  on-canvas (they overlap the frame edge instead of clipping off). */
+  private sideCharCfg: { marginX: number; feetOffsetY: number } | null = null;
+  private mascotCfg: { side: 'left' | 'right'; centerYFrac: number; marginX: number } | null = null;
+
+  private layoutSideActors(): void {
+    const width = this.app.screen.width;
+    const s = this.sceneRoot.scale.x || 1;
+    const sx = this.sceneRoot.x;
+    const rw = this.reelSet.totalWidth + FRAME_PAD * 2;
+    const rh = this.reelSet.totalHeight + FRAME_PAD * 2;
+    if (this.sideCharSprite && this.sideCharCfg) {
+      const spr = this.sideCharSprite;
+      const w = spr.width;
+      let cx = rw + this.sideCharCfg.marginX + w / 2;
+      const maxCx = (width - 4 - sx) / s - w / 2;   // outer edge on-canvas
+      cx = Math.min(cx, maxCx);
+      cx = Math.max(cx, rw - w * 0.25);             // at most ~25% over the frame
+      spr.position.set(cx, rh + this.sideCharCfg.feetOffsetY);
+    }
+    if (this.mascotSprite && this.mascotCfg) {
+      const root = this.mascotSprite.parent === this.gameContainer ? this.mascotSprite : this.mascotSprite.parent;
+      if (root && root !== this.gameContainer) {
+        const w = this.mascotSprite.width;
+        const cfg = this.mascotCfg;
+        if (cfg.side === 'left') {
+          let cx = -(cfg.marginX + w / 2);
+          const minCx = (4 - sx) / s + w / 2;       // outer edge on-canvas
+          cx = Math.max(cx, minCx);
+          cx = Math.min(cx, w * 0.25);              // at most ~25% over the frame
+          root.position.set(cx, rh * cfg.centerYFrac);
+        } else {
+          let cx = rw + cfg.marginX + w / 2;
+          const maxCx = (width - 4 - sx) / s - w / 2;
+          cx = Math.min(cx, maxCx);
+          cx = Math.max(cx, rw - w * 0.25);
+          root.position.set(cx, rh * cfg.centerYFrac);
+        }
+      }
+    }
+  }
 
   async setSideCharacter(
-    url: string | null, cols: number, rows: number, count: number, fps = 12, heightFrac = 0.5,
+    url: string | string[] | null, cols: number, rows: number, count: number, fps = 12, heightFrac = 0.5,
     opts: { marginX?: number; feetOffsetY?: number } = {},
   ): Promise<void> {
     if (!this._initialized || this._aborted) return;
@@ -1217,43 +1258,45 @@ export class PixiApp {
     if (this.sideCharTween) { this.sideCharTween.kill(); this.sideCharTween = null; }
     if (this.sideCharSprite) { this.sideCharSprite.parent?.removeChild(this.sideCharSprite); try { this.sideCharSprite.destroy(); } catch { /* torn down */ } this.sideCharSprite = null; }
     if (this.sideCharFrames) { for (const f of this.sideCharFrames) { try { f.destroy(false); } catch { /* torn down */ } } this.sideCharFrames = null; }
-    if (this.sideCharSheet) { try { this.sideCharSheet.destroy(true); } catch { /* torn down */ } this.sideCharSheet = null; }
+    if (this.sideCharSheets) { for (const s of this.sideCharSheets) { try { s.destroy(true); } catch { /* torn down */ } } this.sideCharSheets = null; }
+    this.sideCharCfg = null;
     if (!url) return;
     try {
-      const sheet = await Assets.load<Texture>(url);
+      // Multiple sheets = high-res frame sets that would exceed the 4096px
+      // texture cap in one image (count = TOTAL frames across all sheets,
+      // cols×rows per sheet, filled in order).
+      const urls = Array.isArray(url) ? url : [url];
+      const sheets: Texture[] = [];
+      for (const u of urls) sheets.push(await Assets.load<Texture>(u));
       if (this._aborted) return;
-      const fw = sheet.width / cols, fh = sheet.height / rows;
+      const perSheet = cols * rows;
       const frames: Texture[] = [];
       for (let i = 0; i < count; i++) {
-        frames.push(new Texture({ source: sheet.source, frame: new Rectangle((i % cols) * fw, Math.floor(i / cols) * fh, fw, fh) }));
+        const sheet = sheets[Math.floor(i / perSheet)];
+        if (!sheet) break;
+        const fw = sheet.width / cols, fh = sheet.height / rows;
+        const j = i % perSheet;
+        frames.push(new Texture({ source: sheet.source, frame: new Rectangle((j % cols) * fw, Math.floor(j / cols) * fh, fw, fh) }));
       }
-      this.sideCharSheet = sheet;
+      this.sideCharSheets = sheets;
       this.sideCharFrames = frames;
-      const rw = this.reelSet.totalWidth + FRAME_PAD * 2;
       const rh = this.reelSet.totalHeight + FRAME_PAD * 2;
       const t0 = frames[0];
       const targetH = rh * heightFrac;
       const spr = new Sprite(t0);
       spr.anchor.set(0.5, 1);              // feet anchor
       spr.scale.set(targetH / t0.height);
-      // Right beside the frame; feet on the frame bottom by default, or
-      // pushed down onto the GROUND via feetOffsetY (the artist mockups put
-      // the farmer's boots on the grass just below the barn's hay base).
-      const marginX = opts.marginX ?? 8;
-      const feetY = rh + (opts.feetOffsetY ?? 0);
-      const charW = t0.width * spr.scale.x;
-      spr.position.set(rw + marginX + charW / 2, feetY);
-      this.sideExtentR = marginX + charW;
       spr.eventMode = 'none';
       spr.visible = this.app.screen.width >= 520; // compact: sides off-canvas
       this.gameContainer.addChild(spr);
       this.sideCharSprite = spr;
+      this.sideCharCfg = { marginX: opts.marginX ?? 8, feetOffsetY: opts.feetOffsetY ?? 0 };
       const proxy = { f: 0 };
       this.sideCharTween = gsap.to(proxy, {
-        f: count - 1, duration: count / Math.max(1, fps), ease: 'none', repeat: -1,
+        f: frames.length - 1, duration: frames.length / Math.max(1, fps), ease: 'none', repeat: -1,
         onUpdate: () => { if (!spr.destroyed) spr.texture = frames[Math.round(proxy.f) % frames.length]; },
       });
-      this.onResize(); // the character widens the scene — refit so he's on-canvas
+      this.layoutSideActors(); // clamp into the current canvas
     } catch (err) {
       console.warn('[PixiApp] failed to load side character:', err);
     }
@@ -1276,7 +1319,15 @@ export class PixiApp {
     if (!this._initialized || this._aborted) return;
     for (const t of this.mascotTweens) t.kill();
     this.mascotTweens = [];
-    if (this.mascotSprite) { this.mascotSprite.parent?.removeChild(this.mascotSprite); try { this.mascotSprite.destroy(); } catch { /* torn down */ } this.mascotSprite = null; }
+    if (this.mascotSprite) {
+      // The sprite lives inside its wrapper root — remove the whole root.
+      const node = this.mascotSprite.parent && this.mascotSprite.parent !== this.gameContainer
+        ? this.mascotSprite.parent : this.mascotSprite;
+      node.parent?.removeChild(node);
+      try { node.destroy({ children: true }); } catch { /* torn down */ }
+      this.mascotSprite = null;
+    }
+    this.mascotCfg = null;
     if (this.mascotFrames) { for (const f of this.mascotFrames) { try { f.destroy(false); } catch { /* torn down */ } } this.mascotFrames = null; }
     if (this.mascotSheet) { try { this.mascotSheet.destroy(true); } catch { /* torn down */ } this.mascotSheet = null; }
     if (!url) return;
@@ -1302,20 +1353,21 @@ export class PixiApp {
       }
       const rw = this.reelSet.totalWidth + FRAME_PAD * 2;
       const rh = this.reelSet.totalHeight + FRAME_PAD * 2;
+      // Wrapper ROOT: layoutSideActors positions the root (clamped on-canvas);
+      // the hover-bob tweens run on the CHILD around local (0,0), so a
+      // re-layout never fights the animation.
+      const root = new Container();
+      root.eventMode = 'none';
       const spr = new Sprite(firstTex);
       spr.anchor.set(0.5);
       const targetH = rh * heightFrac;
       spr.scale.set(targetH / firstTex.height);
-      const halfW = (firstTex.width * spr.scale.x) / 2;
-      const x = side === 'left' ? -(marginX + halfW) : rw + marginX + halfW;
-      const y = rh * centerYFrac;
-      if (side === 'left') this.sideExtentL = marginX + halfW * 2;
-      else this.sideExtentR = Math.max(this.sideExtentR, marginX + halfW * 2);
-      spr.position.set(x, y);
       spr.eventMode = 'none';
-      spr.visible = this.app.screen.width >= 520;
-      this.gameContainer.addChild(spr);
+      root.addChild(spr);
+      root.visible = this.app.screen.width >= 520;
+      this.gameContainer.addChild(root);
       this.mascotSprite = spr;
+      this.mascotCfg = { side, centerYFrac, marginX };
       if (this.mascotFrames) {
         const proxy = { f: 0 };
         this.mascotTweens.push(gsap.to(proxy, {
@@ -1325,12 +1377,12 @@ export class PixiApp {
       } else {
         // Static art: a flying-hover bob (y ±7px) with a lazy sway/tilt.
         this.mascotTweens.push(
-          gsap.to(spr, { y: y - 7, duration: 1.6, yoyo: true, repeat: -1, ease: 'sine.inOut' }),
+          gsap.to(spr, { y: -7, duration: 1.6, yoyo: true, repeat: -1, ease: 'sine.inOut' }),
           gsap.to(spr, { rotation: 0.04, duration: 2.3, yoyo: true, repeat: -1, ease: 'sine.inOut' }),
-          gsap.to(spr, { x: x + 4, duration: 2.9, yoyo: true, repeat: -1, ease: 'sine.inOut' }),
+          gsap.to(spr, { x: 4, duration: 2.9, yoyo: true, repeat: -1, ease: 'sine.inOut' }),
         );
       }
-      this.onResize(); // the mascot widens the scene — refit so it's on-canvas
+      this.layoutSideActors(); // clamp into the current canvas
     } catch (err) {
       console.warn('[PixiApp] failed to load side mascot:', err);
     }

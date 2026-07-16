@@ -152,9 +152,12 @@ export function App() {
       // ~1.12× frame-box height, boots on the GRASS just below the barn's
       // hay base (feet ≈ rh+110), pushed right so he stands clear of the
       // barn door edge.
-      void pixiAppRef.setSideCharacter(`${CRACKFARM.base}farmer_idle.webp`, 8, 12, 96, 12, 1.25, {
-        marginX: 45, feetOffsetY: 110,
-      });
+      // HD sheets (448px frames, 2× display size — research/slot-feel/11:
+      // never upscale; the old 224px frames rendered soft at ~2× stretch).
+      void pixiAppRef.setSideCharacter(
+        [`${CRACKFARM.base}farmer_idle_hd_1.webp`, `${CRACKFARM.base}farmer_idle_hd_2.webp`],
+        8, 6, 96, 12, 1.25, { marginX: 45, feetOffsetY: 110 },
+      );
       // The FLYING PIG hovers LEFT of the barn (mockup: ~0.45× frame height,
       // centre at ~36% height, well clear of the frame edge). Static art
       // with a hover bob — swaps to the idle sheet when it arrives (just

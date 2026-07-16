@@ -30,3 +30,5 @@ sources. Estimates are marked as estimates.
 | 05-sound-design.md | Cross-studio AUDIO bible (drops, tallies, key/tempo harmony) |
 | 06-game-feel-juice.md | Cross-studio TIMING/animation bible + feel checklist |
 | 07-gap-analysis-our-games.md | Prioritized action list for Vice Heat + Crack Farm |
+| 08-paylines-systems.md | PAYLINE slots (5×3 focus): drop rhythm, line presentation |
+| 09-ways-systems.md | WAYS slots: drop rhythm, win read without lines |

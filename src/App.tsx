@@ -147,14 +147,20 @@ export function App() {
       // keeps a clean static look, the 1:1 wild drops the fallback idle breath.
       STATIC_LOOK_SYMBOLS.add(1);
       NO_IDLE_SYMBOLS.add(0);
-      // The FARMER mascot idles beside the barn — feet on the frame's bottom
-      // edge, right of the machine (96f seamless loop @12fps, magenta-keyed).
-      void pixiAppRef.setSideCharacter(`${CRACKFARM.base}farmer_idle.webp`, 8, 12, 96, 12, 0.52);
-      // The FLYING PIG hovers LEFT of the frame at ~2/3 height (static art
-      // with a hover bob for now — swaps to the idle sheet when it arrives:
-      // just pass cols/rows/count/fps in the opts).
+      // The FARMER mascot idles beside the barn (96f seamless loop @12fps,
+      // magenta-keyed). Size + position measured off the artist mockups:
+      // ~1.12× frame-box height, boots on the GRASS just below the barn's
+      // hay base (feet ≈ rh+110), pushed right so he stands clear of the
+      // barn door edge.
+      void pixiAppRef.setSideCharacter(`${CRACKFARM.base}farmer_idle.webp`, 8, 12, 96, 12, 1.12, {
+        marginX: 45, feetOffsetY: 110,
+      });
+      // The FLYING PIG hovers LEFT of the barn (mockup: ~0.45× frame height,
+      // centre at ~36% height, well clear of the frame edge). Static art
+      // with a hover bob — swaps to the idle sheet when it arrives (just
+      // pass cols/rows/count/fps in the opts).
       void pixiAppRef.setSideMascot(`${CRACKFARM.base}pig_mascot.png`, {
-        side: 'left', centerYFrac: 0.33, heightFrac: 0.3,
+        side: 'left', centerYFrac: 0.36, heightFrac: 0.45, marginX: 120,
       });
       // The tall 1×3 mutant plant fills a reel on expansion — and it GROWS:
       // the wild slides down to the reel floor and the plant rises out of it.

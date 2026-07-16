@@ -1193,7 +1193,10 @@ export class PixiApp {
   private sideCharSheet: Texture | null = null;
   private sideCharFrames: Texture[] | null = null;
 
-  async setSideCharacter(url: string | null, cols: number, rows: number, count: number, fps = 12, heightFrac = 0.5): Promise<void> {
+  async setSideCharacter(
+    url: string | null, cols: number, rows: number, count: number, fps = 12, heightFrac = 0.5,
+    opts: { marginX?: number; feetOffsetY?: number } = {},
+  ): Promise<void> {
     if (!this._initialized || this._aborted) return;
     // clear previous
     if (this.sideCharTween) { this.sideCharTween.kill(); this.sideCharTween = null; }
@@ -1218,8 +1221,12 @@ export class PixiApp {
       const spr = new Sprite(t0);
       spr.anchor.set(0.5, 1);              // feet anchor
       spr.scale.set(targetH / t0.height);
-      // Right beside the frame, feet exactly on the frame's bottom edge.
-      spr.position.set(rw + 8 + (t0.width * spr.scale.x) / 2, rh);
+      // Right beside the frame; feet on the frame bottom by default, or
+      // pushed down onto the GROUND via feetOffsetY (the artist mockups put
+      // the farmer's boots on the grass just below the barn's hay base).
+      const marginX = opts.marginX ?? 8;
+      const feetY = rh + (opts.feetOffsetY ?? 0);
+      spr.position.set(rw + marginX + (t0.width * spr.scale.x) / 2, feetY);
       spr.eventMode = 'none';
       spr.visible = this.app.screen.width >= 520; // compact: sides off-canvas
       this.gameContainer.addChild(spr);
@@ -1246,6 +1253,7 @@ export class PixiApp {
   async setSideMascot(url: string | null, opts: {
     cols?: number; rows?: number; count?: number; fps?: number;
     side?: 'left' | 'right'; centerYFrac?: number; heightFrac?: number;
+    marginX?: number;
   } = {}): Promise<void> {
     if (!this._initialized || this._aborted) return;
     for (const t of this.mascotTweens) t.kill();
@@ -1257,7 +1265,7 @@ export class PixiApp {
     try {
       const tex = await Assets.load<Texture>(url);
       if (this._aborted) return;
-      const { cols, rows, count, fps = 12, side = 'left', centerYFrac = 0.33, heightFrac = 0.3 } = opts;
+      const { cols, rows, count, fps = 12, side = 'left', centerYFrac = 0.33, heightFrac = 0.3, marginX = 8 } = opts;
       let firstTex = tex;
       if (cols && rows && count) {
         const fw = tex.width / cols, fh = tex.height / rows;
@@ -1276,7 +1284,7 @@ export class PixiApp {
       const targetH = rh * heightFrac;
       spr.scale.set(targetH / firstTex.height);
       const halfW = (firstTex.width * spr.scale.x) / 2;
-      const x = side === 'left' ? -(8 + halfW) : rw + 8 + halfW;
+      const x = side === 'left' ? -(marginX + halfW) : rw + marginX + halfW;
       const y = rh * centerYFrac;
       spr.position.set(x, y);
       spr.eventMode = 'none';

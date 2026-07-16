@@ -1229,6 +1229,12 @@ export class ReelSet {
     this.winFrameColor = frame;
   }
 
+  /** Fire the light comet along ONE combo's cells — public entry for the
+   *  payline line-by-line cycle (PixiApp.startLineCycle). */
+  playComboComet(combo: WinCombination): Promise<void> {
+    return this.fireWaysLight(combo);
+  }
+
   revealCombo(combo: WinCombination, amountText?: string) {
     // Kill motion tweens FIRST (their interrupt-restore writes lifted-space
     // poses), THEN un-lift the previous combo's objects.

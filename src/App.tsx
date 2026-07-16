@@ -152,7 +152,7 @@ export function App() {
       // ~1.12× frame-box height, boots on the GRASS just below the barn's
       // hay base (feet ≈ rh+110), pushed right so he stands clear of the
       // barn door edge.
-      void pixiAppRef.setSideCharacter(`${CRACKFARM.base}farmer_idle.webp`, 8, 12, 96, 12, 1.12, {
+      void pixiAppRef.setSideCharacter(`${CRACKFARM.base}farmer_idle.webp`, 8, 12, 96, 12, 1.25, {
         marginX: 45, feetOffsetY: 110,
       });
       // The FLYING PIG hovers LEFT of the barn (mockup: ~0.45× frame height,

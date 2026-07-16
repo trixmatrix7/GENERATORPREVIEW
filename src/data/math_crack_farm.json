@@ -1,7 +1,7 @@
 {
  "gridId": "5x3",
- "targetRtpPct": 94.0,
- "rtpBps": 9556,
+ "targetRtpPct": 96.5,
+ "rtpBps": 9567,
  "payModel": "lines",
  "paylines": [
   [
@@ -290,53 +290,53 @@
  "reelLength": 40,
  "payTable": {
   "wild": [
-   11133,
-   41748,
-   278320
+   11897,
+   44615,
+   297431
   ],
   "highA": [
-   11133,
-   41748,
-   278320
+   11897,
+   44615,
+   297431
   ],
   "highB": [
-   8350,
-   27832,
-   139160
+   8923,
+   29743,
+   148715
   ],
   "midC": [
-   5566,
-   16699,
-   69580
+   5949,
+   17846,
+   74358
   ],
   "midD": [
-   4175,
-   13916,
-   55664
+   4461,
+   14872,
+   59486
   ],
   "lowE": [
-   2783,
-   8350,
-   27832
+   2974,
+   8923,
+   29743
   ],
   "lowF": [
-   2087,
-   6958,
-   20874
+   2231,
+   7436,
+   22307
   ],
   "lowG": [
-   1392,
-   5566,
-   13916
+   1487,
+   5949,
+   14872
   ]
  },
  "scatterPay": [
-  13916,
-  41748,
-  139160
+  14872,
+  44615,
+  148715
  ],
- "freeSpinsCount": 8,
- "freeSpinsCap": 11,
+ "freeSpinsCount": 7,
+ "freeSpinsCap": 10,
  "retriggerSpins": 3,
  "freeSpinMultiplier": 1,
  "maxWinMultiplier": 5000,
@@ -348,26 +348,26 @@
   "plantMultiIncrement": 1,
   "plantMultiCap": 20,
   "plantMultiMode": "crossing",
-  "stickyTowerCap": 3,
-  "stickyRoundSpins": 6,
-  "stickyRoundCap": 11,
+  "stickyTowerCap": 2,
+  "stickyRoundSpins": 10,
+  "stickyRoundCap": 13,
   "retriggerSpins": 3,
-  "notes": "PAYLINES model (10 lines, leftmost, wilds substitute; payBps = bps of total bet per line). 3sc: every FS spin ONE seed-derived wild-capable reel is fully wild (roaming plant). 4sc: wild-landing reels become permanent plant towers; shared multi starts 1x, +plantMultiIncrement per winning connection while a tower stands; tower-crossing line wins pay x multi. Fully wild reels contribute no scatters. Hard 5000x session cap. Line rule: each line pays only its HIGHEST interpretation (substitute vs wild-lead-as-highA)."
+  "notes": "PAYLINES model (10 lines, leftmost, wilds substitute; payBps = bps of total bet per line). 3sc: every FS spin ONE seed-derived wild-capable reel is fully wild (roaming plant). 4sc: wild-landing reels become permanent plant towers; shared multi starts 1x, +plantMultiIncrement per winning connection while a tower stands; tower-crossing line wins pay x multi. Fully wild reels contribute no scatters. Hard 5000x session cap."
  },
  "simResults": {
-  "rtp_pct": 95.5604274575,
-  "rtp_ci99_pp": 2.7145066764232277,
-  "hit_freq_pct": 44.63575,
-  "fs3_trigger_1_in": 41.07703998849843,
-  "fs4_trigger_1_in": 452.3863379325944,
-  "avg_fs3_round_x": 6.126695727987841,
-  "avg_fs4_round_x": 247.6193533815879,
-  "fs3_max_x": 69.8583,
-  "fs4_max_x": 3730.6621,
+  "rtp_pct": 95.673722714,
+  "rtp_ci99_pp": 2.0197856465589847,
+  "hit_freq_pct": 44.606519999999996,
+  "fs3_trigger_1_in": 41.132966427272805,
+  "fs4_trigger_1_in": 447.30721059223475,
+  "avg_fs3_round_x": 5.742922921756871,
+  "avg_fs4_round_x": 241.66811034174273,
+  "fs3_max_x": 68.9298,
+  "fs4_max_x": 2407.2721,
   "fs3_ge_maxwin_pct": 0.0,
   "fs4_ge_maxwin_pct": 0.0,
-  "base_pct": 25.9090349775,
-  "fs3_pct": 14.915134415,
-  "fs4_pct": 54.736258065
+  "base_pct": 27.684550334,
+  "fs3_pct": 13.961849632,
+  "fs4_pct": 54.027322747999996
  }
 }

@@ -114,7 +114,9 @@ export function GameCanvas({ lastOutcome, phase, onPixiReady, config, controls, 
             <div
               className="relative mx-auto w-full"
               style={{
-                aspectRatio: device === 'mobile' ? '390 / 760' : (rows === 5 ? '5 / 5.15' : '5 / 3.4'),
+                // 3-row games use a 16:9 stage (the artist scenes are full-
+                // widescreen with side characters) — 5-row keeps the tall box.
+                aspectRatio: device === 'mobile' ? '390 / 760' : (rows === 5 ? '5 / 5.15' : '16 / 9'),
                 // Mobile: the outer frame's width min() already bounds height
                 // to ≤74vh via the aspect ratio — no maxHeight (it would
                 // squash the portrait box instead of shrinking it).

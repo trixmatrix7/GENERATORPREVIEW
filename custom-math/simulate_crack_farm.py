@@ -44,9 +44,10 @@ BASE_PAYS = {
     8: [1000, 4000, 10000],
 }
 SCATTER_PAY = [10000, 30000, 100000]
-FS_COUNT = int(os.environ.get('CF_FS_SPINS', '8'))       # 3sc round
-FS_STICKY = int(os.environ.get('CF_STICKY_SPINS', '8'))  # 4sc round
-FS_CAP = int(os.environ.get('CF_FS_CAP', '11'))
+FS_COUNT = int(os.environ.get('CF_FS_SPINS', '7'))        # 3sc round (Noski: 7)
+FS_STICKY = int(os.environ.get('CF_STICKY_SPINS', '10'))  # 4sc round (Noski: 10)
+FS_CAP3 = int(os.environ.get('CF_FS_CAP3', '10'))         # 7 + one +3 retrigger
+FS_CAP4 = int(os.environ.get('CF_FS_CAP4', '13'))         # 10 + one +3 retrigger
 FS_RETRIG = 3
 STICKY_CAP = int(os.environ.get('CF_STICKY_CAP', '3'))
 MULTI_INC = int(os.environ.get('CF_MULTI_INC', '1'))
@@ -137,7 +138,8 @@ def simulate(n, pays, scat, seed=42):
             round_win = 0
             fs_left = FS_STICKY if sticky_round else FS_COUNT
             played = 0
-            while fs_left > 0 and played < FS_CAP:
+            cap = FS_CAP4 if sticky_round else FS_CAP3
+            while fs_left > 0 and played < cap:
                 fs_left -= 1; played += 1
                 st = [rng.randrange(LENS[r]) for r in range(REELS)]
                 b = [[window(r, st[r])[row] for r in range(REELS)] for row in range(ROWS)]
@@ -166,8 +168,8 @@ def simulate(n, pays, scat, seed=42):
                 session += w2
                 if session >= MAX_WIN_X * 10000:
                     break
-                if sc2 >= 3 and played < FS_CAP:
-                    fs_left = min(fs_left + FS_RETRIG, FS_CAP - played)
+                if sc2 >= 3 and played < cap:
+                    fs_left = min(fs_left + FS_RETRIG, cap - played)
             if sticky_round:
                 fs4_total += round_win; fs4_rounds.append(round_win)
             else:
@@ -232,7 +234,7 @@ if __name__ == '__main__':
             'lowE': pays[6], 'lowF': pays[7], 'lowG': pays[8],
         },
         'scatterPay': scat,
-        'freeSpinsCount': FS_COUNT, 'freeSpinsCap': FS_CAP, 'retriggerSpins': FS_RETRIG,
+        'freeSpinsCount': FS_COUNT, 'freeSpinsCap': FS_CAP3, 'retriggerSpins': FS_RETRIG,
         'freeSpinMultiplier': 1,
         'maxWinMultiplier': MAX_WIN_X, 'minWager': 10000,
         'custom': {
@@ -244,7 +246,7 @@ if __name__ == '__main__':
             'plantMultiMode': MULTI_MODE,
             'stickyTowerCap': STICKY_CAP,
             'stickyRoundSpins': FS_STICKY,
-            'stickyRoundCap': FS_CAP,
+            'stickyRoundCap': FS_CAP4,
             'retriggerSpins': FS_RETRIG,
             'notes': 'PAYLINES model (10 lines, leftmost, wilds substitute; payBps = bps of '
                      'total bet per line). 3sc: every FS spin ONE seed-derived wild-capable reel '

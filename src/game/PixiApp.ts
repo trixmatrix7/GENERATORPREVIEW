@@ -308,7 +308,9 @@ export class PixiApp {
         resizeTo: canvas.parentElement ?? canvas,
         background: CANVAS_THEME.modes.dark.rendererBg,
         antialias: true,
-        resolution: window.devicePixelRatio ?? 1,
+        // DPR cap 2 (research/slot-feel/11): DPR-3 phones are fill-rate
+        // limited; 2× is visually identical at slot viewing distance.
+        resolution: Math.min(window.devicePixelRatio ?? 1, 2),
         autoDensity: true,
       }),
       loadSymbolAtlases(),
@@ -562,8 +564,10 @@ export class PixiApp {
     const compact = width < 520;
     // Scale scene to fit viewport with margin. Frame art (palm marquee) may
     // hang OUTSIDE the machine box — include that overhang so it never clips.
-    const ovL = compact ? 0 : this.frameArtOvL;
-    const ovR = compact ? 0 : this.frameArtOvR;
+    // Frame-art overhang AND the side characters (farmer/pig) count into the
+    // width fit — otherwise they fall off the canvas at narrower viewports.
+    const ovL = compact ? 0 : Math.max(this.frameArtOvL, this.sideExtentL);
+    const ovR = compact ? 0 : Math.max(this.frameArtOvR, this.sideExtentR);
     // Side character + mascot stand beside the machine — no room on compact.
     if (this.sideCharSprite) this.sideCharSprite.visible = !compact;
     if (this.mascotSprite) this.mascotSprite.visible = !compact;
@@ -752,6 +756,13 @@ export class PixiApp {
           // Downscale large images to prevent GPU memory exhaustion / GL context loss.
           const safeUrl = await constrainImageSize(dataUrl, 512);
           const tex = await Assets.load<Texture>(safeUrl);
+          // SHARPNESS (research/slot-feel/11): 512² icons render at ~110px —
+          // a >4× minification. Without mipmaps plain bilinear samples only 4
+          // texels → aliasing/shimmer. Mipmaps + anisotropy = clean downscale.
+          // Safe here: individual images, no atlas bleed.
+          tex.source.autoGenerateMipmaps = true;
+          tex.source.style.maxAnisotropy = 8;
+          tex.source.update();
           next.set(id, tex);
         } catch (err) {
           console.warn('[PixiApp] failed to load user asset for symbol', id, err);
@@ -1192,6 +1203,10 @@ export class PixiApp {
   private sideCharTween: gsap.core.Tween | null = null;
   private sideCharSheet: Texture | null = null;
   private sideCharFrames: Texture[] | null = null;
+  /** Horizontal room (design px) the side characters need beyond the machine
+   *  box — merged into the onResize width fit so they never clip off-canvas. */
+  private sideExtentL = 0;
+  private sideExtentR = 0;
 
   async setSideCharacter(
     url: string | null, cols: number, rows: number, count: number, fps = 12, heightFrac = 0.5,
@@ -1226,7 +1241,9 @@ export class PixiApp {
       // the farmer's boots on the grass just below the barn's hay base).
       const marginX = opts.marginX ?? 8;
       const feetY = rh + (opts.feetOffsetY ?? 0);
-      spr.position.set(rw + marginX + (t0.width * spr.scale.x) / 2, feetY);
+      const charW = t0.width * spr.scale.x;
+      spr.position.set(rw + marginX + charW / 2, feetY);
+      this.sideExtentR = marginX + charW;
       spr.eventMode = 'none';
       spr.visible = this.app.screen.width >= 520; // compact: sides off-canvas
       this.gameContainer.addChild(spr);
@@ -1236,6 +1253,7 @@ export class PixiApp {
         f: count - 1, duration: count / Math.max(1, fps), ease: 'none', repeat: -1,
         onUpdate: () => { if (!spr.destroyed) spr.texture = frames[Math.round(proxy.f) % frames.length]; },
       });
+      this.onResize(); // the character widens the scene — refit so he's on-canvas
     } catch (err) {
       console.warn('[PixiApp] failed to load side character:', err);
     }
@@ -1266,6 +1284,11 @@ export class PixiApp {
       const tex = await Assets.load<Texture>(url);
       if (this._aborted) return;
       const { cols, rows, count, fps = 12, side = 'left', centerYFrac = 0.33, heightFrac = 0.3, marginX = 8 } = opts;
+      if (!cols) { // single image (no atlas): mipmaps for the heavy downscale
+        tex.source.autoGenerateMipmaps = true;
+        tex.source.style.maxAnisotropy = 8;
+        tex.source.update();
+      }
       let firstTex = tex;
       if (cols && rows && count) {
         const fw = tex.width / cols, fh = tex.height / rows;
@@ -1286,6 +1309,8 @@ export class PixiApp {
       const halfW = (firstTex.width * spr.scale.x) / 2;
       const x = side === 'left' ? -(marginX + halfW) : rw + marginX + halfW;
       const y = rh * centerYFrac;
+      if (side === 'left') this.sideExtentL = marginX + halfW * 2;
+      else this.sideExtentR = Math.max(this.sideExtentR, marginX + halfW * 2);
       spr.position.set(x, y);
       spr.eventMode = 'none';
       spr.visible = this.app.screen.width >= 520;
@@ -1305,6 +1330,7 @@ export class PixiApp {
           gsap.to(spr, { x: x + 4, duration: 2.9, yoyo: true, repeat: -1, ease: 'sine.inOut' }),
         );
       }
+      this.onResize(); // the mascot widens the scene — refit so it's on-canvas
     } catch (err) {
       console.warn('[PixiApp] failed to load side mascot:', err);
     }

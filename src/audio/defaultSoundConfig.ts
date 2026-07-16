@@ -43,17 +43,16 @@ const DEFAULT_VOLUMES: Record<string, number> = {
   // then −40%: 0.5 → 0.3).
   'coin-chime': 0.3,
   'ambient-music': 0.35,
-  // WIN TALLY (Pragmatic-style): steady coin ticks whose pitch rises with the
-  // count-up progress, closed by the terminator hit on the final amount.
-  // Ticks sit UNDER the marquee music; the terminator lands the moment.
-  'win-tally-tick': 0.38,
-  'win-tally-end': 0.85,
-  // Tier promotion impact (BIG→MEGA→EPIC→MAX), pitched up per tier.
-  'tier-up': 0.8,
-  // ANTICIPATION riser (music ducks under it) + the miss dead-stop thud.
-  // The near-silence AFTER the miss thud is the near-miss punch (05 §risers).
-  'tease-riser': 0.6,
-  'tease-miss': 0.7,
+  // WIN TALLY + TIER + RISER: the synthesized versions read wrong (Noski:
+  // "audio fatal" — same lesson as the muted win jingles). MUTED until real
+  // sound-design drops replace them; the hook architecture stays wired, so
+  // re-enabling = drop the .ogg + raise the volume here. Target design per
+  // research/slot-feel/05 stays the spec for the real drops.
+  'win-tally-tick': 0,
+  'win-tally-end': 0,
+  'tier-up': 0,
+  'tease-riser': 0,
+  'tease-miss': 0,
 };
 
 // Per-event flags. Ambient music is loop + exclusive (only one can play).

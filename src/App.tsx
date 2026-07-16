@@ -393,44 +393,16 @@ export function App() {
       () => soundManager.play('win-tally-end'),
       tier => soundManager.play('tier-up', { rate: Math.pow(2, (2 * tier) / 12) }),
     );
-    // PENTATONIC STOP LADDER (05: '5 distinct pitched variants, not one file
-    // ×5' — scale notes rising left→right, ±2% humanization against fatigue).
-    const PENTA = [1, 9 / 8, 5 / 4, 3 / 2, 5 / 3];
+    // AUDIO ROLLBACK (Noski: "audio fatal"): back to the last APPROVED state —
+    // flat wood-clatter stops, plain stingers, no pitch ladders, no riser/duck.
+    // The rate-ladder + riser SPECS stay in research/slot-feel/05 and get
+    // re-enabled only with REAL sound-design drops (synthesis reads wrong).
     pixiApp.setAudioHooks({
-      onReelStopped: reelIdx => soundManager.play('reel-stop', {
-        rate: PENTA[reelIdx % PENTA.length] * (0.98 + Math.random() * 0.04),
-      }),
-      // Scatter stinger pitched to the SAME scale step as its reel's stop
-      // (05: 'replace reel N's stop with the scatter stinger, pitched to the
-      // same scale step') — successive scatters land left→right, so the
-      // stinger naturally escalates across the tease.
-      onScatterLanded: reelIdx => soundManager.play('scatter-land', {
-        rate: PENTA[reelIdx % PENTA.length],
-      }),
+      onReelStopped: () => soundManager.play('reel-stop'),
+      onScatterLanded: () => soundManager.play('scatter-land'),
       onWildLanded: () => soundManager.play('wild-land'),
       onWildExpand: () => soundManager.play('wild-expand'),
-      // Tease sting rises with each teased reel — tension ladder.
-      onNearMissTease: reelIdx => soundManager.play('near-miss-tease', {
-        rate: 1 + 0.08 * reelIdx,
-      }),
-      // ANTICIPATION RISER (05 §risers): the tease engages → music ducks,
-      // the riser swells. Two authored endings: HIT → riser out fast (the
-      // scatter stinger + FS flow take over, music unducks with the iris);
-      // MISS → the riser must NOT resolve: cut + dead-stop thud + ~600ms of
-      // near-silence, THEN the music fades back. The silence IS the punch.
-      onTeaseStart: () => {
-        soundManager.duck('ambient-music', 250);
-        soundManager.play('tease-riser');
-      },
-      onTeaseEnd: hit => {
-        soundManager.fadeStop('tease-riser', hit ? 180 : 90);
-        if (hit) {
-          soundManager.unduck('ambient-music', 500);
-        } else {
-          soundManager.play('tease-miss');
-          window.setTimeout(() => soundManager.unduck('ambient-music', 900), 650);
-        }
-      },
+      onNearMissTease: () => soundManager.play('near-miss-tease'),
       // Rising tally: each connection's chime pitches a step higher — the
       // classic count-up ladder instead of a flat repeated tick.
       onWinStep: (index) => soundManager.play('coin-chime', { rate: 1 + Math.min(index, 8) * 0.09 }),

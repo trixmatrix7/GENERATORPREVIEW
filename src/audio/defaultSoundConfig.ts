@@ -43,6 +43,13 @@ const DEFAULT_VOLUMES: Record<string, number> = {
   // then −40%: 0.5 → 0.3).
   'coin-chime': 0.3,
   'ambient-music': 0.35,
+  // WIN TALLY (Pragmatic-style): steady coin ticks whose pitch rises with the
+  // count-up progress, closed by the terminator hit on the final amount.
+  // Ticks sit UNDER the marquee music; the terminator lands the moment.
+  'win-tally-tick': 0.38,
+  'win-tally-end': 0.85,
+  // Tier promotion impact (BIG→MEGA→EPIC→MAX), pitched up per tier.
+  'tier-up': 0.8,
 };
 
 // Per-event flags. Ambient music is loop + exclusive (only one can play).
@@ -57,7 +64,7 @@ const AUDIO_DIR = '/audio';
 // These must try .ogg FIRST: a missing .wav makes the SPA dev server answer
 // with index.html (HTTP 200), which Howler then fails to DECODE — and it
 // never falls through to the real file ("Decoding audio data failed").
-const OGG_FIRST = new Set<string>(['ambient-music', 'win-marquee', 'spin-start', 'reel-stop', 'coin-chime', 'wild-land', 'wild-expand']);
+const OGG_FIRST = new Set<string>(['ambient-music', 'win-marquee', 'spin-start', 'reel-stop', 'coin-chime', 'wild-land', 'wild-expand', 'win-tally-tick', 'win-tally-end', 'tier-up']);
 
 function bindingForEvent(id: string): SoundEventBinding {
   return {

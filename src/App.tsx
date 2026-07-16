@@ -363,12 +363,38 @@ export function App() {
         soundManager.unduck('ambient-music', smooth ? 700 : 400);
       },
     );
+    // TALLY audio (research/slot-feel/05-sound-design): coin ticks on the
+    // count-up grid stepping UP the scale with progress, the terminator hit
+    // when the number lands (or on skip), and a tier-slam pitched per tier.
+    const SCALE = [1, 9 / 8, 5 / 4, 4 / 3, 3 / 2]; // major scale steps (in key)
+    pixiApp.setTallySoundHooks(
+      progress => {
+        const step = SCALE[Math.min(SCALE.length - 1, Math.floor(progress * SCALE.length))];
+        soundManager.play('win-tally-tick', { rate: step * (0.99 + Math.random() * 0.02) });
+      },
+      () => soundManager.play('win-tally-end'),
+      tier => soundManager.play('tier-up', { rate: Math.pow(2, (2 * tier) / 12) }),
+    );
+    // PENTATONIC STOP LADDER (05: '5 distinct pitched variants, not one file
+    // ×5' — scale notes rising left→right, ±2% humanization against fatigue).
+    const PENTA = [1, 9 / 8, 5 / 4, 3 / 2, 5 / 3];
     pixiApp.setAudioHooks({
-      onReelStopped: () => soundManager.play('reel-stop'),
-      onScatterLanded: () => soundManager.play('scatter-land'),
+      onReelStopped: reelIdx => soundManager.play('reel-stop', {
+        rate: PENTA[reelIdx % PENTA.length] * (0.98 + Math.random() * 0.04),
+      }),
+      // Scatter stinger pitched to the SAME scale step as its reel's stop
+      // (05: 'replace reel N's stop with the scatter stinger, pitched to the
+      // same scale step') — successive scatters land left→right, so the
+      // stinger naturally escalates across the tease.
+      onScatterLanded: reelIdx => soundManager.play('scatter-land', {
+        rate: PENTA[reelIdx % PENTA.length],
+      }),
       onWildLanded: () => soundManager.play('wild-land'),
       onWildExpand: () => soundManager.play('wild-expand'),
-      onNearMissTease: () => soundManager.play('near-miss-tease'),
+      // Tease sting rises with each teased reel — tension ladder.
+      onNearMissTease: reelIdx => soundManager.play('near-miss-tease', {
+        rate: 1 + 0.08 * reelIdx,
+      }),
       // Rising tally: each connection's chime pitches a step higher — the
       // classic count-up ladder instead of a flat repeated tick.
       onWinStep: (index) => soundManager.play('coin-chime', { rate: 1 + Math.min(index, 8) * 0.09 }),

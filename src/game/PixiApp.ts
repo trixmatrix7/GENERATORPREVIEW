@@ -1135,6 +1135,20 @@ export class PixiApp {
     this.winCelebration.onMarqueeExit = exit;
   }
 
+  /** TALLY audio hooks (research/slot-feel/05): `tick(progress)` on the
+   *  tightening count-up grid, `end` = the terminator hit (count lands OR
+   *  skip), `promote(tier)` = the tier-slam stinger. */
+  setTallySoundHooks(
+    tick: ((progress: number) => void) | null,
+    end: (() => void) | null,
+    promote: ((tier: number) => void) | null,
+  ): void {
+    if (!this.winCelebration) return;
+    this.winCelebration.onTallyTick = tick;
+    this.winCelebration.onTallyEnd = end;
+    this.winCelebration.onTierPromote = promote;
+  }
+
   /** Free-spins dancers: one spritesheet per side (urls[0] = left of the grid,
    *  urls[1] = right), looping through the whole FS round. Same grid slicing
    *  for both sheets. Pass null to clear. */

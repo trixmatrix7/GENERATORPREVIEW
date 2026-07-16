@@ -130,10 +130,27 @@ export class WinCelebration {
   onMarqueeStart: (() => void) | null = null;
   onMarqueeExit: ((smooth: boolean) => void) | null = null;
   private exitSignalled = true; // no run active yet
+  /** TALLY audio hooks (research/slot-feel/05): tick fires on a tightening
+   *  rhythmic grid during the count-up (progress 0..1 — the host steps the
+   *  pitch UP the scale with it), end = the terminator hit on the final
+   *  amount (also fired on skip), promote = the tier-slam stinger. */
+  onTallyTick: ((progress: number) => void) | null = null;
+  onTallyEnd: (() => void) | null = null;
+  onTierPromote: ((tier: number) => void) | null = null;
+  private tallyEnded = true;
+
+  private fireTallyEnd(): void {
+    if (this.tallyEnded) return;
+    this.tallyEnded = true;
+    try { this.onTallyEnd?.(); } catch { /* host callback */ }
+  }
 
   private signalExit(smooth: boolean): void {
     if (this.exitSignalled) return;
     this.exitSignalled = true;
+    // A SKIP jumps the counter to the final amount — the terminator still
+    // fires (immediately), so the tally always lands its hit exactly once.
+    this.fireTallyEnd();
     try { this.onMarqueeExit?.(smooth); } catch { /* host callback */ }
   }
 
@@ -249,6 +266,7 @@ export class WinCelebration {
   play(p: WinCelebrationParams): Promise<void> {
     this.cancel();
     this.exitSignalled = false;
+    this.tallyEnded = false;
     try { this.onMarqueeStart?.(); } catch { /* host callback */ }
 
     const sw = this.app.screen.width, sh = this.app.screen.height;
@@ -434,6 +452,8 @@ export class WinCelebration {
       const promoteTier = (n: number) => {
         if (n <= curTier || !this.overlay) return;
         curTier = n;
+        // Tier-slam stinger (host pitches it up per tier — 05-sound-design).
+        try { this.onTierPromote?.(n); } catch { /* host callback */ }
         // HARD, impulsive switch:
         // 1) an additive flash-clone of the OLD word bursts outward…
         if (tierSpr) {
@@ -513,11 +533,22 @@ export class WinCelebration {
       const dp = p.decimals > 4 ? 2 : p.decimals;
       const counter = { val: 0 };
       const countAt = stampLand + 0.30;
+      // TALLY TICK GRID (05-sound-design): coin ticks on a rhythmic grid that
+      // TIGHTENS as the count runs (16th-note feel → denser), pitch stepped up
+      // the scale by the host via the progress value.
+      let lastTickAt = -1;
       tl.to(counter, {
         val: finalVal, duration: C.countDur[finalTier], ease: 'power1.inOut',
         onUpdate: () => {
           if (!this.overlay) return;
           amount.text = counter.val.toFixed(dp);
+          const prog = finalVal > 0 ? Math.min(1, counter.val / finalVal) : 1;
+          const interval = 115 - 45 * prog; // ms — density tightens toward the end
+          const now = performance.now();
+          if (lastTickAt < 0 || now - lastTickAt >= interval) {
+            lastTickAt = now;
+            try { this.onTallyTick?.(prog); } catch { /* host callback */ }
+          }
           // Live promotion caps at EPIC — MAX only fires after the count.
           const liveMax = Math.min(finalTier, 2);
           if (curTier < liveMax) {
@@ -526,7 +557,11 @@ export class WinCelebration {
             }
           }
         },
-        onComplete: () => { if (this.overlay) amount.text = formatAmount(p.winAmount, p.decimals); },
+        onComplete: () => {
+          if (this.overlay) amount.text = formatAmount(p.winAmount, p.decimals);
+          // TERMINATOR — the count lands on the final amount (tonic hit).
+          this.fireTallyEnd();
+        },
       }, countAt);
 
       // END FLARE — and for a MAX win the SWITCH happens only NOW: EPIC held

@@ -736,9 +736,10 @@ export class AnimatedSymbol extends Container {
       // up and a touch larger now there's no caption competing for space.
       const iy = isUserAsset ? 0 : -SYMBOL_HEIGHT * 0.04;
       const baseTargetSize = isUserAsset
-        // Uploaded PNGs are transparent OBJECTS placed inside the cell with
-        // padding (~72%), so the win enlarge-pulse grows them within the cell.
-        ? Math.round(Math.min(SYMBOL_WIDTH, SYMBOL_HEIGHT) * 0.72)
+        // Uploaded PNGs are transparent OBJECTS placed inside the cell. Fill
+        // ~88% (was 72%) so symbols read BIG with little dead space between
+        // them — the win enlarge-pulse still grows them within the cell.
+        ? Math.round(Math.min(SYMBOL_WIDTH, SYMBOL_HEIGHT) * 0.88)
         : (isSpecial ? 64 : isHigh ? 58 : isLow ? 48 : 53);
       // Preview 'symbolSize' preset scales the object bigger/smaller in the cell.
       // Scatter renders 20% bigger — the round BONUS badge needs more presence.

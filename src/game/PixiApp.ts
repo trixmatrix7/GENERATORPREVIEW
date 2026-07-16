@@ -558,17 +558,23 @@ export class PixiApp {
     // it solely when it genuinely wouldn't fit over the bar.
     const hud = width * this.bottomHudFraction;
 
+    // COMPACT (phone portrait / mobile preview): the machine is what matters —
+    // tight margins, near-full width, and the frame-art overhang (palm sign)
+    // must NOT shrink the machine; the sign may clip at the canvas edge.
+    const compact = width < 520;
     // Scale scene to fit viewport with margin. Frame art (palm marquee) may
     // hang OUTSIDE the machine box — include that overhang so it never clips.
-    const ovL = this.frameArtOvL;
-    const ovR = this.frameArtOvR;
-    const availW = width - SCENE_MARGIN * 2;
-    const availH = height - SCENE_MARGIN * 2;
+    const ovL = compact ? 0 : this.frameArtOvL;
+    const ovR = compact ? 0 : this.frameArtOvR;
+    const margin = compact ? 8 : SCENE_MARGIN;
+    const availW = width - margin * 2;
+    const availH = height - margin * 2;
     const scaleX = availW / (totalW + ovL + ovR);
     const scaleY = availH / totalH;
     // ×0.85 — grid sits 15% smaller in the bounded box (still centred below),
     // giving the animated background more breathing room around the reels.
-    let scale = Math.min(scaleX, scaleY, 1.3) * 0.85;
+    // Compact keeps nearly full width (0.98) — phone play needs the grid big.
+    let scale = Math.min(scaleX, scaleY, 1.3) * (compact ? 0.98 : 0.85);
     // Only-if-needed clamp: never let the grid extend into the bar band.
     if (hud > 0 && totalH * scale > height - hud - 8) {
       scale = (height - hud - 8) / totalH;
@@ -3057,6 +3063,8 @@ export class PixiApp {
   private showFreeSpinOverlay(totalSpins: number): { container: Container; counter: Text; total: Text; totalFit: () => void } {
     const rw = this.reelSet.totalWidth + FRAME_PAD * 2;
     const rh = this.reelSet.totalHeight + FRAME_PAD * 2;
+    // COMPACT (phone): no side room — skip the dancer, move plaques inside.
+    const compact = this.app.screen.width < 520;
 
     const fsContainer = new Container();
     this.sceneRoot.addChild(fsContainer);
@@ -3066,7 +3074,7 @@ export class PixiApp {
 
     // The Vice dancers — one each side of the grid, looping through the whole
     // round (frame tweens live in fsDancerTweens, killed on overlay hide).
-    if (this.fsDancerFrames && this.fsDancerFrames.length > 0) {
+    if (this.fsDancerFrames && this.fsDancerFrames.length > 0 && !compact) {
       const h = rh * 0.62;
       // A single dancer takes the RIGHT side (her established spot); with
       // two sheets, index 0 = left and index 1 = right as before.
@@ -3096,9 +3104,16 @@ export class PixiApp {
 
     // Counter — a clean BLACK PLAQUE on the LEFT of the grid (mirrors the
     // dancer's spot on the right): "FREE SPINS" label + a big readable count.
+    // COMPACT (phone): the sides are off-canvas — both plaques move INSIDE
+    // the grid's top-left corner, scaled down (they float over the reels).
     const panelW = 168, panelH = 92;
     const panel = new Container();
-    panel.position.set(-16 - panelW, HEADER_H + rh * 0.42);
+    if (compact) {
+      panel.scale.set(0.72);
+      panel.position.set(FRAME_PAD + 4, HEADER_H + FRAME_PAD + panelH * 0.36 + 4);
+    } else {
+      panel.position.set(-16 - panelW, HEADER_H + rh * 0.42);
+    }
     panel.eventMode = 'none';
     const plate = new Graphics();
     plate.roundRect(0, -panelH / 2, panelW, panelH, 14).fill({ color: 0x000000, alpha: 0.78 });
@@ -3136,7 +3151,12 @@ export class PixiApp {
     // round's wins accumulate into it spin by spin.
     const panel2H = 86;
     const panel2 = new Container();
-    panel2.position.set(-16 - panelW, HEADER_H + rh * 0.42 + panelH / 2 + 14 + panel2H / 2);
+    if (compact) {
+      panel2.scale.set(0.72);
+      panel2.position.set(FRAME_PAD + 4, HEADER_H + FRAME_PAD + panelH * 0.72 + panel2H * 0.36 + 14);
+    } else {
+      panel2.position.set(-16 - panelW, HEADER_H + rh * 0.42 + panelH / 2 + 14 + panel2H / 2);
+    }
     panel2.eventMode = 'none';
     const plate2 = new Graphics();
     plate2.roundRect(0, -panel2H / 2, panelW, panel2H, 14).fill({ color: 0x000000, alpha: 0.78 });

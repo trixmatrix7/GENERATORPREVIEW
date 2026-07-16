@@ -39,6 +39,8 @@ export function App() {
   const [bootProgress, setBootProgress] = useState(0.06);
   const [bootFade, setBootFade] = useState(false);
   const [bootGone, setBootGone] = useState(false);
+  // Preview device: 'mobile' shows the game in a portrait phone frame.
+  const [device, setDevice] = useState<'desktop' | 'mobile'>('desktop');
 
   // The loaded game = the stamped Fantasy spec (config/reels+paytable+gameConfig
   // are the ZIP's generated files, so DEFAULT_GAME_CONFIG IS the Fantasy math)
@@ -329,7 +331,8 @@ export function App() {
         onPixiReady={handlePixiReady}
         config={gameConfig}
         bootScreen={bootScreen}
-        topBar={<BuildTopBar />}
+        device={device}
+        topBar={<BuildTopBar device={device} onDevice={setDevice} />}
         bottomDock={<BuildSlots />}
         controls={
           <div style={{ opacity: introOpen || fsIntroOpen ? 0 : 1, pointerEvents: introOpen || fsIntroOpen ? 'none' : 'auto', transition: 'opacity 0.6s ease' }}>

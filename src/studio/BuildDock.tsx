@@ -17,10 +17,23 @@ const chip: React.CSSProperties = {
   cursor: 'pointer', whiteSpace: 'nowrap',
 };
 
-export function BuildTopBar() {
+export function BuildTopBar({ device, onDevice }: {
+  device: 'desktop' | 'mobile';
+  onDevice: (d: 'desktop' | 'mobile') => void;
+}) {
   const [name, setName] = useState('');
   return (
     <div className="flex items-center justify-center gap-2 py-2">
+      <button
+        style={{ ...chip, background: device === 'desktop' ? '#3b3b52' : '#15151d' }}
+        onClick={() => onDevice('desktop')}
+        title="Desktop-Vorschau"
+      >🖥</button>
+      <button
+        style={{ ...chip, background: device === 'mobile' ? '#3b3b52' : '#15151d' }}
+        onClick={() => onDevice('mobile')}
+        title="Mobile-Vorschau (Portrait) — so spielt es sich am Handy"
+      >📱</button>
       <input
         value={name}
         onChange={e => setName(e.target.value)}

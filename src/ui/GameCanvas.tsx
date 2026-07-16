@@ -23,9 +23,12 @@ interface Props {
   topBar?: ReactNode;
   /** Build slot dock BELOW the game box, centred. */
   bottomDock?: ReactNode;
+  /** Preview device: 'mobile' renders the game in a portrait phone frame
+   *  (the game relayouts compact — exactly how it plays on a real phone). */
+  device?: 'desktop' | 'mobile';
 }
 
-export function GameCanvas({ lastOutcome, phase, onPixiReady, config, controls, bootScreen, topBar, bottomDock }: Props) {
+export function GameCanvas({ lastOutcome, phase, onPixiReady, config, controls, bootScreen, topBar, bottomDock, device = 'desktop' }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const appRef = useRef<PixiApp | null>(null);
   const lastOutcomeRef = useRef(lastOutcome);
@@ -99,13 +102,23 @@ export function GameCanvas({ lastOutcome, phase, onPixiReady, config, controls, 
           {topBar}
           <div
             className="slot-preview-root relative rounded-xl overflow-hidden border border-white/[0.06]"
-            style={{ background: '#0D1117' }}
+            style={{
+              background: '#0D1117',
+              // Mobile preview: a portrait PHONE frame — the game inside
+              // relayouts compact, exactly like on a real handset. Width is
+              // derived from the height budget so the 390/760 portrait ratio
+              // survives short viewports (a plain maxHeight would squash it).
+              ...(device === 'mobile' ? { width: 'min(390px, calc(74vh * 0.5132))', maxWidth: '100%', margin: '0 auto', border: '6px solid #23232e', borderRadius: 28 } : {}),
+            }}
           >
             <div
               className="relative mx-auto w-full"
               style={{
-                aspectRatio: rows === 5 ? '5 / 5.15' : '5 / 3.4',
-                maxHeight: '60vh',
+                aspectRatio: device === 'mobile' ? '390 / 760' : (rows === 5 ? '5 / 5.15' : '5 / 3.4'),
+                // Mobile: the outer frame's width min() already bounds height
+                // to ≤74vh via the aspect ratio — no maxHeight (it would
+                // squash the portrait box instead of shrinking it).
+                ...(device === 'mobile' ? {} : { maxHeight: '60vh' }),
                 background: '#0D1117',
               }}
             >

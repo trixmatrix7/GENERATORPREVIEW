@@ -25,6 +25,7 @@ import type { PixiApp } from '@/game/PixiApp';
 import { STATIC_LOOK_SYMBOLS, NO_IDLE_SYMBOLS, SYMBOL_SIZE_MULS } from '@/game/AnimatedSymbol';
 import { setActiveStatePreset } from '@/config/statePresets';
 import { landingImpactConfig } from '@/game/effects/LandingImpact';
+import { waysImmersiveConfig } from '@/game/effects/WaysImmersive';
 import { setWinTierGeometry } from '@/game/WinCelebration';
 import { BuildTopBar, BuildSlots } from '@/studio/BuildDock';
 import { isBareBuild, loadActiveGame } from '@/studio/buildPresets';
@@ -128,6 +129,12 @@ export function App() {
       landingImpactConfig.squashMul = 1.1;   // barely deepen the (already soft) squash
       landingImpactConfig.thudAmp = 6;       // per-stop board slam (default 2.2)
       landingImpactConfig.thudLastAmp = 11;  // final reel hits hardest (default 4)
+      // PAYLINES presentation: the ways-immersive leap/dance reads as a WAYS
+      // slot and (by design) suppresses the win-line comet + decoration.
+      // Off for Crack Farm → classic line look: cells pulse IN PLACE, the
+      // frames/dots decorate the line cells, and the ways-light comet shoots
+      // through each payline, line by line.
+      waysImmersiveConfig.enabled = false;
       // Scatter sack: 20% smaller than its default presence boost.
       SYMBOL_SIZE_MULS.set(1, 0.96);
       const cfSymbols = saved.symbols && Object.keys(saved.symbols).length

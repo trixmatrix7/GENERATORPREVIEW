@@ -77,26 +77,14 @@ export function evaluatePaylines(
     }
   }
 
-  // Lines: leftmost-consecutive, wilds substitute. Only rows that exist on
-  // this grid participate (a 5×5 board simply never selects rows 3/4 — the
-  // line set is a 5×3 design; Crack Farm is 5×3).
-  for (const line of PAYLINES_5x3) {
-    // Effective symbol = the first non-wild along the line (all-wild lines
-    // evaluate as HIGH_A, mirroring the engine's wild-as-HIGH_A rule).
-    let effective: number | null = null;
-    for (let reel = 0; reel < reelCount; reel++) {
-      const row = line[reel];
-      if (row >= visibleRows) { effective = null; break; }
-      const sym = board[row][reel];
-      if (sym === SymbolId.SCATTER) break; // scatter breaks a line match
-      if (sym !== SymbolId.WILD) { effective = sym; break; }
-      effective = SymbolId.HIGH_A; // provisional: all wilds so far
-    }
-    if (effective === null) continue;
+  // Lines: leftmost-consecutive, wilds substitute, and — the classic-slots
+  // convention (Book of Dead & family) — each line pays ONLY its HIGHEST
+  // interpretation: the wild-lead run evaluated as the substitute symbol
+  // AND as a pure wild run (wild pays as HIGH_A) are both scored, the
+  // higher one wins. Only rows that exist on this grid participate.
+  const scoreRun = (line: readonly number[], effective: number) => {
     const payEntry = payTable[effective];
-    if (!payEntry) continue;
-
-    // Count the leftmost run of effective-or-wild.
+    if (!payEntry) return null;
     let matchCount = 0;
     const cells: [number, number][] = [];
     for (let reel = 0; reel < reelCount; reel++) {
@@ -108,18 +96,43 @@ export function evaluatePaylines(
         cells.push([row, reel]);
       } else break;
     }
-    if (matchCount < MIN_MATCHING_REELS) continue;
-
+    if (matchCount < MIN_MATCHING_REELS) return null;
     const payIdx = Math.min(matchCount - MIN_MATCHING_REELS, 2) as 0 | 1 | 2;
     const payBps = payEntry[payIdx];
-    if (payBps === 0) continue;
+    if (payBps === 0) return null;
     const winAmount = (BigInt(payBps) * totalWager) / BigInt(BPS_DIVISOR);
-    if (winAmount === 0n) continue;
+    if (winAmount === 0n) return null;
+    return { symbolId: effective, matchCount, ways: 1, payBps, winAmount, cells };
+  };
 
-    totalWin += winAmount;
-    combinations.push({
-      symbolId: effective, matchCount, ways: 1, payBps, winAmount, cells,
-    });
+  for (const line of PAYLINES_5x3) {
+    // Substitute interpretation: first non-wild along the line.
+    let effective: number | null = null;
+    let sawWild = false;
+    for (let reel = 0; reel < reelCount; reel++) {
+      const row = line[reel];
+      if (row >= visibleRows) { effective = null; break; }
+      const sym = board[row][reel];
+      if (sym === SymbolId.SCATTER) break; // scatter breaks a line match
+      if (sym !== SymbolId.WILD) { effective = sym; break; }
+      sawWild = true;
+    }
+    const candidates: Array<NonNullable<ReturnType<typeof scoreRun>>> = [];
+    if (effective !== null && effective !== undefined) {
+      const c = scoreRun(line, effective);
+      if (c) candidates.push(c);
+    }
+    // Wild-lead interpretation: the pure wild run pays as HIGH_A (a shorter
+    // premium run can out-pay a longer low-symbol run — pay the higher).
+    if (sawWild) {
+      const c = scoreRun(line, SymbolId.HIGH_A);
+      if (c) candidates.push(c);
+    }
+    if (candidates.length === 0) continue;
+    candidates.sort((a, b) => (a.winAmount < b.winAmount ? 1 : a.winAmount > b.winAmount ? -1 : 0));
+    const best = candidates[0];
+    totalWin += best.winAmount;
+    combinations.push(best);
   }
 
   return {

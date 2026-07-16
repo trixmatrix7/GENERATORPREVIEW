@@ -1,7 +1,7 @@
 {
  "gridId": "5x3",
- "targetRtpPct": 93.5,
- "rtpBps": 9588,
+ "targetRtpPct": 94.0,
+ "rtpBps": 9556,
  "payModel": "lines",
  "paylines": [
   [
@@ -291,33 +291,33 @@
  "payTable": {
   "wild": [
    11133,
-   41747,
-   278314
+   41748,
+   278320
   ],
   "highA": [
    11133,
-   41747,
-   278314
+   41748,
+   278320
   ],
   "highB": [
-   8349,
-   27831,
-   139157
+   8350,
+   27832,
+   139160
   ],
   "midC": [
    5566,
    16699,
-   69578
+   69580
   ],
   "midD": [
    4175,
    13916,
-   55663
+   55664
   ],
   "lowE": [
    2783,
-   8349,
-   27831
+   8350,
+   27832
   ],
   "lowF": [
    2087,
@@ -332,8 +332,8 @@
  },
  "scatterPay": [
   13916,
-  41747,
-  139157
+  41748,
+  139160
  ],
  "freeSpinsCount": 8,
  "freeSpinsCap": 11,
@@ -346,28 +346,28 @@
   "roamingWildFrom3Scatters": true,
   "stickyPlantFrom4Scatters": true,
   "plantMultiIncrement": 1,
+  "plantMultiCap": 20,
+  "plantMultiMode": "crossing",
   "stickyTowerCap": 3,
   "stickyRoundSpins": 6,
   "stickyRoundCap": 11,
   "retriggerSpins": 3,
-  "notes": "PAYLINES model (10 lines, leftmost, wilds substitute; payBps = bps of total bet per line). 3sc: every FS spin ONE seed-derived wild-capable reel is fully wild (roaming plant). 4sc: wild-landing reels become permanent plant towers; shared multi starts 1x, +plantMultiIncrement per winning connection while a tower stands; tower-crossing line wins pay x multi. Fully wild reels contribute no scatters. Hard 5000x session cap.",
-  "plantMultiCap": 20,
-  "plantMultiMode": "crossing"
+  "notes": "PAYLINES model (10 lines, leftmost, wilds substitute; payBps = bps of total bet per line). 3sc: every FS spin ONE seed-derived wild-capable reel is fully wild (roaming plant). 4sc: wild-landing reels become permanent plant towers; shared multi starts 1x, +plantMultiIncrement per winning connection while a tower stands; tower-crossing line wins pay x multi. Fully wild reels contribute no scatters. Hard 5000x session cap. Line rule: each line pays only its HIGHEST interpretation (substitute vs wild-lead-as-highA)."
  },
  "simResults": {
-  "rtp_pct": 95.87860465666667,
-  "rtp_ci99_pp": 2.227420037868736,
-  "hit_freq_pct": 44.634616666666666,
-  "fs3_trigger_1_in": 41.01526451427673,
-  "fs4_trigger_1_in": 450.8566275924256,
-  "avg_fs3_round_x": 6.133963882641656,
-  "avg_fs4_round_x": 248.07491245115722,
-  "fs3_max_x": 77.789,
-  "fs4_max_x": 3761.2702,
+  "rtp_pct": 95.5604274575,
+  "rtp_ci99_pp": 2.7145066764232277,
+  "hit_freq_pct": 44.63575,
+  "fs3_trigger_1_in": 41.07703998849843,
+  "fs4_trigger_1_in": 452.3863379325944,
+  "avg_fs3_round_x": 6.126695727987841,
+  "avg_fs4_round_x": 247.6193533815879,
+  "fs3_max_x": 69.8583,
+  "fs4_max_x": 3730.6621,
   "fs3_ge_maxwin_pct": 0.0,
   "fs4_ge_maxwin_pct": 0.0,
-  "base_pct": 25.9002695,
-  "fs3_pct": 14.955319575,
-  "fs4_pct": 55.02301558166667
+  "base_pct": 25.9090349775,
+  "fs3_pct": 14.915134415,
+  "fs4_pct": 54.736258065
  }
 }

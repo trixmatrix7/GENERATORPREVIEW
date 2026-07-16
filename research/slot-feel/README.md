@@ -32,3 +32,4 @@ sources. Estimates are marked as estimates.
 | 07-gap-analysis-our-games.md | Prioritized action list for Vice Heat + Crack Farm |
 | 08-paylines-systems.md | PAYLINE slots (5×3 focus): drop rhythm, line presentation |
 | 09-ways-systems.md | WAYS slots: drop rhythm, win read without lines |
+| 10-symbol-states.md | Symbol animation STATES: canonical set + simple recipes |

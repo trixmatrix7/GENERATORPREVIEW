@@ -147,6 +147,9 @@ export function App() {
       // keeps a clean static look, the 1:1 wild drops the fallback idle breath.
       STATIC_LOOK_SYMBOLS.add(1);
       NO_IDLE_SYMBOLS.add(0);
+      // The FARMER mascot idles beside the barn — feet on the frame's bottom
+      // edge, right of the machine (96f seamless loop @12fps, magenta-keyed).
+      void pixiAppRef.setSideCharacter(`${CRACKFARM.base}farmer_idle.webp`, 8, 12, 96, 12, 0.52);
       // The tall 1×3 mutant plant fills a reel on expansion — and it GROWS:
       // the wild slides down to the reel floor and the plant rises out of it.
       pixiAppRef.setExpandGrowth('bottom-up');
@@ -395,6 +398,24 @@ export function App() {
       onNearMissTease: reelIdx => soundManager.play('near-miss-tease', {
         rate: 1 + 0.08 * reelIdx,
       }),
+      // ANTICIPATION RISER (05 §risers): the tease engages → music ducks,
+      // the riser swells. Two authored endings: HIT → riser out fast (the
+      // scatter stinger + FS flow take over, music unducks with the iris);
+      // MISS → the riser must NOT resolve: cut + dead-stop thud + ~600ms of
+      // near-silence, THEN the music fades back. The silence IS the punch.
+      onTeaseStart: () => {
+        soundManager.duck('ambient-music', 250);
+        soundManager.play('tease-riser');
+      },
+      onTeaseEnd: hit => {
+        soundManager.fadeStop('tease-riser', hit ? 180 : 90);
+        if (hit) {
+          soundManager.unduck('ambient-music', 500);
+        } else {
+          soundManager.play('tease-miss');
+          window.setTimeout(() => soundManager.unduck('ambient-music', 900), 650);
+        }
+      },
       // Rising tally: each connection's chime pitches a step higher — the
       // classic count-up ladder instead of a flat repeated tick.
       onWinStep: (index) => soundManager.play('coin-chime', { rate: 1 + Math.min(index, 8) * 0.09 }),

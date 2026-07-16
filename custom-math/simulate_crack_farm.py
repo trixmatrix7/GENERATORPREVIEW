@@ -71,18 +71,9 @@ def eval_lines(board, pays, scat, towers=None):
     line_wins = []
     if scatters >= 3:
         win += scat[min(scatters, 5) - 3]
-    for line in PAYLINES:
-        eff = None
-        for reel in range(REELS):
-            sym = board[line[reel]][reel]
-            if sym == SC:
-                break
-            if sym != W:
-                eff = sym
-                break
-            eff = 2  # all-wild -> highA
-        if eff is None or eff not in pays:
-            continue
+    def score_run(line, eff):
+        if eff not in pays:
+            return None
         n = 0
         crosses = False
         for reel in range(REELS):
@@ -93,10 +84,36 @@ def eval_lines(board, pays, scat, towers=None):
                     crosses = True
             else:
                 break
-        if n >= 3:
-            win_line = pays[eff][n - 3]
-            line_wins.append((win_line, crosses))
-            win += win_line
+        if n < 3:
+            return None
+        return (pays[eff][n - 3], crosses)
+
+    for line in PAYLINES:
+        # Classic-slots rule (mirrors src/game/paylineEval.ts): score BOTH the
+        # substitute interpretation (first non-wild) and the wild-lead run
+        # (wild pays as highA); the line pays only its HIGHER interpretation.
+        eff = None
+        saw_wild = False
+        for reel in range(REELS):
+            sym = board[line[reel]][reel]
+            if sym == SC:
+                break
+            if sym != W:
+                eff = sym
+                break
+            saw_wild = True
+        cands = []
+        if eff is not None:
+            c = score_run(line, eff)
+            if c: cands.append(c)
+        if saw_wild:
+            c = score_run(line, 2)
+            if c: cands.append(c)
+        if not cands:
+            continue
+        best = max(cands, key=lambda c: c[0])
+        line_wins.append(best)
+        win += best[0]
     return win, scatters, line_wins
 
 

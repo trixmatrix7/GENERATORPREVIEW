@@ -564,6 +564,8 @@ export class PixiApp {
     // hang OUTSIDE the machine box — include that overhang so it never clips.
     const ovL = compact ? 0 : this.frameArtOvL;
     const ovR = compact ? 0 : this.frameArtOvR;
+    // Side character stands beside the machine — no room on compact.
+    if (this.sideCharSprite) this.sideCharSprite.visible = !compact;
     const margin = compact ? 8 : SCENE_MARGIN;
     const availW = width - margin * 2;
     const availH = height - margin * 2;
@@ -1178,6 +1180,57 @@ export class PixiApp {
     }
     if (oldF) for (const set of oldF) for (const f of set) { try { f.destroy(false); } catch { /* torn down */ } }
     if (oldS) for (const s of oldS) { try { s.destroy(true); } catch { /* torn down */ } }
+  }
+
+  /** SIDE CHARACTER: a looping idle spritesheet standing BESIDE the machine —
+   *  feet on the frame's bottom edge, right of the frame (theme mascot, e.g.
+   *  the Crack Farm farmer). Lives in gameContainer so it rides the machine's
+   *  layout/scale; hidden on compact (phone) where the sides are off-canvas.
+   *  Pass url=null to clear. */
+  private sideCharSprite: Sprite | null = null;
+  private sideCharTween: gsap.core.Tween | null = null;
+  private sideCharSheet: Texture | null = null;
+  private sideCharFrames: Texture[] | null = null;
+
+  async setSideCharacter(url: string | null, cols: number, rows: number, count: number, fps = 12, heightFrac = 0.5): Promise<void> {
+    if (!this._initialized || this._aborted) return;
+    // clear previous
+    if (this.sideCharTween) { this.sideCharTween.kill(); this.sideCharTween = null; }
+    if (this.sideCharSprite) { this.sideCharSprite.parent?.removeChild(this.sideCharSprite); try { this.sideCharSprite.destroy(); } catch { /* torn down */ } this.sideCharSprite = null; }
+    if (this.sideCharFrames) { for (const f of this.sideCharFrames) { try { f.destroy(false); } catch { /* torn down */ } } this.sideCharFrames = null; }
+    if (this.sideCharSheet) { try { this.sideCharSheet.destroy(true); } catch { /* torn down */ } this.sideCharSheet = null; }
+    if (!url) return;
+    try {
+      const sheet = await Assets.load<Texture>(url);
+      if (this._aborted) return;
+      const fw = sheet.width / cols, fh = sheet.height / rows;
+      const frames: Texture[] = [];
+      for (let i = 0; i < count; i++) {
+        frames.push(new Texture({ source: sheet.source, frame: new Rectangle((i % cols) * fw, Math.floor(i / cols) * fh, fw, fh) }));
+      }
+      this.sideCharSheet = sheet;
+      this.sideCharFrames = frames;
+      const rw = this.reelSet.totalWidth + FRAME_PAD * 2;
+      const rh = this.reelSet.totalHeight + FRAME_PAD * 2;
+      const t0 = frames[0];
+      const targetH = rh * heightFrac;
+      const spr = new Sprite(t0);
+      spr.anchor.set(0.5, 1);              // feet anchor
+      spr.scale.set(targetH / t0.height);
+      // Right beside the frame, feet exactly on the frame's bottom edge.
+      spr.position.set(rw + 8 + (t0.width * spr.scale.x) / 2, rh);
+      spr.eventMode = 'none';
+      spr.visible = this.app.screen.width >= 520; // compact: sides off-canvas
+      this.gameContainer.addChild(spr);
+      this.sideCharSprite = spr;
+      const proxy = { f: 0 };
+      this.sideCharTween = gsap.to(proxy, {
+        f: count - 1, duration: count / Math.max(1, fps), ease: 'none', repeat: -1,
+        onUpdate: () => { if (!spr.destroyed) spr.texture = frames[Math.round(proxy.f) % frames.length]; },
+      });
+    } catch (err) {
+      console.warn('[PixiApp] failed to load side character:', err);
+    }
   }
 
   /** Per-symbol WIN animation spritesheet: while that symbol's cell is in the

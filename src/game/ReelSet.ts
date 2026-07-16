@@ -76,6 +76,12 @@ interface NearMiss {
 export interface ReelSetAudioHooks {
   onReelStopped?: (reelIdx: number) => void;
   onScatterLanded?: (reelIdx: number) => void;
+  /** The TEASE engages (2nd visible scatter, gates arming) — start the riser
+   *  + duck the music. */
+  onTeaseStart?: () => void;
+  /** The tease resolves: hit=true → 3+ scatters (FS flow takes over); miss →
+   *  the riser must NOT resolve (cut + thud + near-silence beat). */
+  onTeaseEnd?: (hit: boolean) => void;
   /** A money wild is visible on this stopped reel (cash-drop foley). */
   onWildLanded?: (reelIdx: number) => void;
   /** An expanding-wild reveal just started racing up this reel — the sound's
@@ -170,6 +176,9 @@ export class ReelSet {
    *  stop cycle and restored on completion AND interrupt (no drift). */
   private thudTween: gsap.core.Timeline | null = null;
   private thudBaseY: number | null = null;
+  /** True while the tease riser audio is live (guards the end hook so a
+   *  skip outside a tease never fires the miss-thud). */
+  private teaseAudioOn = false;
 
   constructor(
     atlases: SymbolAtlasMap,
@@ -1070,7 +1079,9 @@ export class ReelSet {
             landedScatterReels++;
             if (landedScatterReels === 2 && !fast) {
               teaseZoomOn = true;
+              this.teaseAudioOn = true;
               this.cameraHooks?.zoomStep(0);
+              this.audioHooks.onTeaseStart?.(); // riser in, music ducks
             }
             if (nearMiss && landedScatterReels === 2 && nearMiss.teasedReels.length > 0) {
               this.teasePendingReel(nearMiss.teasedReels[0], 0);
@@ -1118,6 +1129,10 @@ export class ReelSet {
         if (this.reelHasVisibleScatter(r, stops[r])) sc++;
       }
       this.cameraHooks?.release(sc >= 3);
+      if (this.teaseAudioOn) {
+        this.teaseAudioOn = false;
+        this.audioHooks.onTeaseEnd?.(sc >= 3); // hit: FS flow; miss: thud + silence
+      }
     }
 
     // Hold the featured glow briefly after the last teased reel lands so
@@ -1141,6 +1156,10 @@ export class ReelSet {
     this.killThud();
     this.clearTeaseGlow();
     this.cameraHooks?.release(false); // any tease zoom bounces back out
+    if (this.teaseAudioOn) {
+      this.teaseAudioOn = false;
+      this.audioHooks.onTeaseEnd?.(false); // kill a mid-flight riser cleanly
+    }
     for (const reel of this.reels) reel.cancelSpin();
   }
 

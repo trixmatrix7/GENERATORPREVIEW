@@ -1,0 +1,117 @@
+{
+  "id": "win-marquees",
+  "name": "Tiered Win Marquee",
+  "version": "1.0.0",
+  "universal": true,
+  "themeNeutral": true,
+  "summary": "Layered full-screen celebration overlay (BIG/MEGA/EPIC/MAX + WIN + number plate) that slams in on big wins and escalates its tier live while a single hero counter rolls up. Owns an exclusive, theme-neutral music track that ducks ambient, plus a coin-rain overlay behind it.",
+  "implementation": {
+    "class": "src/game/WinCelebration.ts",
+    "config": "WIN_CELEBRATION_CONFIG",
+    "tierResolver": "src/game/PixiApp.ts#playCoinWin",
+    "hostWiring": ["setWinTierImages", "setWinCoinRain", "setMarqueeSoundHooks"]
+  },
+  "trigger": {
+    "metric": "winMultiplier",
+    "formula": "totalWin / wager",
+    "minMultiplier": 15,
+    "note": "Below minMultiplier no marquee plays; the win presents on-board only. MAX is gated on the game's max-win cap, not a band."
+  },
+  "tiers": [
+    { "index": 0, "id": "big",  "word": "BIG WIN",  "minMultiplier": 15,  "maxMultiplier": 25,   "countDurSec": 2.6, "holdDurSec": 1.0, "tierScale": 1.00, "shakePx": 0,  "shakeRot": 0.000, "art": "big.png" },
+    { "index": 1, "id": "mega", "word": "MEGA WIN", "minMultiplier": 25,  "maxMultiplier": 100,  "countDurSec": 3.6, "holdDurSec": 1.2, "tierScale": 1.16, "shakePx": 5,  "shakeRot": 0.006, "art": "mega.png" },
+    { "index": 2, "id": "epic", "word": "EPIC WIN", "minMultiplier": 100, "maxMultiplier": "maxWinMultiplier", "countDurSec": 4.6, "holdDurSec": 1.4, "tierScale": 1.34, "shakePx": 8,  "shakeRot": 0.010, "art": "epic.png" },
+    { "index": 3, "id": "max",  "word": "MAX WIN",  "gate": "win >= maxWinMultiplier * 0.999", "countDurSec": 5.6, "holdDurSec": 1.8, "tierScale": 1.60, "shakePx": 12, "shakeRot": 0.016, "art": "max.png" }
+  ],
+  "maxTierCap": { "fromConfig": "maxWinMultiplier", "default": 5000, "epsilon": 0.999 },
+  "bands": { "mega": 25, "epic": 100 },
+  "livePromotion": {
+    "driver": "single count-up counter (0 -> winAmount)",
+    "valueThresholds": ["0", "wager*25", "wager*100"],
+    "capTier": 2,
+    "maxAfterCountBeatSec": 0.18,
+    "note": "MEGA/EPIC promote live as the counter crosses thresholds; MAX only switches in 0.18s AFTER the count finishes."
+  },
+  "config": {
+    "minBigWin": 15,
+    "bands": { "mega": 25, "epic": 100 },
+    "words": ["BIG WIN", "MEGA WIN", "EPIC WIN", "MAX WIN"],
+    "countDur": [2.6, 3.6, 4.6, 5.6],
+    "holdDur": [1.0, 1.2, 1.4, 1.8],
+    "wordFontSize": [46, 52, 58, 64],
+    "amountFontSize": [46, 50, 54, 58],
+    "shake": [0, 5, 8, 12],
+    "shakeRot": [0, 0.006, 0.01, 0.016],
+    "sizeMul": 0.48,
+    "tierScale": [1.0, 1.16, 1.34, 1.6],
+    "pulseAmp": 0.03
+  },
+  "art": {
+    "dir": "theme/win-tiers/",
+    "canvas": { "w": 1920, "h": 1080 },
+    "aligned": true,
+    "layers": {
+      "big": "big.png", "mega": "mega.png", "epic": "epic.png",
+      "max": "max.png", "win": "win.png", "plate": "plate.png"
+    },
+    "contentCyByTier": { "big": 0.2273, "mega": 0.2463, "epic": 0.2495, "max": 0.2269 },
+    "winCy": 0.4875,
+    "plateCy": 0.7681,
+    "plateH": 0.374,
+    "contentFrac": 0.911,
+    "contentCy": 0.4995,
+    "onScreenSize": "contentHeight = min(screenW, screenH) * 0.55 * sizeMul",
+    "fallback": "baked foil wordmark from words[] when no art is loaded"
+  },
+  "timeline": {
+    "stampLandSec": 0.26,
+    "countStartSec": 0.56,
+    "entrance": { "scaleFrom": 1.7, "wordFadeSec": 0.18, "landingFlashSec": 0.30, "pulseKickOnLand": 0.4 },
+    "promotion": { "oldWordFlashSec": 0.28, "pulseKick": 0.5, "marqueeStepSec": 0.42, "ease": "back.out(2.8)" },
+    "exitStaggerSec": { "plateAndAmount": 0.40, "winBand": 0.42, "tierWord": 0.45, "coinRain": 0.55, "marqueeDrift": 0.60 },
+    "skipFadeSec": 0.26,
+    "reducedMotion": { "holdSec": 1.2, "fadeSec": 0.3, "coinRain": false, "pulse": false }
+  },
+  "sound": {
+    "event": "win-marquee",
+    "file": "audio/win-marquee.ogg",
+    "formatOrder": ["ogg", "mp3"],
+    "volume": 0.95,
+    "loop": false,
+    "exclusive": true,
+    "ducksAmbient": true,
+    "themeNeutral": true,
+    "description": "Neutral orchestral fanfare, one 5-note hook. Starts on marquee slam-in, ends with the marquee.",
+    "startHook": { "play": "win-marquee", "duckAmbientMs": 300 },
+    "exitHook": {
+      "fadeStopMs": { "smooth": 900, "skip": 260 },
+      "unduckAmbientMs": { "smooth": 700, "skip": 400 }
+    },
+    "silencesWhileActive": ["win-small", "win-normal", "win-big", "win-mega", "coin-chime"]
+  },
+  "coinRain": {
+    "sheets": [
+      "theme/win-tiers/coinrain3_0.webp",
+      "theme/win-tiers/coinrain3_1.webp",
+      "theme/win-tiers/coinrain3_2.webp"
+    ],
+    "cols": 10,
+    "rows": 10,
+    "count": 300,
+    "fps": 45,
+    "framesPerSheet": 100,
+    "renderOrder": "behind marquee",
+    "coverFit": true,
+    "fadeInSec": 0.35,
+    "fadeOutSec": 0.55,
+    "disabledUnderReducedMotion": true,
+    "chromaKeyedOffline": { "color": "#00D300", "keySim": 0.13 }
+  },
+  "hostApi": {
+    "setWinTierImages": "({ big, mega, epic, max, win, plate } | null)",
+    "setWinCoinRain": "(urls[] | null, cols, rows, count, fps=30)",
+    "setMarqueeSoundHooks": "(onStart | null, onExit(smooth) | null)",
+    "play": "({ winAmount, wager, symbol, decimals, tier, centre, origins, bounds?, reduced }) => Promise<void>",
+    "skip": "() => void"
+  }
+}

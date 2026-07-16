@@ -16,3 +16,5 @@ npm-debug.log*
 
 # dev generator source (reference only — not part of the preview app)
 /devgen
+custom-math/__pycache__/
+dev-handoff.zip

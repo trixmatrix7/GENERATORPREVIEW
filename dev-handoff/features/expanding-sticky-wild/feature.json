@@ -1,0 +1,46 @@
+{
+  "id": "expanding-sticky-wild",
+  "title": "Expanding Sticky Wild",
+  "type": "reveal-effect",
+  "themeAgnostic": true,
+  "extends": "expanding-wild",
+  "summary": "Sticky variant of expanding-wild: an expanded reel stays fully wild for the rest of the free-spins round; towers accumulate up to a cap. Visuals, opening effect and sounds are identical to expanding-wild.",
+  "sharedWithBase": {
+    "image": "see expanding-wild.feature.json (one tall columnArt, width-fit 0.98, top-anchored, bottom-crops)",
+    "openEffect": "identical (expandOneWildReel) — tClear 0.32s, tRace 0.40s, race 0.46s expo.inOut, lock squash 0.08s + settle 0.55s elastic.out(1,0.4), impact flash, board slam, reel shine, idle breath",
+    "gridDims": { "5x5": [120, 580], "5x3": [120, 348] }
+  },
+  "trigger": {
+    "when": "free-spins-trigger-board-scatter-count",
+    "triggerScatterCount": 4,
+    "comparator": ">=",
+    "scope": ["free-spins-sticky-tier"]
+  },
+  "sticky": {
+    "stickyTowerCap": 3,
+    "joinOrder": "leftmost-first",
+    "accumulation": "organic-per-spin",
+    "newTowerCondition": "wild-naturally-in-settled-window",
+    "towerLifetime": "rest-of-round",
+    "rollsOnlyUncoveredReels": true,
+    "perSpinExpansionForNonStickyReels": false,
+    "returnsAllExpandedReels": true
+  },
+  "round": {
+    "stickyRoundSpins": 10,
+    "stickyRoundCap": 13,
+    "retriggerSpins": 3,
+    "retriggerScatterCount": 3,
+    "maxRetriggers": 1
+  },
+  "multipliers": {
+    "stickyFullBoardMultiplier": 1,
+    "stickyFullBoardMultiplierEnabled": false,
+    "appliesWhen": "all stickyTowerCap towers stand simultaneously",
+    "note": "Field retained in contract; set to 1 (off) because the 10-spin round forms the full board too often — a >1 value pushes RTP past 105%."
+  },
+  "sounds": {
+    "onLand": "wild-land",
+    "onExpand": "wild-expand"
+  }
+}

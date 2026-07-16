@@ -1,0 +1,59 @@
+{
+  "id": "expanding-wild",
+  "title": "Expanding Wild",
+  "type": "reveal-effect",
+  "themeAgnostic": true,
+  "summary": "A landed WILD fills its entire reel column with a single tall image before ways/lines evaluation. Purely presentational; the math layer overwrites the reel to all-WILD in parallel.",
+  "trigger": {
+    "when": "wild-visible-in-reel-window",
+    "gate": "reelHasVisibleWild",
+    "scope": ["free-spins-3scatter", "hot-spin"],
+    "evaluatesBeforeWaysEval": true,
+    "sequential": true,
+    "excludesReelsWithoutWildOnStrip": true
+  },
+  "image": {
+    "field": "columnArt",
+    "value": null,
+    "accepts": "png|webp, RGBA, single tall column icon",
+    "reference": { "file": "wild_column.webp", "px": [372, 1904], "aspect": "1:5.12" },
+    "fit": {
+      "rule": "uniform-scale, width-to-reel-column, top-anchored, center-x, bottom-crops",
+      "widthFitFactor": 0.98,
+      "anchor": "top-center",
+      "scaleFormula": "(reelColumnWidth * 0.98) / sourceImageWidth",
+      "headSafeRegion": "top"
+    },
+    "recommendedSource": {
+      "5x5": { "reelColumnPx": [120, 580], "aspect": "1:4.83", "authorPx": [372, 1800] },
+      "5x3": { "reelColumnPx": [120, 348], "aspect": "1:2.9",  "authorPx": [372, 1080] }
+    },
+    "fallback": "flat white panel when null"
+  },
+  "gridDims": {
+    "5x5": { "reelCount": 5, "visibleRows": 5, "cellPx": [120, 110], "reelColumnPx": [120, 580] },
+    "5x3": { "reelCount": 5, "visibleRows": 3, "cellPx": [120, 110], "reelColumnPx": [120, 348] }
+  },
+  "openEffect": {
+    "turboSpeed": 0.6,
+    "cornerRadiusPx": 14,
+    "phases": {
+      "tClearSec": 0.32,
+      "tRaceSec": 0.40,
+      "tLockSec": 0.86
+    },
+    "land": { "popScale": [0, 1.18, 1.0], "popEase": ["power1.out", "back.out(3)", "power2.out"], "popDursSec": [0.12, 0.16, 0.18] },
+    "clearBeat": { "alpha": [0, 1], "durSec": 0.12, "ease": "power2.out" },
+    "race": { "maskGrow": "from-landing-cell-both-directions", "durSec": 0.46, "ease": "expo.inOut" },
+    "lockSquash": { "yOffsetPx": 6, "scaleY": 0.972, "durSec": 0.08, "ease": "power3.out" },
+    "lockSettle": { "durSec": 0.55, "ease": "elastic.out(1, 0.4)" },
+    "impactFlash": { "alpha": [0, 0.7, 0], "durSec": [0.05, 0.26], "blend": "add" },
+    "boardSlam": "playLandingThud(lastReel)",
+    "shineBorder": "reel-sized, at lock-in",
+    "idleBreath": { "scaleY": 1.007, "periodYSec": 1.7, "scaleX": 1.004, "periodXSec": 2.45, "ease": "sine.inOut", "randomPhase": true }
+  },
+  "sounds": {
+    "onLand": "wild-land",
+    "onExpand": "wild-expand"
+  }
+}

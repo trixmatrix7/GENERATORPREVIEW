@@ -1,0 +1,94 @@
+{
+  "formatVersion": 2,
+  "kind": "chainwtf-game-preset",
+  "name": "Vice Heat",
+  "exportedAt": "2026-07-16",
+  "note": "Drop dev-handoff/assets/* into the generator's public/ (audio -> public/audio, theme -> public/theme), then load this preset. Every path below is public-relative. Custom intro screens + spritesheets are the Vice Heat reference skin; swap them per ASSET_SPECS.md to reskin. Features + flow are theme-agnostic (see features/ and FLOW.md).",
+
+  "grid": { "id": "5x5", "columns": 5, "visibleRows": 5, "cell": { "w": 120, "h": 110 }, "framePad": 28, "headerH": 52, "alt": { "id": "5x3", "visibleRows": 3 } },
+
+  "math": {
+    "profileId": "vice-heat-custom",
+    "manifest": "math/vice_heat_expanding.json",
+    "verification": "math/RTP_VERIFICATION.md",
+    "certified": {
+      "rtpPct": 96.0,
+      "rtpNote": "12M cert 95.99%, 4-seed 20M mean 96.5% ±0.6, alt-seed 93.3%; house-positive",
+      "hitFreqPct": 69.3,
+      "maxWinMultiplier": 5000,
+      "payFloorBps": 768,
+      "payFloorNote": "0.077x bet = $0.02 on a $0.20 spin (dropped from 0.10x to fit 10-spin rounds without RTP>100%)",
+      "freeSpins": { "sc3Spins": 7, "sc3Cap": 10, "sc4StickySpins": 10, "sc4Cap": 13, "retriggerSpins": 3, "stickyTowerCap": 3, "stickyFullBoardMultiplier": 1, "simulExpandMultipliers": { "3": 2, "4": 10 }, "hotSpinChance1In": 80 }
+    }
+  },
+
+  "assets": {
+    "title": "theme/vice/logo.webp",
+    "background": { "static": "theme/vice/bg_motel.webp", "loop": { "sheets": ["theme/vice/bg_motel_anim_1.webp", "theme/vice/bg_motel_anim_2.webp", "theme/vice/bg_motel_anim_3.webp"], "cols": 4, "rows": 4, "count": 45, "fps": 6, "frame": { "w": 832, "h": 468 } } },
+    "fsBackground": { "static": "theme/vice/fsbg_beachclub.webp", "loop": { "sheets": ["theme/vice/fsbg_beachclub_anim_1.webp", "theme/vice/fsbg_beachclub_anim_2.webp", "theme/vice/fsbg_beachclub_anim_3.webp"], "cols": 4, "rows": 4, "count": 48, "fps": 6, "frame": { "w": 832, "h": 468 } } },
+    "frame": { "file": "theme/vice/frame_neon.webp", "window": "auto", "windowDefault": { "x": 197, "y": 314, "w": 832, "h": 832 } },
+    "frameWinFlash": { "file": "theme/vice/frame_win_flash_1.webp", "cols": 8, "rows": 6, "count": 48, "fps": 12, "region": { "x": 1025, "y": 225, "w": 475, "h": 1062.5 } },
+    "symbols": {
+      "0-wild": "theme/vice/symbol_wild_landing.png",
+      "1-scatter": "theme/vice/symbol_scatter_landing.png",
+      "2-highA": "theme/vice/symbol_high_a_landing.png",
+      "3-highB": "theme/vice/symbol_high_b_landing.png",
+      "4-midC": "theme/vice/symbol_mid_c_landing.png",
+      "5-midD": "theme/vice/symbol_mid_d_landing.png",
+      "6-lowE": "theme/vice/symbol_low_e_landing.png",
+      "7-lowF": "theme/vice/symbol_low_f_landing.png",
+      "8-lowG": "theme/vice/symbol_low_g_landing.png",
+      "spec": "512x512 RGBA centred icon; scales into the 120x110 cell at the 'large' preset"
+    },
+    "expandingWild": { "file": "theme/vice/wild_column.webp", "srcPx": { "w": 372, "h": 1904 }, "columnFit": { "5x5": { "w": 120, "h": 580 }, "5x3": { "w": 120, "h": 348 } } },
+    "winSheets": {
+      "1-scatter": { "file": "theme/vice/scatterwin.webp", "cols": 8, "rows": 9, "count": 67, "fps": 15, "frame": { "w": 256, "h": 256 } },
+      "2-highA": { "file": "theme/vice/prem_a_win.webp", "cols": 7, "rows": 7, "count": 48, "fps": 12, "frame": { "w": 256, "h": 256 } },
+      "3-highB": { "file": "theme/vice/prem_b_win.webp", "cols": 7, "rows": 7, "count": 48, "fps": 12, "frame": { "w": 256, "h": 256 } },
+      "4-midC": { "file": "theme/vice/car_win.webp", "cols": 7, "rows": 7, "count": 48, "fps": 12, "frame": { "w": 256, "h": 256 } },
+      "5-midD": { "file": "theme/vice/koffer_win.webp", "cols": 7, "rows": 7, "count": 48, "fps": 12, "frame": { "w": 256, "h": 256 } }
+    },
+    "idleSheets": { "1-scatter": { "file": "theme/vice/scatteridle.webp", "cols": 10, "rows": 9, "count": 90, "fps": 10, "frame": { "w": 256, "h": 256 } } },
+    "staticLookSymbols": [1],
+    "noIdleSymbols": [0],
+    "winTiers": { "dir": "theme/win-tiers/", "layers": ["big", "mega", "epic", "max", "win", "plate"] },
+    "coinRain": { "sheets": ["theme/win-tiers/coinrain3_0.webp", "theme/win-tiers/coinrain3_1.webp", "theme/win-tiers/coinrain3_2.webp"], "cols": 10, "rows": 10, "count": 300, "fps": 45 },
+    "introLayers": "theme/vice/intro/  (see flow/intro-screens/README.md + src introLayers.json copy at assets/introLayers.json)"
+  },
+
+  "audio": {
+    "dir": "audio/",
+    "format": "ogg",
+    "oggFirst": true,
+    "marqueeDucksAmbient": true,
+    "events": {
+      "ambient-music":     { "vol": 0.35, "loop": true,  "exclusive": true },
+      "win-marquee":       { "vol": 0.95, "loop": false, "exclusive": true, "note": "starts+ends with the marquee, fast-fades on skip, ducks ambient" },
+      "spin-start":        { "vol": 0.78 },
+      "reel-stop":         { "vol": 0.58, "note": "fires 5x/spin on the stop stagger" },
+      "coin-chime":        { "vol": 0.5,  "note": "connection swish on the rising win tally" },
+      "scatter-land":      { "vol": 0.8 },
+      "wild-land":         { "vol": 0.8,  "note": "cash-bundle money drop" },
+      "wild-expand":       { "vol": 0.85, "note": "bill-riffle riser + slam on tower expand" },
+      "free-spin-trigger": { "vol": 1.0 },
+      "near-miss-tease":   { "vol": 0.4 }
+    },
+    "disabled": {
+      "note": "connection-win stingers (win-small/normal/big/mega) are OFF pending non-synthetic drops; reel-spin-loop is OFF. Not shipped in this pack.",
+      "events": ["win-small", "win-normal", "win-big", "win-mega", "reel-spin-loop"]
+    }
+  },
+
+  "features": {
+    "expanding-wild":        { "doc": "features/expanding-wild/", "on": true },
+    "expanding-sticky-wild": { "doc": "features/expanding-sticky-wild/", "on": true, "note": "4+ scatter rounds; towers stay wild for the round" },
+    "win-marquees":          { "doc": "features/win-marquees/", "on": true, "universal": true },
+    "coin-rain":             { "doc": "features/coin-rain/", "on": true },
+    "tease-camera":          { "doc": "features/tease-camera/", "on": true, "povDolly": { "base": 1.06, "perStep": 0.05 } },
+    "frame-win-flash":       { "doc": "features/frame-win-flash/", "on": true, "trigger": "3rd scatter lands" },
+    "symbol-sheets":         { "doc": "features/symbol-sheets/", "on": true },
+    "boot-loader":           { "doc": "features/boot-loader/", "on": true, "insideIframe": true }
+  },
+
+  "flow": "See FLOW.md for the ordered pipeline: boot -> game intro -> base -> tease -> FS intro -> FS round -> win marquees -> TOTAL WIN outro -> base. Control bar is HIDDEN during game intro, FS intro, and outro."
+}

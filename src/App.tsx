@@ -150,6 +150,12 @@ export function App() {
       // The FARMER mascot idles beside the barn — feet on the frame's bottom
       // edge, right of the machine (96f seamless loop @12fps, magenta-keyed).
       void pixiAppRef.setSideCharacter(`${CRACKFARM.base}farmer_idle.webp`, 8, 12, 96, 12, 0.52);
+      // The FLYING PIG hovers LEFT of the frame at ~2/3 height (static art
+      // with a hover bob for now — swaps to the idle sheet when it arrives:
+      // just pass cols/rows/count/fps in the opts).
+      void pixiAppRef.setSideMascot(`${CRACKFARM.base}pig_mascot.png`, {
+        side: 'left', centerYFrac: 0.33, heightFrac: 0.3,
+      });
       // The tall 1×3 mutant plant fills a reel on expansion — and it GROWS:
       // the wild slides down to the reel floor and the plant rises out of it.
       pixiAppRef.setExpandGrowth('bottom-up');

@@ -564,8 +564,9 @@ export class PixiApp {
     // hang OUTSIDE the machine box — include that overhang so it never clips.
     const ovL = compact ? 0 : this.frameArtOvL;
     const ovR = compact ? 0 : this.frameArtOvR;
-    // Side character stands beside the machine — no room on compact.
+    // Side character + mascot stand beside the machine — no room on compact.
     if (this.sideCharSprite) this.sideCharSprite.visible = !compact;
+    if (this.mascotSprite) this.mascotSprite.visible = !compact;
     const margin = compact ? 8 : SCENE_MARGIN;
     const availW = width - margin * 2;
     const availH = height - margin * 2;
@@ -1230,6 +1231,74 @@ export class PixiApp {
       });
     } catch (err) {
       console.warn('[PixiApp] failed to load side character:', err);
+    }
+  }
+
+  /** SIDE MASCOT: a floating companion BESIDE the machine (e.g. the Crack
+   *  Farm flying pig, left of the frame at ~2/3 height). Static PNG with a
+   *  gentle hover bob — or, once sheet geometry is passed, a looping
+   *  spritesheet (drop-in upgrade when the pig sheet arrives). */
+  private mascotSprite: Sprite | null = null;
+  private mascotTweens: gsap.core.Tween[] = [];
+  private mascotSheet: Texture | null = null;
+  private mascotFrames: Texture[] | null = null;
+
+  async setSideMascot(url: string | null, opts: {
+    cols?: number; rows?: number; count?: number; fps?: number;
+    side?: 'left' | 'right'; centerYFrac?: number; heightFrac?: number;
+  } = {}): Promise<void> {
+    if (!this._initialized || this._aborted) return;
+    for (const t of this.mascotTweens) t.kill();
+    this.mascotTweens = [];
+    if (this.mascotSprite) { this.mascotSprite.parent?.removeChild(this.mascotSprite); try { this.mascotSprite.destroy(); } catch { /* torn down */ } this.mascotSprite = null; }
+    if (this.mascotFrames) { for (const f of this.mascotFrames) { try { f.destroy(false); } catch { /* torn down */ } } this.mascotFrames = null; }
+    if (this.mascotSheet) { try { this.mascotSheet.destroy(true); } catch { /* torn down */ } this.mascotSheet = null; }
+    if (!url) return;
+    try {
+      const tex = await Assets.load<Texture>(url);
+      if (this._aborted) return;
+      const { cols, rows, count, fps = 12, side = 'left', centerYFrac = 0.33, heightFrac = 0.3 } = opts;
+      let firstTex = tex;
+      if (cols && rows && count) {
+        const fw = tex.width / cols, fh = tex.height / rows;
+        const frames: Texture[] = [];
+        for (let i = 0; i < count; i++) {
+          frames.push(new Texture({ source: tex.source, frame: new Rectangle((i % cols) * fw, Math.floor(i / cols) * fh, fw, fh) }));
+        }
+        this.mascotSheet = tex;
+        this.mascotFrames = frames;
+        firstTex = frames[0];
+      }
+      const rw = this.reelSet.totalWidth + FRAME_PAD * 2;
+      const rh = this.reelSet.totalHeight + FRAME_PAD * 2;
+      const spr = new Sprite(firstTex);
+      spr.anchor.set(0.5);
+      const targetH = rh * heightFrac;
+      spr.scale.set(targetH / firstTex.height);
+      const halfW = (firstTex.width * spr.scale.x) / 2;
+      const x = side === 'left' ? -(8 + halfW) : rw + 8 + halfW;
+      const y = rh * centerYFrac;
+      spr.position.set(x, y);
+      spr.eventMode = 'none';
+      spr.visible = this.app.screen.width >= 520;
+      this.gameContainer.addChild(spr);
+      this.mascotSprite = spr;
+      if (this.mascotFrames) {
+        const proxy = { f: 0 };
+        this.mascotTweens.push(gsap.to(proxy, {
+          f: this.mascotFrames.length - 1, duration: this.mascotFrames.length / Math.max(1, fps), ease: 'none', repeat: -1,
+          onUpdate: () => { if (!spr.destroyed && this.mascotFrames) spr.texture = this.mascotFrames[Math.round(proxy.f) % this.mascotFrames.length]; },
+        }));
+      } else {
+        // Static art: a flying-hover bob (y ±7px) with a lazy sway/tilt.
+        this.mascotTweens.push(
+          gsap.to(spr, { y: y - 7, duration: 1.6, yoyo: true, repeat: -1, ease: 'sine.inOut' }),
+          gsap.to(spr, { rotation: 0.04, duration: 2.3, yoyo: true, repeat: -1, ease: 'sine.inOut' }),
+          gsap.to(spr, { x: x + 4, duration: 2.9, yoyo: true, repeat: -1, ease: 'sine.inOut' }),
+        );
+      }
+    } catch (err) {
+      console.warn('[PixiApp] failed to load side mascot:', err);
     }
   }
 

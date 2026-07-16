@@ -65,21 +65,44 @@ export interface WinCelebrationParams {
 
 // ── canvas geometry of the layered art (fractions of the 1080p canvas) ──────
 // Measured from the alpha bboxes; every layer is authored on the same canvas.
+// PER-GAME: each theme's marquee art carries its own element positions —
+// setWinTierGeometry() swaps the measured fractions (default = Vice v2 set).
 const ART_H = 1080;
 const TIER_KEYS = ['big', 'mega', 'epic', 'max'] as const;
 type TierKey = typeof TIER_KEYS[number];
-/** Content-centre Y per tier word (anchor pivot → pulses around the word).
- *  Re-measured 2026-07-10 for the v2 art set (chrome tier words + gold WIN +
- *  chrome-rimmed price plate; layers pre-aligned on the same 1080p canvas). */
-const TIER_CY: Record<TierKey, number> = { big: 0.2273, mega: 0.2463, epic: 0.2495, max: 0.2269 };
-const WIN_CY = 0.4875;
-const PLATE_CY = 0.7681;
-const PLATE_H = 0.374; // plate bbox h404/1080
-/** Union content bbox height (fraction of canvas) — drives on-screen sizing. */
-const CONTENT_FRAC = 0.911; // y[48..1031] across tiers
-/** Union content centre (fraction of canvas height) — the marquee pivots here
- *  so the whole stack is EXACTLY centred on the given centre point. */
-const CONTENT_CY = (0.0444 + 0.9546) / 2;
+
+export interface WinTierGeometry {
+  /** Content-centre Y per tier word (anchor pivot → pulses around the word). */
+  tierCy: Record<TierKey, number>;
+  winCy: number;
+  plateCy: number;
+  /** Plate bbox height (fraction) — drives the amount font size. */
+  plateH: number;
+  /** Union content bbox height (fraction of canvas) — on-screen sizing. */
+  contentFrac: number;
+  /** Union content centre — the marquee pivots here so the whole stack is
+   *  EXACTLY centred on the given centre point. */
+  contentCy: number;
+}
+
+/** Vice v2 art set (chrome tier words + gold WIN + chrome-rimmed price
+ *  plate; layers pre-aligned on the same 1080p canvas, measured 2026-07-10). */
+const VICE_GEO: WinTierGeometry = {
+  tierCy: { big: 0.2273, mega: 0.2463, epic: 0.2495, max: 0.2269 },
+  winCy: 0.4875,
+  plateCy: 0.7681,
+  plateH: 0.374, // plate bbox h404/1080
+  contentFrac: 0.911, // y[48..1031] across tiers
+  contentCy: (0.0444 + 0.9546) / 2,
+};
+
+let GEO: WinTierGeometry = VICE_GEO;
+
+/** Swap the marquee-art geometry for a different theme's layer set (pass
+ *  nothing to restore the Vice defaults). Call before the next celebration. */
+export function setWinTierGeometry(geo?: WinTierGeometry): void {
+  GEO = geo ?? VICE_GEO;
+}
 
 function formatAmount(amount: bigint, decimals: number): string {
   const dp = decimals > 4 ? 2 : decimals;
@@ -286,8 +309,8 @@ export class WinCelebration {
       if (tierSpr && this.tierTex) {
         tierSpr.texture = this.tierTex[key];
         // pivot on the word's own centre so pulses/punches stay centred
-        tierSpr.anchor.set(0.5, TIER_CY[key]);
-        tierSpr.y = (TIER_CY[key] - 0.5) * ART_H;
+        tierSpr.anchor.set(0.5, GEO.tierCy[key]);
+        tierSpr.y = (GEO.tierCy[key] - 0.5) * ART_H;
       } else if (fallbackWord) {
         fallbackWord.texture = this.getWordTex(n, 1);
       }
@@ -296,16 +319,16 @@ export class WinCelebration {
     if (hasArt) {
       // Scale so the art's content height ≈ 55% of the short screen edge,
       // and pivot on the content's centre so the stack sits dead-centre.
-      baseMsc = (Math.min(sw, sh) * 0.55 * C.sizeMul) / (CONTENT_FRAC * ART_H);
+      baseMsc = (Math.min(sw, sh) * 0.55 * C.sizeMul) / (GEO.contentFrac * ART_H);
       marquee.scale.set(baseMsc * C.tierScale[0]);
-      marquee.pivot.set(0, (CONTENT_CY - 0.5) * ART_H);
+      marquee.pivot.set(0, (GEO.contentCy - 0.5) * ART_H);
 
       plateSpr = new Sprite(this.plateTex!);
-      plateSpr.anchor.set(0.5, PLATE_CY);
-      plateSpr.y = (PLATE_CY - 0.5) * ART_H;
+      plateSpr.anchor.set(0.5, GEO.plateCy);
+      plateSpr.y = (GEO.plateCy - 0.5) * ART_H;
       winSpr = new Sprite(this.winTex!);
-      winSpr.anchor.set(0.5, WIN_CY);
-      winSpr.y = (WIN_CY - 0.5) * ART_H;
+      winSpr.anchor.set(0.5, GEO.winCy);
+      winSpr.y = (GEO.winCy - 0.5) * ART_H;
       tierSpr = new Sprite(this.tierTex!.big);
       marquee.addChild(plateSpr, winSpr, tierSpr);
       setTierLayer(0);
@@ -313,14 +336,14 @@ export class WinCelebration {
       // Count-up text INSIDE the plate (marquee-local canvas units).
       amount = new Text({
         text: '', style: new TextStyle({
-          fontFamily: this.font, fontSize: Math.round(PLATE_H * ART_H * 0.40), fontWeight: '800',
+          fontFamily: this.font, fontSize: Math.round(GEO.plateH * ART_H * 0.40), fontWeight: '800',
           fontStyle: 'italic', letterSpacing: 2, fill: 0xffe9a0,
           stroke: { color: 0x1a0e02, width: 10 },
           dropShadow: { color: 0x000000, blur: 8, distance: 0, alpha: 0.55 },
         }),
       });
       amount.anchor.set(0.5);
-      amount.position.set(0, (PLATE_CY - 0.5) * ART_H);
+      amount.position.set(0, (GEO.plateCy - 0.5) * ART_H);
       marquee.addChild(amount);
     } else {
       // Fallback (no art loaded): baked foil word + amount text below.
@@ -470,8 +493,8 @@ export class WinCelebration {
       if (winSpr) tl.to(winSpr, { alpha: 1, duration: 0.08, ease: 'power2.out' }, stampLand + 0.04);
       if (plateSpr) {
         tl.to(plateSpr, { alpha: 1, duration: 0.16, ease: 'power2.out' }, stampLand + 0.12);
-        tl.fromTo(plateSpr, { y: (PLATE_CY - 0.5) * ART_H + 70 },
-          { y: (PLATE_CY - 0.5) * ART_H, duration: 0.32, ease: 'power3.out' }, stampLand + 0.12);
+        tl.fromTo(plateSpr, { y: (GEO.plateCy - 0.5) * ART_H + 70 },
+          { y: (GEO.plateCy - 0.5) * ART_H, duration: 0.32, ease: 'power3.out' }, stampLand + 0.12);
       }
       if (fallbackWord) {
         tl.to(fallbackWord, { alpha: 1, duration: 0.08 }, 0);
@@ -484,8 +507,8 @@ export class WinCelebration {
       amount.text = '0.00';
       tl.to(amount, { alpha: 1, duration: 0.14, ease: 'power2.out' }, stampLand + 0.18);
       if (plateSpr) {
-        tl.fromTo(amount, { y: (PLATE_CY - 0.5) * ART_H + 70 },
-          { y: (PLATE_CY - 0.5) * ART_H, duration: 0.32, ease: 'power3.out' }, stampLand + 0.14);
+        tl.fromTo(amount, { y: (GEO.plateCy - 0.5) * ART_H + 70 },
+          { y: (GEO.plateCy - 0.5) * ART_H, duration: 0.32, ease: 'power3.out' }, stampLand + 0.14);
       }
       const dp = p.decimals > 4 ? 2 : p.decimals;
       const counter = { val: 0 };

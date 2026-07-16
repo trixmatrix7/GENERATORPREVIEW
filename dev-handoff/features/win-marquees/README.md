@@ -311,3 +311,17 @@ The MAX tier cap comes from the game config, not this object:
 | `pixiApp.setMarqueeSoundHooks(onStart, onExit)` | Wire the exclusive music start/exit (see §5) |
 | `WinCelebration.play({ winAmount, wager, symbol, decimals, tier, centre, origins, bounds?, reduced })` | Runs the celebration; resolves once |
 | `WinCelebration.skip()` | Player dismissal → fast fade + fast music fade |
+
+
+## Per-theme layer geometry (setWinTierGeometry)
+
+The six marquee layers are full 1920×1080 frames with the elements authored
+in place — each theme's art has its own element positions. The engine reads a
+GEOMETRY object (alpha-bbox measured fractions of the 1080p canvas):
+`tierCy` per tier word, `winCy`, `plateCy`, `plateH` (drives the amount font),
+`contentFrac` + `contentCy` (union content box → on-screen sizing + pivot).
+Call `setWinTierGeometry(geo)` in the game's boot wiring (Vice values are the
+default; Crack Farm: tierCy {0.2806,0.2796,0.2852,0.2963}, winCy 0.5028,
+plateCy 0.7472, plateH 0.3593, contentFrac 0.8116, contentCy 0.5211).
+The FS-outro amount is positioned the same way: `setOutroAmountStyle(x, y,
+fontSize)` in design px (the theme's price-plate centre).

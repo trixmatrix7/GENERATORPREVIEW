@@ -25,6 +25,7 @@ import type { PixiApp } from '@/game/PixiApp';
 import { STATIC_LOOK_SYMBOLS, NO_IDLE_SYMBOLS, SYMBOL_SIZE_MULS } from '@/game/AnimatedSymbol';
 import { setActiveStatePreset } from '@/config/statePresets';
 import { landingImpactConfig } from '@/game/effects/LandingImpact';
+import { setWinTierGeometry } from '@/game/WinCelebration';
 import { BuildTopBar, BuildSlots } from '@/studio/BuildDock';
 import { isBareBuild, loadActiveGame } from '@/studio/buildPresets';
 
@@ -148,7 +149,24 @@ export function App() {
       void pixiAppRef.setFreeSpinsBackgroundImage(saved.fsBg ?? CRACKFARM.bgFs);
       // Win marquee: crack-farm wooden-slime tier badges + price-area plate
       // (universal layered marquee); coin rain kept (theme-neutral gold shower).
+      // The GEOMETRY matches the artist's files exactly (alpha-bbox measured
+      // fractions of the 1080p canvas) — sizes/positions as authored.
+      setWinTierGeometry({
+        tierCy: { big: 0.2806, mega: 0.2796, epic: 0.2852, max: 0.2963 },
+        winCy: 0.5028,
+        plateCy: 0.7472,
+        plateH: 0.3593,   // price-area bbox h388/1080
+        contentFrac: 0.8116, // y[124.5..1001] across tiers
+        contentCy: 0.5211,
+      });
       void pixiAppRef.setWinTierImages(CRACKFARM.winTiers);
+      // FS-END TOTAL WIN outro: the artist's one-piece night-scene assembly
+      // (TOTAL WIN + metal plate + press-to-continue), contain-fit; the
+      // count-up amount sits ON the plate (measured centre 958,646).
+      void pixiAppRef.setLayeredIntro('outro', [
+        { file: `${CRACKFARM.base}outro/outro-screen.png`, role: 'card', cx: 960, cy: 540 },
+      ]);
+      pixiAppRef.setOutroAmountStyle(958, 646, 88);
       const Tc = `${import.meta.env.BASE_URL}theme/win-tiers/`;
       void pixiAppRef.setWinCoinRain(
         [`${Tc}coinrain3_0.webp`, `${Tc}coinrain3_1.webp`, `${Tc}coinrain3_2.webp`], 10, 10, 300, 45,

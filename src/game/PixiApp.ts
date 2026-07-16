@@ -2715,6 +2715,14 @@ export class PixiApp {
     if (this.reelSet) this.reelSet.expandGrowth = mode;
   }
 
+  /** Where the FS-outro TOTAL WIN amount sits (1920×1080 design px) and its
+   *  font size — each theme's outro art carries its own price plate. */
+  private outroAmount = { x: 960, y: 660, fontSize: 104 };
+
+  setOutroAmountStyle(x: number, y: number, fontSize: number): void {
+    this.outroAmount = { x, y, fontSize };
+  }
+
   async setExpandingWildImage(url: string | null): Promise<void> {
     if (!this._initialized || this._aborted) return;
     if (!url) { this.reelSet?.setExpandingWildTexture(null); return; }
@@ -3295,17 +3303,19 @@ export class PixiApp {
 
     // The round's TOTAL WIN amount — marquee-styled, breathing gently, set
     // into the layered scene's CONTENT root (design space, centre origin).
+    // Position + size are PER-GAME (the amount sits on the theme's price
+    // plate; see setOutroAmountStyle) — default = the Vice plaque.
     const fg = layered.children[1] as Container;
     const amt = new Text({
       text: formatWin(totalWin, decimals), style: new TextStyle({
-        fontFamily: "'Rubik', ui-sans-serif, sans-serif", fontSize: 104, fontWeight: '800',
+        fontFamily: "'Rubik', ui-sans-serif, sans-serif", fontSize: this.outroAmount.fontSize, fontWeight: '800',
         fontStyle: 'italic', letterSpacing: 2, fill: 0xffe9a0,
         stroke: { color: 0x1a0e02, width: 10 },
         dropShadow: { color: 0x000000, blur: 8, distance: 0, alpha: 0.55 },
       }),
     });
     amt.anchor.set(0.5);
-    amt.position.set(0, 660 - 540);
+    amt.position.set(this.outroAmount.x - 960, this.outroAmount.y - 540);
     fg.addChild(amt);
     const dp = decimals > 4 ? 2 : decimals;
     const finalVal = Number(totalWin) / Math.pow(10, decimals);

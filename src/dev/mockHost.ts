@@ -7,7 +7,7 @@ import { encodeAbiParameters, decodeAbiParameters, keccak256 } from 'viem';
 const encodeAbi = encodeAbiParameters;
 import type { HostApiV1, HostSnapshotV1 } from '@/bridge/types';
 import { buildBoard } from '@/config/reels';
-import { evaluateWins } from '@/engine/WinEvaluator';
+import { evalWins } from '@/game/winEval';
 import { deriveStopsFromRandomness } from '@/engine/SlotEngine';
 import { GAME_CONFIG } from '@/config/gameConfig';
 import type { GameConfig } from '@/engine/GameConfig';
@@ -160,7 +160,7 @@ export class MockHost {
     // 1. Base spin (evaluated at the base bet; a purchased round skips its win)
     const stops = this.deriveStops(randomness);
     const board = this.buildBoardCfg(stops);
-    const baseEval = evaluateWins(board, bet, this.config);
+    const baseEval = evalWins(board, bet, this.config);
     const scatterCount = baseEval.scatterCount;
     let totalWin = 0n;
     let freeSpinsTriggered: boolean;
@@ -186,13 +186,28 @@ export class MockHost {
       const stickyFS = expandFS && !buyBonus && scatterCount >= 4;
       const stickyCap = (this.config as { stickyTowerCap?: number }).stickyTowerCap ?? 2;
       const stickyReels = new Set<number>();
+      // ── CRACK FARM tiered bonus (paylines game) ────────────────────────
+      // 3 SC: ROAMING PLANT — every FS spin exactly ONE wild-capable reel
+      //   sprouts fully wild for that spin (seed-derived, guaranteed action).
+      // 4 SC: STICKY PLANTS — wild-landing reels become permanent plant
+      //   towers; a shared MULTIPLIER starts at 1× and grows +1 per WINNING
+      //   CONNECTION while ≥1 tower stands; line wins CROSSING a tower pay
+      //   × the multiplier. (Mirrors custom-math/simulate_crack_farm.py.)
+      const cfCfg = this.config as {
+        roamingWildFrom3Scatters?: boolean; stickyPlantFrom4Scatters?: boolean;
+        plantMultiIncrement?: number; plantMultiCap?: number;
+      };
+      const crackFS = !!(cfCfg.roamingWildFrom3Scatters || cfCfg.stickyPlantFrom4Scatters);
+      const plantRound = !!cfCfg.stickyPlantFrom4Scatters && !buyBonus && scatterCount >= 4;
+      const plantTowers = new Set<number>();
+      let plantMulti = 1;
       // Sticky rounds run LONGER (towers need spins to accumulate) — their
       // own count/cap via the custom rules; 3sc rounds use the template's.
-      if (stickyFS) {
+      if (stickyFS || plantRound) {
         remaining = (this.config as { stickyRoundSpins?: number }).stickyRoundSpins
           ?? this.config.freeSpinsCount;
       }
-      const fsCap = stickyFS
+      const fsCap = (stickyFS || plantRound)
         ? ((this.config as { stickyRoundCap?: number }).stickyRoundCap ?? this.config.freeSpinsCap)
         : this.config.freeSpinsCap;
       while (remaining > 0 && freeSpinsPlayed < fsCap) {
@@ -207,6 +222,29 @@ export class MockHost {
         // Reels expanding in THIS spin (per-spin mode) — drives the
         // simultaneous-expansion multiplier below.
         let simulTowers = 0;
+        // Crack Farm FS board transforms (before evaluation).
+        if (crackFS) {
+          if (plantRound) {
+            // Towers accumulate where wilds naturally land (leftmost first).
+            for (let reel = 0; reel < fsBoard[0].length; reel++) {
+              if (plantTowers.size >= stickyCap) break;
+              if (!plantTowers.has(reel) && fsBoard.some(r => r[reel] === 0)) plantTowers.add(reel);
+            }
+            for (const reel of plantTowers) {
+              for (let row = 0; row < fsBoard.length; row++) fsBoard[row][reel] = 0;
+            }
+          } else {
+            // ROAMING PLANT: exactly one wild-capable reel, seed-derived.
+            const capable: number[] = [];
+            for (let reel = 0; reel < fsBoard[0].length; reel++) {
+              if (this.config.reelStrips[reel].includes(SymbolId.WILD)) capable.push(reel);
+            }
+            if (capable.length > 0) {
+              const roam = capable[Number(BigInt(seed) % BigInt(capable.length))];
+              for (let row = 0; row < fsBoard.length; row++) fsBoard[row][roam] = 0;
+            }
+          }
+        }
         // Vice-Heat style FS: wild-carrying reels become FULLY WILD before
         // ways evaluation (settlement matches the displayed expansion).
         if (expandFS) {
@@ -230,7 +268,25 @@ export class MockHost {
             }
           }
         }
-        const { totalWin: rawFsWin, scatterCount: fsScatter } = evaluateWins(fsBoard, bet, this.config);
+        const fsEval = evalWins(fsBoard, bet, this.config);
+        let rawFsWin = fsEval.totalWin;
+        const fsScatter = fsEval.scatterCount;
+        // PLANT MULTIPLIER (4sc crack-farm rounds): line wins CROSSING a
+        // standing tower pay × the shared multi; each tower-CROSSING winning
+        // connection then grows the multi by +plantMultiIncrement (capped) —
+        // mirrors custom-math/simulate_crack_farm.py exactly.
+        if (plantRound && plantTowers.size > 0) {
+          let adjusted = 0n;
+          let crossings = 0;
+          for (const c of fsEval.combinations) {
+            if (c.symbolId === SymbolId.SCATTER) { adjusted += c.winAmount; continue; }
+            const crosses = c.cells.some(([, reel]) => plantTowers.has(reel));
+            if (crosses) crossings++;
+            adjusted += crosses ? c.winAmount * BigInt(plantMulti) : c.winAmount;
+          }
+          rawFsWin = adjusted;
+          plantMulti = Math.min(cfCfg.plantMultiCap ?? 20, plantMulti + crossings * (cfCfg.plantMultiIncrement ?? 1));
+        }
         // SIMULTANEOUS-EXPANSION MULTIPLIERS (3-scatter rounds only): n reels
         // expanding in the SAME spin multiply the spin's win per the custom
         // table (late ladder: 3 towers x2, 4 towers x8) — the four-tower

@@ -22,6 +22,7 @@ import { SymbolId } from './symbols';
 import vol3x5 from '@/data/math_vol3_5x5.json';
 import vol3x3 from '@/data/math_vol3_5x3.json';
 import viceHeat from '@/data/math_vice_heat.json';
+import crackFarm from '@/data/math_crack_farm.json';
 
 type Pay3 = [number, number, number];
 
@@ -38,6 +39,7 @@ const MANIFESTS: Record<string, Record<string, unknown>> = {
   'vol3-5x5': vol3x5 as Record<string, unknown>,
   'vol3-5x3': vol3x3 as Record<string, unknown>,
   'vice-heat-custom': viceHeat as Record<string, unknown>,
+  'crack-farm-lines': crackFarm as Record<string, unknown>,
 };
 
 const KEY_TO_ID: Record<string, number> = {

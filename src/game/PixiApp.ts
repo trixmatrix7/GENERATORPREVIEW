@@ -19,7 +19,8 @@ import { hslToNum, numToHsl, hexToNum } from '@/config/color';
 import { CANVAS_THEME } from '@/config/canvasTheme';
 import { deriveStopsFromRandomness, type SpinOutcome } from '@/engine/SlotEngine';
 import { buildBoard } from '@/config/reels';
-import { evaluateWins, type WinResult } from '@/engine/WinEvaluator';
+import { type WinResult } from '@/engine/WinEvaluator';
+import { evalWins, activePayModel } from './winEval';
 import { DEFAULT_GAME_CONFIG, type GameConfig, type GameTheme } from '@/engine/GameConfig';
 import { playDeterministicHoldAndWin, HW_TRIGGER_MIN } from '@/engine/holdAndWin';
 import { loadSymbolAtlases, type SymbolAtlasMap } from './SymbolAtlasLoader';
@@ -1748,6 +1749,13 @@ export class PixiApp {
    */
   async resolve(outcome: SpinOutcome, tokenSymbol: string, decimals: number): Promise<void> {
     if (!this.isLive) return;
+    // PAYLINES games (Crack Farm): the decoded outcome.winResult came from the
+    // frozen engine's WAYS evaluation — re-evaluate the same board through the
+    // façade so the presented combos are the clean payline connections the
+    // mock actually settled (one cell per reel → single clean win lines).
+    if (activePayModel() === 'lines' && outcome.board) {
+      outcome = { ...outcome, winResult: evalWins(outcome.board, outcome.wager ?? 1n, this.config) };
+    }
     // Sweep any FS overlay a previous resolve left open (the closing iris is
     // skipped when a run gets interrupted mid-round) — never leak the counter.
     if (this.fsOverlayOpen) {
@@ -1805,6 +1813,11 @@ export class PixiApp {
       // spin); 4+ scatters = STICKY expansion — towers stay for the rest of
       // the round and new ones accumulate wherever a sack naturally lands.
       const stickyMode = outcome.scatterCount >= 4;
+      // CRACK FARM (paylines): 3sc = ROAMING PLANT (one reel sprouts per
+      // spin), 4sc = sticky plant towers + the shared +1×-per-connection
+      // multiplier. displayPlantMulti mirrors the mock's settlement rule.
+      const crackLines = activePayModel() === 'lines';
+      let displayPlantMulti = 1;
       // HARD SESSION CAP: the payout can NEVER exceed maxWinMultiplier x bet.
       // The moment the running round total reaches it, the round STOPS, the
       // plaque locks at the cap and the MAX WIN marquee takes over (the mock
@@ -1822,7 +1835,7 @@ export class PixiApp {
         // mid-flight) before the reels roll — only spin() bumps the id.
         this._winRevealId++;
         const expanded = await this.reelSet.playExpandingWildReveal(
-          { isLive: () => this.isLive, turbo: this.turbo, sticky: stickyMode },
+          { isLive: () => this.isLive, turbo: this.turbo, sticky: stickyMode, roaming: crackLines && !stickyMode },
         );
         if (!this.isLive) break;
         // Evaluate the DISPLAYED board with every standing tower fully wild.
@@ -1831,12 +1844,34 @@ export class PixiApp {
         const board = this.reelSet.getVisibleBoard();
         for (const reel of expanded) for (let row = 0; row < this.grid.visibleRows; row++) board[row][reel] = 0; // WILD
         let winResult = this.applySimulMultiplier(
-          evaluateWins(board, outcome.wager ?? 1n, this.config),
+          evalWins(board, outcome.wager ?? 1n, this.config),
           stickyMode ? 0 : expanded.length,
         );
         // FULL HOUSE: with every sticky tower standing the spin pays x2 —
         // displayed amounts mirror the settlement rule exactly.
         if (stickyMode) winResult = this.applyStickyFullBoard(winResult, expanded.length);
+        // PLANT MULTIPLIER (crack-farm 4sc): tower-crossing line wins pay
+        // × the shared multi; each CROSSING connection then grows it by +1
+        // (capped) — the badge on the towers pops the moment it changes.
+        // Mirrors the mock settlement + simulate_crack_farm.py exactly.
+        if (crackLines && stickyMode && expanded.length > 0) {
+          const towerSet = new Set(expanded);
+          const multiCap = (this.config as { plantMultiCap?: number }).plantMultiCap ?? 20;
+          const multiInc = (this.config as { plantMultiIncrement?: number }).plantMultiIncrement ?? 1;
+          let crossings = 0;
+          let total = 0n;
+          const combos = winResult.combinations.map(c => {
+            if (c.symbolId === 1) { total += c.winAmount; return c; }
+            const crosses = c.cells.some(([, reel]) => towerSet.has(reel));
+            if (crosses) crossings++;
+            const amt = crosses ? c.winAmount * BigInt(displayPlantMulti) : c.winAmount;
+            total += amt;
+            return { ...c, winAmount: amt };
+          });
+          winResult = { ...winResult, combinations: combos, totalWin: total };
+          displayPlantMulti = Math.min(multiCap, displayPlantMulti + crossings * multiInc);
+          this.reelSet.setTowerMultiplier(displayPlantMulti);
+        }
         const crossesCap = capAmount > 0n && fsRoundDisplayTotal + winResult.totalWin >= capAmount;
         if (winResult.totalWin > 0n && !crossesCap) {
           const spinOutcome: SpinOutcome = {
@@ -2530,7 +2565,7 @@ export class PixiApp {
     for (let i = 0; i < 1500 && !fan; i++) {
       const stops = deriveStopsFromRandomness(randomBytes32());
       const board = buildBoard(stops);
-      const winResult = evaluateWins(board, wager, this.config);
+      const winResult = evalWins(board, wager, this.config);
       for (const c of winResult.combinations) {
         if (c.winAmount <= 0n) continue;
         const perReel = new Map<number, number>();
@@ -2673,6 +2708,13 @@ export class PixiApp {
 
   /** Load the expanding-wild column art (the Vice money tower). Pass null to
    *  clear (the effect then falls back to a flat panel). */
+  /** Growth choreography for the expanding wild: 'race' (Vice money tower,
+   *  races out of the landing cell) or 'bottom-up' (Crack Farm plant — the
+   *  wild slides to the reel floor and the plant grows upward). */
+  setExpandGrowth(mode: 'race' | 'bottom-up'): void {
+    if (this.reelSet) this.reelSet.expandGrowth = mode;
+  }
+
   async setExpandingWildImage(url: string | null): Promise<void> {
     if (!this._initialized || this._aborted) return;
     if (!url) { this.reelSet?.setExpandingWildTexture(null); return; }
@@ -2701,7 +2743,7 @@ export class PixiApp {
       // Effective board: the expanded reels are ENTIRELY wild.
       const board = this.reelSet.getVisibleBoard();
       for (const reel of chosen) for (let row = 0; row < this.grid.visibleRows; row++) board[row][reel] = 0; // WILD
-      const winResult = this.applySimulMultiplier(evaluateWins(board, wager, this.config), chosen.length);
+      const winResult = this.applySimulMultiplier(evalWins(board, wager, this.config), chosen.length);
       if (winResult.totalWin <= 0n) return; // honest: dead-paytable connections stay silent
       const outcome: SpinOutcome = {
         stops: this.config.reelLengths.map(() => 0),

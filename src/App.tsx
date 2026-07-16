@@ -139,7 +139,9 @@ export function App() {
       // keeps a clean static look, the 1:1 wild drops the fallback idle breath.
       STATIC_LOOK_SYMBOLS.add(1);
       NO_IDLE_SYMBOLS.add(0);
-      // The tall 1×3 barn wild fills a reel on expansion (height-fits the grid).
+      // The tall 1×3 mutant plant fills a reel on expansion — and it GROWS:
+      // the wild slides down to the reel floor and the plant rises out of it.
+      pixiAppRef.setExpandGrowth('bottom-up');
       void pixiAppRef.setExpandingWildImage(saved.expandingWild ?? CRACKFARM.expandingWild);
       // Barn frame — alpha window auto-detected from the transparent centre.
       track(pixiAppRef.setFrameImage(saved.frame ?? CRACKFARM.frame));

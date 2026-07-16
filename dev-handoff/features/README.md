@@ -20,6 +20,7 @@ the named hooks. Both are theme-agnostic and RTP-neutral (purely presentational)
 | [`frame-win-flash/`](./frame-win-flash/) | The reel frame lights up via a chroma-matted spritesheet the instant the trigger scatter lands, pixel-aligned to the frame art via a region crop. |
 | [`symbol-sheets/`](./symbol-sheets/) | Per-symbol idle-loop and win spritesheets that render on the cell's exact footprint, with STATIC_LOOK / NO_IDLE opt-out guards. |
 | [`boot-loader/`](./boot-loader/) | In-iframe loading screen that fills a progress bar over the real settle-count of the critical asset loads, then cross-fades into the intro. |
+| [`paylines/`](./paylines/) | Classic 10-line PAYLINES pay model (alternative to ways): leftmost-consecutive, wilds substitute, one clean line per win — plus the Crack Farm roaming-plant / sticky-plant-multiplier free-spins features. |
 
 ## Drop-in code modules (real `.ts` + integration guide)
 

@@ -113,7 +113,7 @@ export function applyViceBase(): void {
 /** Built-in CRACK FARM 5×3 game (barn theme, baked in public/theme/crackfarm/). */
 export function applyCrackFarm(): void {
   replaceAssets({});
-  saveMathProfileId('vol3-5x3');
+  saveMathProfileId('crack-farm-lines');
   try {
     localStorage.setItem(GRID_KEY, '5x3');
     localStorage.setItem(BARE_KEY, '0');

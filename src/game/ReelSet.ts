@@ -653,8 +653,14 @@ export class ReelSet {
    *  sack NATURALLY lands in the settling window (no forced landings — the
    *  organic strip probability paces the fill-up). Returns ALL expanded reels
    *  (old + new) so the caller evaluates the full sticky board. */
+  /** Growth choreography for the wild expansion: 'race' = the column races
+   *  out of the landing cell in both directions (Vice money tower);
+   *  'bottom-up' = the landed wild SLIDES DOWN to the reel floor and the
+   *  plant GROWS UP out of it (Crack Farm mutant bean). */
+  expandGrowth: 'race' | 'bottom-up' = 'race';
+
   async playExpandingWildReveal(
-    opts: { isLive?: () => boolean; turbo?: boolean; sticky?: boolean; force?: boolean } = {},
+    opts: { isLive?: () => boolean; turbo?: boolean; sticky?: boolean; force?: boolean; roaming?: boolean } = {},
   ): Promise<number[]> {
     const live = opts.isLive ?? (() => true);
 
@@ -709,6 +715,23 @@ export class ReelSet {
         if (this.expandedReels.size + chosen.length >= cap) break;
         const hitRow = wildRowInWindow(r, displayStops[r]);
         if (hitRow !== null) { chosen.push(r); landingRows.push(hitRow); }
+      }
+    } else if (opts.roaming) {
+      // ROAMING PLANT (crack-farm 3sc FS): EXACTLY ONE random wild-capable
+      // reel sprouts fully wild this spin — guaranteed action every spin,
+      // cleared on the next one. The chosen reel's stop is forced so the
+      // wild visibly lands before the plant grows.
+      this.startSpin();
+      gen = this.stickyRevealGen;
+      chosen = [];
+      if (reelIdxs.length > 0) {
+        const pick = reelIdxs[Math.floor(Math.random() * reelIdxs.length)];
+        const hit = findWildStop(pick);
+        if (hit) {
+          displayStops[pick] = hit.stop;
+          chosen = [pick];
+          landingRows.push(hit.row);
+        }
       }
     } else if (opts.force) {
       // SHOWCASE (test button): guarantee 1-3 towers — each chosen reel's
@@ -784,7 +807,37 @@ export class ReelSet {
       // 1) the wild LANDS — reuse the sticky pop (backing + money-stack tile
       //    + flash) WITHOUT the cell shine (the reel-sized shine at lock-in
       //    is the column's only border — no 1:1 edges peeking behind it).
-      this.popOneStickyWild(reelIdx, row, false);
+      // BOTTOM-UP growth: the plant grows out of the reel FLOOR, so a wild
+      // landing on an upper row first SLIDES DOWN to the bottom cell (a seed
+      // dropping into the soil) — the pop happens at the bottom row.
+      const bottomUp = this.expandGrowth === 'bottom-up';
+      const rows = this.grid.visibleRows;
+      const potRow = bottomUp ? rows - 1 : row;
+      const T_SLIDE = bottomUp && row < rows - 1 ? 0.22 * speed : 0;
+      if (bottomUp && row < rows - 1) {
+        // Seed-drop beat: a copy of the 1×1 wild slides from the landing
+        // cell down to the reel floor, then the pot pops there.
+        const wildTex = this.config.theme.userAssetTextures?.get(SymbolId.WILD);
+        const fromR = resolveAnchor(cellAnchor(reelIdx, row), this.grid);
+        const toR = resolveAnchor(cellAnchor(reelIdx, rows - 1), this.grid);
+        if (wildTex) {
+          const seed = new Sprite(wildTex as Texture);
+          seed.anchor.set(0.5);
+          seed.position.set(fromR.x + fromR.w / 2, fromR.y + fromR.h / 2);
+          const fit = Math.min(fromR.w, fromR.h) * 0.88;
+          seed.width = fit; seed.height = fit;
+          seed.eventMode = 'none';
+          this.stickyContainer.addChild(seed);
+          this.stickyRevealObjects.push(seed);
+          this.stickyRevealTweens.push(gsap.to(seed, {
+            y: toR.y + toR.h / 2, duration: T_SLIDE, ease: 'power2.in',
+            onComplete: () => { if (seed.parent) seed.parent.removeChild(seed); },
+          }));
+        }
+        this.schedule(() => this.popOneStickyWild(reelIdx, potRow, false), T_SLIDE * 1000);
+      } else {
+        this.popOneStickyWild(reelIdx, potRow, false);
+      }
 
 
       // 2) clear-beat — FULLY opaque panel over the reel so no symbol shows
@@ -804,25 +857,39 @@ export class ReelSet {
       //    is a REVEAL MASK expanding from the landing cell in both directions.
       const tex = this.expandWildTexture ?? Texture.WHITE;
       const spr = new Sprite(tex);
-      spr.anchor.set(0.5, 0);
-      spr.position.set(cx, rr.y);
+      // 'race' anchors the column TOP (head always visible, base may crop);
+      // 'bottom-up' anchors the plant BASE on the reel floor (the pot always
+      // sits in the soil; the head reveals as the plant grows upward).
+      if (bottomUp) {
+        spr.anchor.set(0.5, 1);
+        spr.position.set(cx, rr.y + rr.h);
+      } else {
+        spr.anchor.set(0.5, 0);
+        spr.position.set(cx, rr.y);
+      }
       spr.scale.set((rr.w * 0.98) / tex.width);
       spr.alpha = 0;
       spr.eventMode = 'none';
       const mask = new Graphics();
       mask.eventMode = 'none';
       const drawReveal = (t: number) => {
-        const topY = cellR.y + (rr.y - cellR.y) * t;
-        const botY = (cellR.y + cellR.h) + ((rr.y + rr.h) - (cellR.y + cellR.h)) * t;
         mask.clear();
-        mask.roundRect(rr.x - 1, topY, rr.w + 2, botY - topY, rad).fill(0xffffff);
+        if (bottomUp) {
+          // The window grows from the reel FLOOR upward (plant growth).
+          const topY = (rr.y + rr.h) - Math.max(cellR.h * 0.4, rr.h * t);
+          mask.roundRect(rr.x - 1, topY, rr.w + 2, (rr.y + rr.h) - topY, rad).fill(0xffffff);
+        } else {
+          const topY = cellR.y + (rr.y - cellR.y) * t;
+          const botY = (cellR.y + cellR.h) + ((rr.y + rr.h) - (cellR.y + cellR.h)) * t;
+          mask.roundRect(rr.x - 1, topY, rr.w + 2, botY - topY, rad).fill(0xffffff);
+        }
       };
-      drawReveal(0); // starts as exactly the landing cell
+      drawReveal(0); // starts as exactly the landing cell (race) / the soil (bottom-up)
       this.stickyContainer.addChild(mask);
       spr.mask = mask;
       this.stickyContainer.addChild(spr);
       this.stickyRevealObjects.push(mask, spr);
-      this.expandedTowerSprites.set(reelIdx, { spr, baseY: rr.y, baseScale: spr.scale.x });
+      this.expandedTowerSprites.set(reelIdx, { spr, baseY: bottomUp ? rr.y + rr.h : rr.y, baseScale: spr.scale.x });
 
       // 4) impact flash at full extension.
       const flash = new Graphics();
@@ -841,21 +908,26 @@ export class ReelSet {
       const baseScale = spr.scale.x;
       const tl = gsap.timeline({ onComplete: resolve });
       this.stickyRevealTweens.push(tl);
-      const T_CLEAR = 0.32 * speed;
-      const T_RACE = 0.40 * speed;
+      // Bottom-up shifts every beat by the seed-drop slide.
+      const T_CLEAR = T_SLIDE + 0.32 * speed;
+      const T_RACE = T_SLIDE + 0.40 * speed;
       const T_LOCK = T_RACE + 0.46 * speed;
       tl.to(clear, { alpha: 1, duration: 0.12 * speed, ease: 'power2.out' }, T_CLEAR);
       tl.to(spr, { alpha: 1, duration: 0.07 * speed, ease: 'power1.out' }, T_RACE - 0.02 * speed);
       const reveal = { t: 0 };
       tl.to(reveal, {
-        t: 1, duration: 0.46 * speed, ease: 'expo.inOut',
+        // Plant growth reads organic with a spring at the top (back.out);
+        // the money column keeps its expo race-out.
+        t: 1, duration: (bottomUp ? 0.52 : 0.46) * speed, ease: bottomUp ? 'back.out(1.1)' : 'expo.inOut',
         onUpdate: () => drawReveal(reveal.t),
       }, T_RACE);
       // LOCK-IN — squash-settle: the column compresses under its own weight
-      // and springs back (top-anchored, so it visibly sits down).
-      tl.to(spr, { y: rr.y + 6, duration: 0.08 * speed, ease: 'power3.out' }, T_LOCK);
-      tl.to(spr.scale, { y: baseScale * 0.972, duration: 0.08 * speed, ease: 'power3.out' }, T_LOCK);
-      tl.to(spr, { y: rr.y, duration: 0.55 * speed, ease: 'elastic.out(1, 0.4)' }, T_LOCK + 0.08 * speed);
+      // and springs back. Top-anchored towers visibly sit down; the
+      // bottom-anchored plant compresses into its pot (y stays fixed).
+      const restY = bottomUp ? rr.y + rr.h : rr.y;
+      if (!bottomUp) tl.to(spr, { y: restY + 6, duration: 0.08 * speed, ease: 'power3.out' }, T_LOCK);
+      tl.to(spr.scale, { y: baseScale * (bottomUp ? 0.94 : 0.972), duration: 0.08 * speed, ease: 'power3.out' }, T_LOCK);
+      if (!bottomUp) tl.to(spr, { y: restY, duration: 0.55 * speed, ease: 'elastic.out(1, 0.4)' }, T_LOCK + 0.08 * speed);
       tl.to(spr.scale, { y: baseScale, duration: 0.55 * speed, ease: 'elastic.out(1, 0.4)' }, T_LOCK + 0.08 * speed);
       // Impact flash — brighter, faster decay: a hit, not a glow.
       tl.to(flash, { alpha: 0.7, duration: 0.05 * speed, ease: 'power2.out' }, T_LOCK);
@@ -1315,6 +1387,52 @@ export class ReelSet {
         ease: 'sine.inOut', delay: phase * 0.6,
       }),
     );
+  }
+
+  /** PLANT MULTIPLIER badge (crack-farm sticky rounds): every standing tower
+   *  carries the SHARED multiplier plaque near its top; the value pops when
+   *  it grows. Badges ride the sticky lifecycle (stickyRevealObjects), so
+   *  the next base spin sweeps them with the towers. */
+  private towerBadges = new Map<number, { root: Container; label: Text }>();
+
+  setTowerMultiplier(mult: number): void {
+    const text = `x${mult}`;
+    for (const reelIdx of this.expandedReels) {
+      let badge = this.towerBadges.get(reelIdx);
+      if (badge && !badge.root.parent) { this.towerBadges.delete(reelIdx); badge = undefined; }
+      if (!badge) {
+        const rr = resolveAnchor(reelAnchor(reelIdx), this.grid);
+        const root = new Container();
+        root.eventMode = 'none';
+        const plate = new Graphics();
+        plate.roundRect(-32, -19, 64, 38, 11).fill({ color: 0x14260d, alpha: 0.92 });
+        plate.roundRect(-32, -19, 64, 38, 11).stroke({ color: 0x7ef23e, width: 2.5, alpha: 0.95 });
+        root.addChild(plate);
+        const label = new Text({
+          text,
+          style: new TextStyle({
+            fontFamily: "'Rubik', ui-sans-serif, system-ui, sans-serif",
+            fontSize: 22, fontWeight: '900', fontStyle: 'italic', fill: 0xCFFF7A,
+            stroke: { color: 0x0c1806, width: 4 },
+          }),
+        });
+        label.anchor.set(0.5);
+        root.addChild(label);
+        root.position.set(rr.x + rr.w / 2, rr.y + 24);
+        this.stickyContainer.addChild(root);
+        this.stickyRevealObjects.push(root);
+        this.towerBadges.set(reelIdx, { root, label });
+        badge = { root, label };
+        this.stickyRevealTweens.push(
+          gsap.fromTo(badge.root.scale, { x: 0.2, y: 0.2 }, { x: 1, y: 1, duration: 0.38, ease: 'back.out(2.2)' }),
+        );
+      } else if (badge.label.text !== text) {
+        badge.label.text = text;
+        this.stickyRevealTweens.push(
+          gsap.fromTo(badge.root.scale, { x: 1.5, y: 1.5 }, { x: 1, y: 1, duration: 0.42, ease: 'back.out(2.5)' }),
+        );
+      }
+    }
   }
 
   /** WAYS-IMMERSIVE presentation: the OBJECTS carry the win — no overlays.

@@ -11,6 +11,7 @@ import { getThemeByName } from './themes';
 import vol3x5 from '@/data/math_vol3_5x5.json';
 import vol3x3 from '@/data/math_vol3_5x3.json';
 import viceHeat from '@/data/math_vice_heat.json';
+import crackFarm from '@/data/math_crack_farm.json';
 
 const KEY_TO_ID: Record<string, number> = {
   wild: SymbolId.WILD, scatter: SymbolId.SCATTER,
@@ -67,6 +68,13 @@ function fromManifest(m: Record<string, unknown>): GameConfig {
     // FULL HOUSE: while ALL stickyTowerCap towers stand, every sticky spin
     // pays x this multiplier — the 4-scatter route's max-win engine.
     stickyFullBoardMultiplier: (m['custom'] as { stickyFullBoardMultiplier?: number } | undefined)?.stickyFullBoardMultiplier,
+    // Crack-Farm custom rules (paylines game): 3sc = roaming plant wild
+    // (one reel per spin), 4sc = sticky plant towers with the shared
+    // +1×-per-connection multiplier.
+    roamingWildFrom3Scatters: !!(m['custom'] as { roamingWildFrom3Scatters?: boolean } | undefined)?.roamingWildFrom3Scatters,
+    stickyPlantFrom4Scatters: !!(m['custom'] as { stickyPlantFrom4Scatters?: boolean } | undefined)?.stickyPlantFrom4Scatters,
+    plantMultiIncrement: (m['custom'] as { plantMultiIncrement?: number } | undefined)?.plantMultiIncrement,
+    plantMultiCap: (m['custom'] as { plantMultiCap?: number } | undefined)?.plantMultiCap,
   } as unknown as GameConfig;
 }
 
@@ -87,6 +95,12 @@ export const MATH_PROFILES: readonly MathProfileOption[] = [
     id: 'vol3-5x3', name: 'Lively 5×3 (vol3)',
     description: 'Aktuelle Dev-Library rtp96.0_vol3: ALLE Symbole zahlen ab 3er — ständig sichtbare Connections, 243 Ways.',
     build: () => fromManifest(vol3x3 as Record<string, unknown>),
+    grid: '5x3',
+  },
+  {
+    id: 'crack-farm-lines', name: '🌾 Crack Farm 96% (10 Paylines 5×3)',
+    description: 'PAYLINES-Slot (10 Linien, keine Ways): 3 SC = Roaming Plant (jeder FS-Spin ein Wild-Reel), 4 SC = Sticky Plants + Multi (+1× pro Connection, bis 20×). RTP ~96% (6M-Sim), Max Win 5000×.',
+    build: () => fromManifest(crackFarm as Record<string, unknown>),
     grid: '5x3',
   },
   {

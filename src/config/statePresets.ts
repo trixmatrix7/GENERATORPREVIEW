@@ -34,6 +34,13 @@ export const STATE_PRESETS: readonly StatePreset[] = [
     win: { scalePeak: 1.42, pulseUp: 0.22, pulseHold: 0.34, pulseDown: 0.26, pulsePause: 0.5 },
   },
   {
+    id: 'crack-slam', name: 'Crack Slam',
+    description: 'Crack Farm intensity — symbols SLAM in hard: fast heavy drop, deep wooden squash, sharp snap-back (pairs with the wood-clatter drop SFX).',
+    landing: { downDuration: 0.035, upDuration: 0.10, settleDuration: 0.16, scaleCompress: 0.58, scaleOvershoot: 1.32, rotationKick: 2 },
+    landBounce: { squashDuration: 0.04, overshootDuration: 0.07, settleDuration: 0.18, scaleSquashY: 0.76, scaleStretchY: 1.16 },
+    win: { scalePeak: 1.46, pulseUp: 0.2, pulseHold: 0.3, pulseDown: 0.24, pulsePause: 0.45 },
+  },
+  {
     id: 'bubbly-pop', name: 'Bubbly Pop',
     description: 'Light, candy-like: quick springy lands, fast cheerful win pulses, lively breathe.',
     landing: { downDuration: 0.07, upDuration: 0.22, settleDuration: 0.1, scaleCompress: 0.84, scaleOvershoot: 1.3, rotationKick: 6 },

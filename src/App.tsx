@@ -23,6 +23,7 @@ import introLayers from '@/data/introLayers.json';
 import { loadAssets } from '@/studio/assetPersistence';
 import type { PixiApp } from '@/game/PixiApp';
 import { STATIC_LOOK_SYMBOLS, NO_IDLE_SYMBOLS } from '@/game/AnimatedSymbol';
+import { setActiveStatePreset } from '@/config/statePresets';
 import { BuildTopBar, BuildSlots } from '@/studio/BuildDock';
 import { isBareBuild, loadActiveGame } from '@/studio/buildPresets';
 
@@ -117,6 +118,8 @@ export function App() {
     const activeGame = loadActiveGame();
     if (activeGame === 'crackfarm') {
       // ── CRACK FARM (5×3 barn theme) ──────────────────────────────────────
+      // Intensity: symbols SLAM in hard (5×3 → each drop lands with weight).
+      setActiveStatePreset('crack-slam');
       const cfSymbols = saved.symbols && Object.keys(saved.symbols).length
         ? new Map(Object.entries(saved.symbols).map(([k, v]) => [Number(k), v]))
         : crackFarmSymbolMap();
@@ -292,6 +295,18 @@ export function App() {
 
   // Sound layer (same wiring as the generator's App.tsx).
   const soundManager = useSoundLayer(state);
+
+  // CRACK FARM sound pack: swap the drop/spin/land SFX to the wood-clatter
+  // foley (rattly boards) so the theme sounds like the barn. Vice keeps the
+  // default pack. Background MUSIC is left alone (Noski supplies that).
+  useEffect(() => {
+    if (loadActiveGame() !== 'crackfarm') return;
+    const C = `${import.meta.env.BASE_URL}audio/crackfarm/`;
+    soundManager.replaceSource('reel-stop', [`${C}reel-stop.ogg`]);
+    soundManager.replaceSource('spin-start', [`${C}spin-start.ogg`]);
+    soundManager.replaceSource('wild-land', [`${C}wild-land.ogg`]);
+    soundManager.replaceSource('scatter-land', [`${C}scatter-land.ogg`]);
+  }, [soundManager]);
 
   useEffect(() => {
     if (!pixiApp) return;

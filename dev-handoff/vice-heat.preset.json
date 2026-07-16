@@ -66,7 +66,7 @@
       "win-marquee":       { "vol": 0.95, "loop": false, "exclusive": true, "note": "starts+ends with the marquee, fast-fades on skip, ducks ambient" },
       "spin-start":        { "vol": 0.78 },
       "reel-stop":         { "vol": 0.58, "note": "fires 5x/spin on the stop stagger" },
-      "coin-chime":        { "vol": 0.5,  "note": "connection swish on the rising win tally" },
+      "coin-chime":        { "vol": 0.3,  "note": "connection swish on the rising win tally (−40% from 0.5)" },
       "scatter-land":      { "vol": 0.8 },
       "wild-land":         { "vol": 0.8,  "note": "cash-bundle money drop" },
       "wild-expand":       { "vol": 0.85, "note": "bill-riffle riser + slam on tower expand" },

@@ -39,8 +39,9 @@ const DEFAULT_VOLUMES: Record<string, number> = {
   // rumble variants ("brummen raus damit").
   'reel-spin-loop': 0,
   // Connection SWISH (noise foley) — fires once per connection on the rising
-  // rate ladder; sits soft and smooth under the mix (Noski: "kleiner Wisch").
-  'coin-chime': 0.5,
+  // rate ladder; sits soft and smooth under the mix (Noski: "kleiner Wisch",
+  // then −40%: 0.5 → 0.3).
+  'coin-chime': 0.3,
   'ambient-music': 0.35,
 };
 

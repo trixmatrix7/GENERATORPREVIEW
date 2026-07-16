@@ -12,7 +12,7 @@ audio data failed", so OGG is loaded **first/only**). Drop these into
 | `win-marquee` | win-marquee.ogg | 0.95 | exclusive | tiered win celebration track — theme-**neutral** (runs in every game); starts+ends with the marquee, fast-fades on skip |
 | `spin-start` | spin-start.ogg | 0.78 | — | reels launch |
 | `reel-stop` | reel-stop.ogg | 0.58 | — | fires 5× per spin on the stop stagger (sits under the one-shots) |
-| `coin-chime` | coin-chime.ogg | 0.5 | — | connection **swish** on the rising win tally |
+| `coin-chime` | coin-chime.ogg | 0.3 | — | connection **swish** on the rising win tally |
 | `scatter-land` | scatter-land.ogg | 0.8 | — | a scatter/BONUS badge lands |
 | `wild-land` | wild-land.ogg | 0.8 | — | cash-bundle **money drop** (wild lands) |
 | `wild-expand` | wild-expand.ogg | 0.85 | — | bill-**riffle riser + slam** (reel expands to a wild tower) |

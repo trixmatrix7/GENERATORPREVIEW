@@ -102,7 +102,15 @@ export function evaluatePaylines(
     if (payBps === 0) return null;
     const winAmount = (BigInt(payBps) * totalWager) / BigInt(BPS_DIVISOR);
     if (winAmount === 0n) return null;
-    return { symbolId: effective, matchCount, ways: 1, payBps, winAmount, cells };
+    // linePath = the FULL payline shape across every reel (not just the
+    // paying run). The presentation draws the beam edge-to-edge through all
+    // 5 reels — the classic-lines convention (research/slot-feel/14 §2).
+    const linePath: [number, number][] = [];
+    for (let reel = 0; reel < reelCount; reel++) {
+      if (line[reel] >= visibleRows) break;
+      linePath.push([line[reel], reel]);
+    }
+    return { symbolId: effective, matchCount, ways: 1, payBps, winAmount, cells, linePath };
   };
 
   for (const line of PAYLINES_5x3) {

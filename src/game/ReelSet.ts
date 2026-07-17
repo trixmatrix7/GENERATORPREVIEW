@@ -7,7 +7,7 @@
 //     outcome itself is never altered.
 //   - Win-cell highlighting and per-cell state triggers after the reels land.
 
-import { Container, Graphics, Text, TextStyle, Rectangle, Sprite, Texture } from 'pixi.js';
+import { Container, Graphics, Text, TextStyle, Rectangle, Sprite, Texture, ColorMatrixFilter } from 'pixi.js';
 import { gsap } from 'gsap';
 import { Reel } from './Reel';
 import { AnimatedSymbol, SYMBOL_WIDTH, SYMBOL_HEIGHT, SYMBOL_WIN_SHEETS } from './AnimatedSymbol';
@@ -1241,6 +1241,7 @@ export class ReelSet {
     this.clearWinLines();                 // clear the previous combo's fx
     this.restoreLiftedObjects();          // return the previous combo's objects
     this.applyCellHighlight(combo.cells); // enlarge-pulse this combo
+    this.flashWinCells(combo.cells);      // white-hot pop on the winners
     this.buildDecoration([combo]);
     this.liftWinningObjects(combo.cells); // raise this combo's objects above the line
     // Immersive detonation — full punch during the tally (amount showing),
@@ -1256,14 +1257,26 @@ export class ReelSet {
     // Ways-immersive owns the win: no line, no comet — the detonating
     // connection + dim board ARE the presentation.
     if (waysImmersiveConfig.enabled || !waysLightConfig.enabled) return Promise.resolve();
+    // PAYLINE combos carry the FULL line shape (all reels, past the paying
+    // run) — the beam draws edge-to-edge like a classic lines slot
+    // (research/slot-feel/14 §2). Ways combos fall back to the winning cells.
+    const path = (combo as WinCombination & { linePath?: [number, number][] }).linePath;
+    const cells = path ?? combo.cells;
     const byReel = new Map<number, Array<{ x: number; y: number }>>();
-    for (const [row, reel] of combo.cells) {
+    for (const [row, reel] of cells) {
       const r = resolveAnchor(cellAnchor(reel, row), this.grid);
       const arr = byReel.get(reel) ?? [];
       arr.push({ x: r.x + r.w / 2, y: r.y + r.h / 2 });
       byReel.set(reel, arr);
     }
     const reels = [...byReel.keys()].sort((a, b) => a - b).map(k => byReel.get(k)!);
+    if (path && reels.length >= 2) {
+      // Edge-to-edge: enter from the board's left edge, exit past the right.
+      const rFirst = resolveAnchor(cellAnchor(0, path[0][0]), this.grid);
+      const rLast = resolveAnchor(cellAnchor(this.grid.reelCount - 1, path[path.length - 1][0]), this.grid);
+      reels.unshift([{ x: rFirst.x - 8, y: rFirst.y + rFirst.h / 2 }]);
+      reels.push([{ x: rLast.x + rLast.w + 8, y: rLast.y + rLast.h / 2 }]);
+    }
     if (reels.length >= 2) return playWaysLight(this.waysLightContainer, reels);
     return Promise.resolve();
   }
@@ -1358,6 +1371,36 @@ export class ReelSet {
       for (let row = 0; row < this.grid.visibleRows; row++) {
         this.reels[i].getVisibleCell(row)?.highlight(!!rows && rows.has(row));
       }
+    }
+  }
+
+  /** WHITE-HOT winner flash (classic lines convention, research 14 §2):
+   *  winners burst bright on reveal (~90ms up), then ease back over ~0.5s.
+   *  Skipped while ways-immersive owns the presentation (Vice look stays
+   *  untouched) — the leap/dance choreography has its own emphasis. */
+  private flashWinCells(cells: ReadonlyArray<[number, number]>): void {
+    if (waysImmersiveConfig.enabled) return;
+    for (const [row, reel] of cells) {
+      if (this.expandedReels.has(reel)) continue; // tower pulses instead
+      const cell = this.reels[reel]?.getVisibleCell(row);
+      if (!cell) continue;
+      const prev = cell.filters;
+      const prevArr = Array.isArray(prev) ? prev : prev ? [prev] : [];
+      const f = new ColorMatrixFilter();
+      cell.filters = [...prevArr, f];
+      const state = { b: 1 };
+      const apply = () => { f.reset(); f.brightness(state.b, false); };
+      const done = () => {
+        // restore only if OUR filter is still the one on the cell (a later
+        // flash may have replaced the list already)
+        const cur = cell.filters;
+        const curArr = Array.isArray(cur) ? cur : cur ? [cur] : [];
+        if (curArr.includes(f)) cell.filters = curArr.filter(x => x !== f);
+        f.destroy();
+      };
+      gsap.timeline({ onComplete: done })
+        .to(state, { b: 2.0, duration: 0.09, ease: 'power2.out', onUpdate: apply })
+        .to(state, { b: 1.0, duration: 0.5, ease: 'power2.in', onUpdate: apply });
     }
   }
 

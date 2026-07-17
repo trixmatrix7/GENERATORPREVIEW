@@ -2278,11 +2278,22 @@ export class PixiApp {
     // 1. Tally: each winning connection revealed once, smallest→largest,
     //    floating its sub-amount. (WAYS: no repeat afterwards; LINES: the
     //    resting line cycle loops through them again after the ceremony.)
+    const lines = activePayModel() === 'lines';
     if (tally) {
-      const stepMs = ordered.length > 5 ? 380 : 600;
+      // LINES: a beat of QUIET before the presentation (board bright,
+      // nothing moves) — the classic-slots tension pause. Measured ~0.5-0.65s
+      // on the reference (research/slot-feel/14 §2).
+      if (lines) {
+        await new Promise(r => setTimeout(r, 450));
+        if (id !== this._winRevealId || !this.isLive) return;
+      }
+      const stepMs = ordered.length > 5 ? 380 : lines ? 700 : 600;
       for (let i = 0; i < ordered.length; i++) {
         if (id !== this._winRevealId || !this.isLive) return; // aborted by next spin
         this.reelSet.revealCombo(ordered[i], '+' + formatWin(ordered[i].winAmount, decimals));
+        // LINES: every tally step draws its full payline beam (the reference
+        // presents beam + winners + amount per line, research 14 §2).
+        if (lines) void this.reelSet.playComboComet(ordered[i]);
         this.reelSet.audioHooks.onWinStep?.(i, ordered.length);
         await new Promise(r => setTimeout(r, stepMs));
       }
@@ -2300,7 +2311,7 @@ export class PixiApp {
     const origins = this.reelSet.getWinningCellCenters(outcome.winResult);
     await this.playCoinWin(outcome.winAmount, outcome.wager ?? 1n, symbol, decimals, origins);
     if (id !== this._winRevealId || !this.isLive) return;
-    if (cycleAfter && activePayModel() === 'lines' && combos.length > 0) {
+    if (cycleAfter && lines && combos.length > 0) {
       this.startLineCycle(combos, decimals, id);
     }
   }

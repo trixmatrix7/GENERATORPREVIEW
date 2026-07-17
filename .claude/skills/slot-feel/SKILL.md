@@ -81,6 +81,9 @@ Immersive, nie beides. Sequentiell Combo-für-Combo. (Ways-Video-Ground-Truth: R
 - Mix-Referenz WS: Stops fast unhörbar, Wins/Features tragen. Unser Wood-Clatter ist eine
   bewusste Gegenentscheidung (Noski-approved) — nicht "korrigieren".
 - Sound-Spezifikationen für echte Drops: research/slot-feel/05.
+- **Crack-Farm-Produktionsplan (Suno): research/slot-feel/17** — Key D-Dur @118 BPM für ALLES
+  Tonale, Tier-Quips pro Symbol-Connection, Review-Ordner `public/audio/_review/` vor Freigabe,
+  Marquee-Musik bleibt universal (nie themen).
 
 ## 5. Verify-Muster (Browser-Pane, verbindlich vor jedem Commit)
 

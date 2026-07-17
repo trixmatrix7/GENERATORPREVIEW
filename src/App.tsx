@@ -168,6 +168,9 @@ export function App() {
       // The tall 1×3 mutant plant fills a reel on expansion — and it GROWS:
       // the wild slides down to the reel floor and the plant rises out of it.
       pixiAppRef.setExpandGrowth('bottom-up');
+      // No frosted reel pane on the barn: the blurred sunset bg showed through
+      // the symbols' transparent corners as a milky white film.
+      pixiAppRef.setReelFrosted(false);
       void pixiAppRef.setExpandingWildImage(saved.expandingWild ?? CRACKFARM.expandingWild);
       // Barn frame — alpha window auto-detected from the transparent centre.
       track(pixiAppRef.setFrameImage(saved.frame ?? CRACKFARM.frame));

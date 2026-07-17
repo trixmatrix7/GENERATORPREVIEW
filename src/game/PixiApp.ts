@@ -1906,8 +1906,19 @@ export class PixiApp {
    *  static vignette (so the vignette darkens its edges). No bg image → only
    *  the vignette shows over the dark frame fill. Geometry is fixed, so it
    *  scales with the scene and needs no resize rebuild. */
+  /** Themes with their own window art (Crack Farm barn) disable the frosted
+   *  pane: the blurred sunset showed through the symbols' transparent corners
+   *  as a milky film ("irgendwas weißes weirdes" — Noski). Vice keeps it. */
+  private reelFrostedEnabled = true;
+
+  setReelFrosted(on: boolean): void {
+    this.reelFrostedEnabled = on;
+    this.updateReelBackdrop();
+  }
+
   private updateReelBackdrop(): void {
     this.teardownReelBackdrop();
+    if (!this.reelFrostedEnabled) return;
     if (!this.bgTexture || !this.reelSet || this._aborted || !this.reelBackdropContainer) return;
 
     const innerW = this.reelSet.totalWidth;

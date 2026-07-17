@@ -19,7 +19,7 @@ import { hslToNum, numToHsl, hexToNum } from '@/config/color';
 import { CANVAS_THEME } from '@/config/canvasTheme';
 import { deriveStopsFromRandomness, type SpinOutcome } from '@/engine/SlotEngine';
 import { buildBoard } from '@/config/reels';
-import { type WinResult, type WinCombination } from '@/engine/WinEvaluator';
+import { type WinResult } from '@/engine/WinEvaluator';
 import { evalWins, activePayModel } from './winEval';
 import { DEFAULT_GAME_CONFIG, type GameConfig, type GameTheme } from '@/engine/GameConfig';
 import { playDeterministicHoldAndWin, HW_TRIGGER_MIN } from '@/engine/holdAndWin';
@@ -1944,40 +1944,12 @@ export class PixiApp {
    *  can't keep drawing frames over the next spin's reels. */
   private _winRevealId = 0;
 
-  /** PAYLINE resting presentation (research/slot-feel/06 #12, 08): after the
-   *  tally + ceremony, winning LINES cycle one at a time — frames + comet +
-   *  the line's amount, ~1.1s each, looping until the next spin. This is
-   *  what makes multiple simultaneous line wins read as LINES instead of a
-   *  ways-style all-lit fan. */
-  private lineCycleTl: gsap.core.Timeline | null = null;
-
-  private stopLineCycle(): void {
-    if (this.lineCycleTl) { this.lineCycleTl.kill(); this.lineCycleTl = null; }
-  }
-
-  private startLineCycle(combos: WinCombination[], decimals: number, revealId: number): void {
-    this.stopLineCycle();
-    if (combos.length === 0) return;
-    let i = 0;
-    const tl = gsap.timeline({ repeat: -1 });
-    tl.call(() => {
-      if (revealId !== this._winRevealId || !this.isLive) { this.stopLineCycle(); return; }
-      const c = combos[i % combos.length];
-      this.reelSet.revealCombo(c, '+' + formatWin(c.winAmount, decimals));
-      void this.reelSet.playComboComet(c);
-      i++;
-    });
-    tl.to({}, { duration: 1.15 });
-    this.lineCycleTl = tl;
-  }
-
   spin() {
     // Guard: caller may invoke before init() finishes or after destroy().
     // Silent no-op is the safe answer — the React state machine handles
     // these edges via the disabled-while-!ready button + unmount cleanup.
     if (!this.isLive) return;
     this._winRevealId++; // cancel any in-flight win reveal from the prior spin
-    this.stopLineCycle();
     gsap.killTweensOf(this.winBanner);
     gsap.killTweensOf(this.winBanner.scale);
     this.winBanner.visible = false;
@@ -2084,7 +2056,6 @@ export class PixiApp {
         // Abort the PREVIOUS spin's win presentation (a tally could still be
         // mid-flight) before the reels roll — only spin() bumps the id.
         this._winRevealId++;
-        this.stopLineCycle();
         const expanded = await this.reelSet.playExpandingWildReveal(
           { isLive: () => this.isLive, turbo: this.turbo, sticky: stickyMode, roaming: crackLines && !stickyMode },
         );
@@ -2133,8 +2104,7 @@ export class PixiApp {
           };
           // playWinSequence presents the win itself (tally → finale) — a
           // preceding highlightWins would double-start the presentation.
-          // cycleAfter=false: the next free spin rolls in ~350ms anyway.
-          await this.playWinSequence(spinOutcome, tokenSymbol, decimals, false);
+          await this.playWinSequence(spinOutcome, tokenSymbol, decimals);
           if (!this.isLive) break;
           this.reelSet.clearHighlights();
           // Roll the spin's win into the TOTAL WIN plaque (pop on update).
@@ -2261,7 +2231,6 @@ export class PixiApp {
     outcome: SpinOutcome,
     symbol: string,
     decimals: number,
-    cycleAfter = true, // false inside the FS loop — the next spin follows immediately
   ): Promise<void> {
     const id = ++this._winRevealId;
     const combos = outcome.winResult.combinations.filter(c => c.winAmount > 0n);
@@ -2276,8 +2245,8 @@ export class PixiApp {
       : [];
 
     // 1. Tally: each winning connection revealed once, smallest→largest,
-    //    floating its sub-amount. (WAYS: no repeat afterwards; LINES: the
-    //    resting line cycle loops through them again after the ceremony.)
+    //    floating its sub-amount. (LINES: this sequential pass IS the whole
+    //    presentation — Wild-Storm convention, no repeat afterwards.)
     const lines = activePayModel() === 'lines';
     if (tally) {
       // LINES: a beat of QUIET before the presentation (board bright,
@@ -2300,20 +2269,32 @@ export class PixiApp {
       if (id !== this._winRevealId || !this.isLive) return;
     }
 
-    // 2. Finale: every winner lit together + the grand-total coin ceremony
-    //    (awaited → the next spin holds until it finishes).
-    //    WAYS: this all-lit state then simply RESTS until the next spin.
-    //    LINES: the all-lit moment is only a brief FLASH — after the ceremony
-    //    the winning lines cycle one-by-one (frames + comet + line amount)
-    //    until the next spin, per the payline convention.
+    // 2. Finale.
+    //    WAYS: every winner lit together + the grand-total coin ceremony;
+    //    the all-lit state then RESTS until the next spin.
+    //    LINES (Wild-Storm convention, research 14 §2 — Noski: "will das wie
+    //    wild storm"): the lines already presented ONE BY ONE in the tally —
+    //    there is NO all-lit phase and NO loop. The dim lifts, the coin
+    //    ceremony pays the total, and the board rests NEUTRAL.
+    if (lines) {
+      if (tally) {
+        this.reelSet.clearHighlights(); // dim lifts after the last line
+      } else {
+        // turbo/reduced-motion: no sequential pass ran — one all-lit beat so
+        // the win still reads before the ceremony.
+        this.reelSet.highlightWins(outcome.winResult);
+      }
+      if (id !== this._winRevealId || !this.isLive) return;
+      const origins = this.reelSet.getWinningCellCenters(outcome.winResult);
+      await this.playCoinWin(outcome.winAmount, outcome.wager ?? 1n, symbol, decimals, origins);
+      if (id !== this._winRevealId || !this.isLive) return;
+      if (!tally) this.reelSet.clearHighlights(); // turbo beat also ends neutral
+      return;
+    }
     this.reelSet.highlightWins(outcome.winResult);
     if (id !== this._winRevealId || !this.isLive) return;
     const origins = this.reelSet.getWinningCellCenters(outcome.winResult);
     await this.playCoinWin(outcome.winAmount, outcome.wager ?? 1n, symbol, decimals, origins);
-    if (id !== this._winRevealId || !this.isLive) return;
-    if (cycleAfter && lines && combos.length > 0) {
-      this.startLineCycle(combos, decimals, id);
-    }
   }
 
   /** Free-spins entry: the live board is sucked into a shrinking BLACK circle
@@ -2974,7 +2955,6 @@ export class PixiApp {
     // Abort a previous win's presentation (mid-flight tally) so it never
     // draws over the showcase (only spin() bumps the id).
     this._winRevealId++;
-    this.stopLineCycle();
     void this.reelSet.playStickyWildReveal({ isLive: () => this.isLive, turbo: this.turbo });
   }
 
@@ -3016,7 +2996,6 @@ export class PixiApp {
       // Abort a previous round's win presentation (mid-flight tally) — it
       // would draw over the fresh towers (only spin() bumps the id).
       this._winRevealId++;
-      this.stopLineCycle();
       // force: the showcase button always demonstrates towers (live FS spins
       // expand organically instead).
       const chosen = await this.reelSet.playExpandingWildReveal({ isLive: () => this.isLive, turbo: this.turbo, force: true });
@@ -3764,7 +3743,6 @@ export class PixiApp {
   destroy() {
     this._aborted = true;
     this._ready = false;
-    this.stopLineCycle();
 
     // Kill outstanding banner / win-number tweens before tearing the stage down.
     gsap.killTweensOf(this.winBanner);

@@ -1387,6 +1387,13 @@ export class ReelSet {
       const prev = cell.filters;
       const prevArr = Array.isArray(prev) ? prev : prev ? [prev] : [];
       const f = new ColorMatrixFilter();
+      // CRITICAL: filters render the subtree into an intermediate texture at
+      // the FILTER's resolution (default 1) — on a DPR-2 canvas that halves
+      // the symbol's pixel density = visibly blurry/pixelated cells (Noski).
+      // 'inherit' keeps the render-target resolution, so the flash costs no
+      // sharpness. Same for antialias.
+      f.resolution = 'inherit';
+      f.antialias = 'inherit';
       cell.filters = [...prevArr, f];
       const state = { b: 1 };
       const apply = () => { f.reset(); f.brightness(state.b, false); };
@@ -1398,9 +1405,11 @@ export class ReelSet {
         if (curArr.includes(f)) cell.filters = curArr.filter(x => x !== f);
         f.destroy();
       };
+      // Snappy pop, quick release — a lingering >1.0 brightness reads as a
+      // washed-out "matte film" over the art, so the tail stays short.
       gsap.timeline({ onComplete: done })
-        .to(state, { b: 2.0, duration: 0.09, ease: 'power2.out', onUpdate: apply })
-        .to(state, { b: 1.0, duration: 0.5, ease: 'power2.in', onUpdate: apply });
+        .to(state, { b: 1.9, duration: 0.09, ease: 'power2.out', onUpdate: apply })
+        .to(state, { b: 1.0, duration: 0.3, ease: 'power1.in', onUpdate: apply });
     }
   }
 

@@ -355,6 +355,7 @@ export class ReelSet {
     this.stickyRevealGen++;
     this.expandedReels.clear();
     this.expandedTowerSprites.clear();
+    this.roamGlideSpr = null; // sprite itself dies with stickyRevealObjects below
     // Return wild art lifted above its gold frame to the cells.
     for (const c of this.stickyLiftedCells) c.restoreObject();
     this.stickyLiftedCells.length = 0;
@@ -703,6 +704,7 @@ export class ReelSet {
 
     let chosen: number[];
     let gen: number;
+    let roamGlideActive = false;
     const displayStops = this.config.reelLengths.map(len => Math.floor(Math.random() * len));
     const landingRows: number[] = [];
 
@@ -730,6 +732,13 @@ export class ReelSet {
       // reel sprouts fully wild this spin — guaranteed action every spin,
       // cleared on the next one. The chosen reel's stop is forced so the
       // wild visibly lands before the plant grows.
+      // WS-Referenz (research 14 §3): steht vom VORHERIGEN Free Spin schon
+      // eine Pflanze, verschwindet sie nicht — sie hebt ab und GLEITET über
+      // die rollenden Reels zu ihrem neuen Reel (Pop-out + Lean), parkt
+      // dort und slammt ein (preGrown-Pfad statt Neu-Wachsen).
+      const glideFrom = !opts.turbo && this.expandedReels.size === 1
+        ? Array.from(this.expandedReels)[0]
+        : null;
       this.startSpin();
       gen = this.stickyRevealGen;
       chosen = [];
@@ -741,6 +750,9 @@ export class ReelSet {
           chosen = [pick];
           landingRows.push(hit.row);
         }
+      }
+      if (glideFrom !== null && chosen.length === 1) {
+        roamGlideActive = this.startRoamGlide(glideFrom, chosen[0]);
       }
     } else if (opts.force) {
       // SHOWCASE (test button): guarantee 1-3 towers — each chosen reel's
@@ -780,7 +792,7 @@ export class ReelSet {
     // Sequential, one reel finishing before the next starts (like the ref).
     for (let k = 0; k < chosen.length; k++) {
       if (this.stickyRevealGen !== gen || !live()) return opts.sticky ? allExpanded() : [];
-      await this.expandOneWildReel(chosen[k], landingRows[k], !!opts.turbo);
+      await this.expandOneWildReel(chosen[k], landingRows[k], !!opts.turbo, roamGlideActive && k === 0);
       await new Promise(res => setTimeout(res, opts.turbo ? 90 : 200));
     }
     if (this.stickyRevealGen !== gen || !live()) return opts.sticky ? allExpanded() : [];
@@ -794,16 +806,72 @@ export class ReelSet {
     return chosen;
   }
 
+  /** The roaming plant's TRAVELER sprite: lifts off its old reel, pops out
+   *  slightly oversized, leans into the travel direction and glides ABOVE the
+   *  rolling reels to the new reel, where it settles back down (Wild-Storm
+   *  roam, research 14 §3 — continuous glide, no hop). Registered on the NEW
+   *  spin's sticky lifecycle, so an aborted spin cleans it up. The preGrown
+   *  park in expandOneWildReel swaps it for the real tower. */
+  private roamGlideSpr: Sprite | null = null;
+
+  private startRoamGlide(fromReel: number, toReel: number): boolean {
+    const tex = this.expandWildTexture;
+    if (!tex) return false;
+    const rFrom = resolveAnchor(reelAnchor(fromReel), this.grid);
+    const rTo = resolveAnchor(reelAnchor(toReel), this.grid);
+    const spr = new Sprite(tex);
+    spr.anchor.set(0.5, 1); // bottom-anchored like the standing plant
+    spr.scale.set((rFrom.w * 0.98) / tex.width);
+    spr.position.set(rFrom.x + rFrom.w / 2, rFrom.y + rFrom.h);
+    spr.eventMode = 'none';
+    this.stickyContainer.addChild(spr);
+    this.stickyRevealObjects.push(spr);
+    this.roamGlideSpr = spr;
+    const dir = Math.sign(toReel - fromReel) || 1;
+    const base = spr.scale.x;
+    const tl = gsap.timeline();
+    this.stickyRevealTweens.push(tl);
+    // Lift + pop-out (the reference funnel overflows its panel while roaming).
+    tl.to(spr.scale, { x: base * 1.12, y: base * 1.12, duration: 0.28, ease: 'back.out(1.6)' }, 0);
+    tl.to(spr, { y: rFrom.y + rFrom.h - 14, duration: 0.28, ease: 'power2.out' }, 0);
+    // Lean into the travel direction, glide, counter-swing, straighten.
+    tl.to(spr, { rotation: dir * 0.2, duration: 0.35, ease: 'power1.inOut' }, 0.1);
+    tl.to(spr, { x: rTo.x + rTo.w / 2, duration: 1.35, ease: 'power1.inOut' }, 0.3);
+    tl.to(spr, { rotation: dir * -0.06, duration: 0.4, ease: 'power1.inOut' }, 1.3);
+    tl.to(spr, { rotation: 0, duration: 0.25, ease: 'power1.out' }, 1.7);
+    // Settle onto the new reel floor, tuck back to standing size.
+    tl.to(spr.scale, { x: base, y: base, duration: 0.3, ease: 'power2.in' }, 1.65);
+    tl.to(spr, { y: rTo.y + rTo.h, duration: 0.3, ease: 'power2.in' }, 1.65);
+    return true;
+  }
+
+  /** Remove the traveler the moment the REAL tower takes over (preGrown park).
+   *  Destruction stays with the sticky lifecycle (the sprite is registered
+   *  in stickyRevealObjects) — this only takes it off screen. */
+  private clearRoamGlide(): void {
+    const spr = this.roamGlideSpr;
+    this.roamGlideSpr = null;
+    if (spr) {
+      gsap.killTweensOf(spr);
+      gsap.killTweensOf(spr.scale);
+      if (spr.parent) spr.parent.removeChild(spr);
+    }
+  }
+
   /** One reel's expansion: wild pops in its landing cell → the reel's other
    *  symbols vanish under an opaque clear-beat → the money column grows out of
    *  the landing cell to full reel height (masked to the reel) → impact flash
    *  + reel-sized AAA shine border. All overlays ride the sticky-reveal
-   *  lifecycle, so the next spin clears everything. */
-  private expandOneWildReel(reelIdx: number, row: number, turbo: boolean): Promise<void> {
+   *  lifecycle, so the next spin clears everything.
+   *  `preGrown` (roam glide park): the plant is ALREADY standing — the
+   *  traveler slides off, the real column appears at full height instantly
+   *  and only the lock-in slam plays (no seed-drop, no grow reveal). */
+  private expandOneWildReel(reelIdx: number, row: number, turbo: boolean, preGrown = false): Promise<void> {
     return new Promise(resolve => {
       // Bill-riffle riser foley — its slam is authored to land on the
-      // lock-in beat (~0.42s), matching T_RACE + the settle.
-      this.audioHooks.onWildExpand?.(reelIdx);
+      // lock-in beat (~0.42s), matching T_RACE + the settle. The roam park
+      // has no grow phase, so no riser — the landing-thud carries the beat.
+      if (!preGrown) this.audioHooks.onWildExpand?.(reelIdx);
       // From here on the reel belongs to the tower — its cells are excluded
       // from every win presentation until the sticky lifecycle clears.
       this.expandedReels.add(reelIdx);
@@ -822,8 +890,10 @@ export class ReelSet {
       const bottomUp = this.expandGrowth === 'bottom-up';
       const rows = this.grid.visibleRows;
       const potRow = bottomUp ? rows - 1 : row;
-      const T_SLIDE = bottomUp && row < rows - 1 ? 0.22 * speed : 0;
-      if (bottomUp && row < rows - 1) {
+      const T_SLIDE = !preGrown && bottomUp && row < rows - 1 ? 0.22 * speed : 0;
+      if (preGrown) {
+        // Roam park: the traveler IS the landing beat — no wild pop, no seed.
+      } else if (bottomUp && row < rows - 1) {
         // Seed-drop beat: a copy of the 1×1 wild slides from the landing
         // cell down to the reel floor, then the pot pops there.
         const wildTex = this.config.theme.userAssetTextures?.get(SymbolId.WILD);
@@ -893,7 +963,8 @@ export class ReelSet {
           mask.roundRect(rr.x - 1, topY, rr.w + 2, botY - topY, rad).fill(0xffffff);
         }
       };
-      drawReveal(0); // starts as exactly the landing cell (race) / the soil (bottom-up)
+      // preGrown (roam park): the plant arrives standing — mask opens fully.
+      drawReveal(preGrown ? 1 : 0); // otherwise: exactly the landing cell (race) / the soil (bottom-up)
       this.stickyContainer.addChild(mask);
       spr.mask = mask;
       this.stickyContainer.addChild(spr);
@@ -917,19 +988,27 @@ export class ReelSet {
       const baseScale = spr.scale.x;
       const tl = gsap.timeline({ onComplete: resolve });
       this.stickyRevealTweens.push(tl);
-      // Bottom-up shifts every beat by the seed-drop slide.
-      const T_CLEAR = T_SLIDE + 0.32 * speed;
-      const T_RACE = T_SLIDE + 0.40 * speed;
-      const T_LOCK = T_RACE + 0.46 * speed;
-      tl.to(clear, { alpha: 1, duration: 0.12 * speed, ease: 'power2.out' }, T_CLEAR);
-      tl.to(spr, { alpha: 1, duration: 0.07 * speed, ease: 'power1.out' }, T_RACE - 0.02 * speed);
-      const reveal = { t: 0 };
-      tl.to(reveal, {
-        // Plant growth reads organic with a spring at the top (back.out);
-        // the money column keeps its expo race-out.
-        t: 1, duration: (bottomUp ? 0.52 : 0.46) * speed, ease: bottomUp ? 'back.out(1.1)' : 'expo.inOut',
-        onUpdate: () => drawReveal(reveal.t),
-      }, T_RACE);
+      // Bottom-up shifts every beat by the seed-drop slide. The roam park
+      // compresses everything: the traveler already stands on the reel, so
+      // the swap (clear panel + real column) happens near-instantly and only
+      // the lock-in slam plays.
+      const T_CLEAR = preGrown ? 0 : T_SLIDE + 0.32 * speed;
+      const T_RACE = preGrown ? 0.04 : T_SLIDE + 0.40 * speed;
+      const T_LOCK = preGrown ? 0.12 : T_RACE + 0.46 * speed;
+      tl.to(clear, { alpha: 1, duration: (preGrown ? 0.04 : 0.12) * speed, ease: 'power2.out' }, T_CLEAR);
+      tl.to(spr, { alpha: 1, duration: (preGrown ? 0.03 : 0.07) * speed, ease: 'power1.out' }, Math.max(0, T_RACE - 0.02 * speed));
+      if (preGrown) {
+        // The real column is visible — the traveler slides off the stage.
+        tl.call(() => this.clearRoamGlide(), undefined, T_RACE + 0.03);
+      } else {
+        const reveal = { t: 0 };
+        tl.to(reveal, {
+          // Plant growth reads organic with a spring at the top (back.out);
+          // the money column keeps its expo race-out.
+          t: 1, duration: (bottomUp ? 0.52 : 0.46) * speed, ease: bottomUp ? 'back.out(1.1)' : 'expo.inOut',
+          onUpdate: () => drawReveal(reveal.t),
+        }, T_RACE);
+      }
       // LOCK-IN — squash-settle: the column compresses under its own weight
       // and springs back. Top-anchored towers visibly sit down; the
       // bottom-anchored plant compresses into its pot (y stays fixed).

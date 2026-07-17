@@ -1388,21 +1388,47 @@ export class PixiApp {
     }
   }
 
+  /** Slice a spritesheet into INDIVIDUAL frame textures (own canvas each)
+   *  with mipmaps + anisotropy. Shared-source atlas frames can't mipmap
+   *  (neighbor bleed — research 11), so downscaled sheet animations alias
+   *  ("pixelig" in motion, Noski). Per-frame sources give every frame its
+   *  own clean mip chain. VRAM: only sheet-carrying symbols pay, and old
+   *  frames are destroyed (true) on replace. */
+  private async sliceSheetHD(url: string, cols: number, rows: number, count: number): Promise<Texture[]> {
+    const img = await new Promise<HTMLImageElement>((res, rej) => {
+      const i = new Image();
+      i.crossOrigin = 'anonymous';
+      i.onload = () => res(i);
+      i.onerror = () => rej(new Error('image load failed: ' + url));
+      i.src = url;
+    });
+    const fw = img.naturalWidth / cols, fh = img.naturalHeight / rows;
+    const frames: Texture[] = [];
+    for (let i = 0; i < count; i++) {
+      const c = document.createElement('canvas');
+      c.width = Math.max(1, Math.round(fw));
+      c.height = Math.max(1, Math.round(fh));
+      const g = c.getContext('2d')!;
+      g.drawImage(img, (i % cols) * fw, Math.floor(i / cols) * fh, fw, fh, 0, 0, c.width, c.height);
+      const tex = Texture.from(c);
+      tex.source.autoGenerateMipmaps = true;
+      tex.source.style.maxAnisotropy = 8;
+      tex.source.update();
+      frames.push(tex);
+    }
+    return frames;
+  }
+
   /** Per-symbol WIN animation spritesheet: while that symbol's cell is in the
    *  'win' state (part of a connection) the sheet loops in place of the static
    *  art. Pass url=null to clear the symbol's sheet. */
   async setSymbolWinSheet(symbolId: number, url: string | null, cols: number, rows: number, count: number, fps = 12): Promise<void> {
     const old = SYMBOL_WIN_SHEETS.get(symbolId);
     SYMBOL_WIN_SHEETS.delete(symbolId);
-    if (old) for (const f of old.frames) { try { f.destroy(false); } catch { /* torn down */ } }
+    if (old) for (const f of old.frames) { try { f.destroy(true); } catch { /* torn down */ } }
     if (!url) return;
     try {
-      const sheet = await Assets.load<Texture>(url);
-      const fw = sheet.width / cols, fh = sheet.height / rows;
-      const frames: Texture[] = [];
-      for (let i = 0; i < count; i++) {
-        frames.push(new Texture({ source: sheet.source, frame: new Rectangle((i % cols) * fw, Math.floor(i / cols) * fh, fw, fh) }));
-      }
+      const frames = await this.sliceSheetHD(url, cols, rows, count);
       SYMBOL_WIN_SHEETS.set(symbolId, { frames, fps });
     } catch (err) {
       console.warn('[PixiApp] failed to load symbol win sheet:', err);
@@ -1415,15 +1441,10 @@ export class PixiApp {
   async setSymbolIdleSheet(symbolId: number, url: string | null, cols: number, rows: number, count: number, fps = 12): Promise<void> {
     const old = SYMBOL_IDLE_SHEETS.get(symbolId);
     SYMBOL_IDLE_SHEETS.delete(symbolId);
-    if (old) for (const f of old.frames) { try { f.destroy(false); } catch { /* torn down */ } }
+    if (old) for (const f of old.frames) { try { f.destroy(true); } catch { /* torn down */ } }
     if (!url) { this.reelSet?.refreshAllTiles(); return; }
     try {
-      const sheet = await Assets.load<Texture>(url);
-      const fw = sheet.width / cols, fh = sheet.height / rows;
-      const frames: Texture[] = [];
-      for (let i = 0; i < count; i++) {
-        frames.push(new Texture({ source: sheet.source, frame: new Rectangle((i % cols) * fw, Math.floor(i / cols) * fh, fw, fh) }));
-      }
+      const frames = await this.sliceSheetHD(url, cols, rows, count);
       SYMBOL_IDLE_SHEETS.set(symbolId, { frames, fps });
       this.reelSet?.refreshAllTiles(); // resting cells pick the loop up immediately
     } catch (err) {

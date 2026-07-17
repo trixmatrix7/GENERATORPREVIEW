@@ -7,7 +7,7 @@
 //     outcome itself is never altered.
 //   - Win-cell highlighting and per-cell state triggers after the reels land.
 
-import { Container, Graphics, Text, TextStyle, Rectangle, Sprite, Texture, ColorMatrixFilter } from 'pixi.js';
+import { Container, Graphics, Text, TextStyle, Rectangle, Sprite, Texture } from 'pixi.js';
 import { gsap } from 'gsap';
 import { Reel } from './Reel';
 import { AnimatedSymbol, SYMBOL_WIDTH, SYMBOL_HEIGHT, SYMBOL_WIN_SHEETS } from './AnimatedSymbol';
@@ -1453,42 +1453,54 @@ export class ReelSet {
     }
   }
 
-  /** WHITE-HOT winner flash (classic lines convention, research 14 §2):
-   *  winners burst bright on reveal (~90ms up), then ease back over ~0.5s.
-   *  Skipped while ways-immersive owns the presentation (Vice look stays
-   *  untouched) — the leap/dance choreography has its own emphasis. */
+  /** Winner BACKLIGHT burst (lines convention, research 14 §2): a hot radial
+   *  glow pops BEHIND each winning symbol and fades — the "white-hot" beat
+   *  without touching the symbol's own pixels. (The earlier brightness-filter
+   *  version bleached the art: lifting all channels reads as a pale/matte
+   *  film — Noski. Additive light underneath keeps the art 100% crisp.)
+   *  Skipped while ways-immersive owns the presentation (Vice untouched). */
+  private winGlowTex: Texture | null = null;
+
+  private getWinGlowTex(): Texture {
+    if (!this.winGlowTex) {
+      const S = 128;
+      const c = document.createElement('canvas');
+      c.width = c.height = S;
+      const g = c.getContext('2d')!;
+      const grad = g.createRadialGradient(S / 2, S / 2, 0, S / 2, S / 2, S / 2);
+      grad.addColorStop(0, 'rgba(255,246,216,0.95)'); // warm white core
+      grad.addColorStop(0.45, 'rgba(255,246,216,0.35)');
+      grad.addColorStop(1, 'rgba(255,246,216,0)');
+      g.fillStyle = grad;
+      g.fillRect(0, 0, S, S);
+      this.winGlowTex = Texture.from(c);
+    }
+    return this.winGlowTex;
+  }
+
   private flashWinCells(cells: ReadonlyArray<[number, number]>): void {
     if (waysImmersiveConfig.enabled) return;
     for (const [row, reel] of cells) {
       if (this.expandedReels.has(reel)) continue; // tower pulses instead
-      const cell = this.reels[reel]?.getVisibleCell(row);
-      if (!cell) continue;
-      const prev = cell.filters;
-      const prevArr = Array.isArray(prev) ? prev : prev ? [prev] : [];
-      const f = new ColorMatrixFilter();
-      // CRITICAL: filters render the subtree into an intermediate texture at
-      // the FILTER's resolution (default 1) — on a DPR-2 canvas that halves
-      // the symbol's pixel density = visibly blurry/pixelated cells (Noski).
-      // 'inherit' keeps the render-target resolution, so the flash costs no
-      // sharpness. Same for antialias.
-      f.resolution = 'inherit';
-      f.antialias = 'inherit';
-      cell.filters = [...prevArr, f];
-      const state = { b: 1 };
-      const apply = () => { f.reset(); f.brightness(state.b, false); };
-      const done = () => {
-        // restore only if OUR filter is still the one on the cell (a later
-        // flash may have replaced the list already)
-        const cur = cell.filters;
-        const curArr = Array.isArray(cur) ? cur : cur ? [cur] : [];
-        if (curArr.includes(f)) cell.filters = curArr.filter(x => x !== f);
-        f.destroy();
-      };
-      // Snappy pop, quick release — a lingering >1.0 brightness reads as a
-      // washed-out "matte film" over the art, so the tail stays short.
-      gsap.timeline({ onComplete: done })
-        .to(state, { b: 1.9, duration: 0.09, ease: 'power2.out', onUpdate: apply })
-        .to(state, { b: 1.0, duration: 0.3, ease: 'power1.in', onUpdate: apply });
+      const r = resolveAnchor(cellAnchor(reel, row), this.grid);
+      const glow = new Sprite(this.getWinGlowTex());
+      glow.anchor.set(0.5);
+      glow.position.set(r.x + r.w / 2, r.y + r.h / 2);
+      const target = Math.max(r.w, r.h) * 1.5; // light spills past the cell
+      glow.width = glow.height = target * 0.55;
+      glow.alpha = 0;
+      glow.blendMode = 'add';
+      glow.eventMode = 'none';
+      // Lives in winLinesContainer (under the lifted objects, over the board)
+      // — clearWinLines sweeps it with the rest of the combo fx.
+      this.winLinesContainer.addChild(glow);
+      const tl = gsap.timeline({
+        onComplete: () => { if (glow.parent) glow.parent.removeChild(glow); glow.destroy(); },
+      });
+      tl.to(glow, { alpha: 0.9, duration: 0.09, ease: 'power2.out' }, 0)
+        .to(glow, { width: target, height: target, duration: 0.42, ease: 'power2.out' }, 0)
+        .to(glow, { alpha: 0, duration: 0.33, ease: 'power1.in' }, 0.09);
+      this.winFxTweens.push(tl);
     }
   }
 

@@ -2074,9 +2074,16 @@ export class PixiApp {
         if (stickyMode) winResult = this.applyStickyFullBoard(winResult, expanded.length);
         // PLANT MULTIPLIER (crack-farm 4sc): tower-crossing line wins pay
         // × the shared multi; each CROSSING connection then grows it by +1
-        // (capped) — the badge on the towers pops the moment it changes.
-        // Mirrors the mock settlement + simulate_crack_farm.py exactly.
+        // (capped). Mirrors mock settlement + simulate_crack_farm.py exactly.
+        // PRESENTATION (Wild-Storm, research 14 §2-3): the win plaque ticks
+        // "base xN" up to the multi APPLIED to this spin (extras on the
+        // combo), and the badge UPGRADE to the grown value plays only AFTER
+        // the win presentation — never before the tally.
+        let pendingPlantMulti = displayPlantMulti;
         if (crackLines && stickyMode && expanded.length > 0) {
+          // Fresh towers get their badge at the CURRENT multi (debut rule:
+          // hidden while the shared multi is still 1x).
+          this.reelSet.setTowerMultiplier(displayPlantMulti);
           const towerSet = new Set(expanded);
           const multiCap = (this.config as { plantMultiCap?: number }).plantMultiCap ?? 20;
           const multiInc = (this.config as { plantMultiIncrement?: number }).plantMultiIncrement ?? 1;
@@ -2088,11 +2095,19 @@ export class PixiApp {
             if (crosses) crossings++;
             const amt = crosses ? c.winAmount * BigInt(displayPlantMulti) : c.winAmount;
             total += amt;
+            if (crosses && displayPlantMulti > 1) {
+              // Display extras for the plaque's live xN tick-up (ReelSet.
+              // spawnComboAmount) — pure presentation, amounts already settled.
+              return {
+                ...c, winAmount: amt, multApplied: displayPlantMulti,
+                baseText: '+' + formatWin(c.winAmount, decimals),
+                finalText: '+' + formatWin(amt, decimals),
+              } as typeof c;
+            }
             return { ...c, winAmount: amt };
           });
           winResult = { ...winResult, combinations: combos, totalWin: total };
-          displayPlantMulti = Math.min(multiCap, displayPlantMulti + crossings * multiInc);
-          this.reelSet.setTowerMultiplier(displayPlantMulti);
+          pendingPlantMulti = Math.min(multiCap, displayPlantMulti + crossings * multiInc);
         }
         const crossesCap = capAmount > 0n && fsRoundDisplayTotal + winResult.totalWin >= capAmount;
         if (winResult.totalWin > 0n && !crossesCap) {
@@ -2107,6 +2122,12 @@ export class PixiApp {
           await this.playWinSequence(spinOutcome, tokenSymbol, decimals);
           if (!this.isLive) break;
           this.reelSet.clearHighlights();
+          // Badge UPGRADE after the presentation (WS: the new value spawns
+          // above the slot, drifts in and pops — deferred past the win).
+          if (pendingPlantMulti !== displayPlantMulti) {
+            displayPlantMulti = pendingPlantMulti;
+            this.reelSet.setTowerMultiplier(displayPlantMulti);
+          }
           // Roll the spin's win into the TOTAL WIN plaque (pop on update).
           fsRoundDisplayTotal += winResult.totalWin;
           fsOverlay.total.text = formatWin(fsRoundDisplayTotal, decimals);
@@ -2264,7 +2285,10 @@ export class PixiApp {
         // presents beam + winners + amount per line, research 14 §2).
         if (lines) void this.reelSet.playComboComet(ordered[i]);
         this.reelSet.audioHooks.onWinStep?.(i, ordered.length);
-        await new Promise(r => setTimeout(r, stepMs));
+        // A tower-multiplied line holds longer: its plaque ticks "base xN"
+        // up to the applied multi before resolving (WS ramp, research 14 §2).
+        const ticksUp = ((ordered[i] as { multApplied?: number }).multApplied ?? 1) > 1;
+        await new Promise(r => setTimeout(r, ticksUp ? Math.max(stepMs, 1250) : stepMs));
       }
       if (id !== this._winRevealId || !this.isLive) return;
     }

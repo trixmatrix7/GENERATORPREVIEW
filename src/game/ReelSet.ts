@@ -1546,18 +1546,23 @@ export class ReelSet {
   }
 
   /** PLANT MULTIPLIER badge (crack-farm sticky rounds): every standing tower
-   *  carries the SHARED multiplier plaque near its top; the value pops when
-   *  it grows. Badges ride the sticky lifecycle (stickyRevealObjects), so
-   *  the next base spin sweeps them with the towers. */
+   *  carries the SHARED multiplier plaque at its BASE (Wild-Storm position,
+   *  research 14 §3). DEBUT RULE: no badge while the multi is still 1x — it
+   *  first appears (pop) after the first tower-crossing win raised it.
+   *  UPGRADE: the new value spawns small+dim above the slot, drifts down in
+   *  ~0.12s and pops to full size — the WS slam. Badges ride the sticky
+   *  lifecycle (stickyRevealObjects), swept with the towers. */
   private towerBadges = new Map<number, { root: Container; label: Text }>();
 
   setTowerMultiplier(mult: number): void {
+    if (mult <= 1) return; // debut rule: 1x carries no badge
     const text = `x${mult}`;
     for (const reelIdx of this.expandedReels) {
       let badge = this.towerBadges.get(reelIdx);
       if (badge && !badge.root.parent) { this.towerBadges.delete(reelIdx); badge = undefined; }
+      const rr = resolveAnchor(reelAnchor(reelIdx), this.grid);
+      const slotY = rr.y + rr.h - 34; // tower base — the badge sits on the pot
       if (!badge) {
-        const rr = resolveAnchor(reelAnchor(reelIdx), this.grid);
         const root = new Container();
         root.eventMode = 'none';
         const plate = new Graphics();
@@ -1574,20 +1579,39 @@ export class ReelSet {
         });
         label.anchor.set(0.5);
         root.addChild(label);
-        root.position.set(rr.x + rr.w / 2, rr.y + 24);
+        root.position.set(rr.x + rr.w / 2, slotY);
         this.stickyContainer.addChild(root);
         this.stickyRevealObjects.push(root);
         this.towerBadges.set(reelIdx, { root, label });
-        badge = { root, label };
         this.stickyRevealTweens.push(
-          gsap.fromTo(badge.root.scale, { x: 0.2, y: 0.2 }, { x: 1, y: 1, duration: 0.38, ease: 'back.out(2.2)' }),
+          gsap.fromTo(root.scale, { x: 0.2, y: 0.2 }, { x: 1, y: 1, duration: 0.38, ease: 'back.out(2.2)' }),
         );
       } else if (badge.label.text !== text) {
-        badge.label.text = text;
-        this.stickyRevealTweens.push(
-          gsap.fromTo(badge.root.scale, { x: 1.5, y: 1.5 }, { x: 1, y: 1, duration: 0.42, ease: 'back.out(2.5)' }),
-        );
+        // WS upgrade slam: old value vanishes instantly; the new one spawns
+        // small + dim half a cell ABOVE the slot, drifts down, pops <=100ms.
+        const { root, label } = badge;
+        gsap.killTweensOf(root);
+        gsap.killTweensOf(root.scale);
+        label.text = text;
+        root.alpha = 0.7;
+        root.position.set(rr.x + rr.w / 2, slotY - 52);
+        root.scale.set(0.55);
+        const tl = gsap.timeline();
+        tl.to(root, { y: slotY, alpha: 1, duration: 0.12, ease: 'power2.in' }, 0)
+          .to(root.scale, { x: 1.3, y: 1.3, duration: 0.06, ease: 'power2.out' }, 0.12)
+          .to(root.scale, { x: 1, y: 1, duration: 0.1, ease: 'power2.in' }, 0.18);
+        this.stickyRevealTweens.push(tl);
       }
+    }
+  }
+
+  /** Quick badge pulse — fired on each step of the win plaque's xN tick-up
+   *  so the tower visibly "answers" the ramp (WS sync, research 14 §2). */
+  pulseTowerBadges(): void {
+    for (const { root } of this.towerBadges.values()) {
+      if (!root.parent) continue;
+      gsap.killTweensOf(root.scale);
+      gsap.fromTo(root.scale, { x: 1.22, y: 1.22 }, { x: 1, y: 1, duration: 0.16, ease: 'power2.out' });
     }
   }
 
@@ -2001,6 +2025,39 @@ export class ReelSet {
       group.addChild(ways);
     }
     this.winAmountsContainer.addChild(group);
+
+    // TOWER-MULTIPLIED line (crack-farm sticky FS): the plaque ramps LIVE —
+    // "base x1 → x2 → … xN" with the badge pulsing on every step, then the
+    // resolved product pops in (Wild-Storm anatomy, research 14 §2). The
+    // extras ride the combo as display-only fields set by the FS loop.
+    const extras = combo as WinCombination & { multApplied?: number; baseText?: string; finalText?: string };
+    if ((extras.multApplied ?? 1) > 1 && extras.baseText && extras.finalText) {
+      const N = extras.multApplied!;
+      const MAX_STEPS = 8; // big multis ramp in jumps (WS: x6→x14→x16)
+      const steps: number[] = [];
+      if (N <= MAX_STEPS) { for (let v = 1; v <= N; v++) steps.push(v); }
+      else {
+        for (let s = 0; s < MAX_STEPS; s++) steps.push(Math.max(1, Math.round(1 + (N - 1) * (s / (MAX_STEPS - 1)))));
+      }
+      label.text = extras.baseText;
+      const tl = gsap.timeline({ onComplete: () => group.destroy({ children: true }) });
+      tl.to(group, { alpha: 1, duration: 0.12, ease: 'power2.out' }, 0)
+        .to(group.scale, { x: 1, y: 1, duration: 0.28, ease: 'back.out(2.2)' }, 0);
+      steps.forEach((v, idx) => {
+        tl.call(() => {
+          label.text = `${extras.baseText} x${v}`;
+          this.pulseTowerBadges();
+          gsap.fromTo(group.scale, { x: 1.1, y: 1.1 }, { x: 1, y: 1, duration: 0.08, ease: 'power2.out' });
+        }, undefined, 0.18 + idx * 0.09);
+      });
+      const tEnd = 0.18 + steps.length * 0.09 + 0.06;
+      tl.call(() => { label.text = extras.finalText!; }, undefined, tEnd);
+      tl.fromTo(group.scale, { x: 1.35, y: 1.35 }, { x: 1, y: 1, duration: 0.3, ease: 'back.out(2.5)' }, tEnd);
+      tl.to(group, { y: cy - 42, duration: 0.9, ease: 'power1.out' }, tEnd + 0.1);
+      tl.to(group, { alpha: 0, duration: 0.4, ease: 'power1.in' }, tEnd + 0.6);
+      this.winAmountTweens.push(tl);
+      return;
+    }
 
     const tl = gsap.timeline({ onComplete: () => group.destroy({ children: true }) });
     tl.to(group, { alpha: 1, duration: 0.15, ease: 'power2.out' }, 0)

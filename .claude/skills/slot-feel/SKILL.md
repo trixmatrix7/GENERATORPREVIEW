@@ -71,6 +71,9 @@ Immersive, nie beides. Sequentiell Combo-für-Combo. (Ways-Video-Ground-Truth: R
   Brightness-Filter BLEICHEN die Art (blasser Matt-Film) — Emphase stattdessen als additives
   Licht HINTER dem Symbol (Backlight-Burst) oder echte Art-Varianten.
 - Charakter-Sheets: HD authoren (Frame ≥ Displaygröße), >4096px in mehrere Sheets splitten.
+- **Frosted-Reel-Pane ist theme-abhängig** (`PixiApp.setReelFrosted`): das geblurte BG-Duplikat
+  hinter den Symbolen passt zu dunklen Neon-Themes (Vice); bei hellen/warmen BGs scheint es
+  durch transparente Symbol-Ecken als milchig-weißer Schleier — für solche Themes AUS.
 
 ## 4. Audio-Regeln (hart, zweimal gelernt)
 

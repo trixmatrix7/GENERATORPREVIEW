@@ -17,6 +17,24 @@ Events starten mit Volume 0 bzw. Dateien landen erst zum Anhören in `public/aud
   5-Noten-Hook laufen in allen Games; Crack-Farm-Färbung NUR über SFX/Quips. Kein
   Theme-Marquee-Song produzieren!
 
+## NOSKI-ENTSCHEIDUNG (2026-07-18): dezent verstrahlt + eigener Ambience-Layer
+- Musik = überwiegend fröhlicher/sonniger Country-Bluegrass, nur SUBTILE schräge Akzente
+  (gelegentliches Theremin-Wobble + vereinzelte Slime-Pops) — NICHT carnival-eerie-dominant.
+- Farm-Geräusche = SEPARATER leiser Loop-Event `ambient-farm` UNTER der Musik (Volume ~0.15),
+  nicht in die Musik eingewoben (mehr Balance-Kontrolle).
+- Finale Prompts (dezent-Version):
+  - Base: `cheerful country bluegrass instrumental, bright banjo picking, warm upright bass,
+    light washboard and brushes, friendly fiddle melody, feel-good farm groove, only subtle
+    quirky touches — an occasional faint theremin wobble and a soft slime bubble pop here and
+    there, mostly wholesome and sunny, D major, 118 bpm, loopable, no vocals`
+  - FS: `upbeat country bluegrass instrumental, driving banjo tremolo, stomping kick, hand
+    claps, joyful fiddle runs, celebratory farm hoedown energy, rising excitement, just a light
+    mischievous edge (subtle theremin, faint slime pops), stays fun and bright not creepy, D
+    major, 118 bpm, loopable, no vocals`
+  - Ambience: `gentle farm ambience bed, soft countryside wind, distant occasional rooster
+    crows, quiet crickets and buzzing flies, faint creaking barn wood, calm sunny afternoon, no
+    melody, no drums, no music, subtle and continuous, loopable background` (role=loop, vol 0.15)
+
 ## 2. MUSIK (Suno, als Loops)
 
 | Asset (ogg) | Länge | Loop | Suno-Prompt |

@@ -356,6 +356,9 @@ export class ReelSet {
     this.expandedReels.clear();
     this.expandedTowerSprites.clear();
     this.roamGlideSpr = null; // sprite itself dies with stickyRevealObjects below
+    // Un-hide any reel a ghost-mode plant covered.
+    for (const r of this.expandHiddenReels) { try { if (this.reels[r]?.container) this.reels[r].container.alpha = 1; } catch { /* torn down */ } }
+    this.expandHiddenReels = [];
     // Return wild art lifted above its gold frame to the cells.
     for (const c of this.stickyLiftedCells) c.restoreObject();
     this.stickyLiftedCells.length = 0;
@@ -676,6 +679,11 @@ export class ReelSet {
    *  the roaming traveller. */
   expandStyle: { shine: boolean; plantAlpha: number } = { shine: true, plantAlpha: 1 };
 
+  /** Reels whose symbol container was hidden behind a GHOST-mode expanding
+   *  wild (Crack Farm) — the plant sits on the blank reel window instead of a
+   *  black clear-panel. Alpha restored on clearStickyWilds. */
+  private expandHiddenReels: number[] = [];
+
   async playExpandingWildReveal(
     opts: { isLive?: () => boolean; turbo?: boolean; sticky?: boolean; force?: boolean; roaming?: boolean } = {},
   ): Promise<number[]> {
@@ -895,12 +903,18 @@ export class ReelSet {
       // BOTTOM-UP growth: the plant grows out of the reel FLOOR, so a wild
       // landing on an upper row first SLIDES DOWN to the bottom cell (a seed
       // dropping into the soil) — the pop happens at the bottom row.
+      // GHOST look (Crack Farm): the translucent plant grows on the BLANK reel
+      // window — every black panel is suppressed and the reel's own symbols are
+      // hidden by dropping the reel container's alpha (robust against the
+      // settle-bounce cell rotation, unlike hiding individual cells).
+      const ghost = !this.expandStyle.shine;
       const bottomUp = this.expandGrowth === 'bottom-up';
       const rows = this.grid.visibleRows;
       const potRow = bottomUp ? rows - 1 : row;
-      const T_SLIDE = !preGrown && bottomUp && row < rows - 1 ? 0.22 * speed : 0;
-      if (preGrown) {
-        // Roam park: the traveler IS the landing beat — no wild pop, no seed.
+      const T_SLIDE = !preGrown && !ghost && bottomUp && row < rows - 1 ? 0.22 * speed : 0;
+      if (preGrown || ghost) {
+        // Roam park / ghost: the plant IS the reveal — no wild-pop backing
+        // panel (that panel is an opaque black box behind the plant).
       } else if (bottomUp && row < rows - 1) {
         // Seed-drop beat: a copy of the 1×1 wild slides from the landing
         // cell down to the reel floor, then the pot pops there.
@@ -927,16 +941,28 @@ export class ReelSet {
       }
 
 
-      // 2) clear-beat — FULLY opaque panel over the reel so no symbol shows
-      //    behind the column, neither while it races out nor afterwards
-      //    (win sheets/pops on covered cells are also skipped via
-      //    expandedReels — only the tower may show).
-      const clear = new Graphics();
-      clear.roundRect(rr.x, rr.y, rr.w, rr.h, rad).fill({ color: 0x0b0d14, alpha: 1 });
-      clear.alpha = 0;
-      clear.eventMode = 'none';
-      this.stickyContainer.addChild(clear);
-      this.stickyRevealObjects.push(clear);
+      // 2) clear-beat — hide what's behind the growing column.
+      //    Default (Vice): a FULLY opaque panel over the reel.
+      //    GHOST (Crack Farm): NO black panel — Noski saw it as a "schwarzer
+      //    background der pflanze". Instead the reel's whole symbol container
+      //    is dimmed to alpha 0, so the translucent plant sits on the same
+      //    blank reel window as everywhere else (barn bg through the tint),
+      //    never a black box. Restored on clearStickyWilds.
+      let clear: Graphics | null = null;
+      if (ghost) {
+        const rc = this.reels[reelIdx]?.container;
+        if (rc && !this.expandHiddenReels.includes(reelIdx)) {
+          rc.alpha = 0;
+          this.expandHiddenReels.push(reelIdx);
+        }
+      } else {
+        clear = new Graphics();
+        clear.roundRect(rr.x, rr.y, rr.w, rr.h, rad).fill({ color: 0x0b0d14, alpha: 1 });
+        clear.alpha = 0;
+        clear.eventMode = 'none';
+        this.stickyContainer.addChild(clear);
+        this.stickyRevealObjects.push(clear);
+      }
 
       // 3) the column — IDENTICAL on every reel: width-fit, tower TOP aligned
       //    with the reel top (the head always shows; only the stack base may
@@ -1003,7 +1029,7 @@ export class ReelSet {
       const T_CLEAR = preGrown ? 0 : T_SLIDE + 0.32 * speed;
       const T_RACE = preGrown ? 0.04 : T_SLIDE + 0.40 * speed;
       const T_LOCK = preGrown ? 0.12 : T_RACE + 0.46 * speed;
-      tl.to(clear, { alpha: 1, duration: (preGrown ? 0.04 : 0.12) * speed, ease: 'power2.out' }, T_CLEAR);
+      if (clear) tl.to(clear, { alpha: 1, duration: (preGrown ? 0.04 : 0.12) * speed, ease: 'power2.out' }, T_CLEAR);
       tl.to(spr, { alpha: this.expandStyle.plantAlpha, duration: (preGrown ? 0.03 : 0.07) * speed, ease: 'power1.out' }, Math.max(0, T_RACE - 0.02 * speed));
       if (preGrown) {
         // The real column is visible — the traveler slides off the stage.

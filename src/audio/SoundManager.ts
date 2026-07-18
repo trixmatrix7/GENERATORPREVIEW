@@ -128,6 +128,15 @@ export class SoundManager {
     }
   }
 
+  /** True once this event's audio file actually decoded. Used to fall back
+   *  gracefully while an optional sound (e.g. a per-symbol win voice) has not
+   *  been dropped in yet — a missing file loads as 'unloaded'. */
+  hasLoaded(eventId: string): boolean {
+    const howl = this.howls.get(eventId);
+    if (!howl) return false;
+    try { return howl.state() === 'loaded'; } catch { return false; }
+  }
+
   /** Stop a sound (typically used for looping ambient music). */
   stop(eventId: string): void {
     const howl = this.howls.get(eventId);

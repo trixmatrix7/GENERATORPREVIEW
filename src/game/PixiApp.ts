@@ -2316,7 +2316,7 @@ export class PixiApp {
         // LINES: every tally step draws its full payline beam (the reference
         // presents beam + winners + amount per line, research 14 §2).
         if (lines) void this.reelSet.playComboComet(ordered[i]);
-        this.reelSet.audioHooks.onWinStep?.(i, ordered.length);
+        this.reelSet.audioHooks.onWinStep?.(i, ordered.length, ordered[i].symbolId);
         // A tower-multiplied line holds longer: its plaque ticks "base xN"
         // up to the applied multi before resolving (WS ramp, research 14 §2).
         const ticksUp = ((ordered[i] as { multApplied?: number }).multApplied ?? 1) > 1;

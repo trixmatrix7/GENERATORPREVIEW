@@ -95,7 +95,10 @@ export interface ReelSetAudioHooks {
   onNearMissTease?: (reelIdx: number) => void;
   /** Fires once per winning combination during the sequential win reveal, so
    *  the React layer can play a rising-pitch step. `index` is 0-based. */
-  onWinStep?: (index: number, total: number) => void;
+  /** A winning connection is revealed. `symbolId` lets the theme play that
+   *  symbol's own voice (goat bleat, cow moo, corn pop) instead of one
+   *  generic chime. */
+  onWinStep?: (index: number, total: number, symbolId?: number) => void;
 }
 
 export class ReelSet {

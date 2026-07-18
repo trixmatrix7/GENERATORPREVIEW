@@ -239,6 +239,21 @@ const entries: readonly SoundEventEntry[] = [
     loop: true,
     priority: 'low',
   },
+  // PER-SYMBOL win voices ("quips"): when a winning line is revealed, the
+  // symbol that won speaks — the goat bleats, the cow moos, the corn pops.
+  // Far more characterful than one generic win chime, and it tells the player
+  // WHAT paid. Ids are keyed by SymbolId (0..8); a missing file just no-ops.
+  ...([0, 1, 2, 3, 4, 5, 6, 7, 8] as const).map(n => ({
+    id: `quip-${n}`,
+    name: `Symbol Voice ${n}`,
+    description: `Per-symbol win voice for SymbolId ${n} (fires as its line is revealed).`,
+    version: '0.1.0',
+    implemented: true,
+    event: `win:quip:${n}`,
+    trigger: 'winning line revealed for this symbol',
+    loop: false,
+    priority: 'medium' as const,
+  })),
 ] as const;
 
 export const soundEventRegistry = createRegistry(entries, { compatibleGrids: ['5x3', '5x5'] });

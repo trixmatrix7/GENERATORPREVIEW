@@ -443,7 +443,18 @@ export function App() {
       onNearMissTease: () => soundManager.play('near-miss-tease'),
       // Rising tally: each connection's chime pitches a step higher — the
       // classic count-up ladder instead of a flat repeated tick.
-      onWinStep: (index) => soundManager.play('coin-chime', { rate: 1 + Math.min(index, 8) * 0.09 }),
+      // PER-SYMBOL win voice on Crack Farm: the symbol that won speaks (goat
+      // bleat, cow moo, corn pop). Falls back to the chime while a voice file
+      // is still missing, and Vice keeps the chime ladder.
+      onWinStep: (index, _total, symbolId) => {
+        if (loadActiveGame() === 'crackfarm' && symbolId !== undefined) {
+          if (soundManager.hasLoaded(`quip-${symbolId}`)) {
+            soundManager.play(`quip-${symbolId}`);
+            return;
+          }
+        }
+        soundManager.play('coin-chime', { rate: 1 + Math.min(index, 8) * 0.09 });
+      },
     });
   }, [pixiApp, soundManager]);
 

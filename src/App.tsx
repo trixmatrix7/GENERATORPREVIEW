@@ -171,6 +171,10 @@ export function App() {
       // No frosted reel pane on the barn: the blurred sunset bg showed through
       // the symbols' transparent corners as a milky white film.
       pixiAppRef.setReelFrosted(false);
+      // The default 62% near-black window tint muddied the saturated farm art
+      // ("nicht so farbig" — Noski). A light 22% keeps depth without the mud;
+      // the barn frame's own window interior carries the darkness.
+      pixiAppRef.applyVisualParam('reelBgOpacity', 22);
       void pixiAppRef.setExpandingWildImage(saved.expandingWild ?? CRACKFARM.expandingWild);
       // Barn frame — alpha window auto-detected from the transparent centre.
       track(pixiAppRef.setFrameImage(saved.frame ?? CRACKFARM.frame));

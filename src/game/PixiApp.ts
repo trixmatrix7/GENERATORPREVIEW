@@ -3023,6 +3023,15 @@ export class PixiApp {
     if (this.reelSet) this.reelSet.expandGrowth = mode;
   }
 
+  /** Expanding-wild look: `shine` = the gold AAA border frame at lock-in;
+   *  `plantAlpha` < 1 renders the plant translucent (Crack Farm: no yellow
+   *  frame, ghostly plant on a blank reel). */
+  setExpandStyle(opts: { shine?: boolean; plantAlpha?: number }): void {
+    if (!this.reelSet) return;
+    if (opts.shine !== undefined) this.reelSet.expandStyle.shine = opts.shine;
+    if (opts.plantAlpha !== undefined) this.reelSet.expandStyle.plantAlpha = opts.plantAlpha;
+  }
+
   /** Where the FS-outro TOTAL WIN amount sits (1920×1080 design px) and its
    *  font size — each theme's outro art carries its own price plate. */
   private outroAmount = { x: 960, y: 660, fontSize: 104 };

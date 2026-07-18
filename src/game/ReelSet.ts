@@ -669,6 +669,13 @@ export class ReelSet {
    *  plant GROWS UP out of it (Crack Farm mutant bean). */
   expandGrowth: 'race' | 'bottom-up' = 'race';
 
+  /** Expanding-wild look. `shine` = the gold AAA border/gloss frame around the
+   *  reel at lock-in (Vice money tower); Crack Farm turns it OFF (Noski: the
+   *  yellow frame "fuckt mich ab"). `plantAlpha` < 1 makes the standing plant
+   *  translucent so it reads as a growing ghost on the blank reel, matching
+   *  the roaming traveller. */
+  expandStyle: { shine: boolean; plantAlpha: number } = { shine: true, plantAlpha: 1 };
+
   async playExpandingWildReveal(
     opts: { isLive?: () => boolean; turbo?: boolean; sticky?: boolean; force?: boolean; roaming?: boolean } = {},
   ): Promise<number[]> {
@@ -823,6 +830,7 @@ export class ReelSet {
     spr.anchor.set(0.5, 1); // bottom-anchored like the standing plant
     spr.scale.set((rFrom.w * 0.98) / tex.width);
     spr.position.set(rFrom.x + rFrom.w / 2, rFrom.y + rFrom.h);
+    spr.alpha = this.expandStyle.plantAlpha; // same translucency as the standing plant
     spr.eventMode = 'none';
     this.stickyContainer.addChild(spr);
     this.stickyRevealObjects.push(spr);
@@ -996,7 +1004,7 @@ export class ReelSet {
       const T_RACE = preGrown ? 0.04 : T_SLIDE + 0.40 * speed;
       const T_LOCK = preGrown ? 0.12 : T_RACE + 0.46 * speed;
       tl.to(clear, { alpha: 1, duration: (preGrown ? 0.04 : 0.12) * speed, ease: 'power2.out' }, T_CLEAR);
-      tl.to(spr, { alpha: 1, duration: (preGrown ? 0.03 : 0.07) * speed, ease: 'power1.out' }, Math.max(0, T_RACE - 0.02 * speed));
+      tl.to(spr, { alpha: this.expandStyle.plantAlpha, duration: (preGrown ? 0.03 : 0.07) * speed, ease: 'power1.out' }, Math.max(0, T_RACE - 0.02 * speed));
       if (preGrown) {
         // The real column is visible — the traveler slides off the stage.
         tl.call(() => this.clearRoamGlide(), undefined, T_RACE + 0.03);
@@ -1025,8 +1033,10 @@ export class ReelSet {
       }, T_LOCK + 0.05 * speed);
       // The board itself takes the hit (hard landing-thud slam).
       tl.call(() => { this.playLandingThud(this.grid.reelCount - 1); }, undefined, T_LOCK);
-      // AAA shine border around the whole reel at lock-in.
-      tl.call(() => { this.stickyHandles.push(applyStickyWild(this.stickyContainer, rr)); }, undefined, T_LOCK);
+      // AAA shine border around the whole reel at lock-in (Crack Farm off).
+      if (this.expandStyle.shine) {
+        tl.call(() => { this.stickyHandles.push(applyStickyWild(this.stickyContainer, rr)); }, undefined, T_LOCK);
+      }
       // Hand control back just after the impact — the elastic settle plays
       // out on its own so multi-tower sequences keep their pace.
       tl.call(() => resolve(), undefined, T_LOCK + 0.16 * speed);

@@ -168,6 +168,10 @@ export function App() {
       // The tall 1×3 mutant plant fills a reel on expansion — and it GROWS:
       // the wild slides down to the reel floor and the plant rises out of it.
       pixiAppRef.setExpandGrowth('bottom-up');
+      // Crack Farm plant look (Noski): NO gold shine frame ("das wild fuckt
+      // mich ab"), plant grows in translucent like the roaming traveller on a
+      // blank reel behind it.
+      pixiAppRef.setExpandStyle({ shine: false, plantAlpha: 0.82 });
       // No frosted reel pane on the barn: the blurred sunset bg showed through
       // the symbols' transparent corners as a milky white film.
       pixiAppRef.setReelFrosted(false);

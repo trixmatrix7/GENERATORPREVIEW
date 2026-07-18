@@ -88,9 +88,19 @@ GESAMTGEWINN wird still hinter dem Marquee verrechnet.
 
 ## 4. Audio-Regeln (hart, zweimal gelernt)
 
+- **DAS KRACKEN = CLIPPING durch 0-dBFS-Assets** (2026-07-18 diagnostiziert): jede Roh-
+  Generierung (Suno/ElevenLabs) peakt bei 0 dBFS; überlappende Sounds summieren über 0 dB →
+  hartes digitales Clipping. Zwei Schutzschichten EINGEBAUT: (1) Master-Bus-Limiter
+  `src/audio/masterBus.ts` (Kompressor + tanh-Soft-Clipper auf Howlers masterGain, via
+  `ensureMasterBus()` in SoundManager.play() lazy installiert; bewiesen: +15 dBFS Summe →
+  −1,4 dBFS, 0 Clips) — reine Infra, RISIKOFREI, darf live ohne Hör-Freigabe. (2) Mastering-
+  Pipeline `scripts/master-audio.sh` + `master-all.sh` (rollen-Ziel-LUFS + True-Peak-Deckel:
+  music −20, loop −24, sfx Peak −4, stinger −15, win −14 dBTP). **Kompletter Workflow:
+  `scripts/AUDIO-WORKFLOW.md`.** Roh generieren → mastern → einspielen (+OGG_FIRST). Der
+  Limiter greift dann fast nie = Mix bleibt punchy.
 - **NIE synthetisierte/tonale Sounds oder Pitch-Ladders live schalten, bevor Noski sie gehört
   hat** — Synthese liest sich für ihn immer als "AI/fatal". Hooks verdrahten, Volume 0, echte
-  Drops abwarten.
+  Drops abwarten. (Gilt für Klang-CHARAKTER; reines Re-Mastering von Pegeln ändert den nicht.)
 - Jeder MP3-Drop → .ogg + OGG_FIRST-Eintrag (defaultSoundConfig), sonst SPA-Fallback-Decode-Tod.
 - Mix-Referenz WS: Stops fast unhörbar, Wins/Features tragen. Unser Wood-Clatter ist eine
   bewusste Gegenentscheidung (Noski-approved) — nicht "korrigieren".

@@ -17,20 +17,20 @@ Events starten mit Volume 0 bzw. Dateien landen erst zum Anhören in `public/aud
   5-Noten-Hook laufen in allen Games; Crack-Farm-Färbung NUR über SFX/Quips. Kein
   Theme-Marquee-Song produzieren!
 
-## NOSKI-ENTSCHEIDUNG (2026-07-18): dezent verstrahlt + eigener Ambience-Layer
-- Musik = überwiegend fröhlicher/sonniger Country-Bluegrass, nur SUBTILE schräge Akzente
-  (gelegentliches Theremin-Wobble + vereinzelte Slime-Pops) — NICHT carnival-eerie-dominant.
+## NOSKI-ENTSCHEIDUNG (2026-07-18): fröhlicher Farm-Bluegrass, KEIN Carnival + eigener Ambience-Layer
+- **Noski: "dieses carnival nix gut"** → KEIN carnival/Jahrmarkt, KEIN Theremin, KEIN
+  eerie/creepy/mischievous. Kern = sauberer, catchy, fröhlicher Country-Bluegrass. Die "crack/
+  verstrahlt"-Note kommt NUR subtil über vereinzelte Slime-Pop-SFX, NICHT über Musik-Instrumente.
 - Farm-Geräusche = SEPARATER leiser Loop-Event `ambient-farm` UNTER der Musik (Volume ~0.15),
   nicht in die Musik eingewoben (mehr Balance-Kontrolle).
-- Finale Prompts (dezent-Version):
-  - Base: `cheerful country bluegrass instrumental, bright banjo picking, warm upright bass,
-    light washboard and brushes, friendly fiddle melody, feel-good farm groove, only subtle
-    quirky touches — an occasional faint theremin wobble and a soft slime bubble pop here and
-    there, mostly wholesome and sunny, D major, 118 bpm, loopable, no vocals`
-  - FS: `upbeat country bluegrass instrumental, driving banjo tremolo, stomping kick, hand
-    claps, joyful fiddle runs, celebratory farm hoedown energy, rising excitement, just a light
-    mischievous edge (subtle theremin, faint slime pops), stays fun and bright not creepy, D
-    major, 118 bpm, loopable, no vocals`
+- Finale Prompts (clean, kein Carnival):
+  - Base: `cheerful upbeat country bluegrass instrumental, bright banjo picking, warm upright
+    bass, acoustic guitar, friendly fiddle melody, light foot-stomp and claps, feel-good sunny
+    farm groove, wholesome and catchy, a couple of subtle gooey slime bubble pops for character,
+    D major, 118 bpm, loopable, no vocals`
+  - FS: `energetic country bluegrass hoedown instrumental, fast banjo tremolo, driving upright
+    bass, stomping kick, hand claps, joyful fiddle runs, celebratory barn-dance energy, bright
+    and exciting, D major, 118 bpm, loopable, no vocals`
   - Ambience: `gentle farm ambience bed, soft countryside wind, distant occasional rooster
     crows, quiet crickets and buzzing flies, faint creaking barn wood, calm sunny afternoon, no
     melody, no drums, no music, subtle and continuous, loopable background` (role=loop, vol 0.15)

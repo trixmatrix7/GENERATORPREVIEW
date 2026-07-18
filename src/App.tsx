@@ -383,7 +383,10 @@ export function App() {
     soundManager.replaceSource('ambient-music', [`${C}ambient-music.ogg`], 0.3);
     // Reel-spin bed: the wooden barn-wheel rattle (Noski) — re-enabled ONLY for
     // Crack Farm at a soft level so it sits under the drops. Vice keeps it muted.
-    soundManager.replaceSource('reel-spin-loop', [`${C}reel-spin-loop.ogg`], 0.4);
+    // Rattle plays ONCE (loop off) for exactly its 1.8s and ends there — a
+    // second earlier than before (Noski). The first-reel fade still cuts it
+    // short if the reels land sooner.
+    soundManager.replaceSource('reel-spin-loop', [`${C}reel-spin-loop.ogg`], 0.4, false);
   }, [soundManager]);
 
   useEffect(() => {

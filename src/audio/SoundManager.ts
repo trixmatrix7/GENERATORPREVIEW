@@ -187,7 +187,7 @@ export class SoundManager {
    * inherits the same volume / loop / exclusive flags from the original
    * binding. Returns false if the event ID is unknown.
    */
-  replaceSource(eventId: string, src: string[], volume?: number): boolean {
+  replaceSource(eventId: string, src: string[], volume?: number, loop?: boolean): boolean {
     const binding = this.bindings.get(eventId);
     if (!binding) return false;
 
@@ -204,7 +204,11 @@ export class SoundManager {
 
     // Optional per-swap volume override (e.g. a theme wants its music bed at a
     // different resting level than the default binding).
-    const nextBinding: SoundEventBinding = { ...binding, src, volume: volume ?? binding.volume };
+    const nextBinding: SoundEventBinding = {
+      ...binding, src,
+      volume: volume ?? binding.volume,
+      loop: loop ?? binding.loop,
+    };
     this.bindings.set(eventId, nextBinding);
     this.exclusivePlaying.delete(eventId);
 

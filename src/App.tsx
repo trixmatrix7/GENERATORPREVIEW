@@ -372,7 +372,9 @@ export function App() {
     if (loadActiveGame() !== 'crackfarm') return;
     const C = `${import.meta.env.BASE_URL}audio/crackfarm/`;
     soundManager.replaceSource('reel-stop', [`${C}reel-stop.ogg`]);
-    soundManager.replaceSource('spin-start', [`${C}spin-start.ogg`]);
+    // spin-start SILENCED on Crack Farm: that "aufziehender" whoosh fought the
+    // wooden rattle (Noski). The reel-spin rattle alone carries the spin.
+    soundManager.replaceSource('spin-start', [`${C}spin-start.ogg`], 0);
     soundManager.replaceSource('wild-land', [`${C}wild-land.ogg`]);
     soundManager.replaceSource('scatter-land', [`${C}scatter-land.ogg`]);
     // Crack Farm's own background music (Noski's "Sunny Farm Groove"), at a
@@ -420,10 +422,15 @@ export function App() {
     // The rate-ladder + riser SPECS stay in research/slot-feel/05 and get
     // re-enabled only with REAL sound-design drops (synthesis reads wrong).
     pixiApp.setAudioHooks({
-      onReelStopped: () => soundManager.play('reel-stop'),
-      // Stop the reel-spin rattle the instant every reel has landed (symbols
-      // dropped in) — a short fade so it doesn't cut hard. Without this it kept
-      // looping until the later 'settled' state (Noski).
+      onReelStopped: (idx) => {
+        soundManager.play('reel-stop');
+        // The rattle fades out the moment the FIRST reel drops in (Noski) —
+        // it rides out over the remaining staggered stops instead of running
+        // to the end of the spin.
+        if (idx === 0) soundManager.fadeStop('reel-spin-loop', 450);
+      },
+      // Safety net: if reel 0 never reported, kill the rattle once every reel
+      // has landed.
       onAllReelsStopped: () => soundManager.fadeStop('reel-spin-loop', 90),
       onScatterLanded: () => soundManager.play('scatter-land'),
       onWildLanded: () => soundManager.play('wild-land'),

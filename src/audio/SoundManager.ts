@@ -14,6 +14,7 @@
 // games (with their own asset packs) can swap them without code changes.
 
 import { Howl } from 'howler';
+import { ensureMasterBus } from './masterBus';
 
 export interface SoundEventBinding {
   /** Sound-event registry ID (e.g. 'spin-start'). */
@@ -108,6 +109,9 @@ export class SoundManager {
     const howl = this.howls.get(eventId);
     const binding = this.bindings.get(eventId);
     if (!howl || !binding) return;
+    // Install the master-bus limiter as soon as the audio context is live
+    // (idempotent) — this is what stops overlapping sounds from clipping.
+    ensureMasterBus();
 
     if (binding.exclusive) {
       const prev = this.exclusivePlaying.get(eventId);

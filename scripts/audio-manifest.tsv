@@ -1,0 +1,22 @@
+# filename	role   — roles: music|loop|sfx|stinger|win  (see master-audio.sh)
+# Background beds sit UNDER everything; wins are the loud peaks; sfx are short one-shots.
+ambient-music.ogg	music
+win-marquee.ogg	win
+win-small.wav	win
+win-normal.wav	win
+win-big.wav	win
+win-mega.wav	win
+free-spin-trigger.wav	stinger
+tier-up.ogg	stinger
+tease-riser.ogg	stinger
+near-miss-tease.wav	sfx
+tease-miss.ogg	sfx
+scatter-land.wav	sfx
+reel-stop.wav	sfx
+spin-start.wav	sfx
+coin-chime.wav	sfx
+wild-land.ogg	sfx
+wild-expand.ogg	sfx
+win-tally-tick.ogg	sfx
+win-tally-end.ogg	sfx
+reel-spin-loop.wav	loop

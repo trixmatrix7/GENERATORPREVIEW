@@ -3,7 +3,7 @@
 // drawer for overlay features (background swap, adjustable params, code
 // paste/export). Mirrors src/dev/HarnessApp.tsx from the generator repo.
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { MockHost } from '@/dev/mockHost';
 import type { HostApiV1, HostSnapshotV1 } from '@/bridge/types';
 import { useGameState } from '@/hooks/useGameState';
@@ -35,6 +35,9 @@ export function App() {
   const [snapshot, setSnapshot] = useState<HostSnapshotV1 | null>(null);
   const [pixiAppRef, setPixiAppRef] = useState<PixiApp | null>(null);
   const [turbo, setTurbo] = useState(false);
+  /** The per-symbol win voice currently sounding — cut when the next winning
+   *  line takes over so only one symbol ever speaks at a time. */
+  const lastQuipRef = useRef<string | null>(null);
   // While the game intro screen is up, the control bar stays hidden and
   // fades in smoothly once the player taps through.
   const [introOpen, setIntroOpen] = useState(false);
@@ -454,8 +457,15 @@ export function App() {
       // is still missing, and Vice keeps the chime ladder.
       onWinStep: (index, _total, symbolId) => {
         if (loadActiveGame() === 'crackfarm' && symbolId !== undefined) {
-          if (soundManager.hasLoaded(`quip-${symbolId}`)) {
-            soundManager.play(`quip-${symbolId}`);
+          const id = `quip-${symbolId}`;
+          if (soundManager.hasLoaded(id)) {
+            // ONE voice at a time: the previous line's symbol is cut short
+            // (quick fade, no click) the moment the next line takes over, so
+            // each voice belongs to exactly the line being shown — never a
+            // pile-up when lines run at the fast 380ms cadence.
+            if (lastQuipRef.current) soundManager.fadeStop(lastQuipRef.current, 60);
+            soundManager.play(id);
+            lastQuipRef.current = id;
             return;
           }
         }

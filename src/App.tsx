@@ -374,6 +374,12 @@ export function App() {
     // Symbol landing: Noski's wooden plank knock (candidate B — 2.5ms attack,
     // dry by 300ms). Fires 5x per spin, so it sits just under the default.
     soundManager.replaceSource('reel-stop', [`${C}reel-stop.ogg`], 0.5);
+    // Per-symbol win voices delivered so far (SymbolId → quip file). Kept
+    // QUIET — one fires per winning line, so they must not shout over the mix.
+    // Add the id here as each new voice lands. 2 = HIGH_A (cow).
+    for (const sym of [2]) {
+      soundManager.replaceSource(`quip-${sym}`, [`${C}quip-${sym}.ogg`], 0.3);
+    }
     // spin-start SILENCED on Crack Farm: that "aufziehender" whoosh fought the
     // wooden rattle (Noski). The reel-spin rattle alone carries the spin.
     soundManager.replaceSource('spin-start', [`${C}spin-start.ogg`], 0);

@@ -379,6 +379,9 @@ export function App() {
     // relaxed resting volume so it sits gently under the SFX. Vice keeps its
     // synthwave track (default ambient-music.ogg).
     soundManager.replaceSource('ambient-music', [`${C}ambient-music.ogg`], 0.3);
+    // Reel-spin bed: the wooden barn-wheel rattle (Noski) — re-enabled ONLY for
+    // Crack Farm at a soft level so it sits under the drops. Vice keeps it muted.
+    soundManager.replaceSource('reel-spin-loop', [`${C}reel-spin-loop.ogg`], 0.55);
   }, [soundManager]);
 
   useEffect(() => {

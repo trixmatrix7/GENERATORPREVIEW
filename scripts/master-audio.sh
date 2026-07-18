@@ -58,8 +58,10 @@ if [ -n "$LUFS" ]; then
 else
   # --- Short one-shots: peak-normalise to the ceiling, then limit. dynaudnorm
   #     off (would pump a transient); a soft alimiter guarantees no over. ---
+  # NOTE: parse AFTER the colon — the "[Parsed_astats_0 @ 0x...]" prefix would
+  # otherwise hand us the "0" from the filter name and under-gain every SFX.
   peak_db=$(ffmpeg -hide_banner -i "$IN" -af "astats=metadata=1" -f null - 2>&1 \
-    | grep -m1 "Peak level dB" | grep -oE "[-0-9.]+|inf" | head -1)
+    | grep -m1 "Peak level dB" | sed 's/.*Peak level dB: *//' | tr -d '[:space:]')
   [ "$peak_db" = "inf" ] && peak_db=0
   gain=$(awk "BEGIN{printf \"%.2f\", ($TP)-($peak_db)}")
   FILT="volume=${gain}dB,alimiter=limit=${LIMIT}:attack=1:release=50:level=disabled"

@@ -371,7 +371,9 @@ export function App() {
   useEffect(() => {
     if (loadActiveGame() !== 'crackfarm') return;
     const C = `${import.meta.env.BASE_URL}audio/crackfarm/`;
-    soundManager.replaceSource('reel-stop', [`${C}reel-stop.ogg`]);
+    // Symbol landing: Noski's wooden plank knock (candidate B — 2.5ms attack,
+    // dry by 300ms). Fires 5x per spin, so it sits just under the default.
+    soundManager.replaceSource('reel-stop', [`${C}reel-stop.ogg`], 0.5);
     // spin-start SILENCED on Crack Farm: that "aufziehender" whoosh fought the
     // wooden rattle (Noski). The reel-spin rattle alone carries the spin.
     soundManager.replaceSource('spin-start', [`${C}spin-start.ogg`], 0);

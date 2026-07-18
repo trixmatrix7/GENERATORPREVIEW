@@ -128,6 +128,16 @@ export class SoundManager {
     }
   }
 
+  /** Set one event's resting volume (0 = silent). Used to mute sounds that
+   *  have no approved recording yet — silence beats a placeholder. */
+  setEventVolume(eventId: string, volume: number): void {
+    const binding = this.bindings.get(eventId);
+    if (!binding) return;
+    this.bindings.set(eventId, { ...binding, volume });
+    const howl = this.howls.get(eventId);
+    if (howl) { try { howl.volume(volume * this._volume); } catch { /* torn down */ } }
+  }
+
   /** True once this event's audio file actually decoded. Used to fall back
    *  gracefully while an optional sound (e.g. a per-symbol win voice) has not
    *  been dropped in yet — a missing file loads as 'unloaded'. */

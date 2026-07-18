@@ -385,11 +385,18 @@ export function App() {
     for (const sym of [0, 2, 3, 4, 5, 6, 8]) {
       soundManager.replaceSource(`quip-${sym}`, [`${C}quip-${sym}.ogg`], 0.22);
     }
-    // spin-start SILENCED on Crack Farm: that "aufziehender" whoosh fought the
-    // wooden rattle (Noski). The reel-spin rattle alone carries the spin.
+    // ── ONLY NOSKI'S OWN SOUNDS PLAY ──────────────────────────────────────
+    // Every synthesized/AI-ish sound of mine reads as wrong to him ("läuft
+    // mir kalt über den Rücken") — third time confirmed. So all of them are
+    // SILENCED here and stay silent until a real recording replaces them.
+    // Silence beats a bad sound. Live right now: his music, reel rattle,
+    // plank landing and the symbol voices. Everything below waits for a drop.
     soundManager.replaceSource('spin-start', [`${C}spin-start.ogg`], 0);
-    soundManager.replaceSource('wild-land', [`${C}wild-land.ogg`]);
-    soundManager.replaceSource('scatter-land', [`${C}scatter-land.ogg`]);
+    soundManager.replaceSource('wild-land', [`${C}wild-land.ogg`], 0);
+    soundManager.replaceSource('scatter-land', [`${C}scatter-land.ogg`], 0);
+    for (const id of ['coin-chime', 'wild-expand', 'near-miss-tease', 'free-spin-trigger']) {
+      soundManager.setEventVolume(id, 0);
+    }
     // Crack Farm's own background music (Noski's "Sunny Farm Groove"), at a
     // relaxed resting volume so it sits gently under the SFX. Vice keeps its
     // synthwave track (default ambient-music.ogg).
@@ -458,9 +465,12 @@ export function App() {
       // bleat, cow moo, corn pop). Falls back to the chime while a voice file
       // is still missing, and Vice keeps the chime ladder.
       onWinStep: (index, _total, symbolId) => {
-        if (loadActiveGame() === 'crackfarm' && symbolId !== undefined) {
+        if (loadActiveGame() === 'crackfarm') {
+          // Crack Farm: ONLY the real per-symbol voices. A symbol without a
+          // voice yet stays SILENT — the synthesized chime fallback read as
+          // wrong (Noski), and silence is better than a bad sound.
           const id = `quip-${symbolId}`;
-          if (soundManager.hasLoaded(id)) {
+          if (symbolId !== undefined && soundManager.hasLoaded(id)) {
             // ONE voice at a time: the previous line's symbol is cut short
             // (quick fade, no click) the moment the next line takes over, so
             // each voice belongs to exactly the line being shown — never a

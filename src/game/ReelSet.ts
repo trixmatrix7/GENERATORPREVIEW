@@ -75,6 +75,9 @@ interface NearMiss {
  */
 export interface ReelSetAudioHooks {
   onReelStopped?: (reelIdx: number) => void;
+  /** Every reel of this spin has landed (all symbols dropped in) — used to
+   *  stop the reel-spin rattle exactly when the spinning ends. */
+  onAllReelsStopped?: () => void;
   onScatterLanded?: (reelIdx: number) => void;
   /** The TEASE engages (2nd visible scatter, gates arming) — start the riser
    *  + duck the music. */
@@ -1234,6 +1237,9 @@ export class ReelSet {
         });
     });
     await Promise.all(stopPromises);
+    // All symbols have dropped in — the spinning is over, so the reel-spin
+    // rattle stops right here (not at the later 'settled' state).
+    this.audioHooks.onAllReelsStopped?.();
 
     // Tease camera resolution: bounce RELAXED back out on a miss; on a hit
     // (3+ scatters) the lock is kept — the trigger choreography + iris own

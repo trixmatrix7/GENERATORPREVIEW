@@ -421,6 +421,10 @@ export function App() {
     // re-enabled only with REAL sound-design drops (synthesis reads wrong).
     pixiApp.setAudioHooks({
       onReelStopped: () => soundManager.play('reel-stop'),
+      // Stop the reel-spin rattle the instant every reel has landed (symbols
+      // dropped in) — a short fade so it doesn't cut hard. Without this it kept
+      // looping until the later 'settled' state (Noski).
+      onAllReelsStopped: () => soundManager.fadeStop('reel-spin-loop', 90),
       onScatterLanded: () => soundManager.play('scatter-land'),
       onWildLanded: () => soundManager.play('wild-land'),
       onWildExpand: () => soundManager.play('wild-expand'),

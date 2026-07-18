@@ -48,8 +48,13 @@ Destillat aus `research/slot-feel/00-16` (Studio-Formeln, vermessene Video-Groun
 Tally **ease-out ~2,2s, landet EXAKT** (kein Overshoot) → ~0,6s Hold → Auto-Exit gesamt ~3,5s.
 GESAMTGEWINN wird still hinter dem Marquee verrechnet.
 
-**WAYS (Vice):** ways-immersive (Leap/Dance, Dim trägt) — Comet/Deko sind ALTERNATIVEN zur
-Immersive, nie beides. Sequentiell Combo-für-Combo. (Ways-Video-Ground-Truth: Report 15.)
+**WAYS (Vice) — Invarianten aus 10 vermessenen Games (Report 15):**
+- **NIE Linien/Beams/Comets** — Verbindung nur über Zell-Betonung (Rim/Frame/Glow-Wash) + Dim.
+- Betrag = **COUNT-UP** (tickt 0→Endwert, ~1–2s, beschleunigend), nie statisch; „N WAYS"-Zähler.
+- Zwei Familien: Per-Kind-Sequenz (0,6–1,0s/Kind, Betrag am Cluster) oder All-at-once-Slam
+  (alle Kinds simultan + Center-Total). EIN Durchlauf, kein Loop; Gewinner-Art nie weiß recolort.
+- Vice = Familie A (Immersive-Dance + Dim + sequentielle Kinds) — Basis stimmt; offene
+  Deltas W1–W5 in Report 15 §6 (Center-Count-up, Rim-Glow, Stretch-Smear-Stop).
 
 ## 2. Architektur-Grenzen (verbindlich)
 

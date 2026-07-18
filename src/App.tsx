@@ -374,14 +374,16 @@ export function App() {
   useEffect(() => {
     if (loadActiveGame() !== 'crackfarm') return;
     const C = `${import.meta.env.BASE_URL}audio/crackfarm/`;
-    // Symbol landing: Noski's wooden plank knock (candidate B — 2.5ms attack,
-    // dry by 300ms). Fires 5x per spin, so it sits just under the default.
-    soundManager.replaceSource('reel-stop', [`${C}reel-stop.ogg`], 0.5);
-    // Per-symbol win voices delivered so far (SymbolId → quip file). Kept
-    // QUIET — one fires per winning line, so they must not shout over the mix.
-    // Add the id here as each new voice lands. 2 = HIGH_A (cow).
-    for (const sym of [2]) {
-      soundManager.replaceSource(`quip-${sym}`, [`${C}quip-${sym}.ogg`], 0.3);
+    // MIX BALANCE (measured reference, research/slot-feel/14 §6): in the top
+    // slots the music + wins carry the mix and the per-event SFX sit well
+    // under it — ours were shouting (Noski). Landing knock and symbol voices
+    // are deliberately quiet here.
+    soundManager.replaceSource('reel-stop', [`${C}reel-stop.ogg`], 0.3);
+    // Per-symbol win voices (SymbolId → file). One fires per winning line.
+    // 0=plant/wild 2=cow 3=goat 4=dog 5=sheep 6=carrot 8=bucket.
+    // Still missing: 1 (money bag), 7 (corn).
+    for (const sym of [0, 2, 3, 4, 5, 6, 8]) {
+      soundManager.replaceSource(`quip-${sym}`, [`${C}quip-${sym}.ogg`], 0.22);
     }
     // spin-start SILENCED on Crack Farm: that "aufziehender" whoosh fought the
     // wooden rattle (Noski). The reel-spin rattle alone carries the spin.
@@ -397,7 +399,7 @@ export function App() {
     // Rattle plays ONCE (loop off) for exactly its 1.8s and ends there — a
     // second earlier than before (Noski). The first-reel fade still cuts it
     // short if the reels land sooner.
-    soundManager.replaceSource('reel-spin-loop', [`${C}reel-spin-loop.ogg`], 0.4, false);
+    soundManager.replaceSource('reel-spin-loop', [`${C}reel-spin-loop.ogg`], 0.32, false);
   }, [soundManager]);
 
   useEffect(() => {

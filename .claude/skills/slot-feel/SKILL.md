@@ -19,7 +19,13 @@ Destillat aus `research/slot-feel/00-16` (Studio-Formeln, vermessene Video-Groun
 
 ## 1. Präsentations-Konventionen (vermessen, Report 14 = Wild Storm Ground Truth)
 
-**PAYLINES (Crack Farm):**
+**PAYLINES — ZWEI Familien (Report 16):** BEAM (Colorful Play/Stakelogic — Wild Storm, Savage
+Santa: edge-to-edge Beam durch Zell-Mitten, Beam-Leben ~0,35s < Label, Nicht-Gewinner dimmen,
+Gewinner recolor+wiggle+1,2×, Betrag auf der Linie; Beam-FARBE = Theme, Anatomie = Signatur)
+vs NO-LINE (Pragmatic — Dog House, Big Bass: KEIN Strich, Gewinner pulsen in place, KEIN Dim,
+Betrag NUR als Bottom-HUD-Formel „LINIE n ZAHLT base × mult = total"). **Crack Farm = BEAM.**
+
+**PAYLINES (Crack Farm, Familie BEAM):**
 - Nach letztem Stop **~0,5s STILLE** (Board hell, nichts bewegt sich), dann Präsentation.
 - Linien **einzeln nacheinander** (0,5–1,2s/Linie), NIE alle auf einmal, **EIN Durchlauf, kein Loop**;
   danach Coin-Ceremony und **neutrale Ruhe** (kein All-Lit-Reststand — das liest sich als "ways").
@@ -114,7 +120,11 @@ GESAMTGEWINN wird still hinter dem Marquee verrechnet.
 
 ## 7. Offene Referenz-Themen
 
-- Report 15 (Ways-Video-Ground-Truth: Nolimit/Relax/Paperclip) + 16 (Paylines quer:
-  Pragmatic Dog House/Big Bass, Colorful Play Savage Santa) — in Arbeit; Learnings hier eintragen.
-- Audio-Conductor (bpm/key/bar-grid), Key-Disziplin (05/07) — P1 offen.
-- D4 (Plaque-Stacking) + D9 (Marquee-Feintiming) aus Report 14 §8.
+- Reports 14 (Wild Storm), 15 (Ways ×10), 16 (Paylines cross-studio) = FERTIG & vermessen.
+- Offene Präsentations-Deltas (nach Noski-Freigabe, Report 16 §3): P6 grüner Slime-Beam
+  (Crack Farm), P3 Winner-Wiggle, P1/D4 Label-Stacking, P2 Beam<Label-Entkopplung, P5
+  Deferred-Badge-Reveal am Stop. Vice-Ways-Deltas W1–W5 (Report 15 §6) — nur mit Go, weil
+  sie vom Original-Generator-Look abweichen.
+- Audio: Suno-Plan Report 17 (Key D @118, Tier-Quips, Review-Ordner). Conductor + Key-
+  Disziplin (05/07) weiter P1.
+- D9 (Marquee-Feintiming) aus Report 14 §8.

@@ -175,6 +175,10 @@ export function App() {
       // ("nicht so farbig" — Noski). A light 22% keeps depth without the mud;
       // the barn frame's own window interior carries the darkness.
       pixiAppRef.applyVisualParam('reelBgOpacity', 22);
+      // Payline beam colour = per-theme (research 16 §1: Wild Storm cyan,
+      // Savage Santa gold). Toxic-slime GREEN fits the barn; the inherited
+      // white beam read generic.
+      pixiAppRef.applyVisualParam('waysLightColor', 'green');
       void pixiAppRef.setExpandingWildImage(saved.expandingWild ?? CRACKFARM.expandingWild);
       // Barn frame — alpha window auto-detected from the transparent centre.
       track(pixiAppRef.setFrameImage(saved.frame ?? CRACKFARM.frame));

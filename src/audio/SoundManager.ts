@@ -180,11 +180,12 @@ export class SoundManager {
    * inherits the same volume / loop / exclusive flags from the original
    * binding. Returns false if the event ID is unknown.
    */
-  replaceSource(eventId: string, src: string[]): boolean {
+  replaceSource(eventId: string, src: string[], volume?: number): boolean {
     const binding = this.bindings.get(eventId);
     if (!binding) return false;
 
     const prev = this.howls.get(eventId);
+    const wasPlaying = prev ? prev.playing() : false;
     if (prev) {
       try {
         prev.stop();
@@ -194,7 +195,9 @@ export class SoundManager {
       }
     }
 
-    const nextBinding: SoundEventBinding = { ...binding, src };
+    // Optional per-swap volume override (e.g. a theme wants its music bed at a
+    // different resting level than the default binding).
+    const nextBinding: SoundEventBinding = { ...binding, src, volume: volume ?? binding.volume };
     this.bindings.set(eventId, nextBinding);
     this.exclusivePlaying.delete(eventId);
 
@@ -209,6 +212,12 @@ export class SoundManager {
         },
       });
       this.howls.set(eventId, howl);
+      // If the old source was mid-play (e.g. a looping music bed), keep it
+      // playing seamlessly on the new source.
+      if (wasPlaying) {
+        const id = howl.play();
+        if (nextBinding.exclusive) this.exclusivePlaying.set(eventId, id);
+      }
       return true;
     } catch (err) {
       console.warn(`[audio] failed to construct Howl for '${eventId}':`, err);

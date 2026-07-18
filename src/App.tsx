@@ -375,6 +375,10 @@ export function App() {
     soundManager.replaceSource('spin-start', [`${C}spin-start.ogg`]);
     soundManager.replaceSource('wild-land', [`${C}wild-land.ogg`]);
     soundManager.replaceSource('scatter-land', [`${C}scatter-land.ogg`]);
+    // Crack Farm's own background music (Noski's "Sunny Farm Groove"), at a
+    // relaxed resting volume so it sits gently under the SFX. Vice keeps its
+    // synthwave track (default ambient-music.ogg).
+    soundManager.replaceSource('ambient-music', [`${C}ambient-music.ogg`], 0.3);
   }, [soundManager]);
 
   useEffect(() => {

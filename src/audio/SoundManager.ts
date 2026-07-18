@@ -166,10 +166,17 @@ export class SoundManager {
     if (id !== undefined) {
       howl.fade(from, 0, ms, id);
       if (this.exclusivePlaying.get(eventId) === id) this.exclusivePlaying.delete(eventId);
-      setTimeout(() => { try { howl.stop(id); } catch { /* torn down */ } }, ms + 40);
+      setTimeout(() => {
+        try { howl.stop(id); howl.volume(from); } catch { /* torn down */ }
+      }, ms + 40);
     } else {
       howl.fade(from, 0, ms);
-      setTimeout(() => { try { howl.stop(); } catch { /* torn down */ } }, ms + 40);
+      setTimeout(() => {
+        // CRITICAL: fade() leaves the Howl's volume at 0. Without restoring it
+        // the NEXT play() is silent — that's why the reel rattle only sounded
+        // on the first spin (Noski).
+        try { howl.stop(); howl.volume(from); } catch { /* torn down */ }
+      }, ms + 40);
     }
   }
 

@@ -98,9 +98,20 @@ GESAMTGEWINN wird still hinter dem Marquee verrechnet.
   music −20, loop −24, sfx Peak −4, stinger −15, win −14 dBTP). **Kompletter Workflow:
   `scripts/AUDIO-WORKFLOW.md`.** Roh generieren → mastern → einspielen (+OGG_FIRST). Der
   Limiter greift dann fast nie = Mix bleibt punchy.
-- **NIE synthetisierte/tonale Sounds oder Pitch-Ladders live schalten, bevor Noski sie gehört
-  hat** — Synthese liest sich für ihn immer als "AI/fatal". Hooks verdrahten, Volume 0, echte
-  Drops abwarten. (Gilt für Klang-CHARAKTER; reines Re-Mastering von Pegeln ändert den nicht.)
+- **KEINE selbst erzeugten Sounds. Punkt.** (3× bestätigt, zuletzt 2026-07-18: "deine sounds
+  sind alle kacke, läuft mir kalt übern rücken".) Weder scipy-Foley noch Synthese noch
+  "ich bau das schnell selbst" ANBIETEN. Nur Sounds, die Noski liefert, gehen live.
+  **Fehlt ein Sound → Volume 0 (Stille), nicht Platzhalter.** Auch kein Fallback-Chime für
+  Events ohne Aufnahme. `SoundManager.setEventVolume(id, 0)` ist das Werkzeug dafür.
+- **Suno ≠ SFX.** Suno ist ein MUSIK-Modell: für Musikbetten stark (Sunny Farm Groove sitzt),
+  für isoliertes Foley strukturell schwach. Lange "Studio-Prosa"-Prompts machen es SCHLECHTER —
+  kurze, konkrete Klangbeschreibungen + harte Negative (`no music, no melody, no instruments,
+  no drums`) funktionieren. Für Foley/Tierlaute sind echte Samples (Freesound) oder ein
+  SFX-Modell der richtige Weg — NICHT ich.
+- **Lange Takes sind gut:** `scripts/extract-sfx.py <clip> <outdir>` findet in einem 20-30s-Take
+  alle Events, bewertet sie (Peak/Attack/Abstand/Clipping) und exportiert die besten Kandidaten.
+  Noski soll NICHT selbst schneiden — er liefert den Rohtake, ich extrahiere.
+- Reines Re-Mastering von PEGELN (Lautheit/True-Peak) ändert den Klang-Charakter nicht und ist erlaubt.
 - Jeder MP3-Drop → .ogg + OGG_FIRST-Eintrag (defaultSoundConfig), sonst SPA-Fallback-Decode-Tod.
 - Mix-Referenz WS: Stops fast unhörbar, Wins/Features tragen. Unser Wood-Clatter ist eine
   bewusste Gegenentscheidung (Noski-approved) — nicht "korrigieren".

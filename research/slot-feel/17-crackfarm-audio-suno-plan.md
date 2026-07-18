@@ -5,6 +5,53 @@ Tier-Quips), dann OGG-Pipeline → Hör-Freigabe durch Noski → Volumes hoch.
 **Harte Regel ([[slot-feel]] §4): NICHTS geht live, bevor Noski es gehört hat.** Alle neuen
 Events starten mit Volume 0 bzw. Dateien landen erst zum Anhören in `public/audio/_review/`.
 
+## 0. FINALER PROMPT-KATALOG (2026-07-18, "perfektes Soundbild" — kopierfertig)
+
+Status: ambient-music (Sunny Farm Groove, -20 LUFS, vol .3) + reel-spin-loop (wood rattle,
+-24.5 LUFS, vol .55) + reel-stop/spin-start/wild-land/scatter-land (Wood-Pack) = LIVE.
+Verbleibend, priorisiert. Jeder Sound: Prompt → `scripts/master-audio.sh <file> <role>` →
+`public/audio/crackfarm/<id>.ogg` → im crackfarm-Boot `replaceSource(id, [path], vol)`.
+
+**P0 Free-Spins-Musik** (Suno, role music): `energetic country bluegrass hoedown instrumental,
+fast banjo tremolo, driving upright bass, stomping kick, hand claps, joyful fiddle runs,
+celebratory barn-dance energy, bright and exciting, D major, 118 bpm, loopable, no vocals`
+
+**P0 Farm-Ambience** (ElevenLabs, role loop, vol .15, NEUER Event `ambient-farm` parallel zur
+Musik): `gentle farm ambience bed, soft countryside wind, distant occasional rooster crows,
+quiet crickets and buzzing flies, faint creaking barn wood, calm sunny afternoon, no melody, no
+drums, no music, subtle continuous, seamless loop`
+
+**P0 Tier-Quips** (ElevenLabs SFX ~0.6s, role sfx, feuern pro Gewinnlinie via onWinStep-symbolId
+— WIRING MUSS NOCH GEBAUT WERDEN: ReelSetAudioHooks.onWinStep um symbolId erweitern, crackfarm
+mappt auf quip-<SymbolId>). Dateien `crackfarm/quip-<id>.ogg`:
+- HIGH_B Ziege: `comedic goat bleat scream, exaggerated MEEEH cartoon goat, short punchy, no music`
+- HIGH_A Kuh: `funny mutant cow moo, gurgly and pitch-bent at the end, cartoon, short, no music`
+- MID_D Schaf: `dopey sleepy sheep baa, low and derpy, cartoon, short, no music`
+- MID_C Hund: `happy goofy dog double bark with a small pant, cartoon, short, no music`
+- LOW_E Karotte: `crisp carrot crunch bite with a tiny slime squish tail, cartoon, short, no music`
+- LOW_F Mais: `three quick popcorn pops with a cartoon boing, playful, short, no music`
+- LOW_G Eimer: `hollow metal bucket clonk with a wet slime slosh, cartoon, short, no music`
+- WILD Topf: `big wet bubble pop with a springy plant boing, cartoon, short, no music`
+- SCATTER Sack: `coin pouch shake and cha-ching with hay rustle, cartoon, short, no music`
+
+**P1 Win-Stinger** 4 Tiers (role win, D-Dur, Notenzahl 2/3/5/7): `short cheerful banjo pluck run
+ascending D major pentatonic, bright and celebratory, N notes, clean acoustic, no vocals` (mega
++ Fiddle-Oktave). Events win-small/normal/big/mega (aktuell vol 0 → hoch bei crackfarm).
+**P1 FS-Trigger** (role stinger): `short excited bluegrass fanfare sting, quick banjo flourish
+ending in a comedic goat bleat, celebratory, D major, no vocals`
+**P1 wild-expand** (role sfx): `creaking vine growing upward, wet organic squelch rising in
+pitch, wood stretching, soft slime bubbles, ends on a firm thud, cartoon, no metal, no music`
+**P1 coin-chime/swish** (role sfx): `soft quick whoosh with a light coin sparkle tail, gentle,
+short, cartoon, no music`
+
+**P2 tier-up** (universal): `single bright orchestral brass hit with a short shimmer, impactful,
+no music tail` · **tally-tick**: `soft dry wooden tick, tiny, short, no tone, no music` ·
+**tally-end**: `wooden zip up followed by a soft muffled thud, short, no music`
+
+Negative-Wörter IMMER mitgeben (`no music, no metal, no hum`) — das killt genau die Artefakte,
+die synthetisch/AI klingen. Regel-Update: reines Re-Mastering + von Noski gelieferte Sounds =
+live ok; die "nichts Synthetisches ohne Hören"-Regel gilt für KLANG-CHARAKTER, nicht Pegel.
+
 ## 1. Musik-Fundament (Key-/Tempo-Disziplin, Report 05)
 
 - **Root-Key: D-Dur. Tempo: 118 BPM.** JEDES tonale Asset (Musik, Jingles, Quips mit Tonhöhe)

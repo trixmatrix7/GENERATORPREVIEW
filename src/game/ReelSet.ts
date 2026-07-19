@@ -842,7 +842,11 @@ export class ReelSet {
     const rTo = resolveAnchor(reelAnchor(toReel), this.grid);
     const spr = new Sprite(tex);
     spr.anchor.set(0.5, 1); // bottom-anchored like the standing plant
-    spr.scale.set((rFrom.w * 0.98) / tex.width);
+    // Same fit rule as the standing tower, so the traveller and the parked
+    // plant are exactly the same size (height-fit for the squat plant art).
+    spr.scale.set(this.expandGrowth === 'bottom-up'
+      ? Math.min(rFrom.h / tex.height, (rFrom.w * 1.3) / tex.width)
+      : (rFrom.w * 0.98) / tex.width);
     spr.position.set(rFrom.x + rFrom.w / 2, rFrom.y + rFrom.h);
     spr.alpha = this.expandStyle.plantAlpha; // same translucency as the standing plant
     spr.eventMode = 'none';
@@ -1011,17 +1015,30 @@ export class ReelSet {
         spr.anchor.set(0.5, 0);
         spr.position.set(cx, rr.y);
       }
-      spr.scale.set((rr.w * 0.98) / tex.width);
+      // Fit: the Vice money tower is WIDTH-fit (tall narrow art). The Crack
+      // Farm plant art is much squatter, so width-fitting would leave it far
+      // short of the reel top — fit it to the reel HEIGHT instead and let the
+      // wider art spill over the reel edges (capped at 1.3x reel width), which
+      // is exactly how the reference towers overflow their column.
+      spr.scale.set(bottomUp
+        ? Math.min(rr.h / tex.height, (rr.w * 1.3) / tex.width)
+        : (rr.w * 0.98) / tex.width);
       spr.alpha = 0;
       spr.eventMode = 'none';
       const mask = new Graphics();
       mask.eventMode = 'none';
+      // The plant art is wider than the reel on purpose (it spills over the
+      // edges). The reveal mask must be just as wide, or it would clip that
+      // overhang straight off and the plant would look reel-width again.
+      const overX = bottomUp
+        ? Math.max(1, (tex.width * spr.scale.x - rr.w) / 2 + 2)
+        : 1;
       const drawReveal = (t: number) => {
         mask.clear();
         if (bottomUp) {
           // The window grows from the reel FLOOR upward (plant growth).
           const topY = (rr.y + rr.h) - Math.max(cellR.h * 0.4, rr.h * t);
-          mask.roundRect(rr.x - 1, topY, rr.w + 2, (rr.y + rr.h) - topY, rad).fill(0xffffff);
+          mask.roundRect(rr.x - overX, topY, rr.w + overX * 2, (rr.y + rr.h) - topY, rad).fill(0xffffff);
         } else {
           const topY = cellR.y + (rr.y - cellR.y) * t;
           const botY = (cellR.y + cellR.h) + ((rr.y + rr.h) - (cellR.y + cellR.h)) * t;

@@ -406,7 +406,7 @@ export function App() {
     // Rattle plays ONCE (loop off) for exactly its 1.8s and ends there — a
     // second earlier than before (Noski). The first-reel fade still cuts it
     // short if the reels land sooner.
-    soundManager.replaceSource('reel-spin-loop', [`${C}reel-spin-loop.ogg`], 0.32, false);
+    soundManager.replaceSource('reel-spin-loop', [`${C}reel-spin-loop.ogg`], 0.24, false);
   }, [soundManager]);
 
   useEffect(() => {

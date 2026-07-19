@@ -2108,7 +2108,13 @@ export class PixiApp {
         // mid-flight) before the reels roll — only spin() bumps the id.
         this._winRevealId++;
         const expanded = await this.reelSet.playExpandingWildReveal(
-          { isLive: () => this.isLive, turbo: this.turbo, sticky: stickyMode, roaming: crackLines && !stickyMode },
+          {
+            isLive: () => this.isLive, turbo: this.turbo, sticky: stickyMode,
+            roaming: crackLines && !stickyMode,
+            // Crack Farm: plants never stand still — even in the sticky (4sc)
+            // round they sink out and rise somewhere else every spin.
+            relocate: crackLines,
+          },
         );
         if (!this.isLive) break;
         // Evaluate the DISPLAYED board with every standing tower fully wild.

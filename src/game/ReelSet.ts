@@ -814,7 +814,9 @@ export class ReelSet {
   }
 
   async playExpandingWildReveal(
-    opts: { isLive?: () => boolean; turbo?: boolean; sticky?: boolean; force?: boolean; roaming?: boolean } = {},
+    opts: { isLive?: () => boolean; turbo?: boolean; sticky?: boolean; force?: boolean; roaming?: boolean;
+            /** Crack Farm: standing plants change reel every spin (sink out → pads → rise). */
+            relocate?: boolean } = {},
   ): Promise<number[]> {
     const live = opts.isLive ?? (() => true);
 
@@ -848,11 +850,49 @@ export class ReelSet {
 
     let chosen: number[];
     let gen: number;
-    let roamGlideActive = false;
+    let relocateActive = false;
     const displayStops = this.config.reelLengths.map(len => Math.floor(Math.random() * len));
     const landingRows: number[] = [];
 
-    if (opts.sticky) {
+    if (opts.sticky && opts.relocate) {
+      // CRACK FARM STICKY: the plants are KEPT for the round but they do NOT
+      // stand still — every spin they sink out and push back up somewhere
+      // else (Noski: "zwischen den spins immer dieser positions wechsel").
+      // Count stays; a fresh wild landing can add one, up to the cap.
+      const cap = (this.config as unknown as { stickyTowerCap?: number }).stickyTowerCap ?? 2;
+      const standing = Array.from(this.expandedReels);
+      this.startSpin(); // wipes the old plants — they are re-placed below
+      gen = this.stickyRevealGen;
+      const pool = reelIdxs.slice();
+      for (let i = pool.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [pool[i], pool[j]] = [pool[j], pool[i]];
+      }
+      // A wild landing anywhere this spin earns one extra plant (up to cap).
+      const gained = reelIdxs.some(r => wildRowInWindow(r, displayStops[r]) !== null) ? 1 : 0;
+      const want = Math.min(cap, Math.max(standing.length, 1) + gained);
+      chosen = [];
+      for (const r of pool) {
+        if (chosen.length >= want) break;
+        const hit = findWildStop(r);
+        if (!hit) continue;
+        displayStops[r] = hit.stop;   // force a sack so the plant has a seed
+        chosen.push(r);
+        landingRows.push(hit.row);
+      }
+      // Keep rows aligned with their reels when sorting.
+      const paired = chosen.map((r, i) => ({ r, row: landingRows[i] })).sort((a, b) => a.r - b.r);
+      chosen = paired.map(x => x.r);
+      landingRows.length = 0;
+      for (const x of paired) landingRows.push(x.row);
+      // Every previously standing plant sinks out; the pads then pick the
+      // first new home (the rest rise with their own reveal).
+      if (!opts.turbo && standing.length > 0 && chosen.length > 0) {
+        relocateActive = true;
+        this.startPlantRelocate(standing[0], chosen[0]);
+        for (const extra of standing.slice(1)) this.sinkPlantGhost(extra);
+      }
+    } else if (opts.sticky) {
       // Keep standing towers; only presentation state clears. Spinning the
       // covered reels too is harmless — they're fully hidden.
       this.clearScheduledCallbacks();
@@ -896,7 +936,7 @@ export class ReelSet {
         }
       }
       if (glideFrom !== null && chosen.length === 1) {
-        roamGlideActive = this.startPlantRelocate(glideFrom, chosen[0]);
+        relocateActive = this.startPlantRelocate(glideFrom, chosen[0]);
       }
     } else if (opts.force) {
       // SHOWCASE (test button): guarantee 1-3 towers — each chosen reel's
@@ -936,7 +976,7 @@ export class ReelSet {
     // Sequential, one reel finishing before the next starts (like the ref).
     for (let k = 0; k < chosen.length; k++) {
       if (this.stickyRevealGen !== gen || !live()) return opts.sticky ? allExpanded() : [];
-      await this.expandOneWildReel(chosen[k], landingRows[k], !!opts.turbo, roamGlideActive && k === 0);
+      await this.expandOneWildReel(chosen[k], landingRows[k], !!opts.turbo, relocateActive && k === 0);
       await new Promise(res => setTimeout(res, opts.turbo ? 90 : 200));
     }
     if (this.stickyRevealGen !== gen || !live()) return opts.sticky ? allExpanded() : [];
@@ -962,6 +1002,31 @@ export class ReelSet {
    *  its reel, the pad row under the grid whips its highlight left/right and
    *  locks on the new reel — and expandOneWildReel then pushes the plant back
    *  UP out of that pad. Replaces the old float-across-the-board roam. */
+  /** Sink ONE plant out through its reel floor (no pad tease). Used for the
+   *  extra plants when several relocate at once — the pads only narrate the
+   *  first one, the rest just clear the board. */
+  private sinkPlantGhost(reelIdx: number): void {
+    const tex = this.expandWildTexture;
+    if (!tex) return;
+    const rr = resolveAnchor(reelAnchor(reelIdx), this.grid);
+    const ghost = new Sprite(tex);
+    ghost.anchor.set(0.5, 1);
+    ghost.scale.set(this.expandGrowth === 'bottom-up'
+      ? Math.min(rr.h / tex.height, (rr.w * 1.3) / tex.width)
+      : (rr.w * 0.98) / tex.width);
+    ghost.position.set(rr.x + rr.w / 2, rr.y + rr.h);
+    ghost.alpha = this.expandStyle.plantAlpha;
+    ghost.eventMode = 'none';
+    this.stickyContainer.addChild(ghost);
+    this.stickyRevealObjects.push(ghost);
+    const tl = gsap.timeline();
+    this.stickyRevealTweens.push(tl);
+    tl.to(ghost.scale, { y: ghost.scale.y * 0.9, duration: 0.1, ease: 'power2.out' }, 0);
+    tl.to(ghost, { y: rr.y + rr.h + rr.h * 0.85, duration: 0.32, ease: 'power2.in' }, 0.06);
+    tl.to(ghost, { alpha: 0, duration: 0.2, ease: 'power1.in' }, 0.2);
+    tl.call(() => { if (ghost.parent) ghost.parent.removeChild(ghost); }, undefined, 0.4);
+  }
+
   private startPlantRelocate(fromReel: number, toReel: number): boolean {
     const tex = this.expandWildTexture;
     if (!tex) return false;

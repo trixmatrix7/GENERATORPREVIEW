@@ -642,7 +642,16 @@ export class ReelSet {
   /** startSpin WITHOUT clearing the sticky/mechanic overlays (used by
    *  mechanics that re-roll the reels mid-choreography). */
   private startSpinKeepShowcase(): void {
-    for (const reel of this.reels) reel.startSpin();
+    for (let i = 0; i < this.reels.length; i++) {
+      // A reel under a STANDING plant stays hidden while it spins — otherwise
+      // its strip shows through as symbols sliding behind the plant (Noski).
+      // The plant replaces that column entirely.
+      if (this.expandedReels.has(i)) {
+        this.reels[i].container.alpha = 0;
+        if (!this.expandHiddenReels.includes(i)) this.expandHiddenReels.push(i);
+      }
+      this.reels[i].startSpin();
+    }
   }
 
   /** The currently VISIBLE board as symbol ids, board[row][reel] — read from
@@ -2483,6 +2492,10 @@ export class ReelSet {
   }
 
   private reelHasVisibleScatter(reelIdx: number, stop: number): boolean {
+    // An EXPANDED reel is entirely wild — the plant covers the whole column,
+    // so whatever the strip carries behind it does not exist for the game:
+    // no scatter trigger, no retrigger, no near-miss tease, no land sound.
+    if (this.expandedReels.has(reelIdx)) return false;
     const len = this.config.reelLengths[reelIdx];
     const strip = this.config.reelStrips[reelIdx];
     for (let row = 0; row < this.grid.visibleRows; row++) {
@@ -2492,6 +2505,7 @@ export class ReelSet {
   }
 
   private reelHasVisibleWild(reelIdx: number, stop: number): boolean {
+    if (this.expandedReels.has(reelIdx)) return false; // covered by the plant
     const len = this.config.reelLengths[reelIdx];
     const strip = this.config.reelStrips[reelIdx];
     for (let row = 0; row < this.grid.visibleRows; row++) {

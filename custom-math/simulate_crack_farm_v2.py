@@ -287,11 +287,17 @@ def certify(pays, scat, max_win_x, base_n=600_000, fs_rounds=120_000,
         b = [[window(r, stops[r])[row] for r in range(REELS)] for row in range(ROWS)]
         scw, scn, lines = eval_lines(b, pays, scat)
         w = scw + sum(lw for lw, _ in lines)
+        if scn >= 3:
+            sc_hits[min(scn, 5)] += 1
+        elif rng.randrange(BASE_FEAT_ODDS) == 0:
+            # This spin fires the base feature, which REPLACES the plain win
+            # (mockHost settlement: totalWin = feature sum). Its payout is the
+            # feature stratum below, so its plain win must NOT be counted here —
+            # otherwise the model double-counts ~P(feat)*E[plain] of RTP.
+            continue
         base_total += w
         if w:
             base_wins.append(w / X)
-        if scn >= 3:
-            sc_hits[min(scn, 5)] += 1
     base_rtp = base_total / (base_n * X)
     p_sc = {k: v / base_n for k, v in sc_hits.items()}
 

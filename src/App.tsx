@@ -210,6 +210,12 @@ export function App() {
       void pixiAppRef.setWinTierImages(CRACKFARM.winTiers);
       // Wooden plaque frame behind the FREE SPINS / TOTAL WIN counters.
       void pixiAppRef.setFsPlaqueImage(`${CRACKFARM.base}plaque_frame.png`);
+      // Multiplier rings that hang in the plant. Only the delivered values
+      // use art; the rest fall back to the drawn badge until Noski ships them.
+      void pixiAppRef.setMultiRingImages({
+        2: `${CRACKFARM.base}multi_2x.png`,
+        1024: `${CRACKFARM.base}multi_1024x.png`,
+      });
       // FS-END TOTAL WIN outro: the artist's one-piece night-scene assembly
       // (TOTAL WIN + metal plate + press-to-continue), contain-fit; the
       // count-up amount sits ON the plate (measured centre 958,646).

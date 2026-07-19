@@ -723,13 +723,14 @@ export class ReelSet {
     for (let i = 0; i < this.grid.reelCount; i++) {
       const rr = resolveAnchor(reelAnchor(i), this.grid);
       const pad = new Graphics();
-      const w = rr.w * 0.88, h = 20;
-      // Soft stacked ellipses = a glow pool rather than a hard rectangle.
-      pad.ellipse(0, 0, w * 0.5, h * 0.9).fill({ color: 0x7CFF4F, alpha: 0.22 });
-      pad.ellipse(0, 0, w * 0.36, h * 0.62).fill({ color: 0xBFFF9A, alpha: 0.5 });
-      pad.ellipse(0, 0, w * 0.2, h * 0.4).fill({ color: 0xF2FFE8, alpha: 0.85 });
+      // DEZENT (Noski: the first pass read as a big AI blob) — a thin, wide
+      // sliver of light on the barn floor, not a glowing ball.
+      const w = rr.w * 0.62, h = 7;
+      pad.ellipse(0, 0, w * 0.5, h * 0.9).fill({ color: 0x7CFF4F, alpha: 0.16 });
+      pad.ellipse(0, 0, w * 0.34, h * 0.55).fill({ color: 0xBFFF9A, alpha: 0.34 });
+      pad.ellipse(0, 0, w * 0.16, h * 0.32).fill({ color: 0xEFFFE2, alpha: 0.55 });
       pad.blendMode = 'add'; // reads as light on the dark barn floor
-      pad.position.set(rr.x + rr.w / 2, g.y + g.h + 9);
+      pad.position.set(rr.x + rr.w / 2, g.y + g.h + 7);
       pad.alpha = 0;
       pad.scale.set(0.6, 0.6);
       pad.eventMode = 'none';
@@ -774,8 +775,9 @@ export class ReelSet {
     this.padSprites.forEach((pad, i) => {
       const on = i === idx;
       gsap.killTweensOf(pad); gsap.killTweensOf(pad.scale);
-      pad.alpha = on ? 1 : 0.18;
-      pad.scale.set(on ? 1.35 : 0.8, on ? 1.5 : 0.8);
+      pad.alpha = on ? 0.85 : 0.14;
+      // Widen rather than balloon — keeps it a light sliver, not a blob.
+      pad.scale.set(on ? 1.3 : 0.8, on ? 1.15 : 0.8);
     });
   }
 
@@ -1882,6 +1884,13 @@ export class ReelSet {
    *  lifecycle (stickyRevealObjects), swept with the towers. */
   private towerBadges = new Map<number, { root: Container; label: Text }>();
 
+  /** Per-VALUE artwork for the multiplier ring that hangs in the plant
+   *  (Crack Farm vine wreath with the number baked in). Values without art
+   *  fall back to the drawn plate + text, so partial sets are fine. */
+  private multiRingTex = new Map<number, Texture>();
+
+  setMultiRingTextures(map: Map<number, Texture>): void { this.multiRingTex = map; }
+
   setTowerMultiplier(mult: number): void {
     if (mult <= 1) return; // debut rule: 1x carries no badge
     const text = `x${mult}`;
@@ -1889,14 +1898,27 @@ export class ReelSet {
       let badge = this.towerBadges.get(reelIdx);
       if (badge && !badge.root.parent) { this.towerBadges.delete(reelIdx); badge = undefined; }
       const rr = resolveAnchor(reelAnchor(reelIdx), this.grid);
-      const slotY = rr.y + rr.h - 34; // tower base — the badge sits on the pot
+      // The ring hangs in the PLANT's middle (where the art carries it), the
+      // drawn fallback plate stays down by the pot.
+      const ringTex = this.multiRingTex.get(mult) ?? null;
+      const slotY = ringTex ? rr.y + rr.h * 0.52 : rr.y + rr.h - 34;
       if (!badge) {
         const root = new Container();
         root.eventMode = 'none';
+        if (ringTex) {
+          const ring = new Sprite(ringTex);
+          ring.anchor.set(0.5);
+          const rw = rr.w * 0.78;
+          ring.width = rw;
+          ring.height = rw * (ringTex.height / ringTex.width);
+          ring.eventMode = 'none';
+          root.addChild(ring);
+        } else {
         const plate = new Graphics();
         plate.roundRect(-32, -19, 64, 38, 11).fill({ color: 0x14260d, alpha: 0.92 });
         plate.roundRect(-32, -19, 64, 38, 11).stroke({ color: 0x7ef23e, width: 2.5, alpha: 0.95 });
         root.addChild(plate);
+        }
         const label = new Text({
           text,
           style: new TextStyle({
@@ -1906,6 +1928,8 @@ export class ReelSet {
           }),
         });
         label.anchor.set(0.5);
+        // The ring art has its value baked in — no text on top of it.
+        label.visible = !ringTex;
         root.addChild(label);
         root.position.set(rr.x + rr.w / 2, slotY);
         this.stickyContainer.addChild(root);

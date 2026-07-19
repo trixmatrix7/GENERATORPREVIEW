@@ -908,9 +908,14 @@ export class PixiApp {
       this.frameArtOvR = 0;
     }
     this.frameImageSprite = sp;
-    this.gameContainer.addChild(sp); // border sits over the reels…
-    // …but the PRESENTATION layers (towers, winning objects, amounts, comet)
-    // go back on top: re-adding moves the host above the fresh frame sprite.
+    this.gameContainer.addChild(sp);
+    // SYMBOLS RIDE OVER THE FRAME (Noski: corners were getting nibbled by the
+    // barn border). The reel set is clipped to the grid anyway, so lifting it
+    // above the frame art can't spill outside the window — it only stops the
+    // border from covering symbol corners.
+    this.gameContainer.addChild(this.reelSet.container);
+    // …and the PRESENTATION layers (towers, winning objects, amounts, comet)
+    // stay on top of both.
     if (this.overFrameObjects) this.gameContainer.addChild(this.overFrameObjects);
     this.onResize(); // overhang changed — re-fit so the marquee side stays on-canvas
   }
@@ -1136,6 +1141,26 @@ export class PixiApp {
 
   /** Load the six layered win-marquee images (big/mega/epic/max + WIN + plate).
    *  Pass null to clear (celebration falls back to baked text). */
+  /** Per-value multiplier ring art for the plant wilds, e.g.
+   *  `{ 2: '/theme/crackfarm/multi_2x.png', 1024: '…/multi_1024x.png' }`.
+   *  Values without art keep the drawn plate, so a partial set is fine. */
+  async setMultiRingImages(urls: Record<number, string>): Promise<void> {
+    const map = new Map<number, Texture>();
+    for (const [k, url] of Object.entries(urls)) {
+      try {
+        const tex = await Assets.load<Texture>(url);
+        if (this._aborted) return;
+        tex.source.autoGenerateMipmaps = true;
+        tex.source.style.maxAnisotropy = 8;
+        tex.source.update();
+        map.set(Number(k), tex);
+      } catch (err) {
+        console.warn('[PixiApp] failed to load multi ring', k, err);
+      }
+    }
+    this.reelSet?.setMultiRingTextures(map);
+  }
+
   /** Themed plaque art for the FREE SPINS / TOTAL WIN counters (wooden frame
    *  with a glowing inner panel). Pass null to fall back to the neon plate. */
   async setFsPlaqueImage(url: string | null): Promise<void> {
@@ -3526,9 +3551,9 @@ export class PixiApp {
     // Font matches the win marquee (Noski) so every number in the game reads
     // as one family instead of two.
     const NUM_FONT = "'Poppins', ui-sans-serif, sans-serif";
-    // 5% smaller than the first pass (Noski).
-    const panelW = themed ? 177 : 168;
-    const panelH = themed ? Math.round(177 * (themed.height / themed.width)) : 92;
+    // HALF the first pass (Noski: "50% kleiner nicht 5").
+    const panelW = themed ? 93 : 168;
+    const panelH = themed ? Math.round(93 * (themed.height / themed.width)) : 92;
     // Text must stay inside the frame's inner panel (the wood eats ~15% a side).
     const innerW = themed ? panelW * 0.66 : panelW - 24;
     /** Shrink a Text so it can never overflow the plaque (Noski: numbers were
@@ -3568,8 +3593,8 @@ export class PixiApp {
       text: 'FREE SPINS',
       style: new TextStyle({
         fontFamily: NUM_FONT,
-        fontSize: 13, fontWeight: '800', fill: themed ? 0xBFFFA8 : 0xFF9ED8, letterSpacing: 2,
-        stroke: themed ? { color: 0x0c2a10, width: 3 } : undefined,
+        fontSize: themed ? 9 : 13, fontWeight: '800', fill: themed ? 0xBFFFA8 : 0xFF9ED8, letterSpacing: themed ? 1 : 2,
+        stroke: themed ? { color: 0x0c2a10, width: 2 } : undefined,
       }),
     });
     label.anchor.set(0.5);
@@ -3580,7 +3605,7 @@ export class PixiApp {
       text: `1 / ${totalSpins}`,
       style: new TextStyle({
         fontFamily: NUM_FONT,
-        fontSize: 32, fontWeight: '900', fontStyle: 'italic', fill: 0xFFE9A0,
+        fontSize: themed ? 20 : 32, fontWeight: '900', fontStyle: 'italic', fill: 0xFFE9A0,
         letterSpacing: 1,
         stroke: { color: 0x1a0e02, width: 5 },
         dropShadow: { color: 0x000000, blur: 6, distance: 0, alpha: 0.5 },
@@ -3627,8 +3652,8 @@ export class PixiApp {
       text: 'TOTAL WIN',
       style: new TextStyle({
         fontFamily: NUM_FONT,
-        fontSize: 13, fontWeight: '800', fill: themed ? 0xBFFFA8 : 0xFF9ED8, letterSpacing: 2,
-        stroke: themed ? { color: 0x0c2a10, width: 3 } : undefined,
+        fontSize: themed ? 9 : 13, fontWeight: '800', fill: themed ? 0xBFFFA8 : 0xFF9ED8, letterSpacing: themed ? 1 : 2,
+        stroke: themed ? { color: 0x0c2a10, width: 2 } : undefined,
       }),
     });
     label2.anchor.set(0.5);
@@ -3639,7 +3664,7 @@ export class PixiApp {
       text: '0.00',
       style: new TextStyle({
         fontFamily: NUM_FONT,
-        fontSize: 26, fontWeight: '900', fontStyle: 'italic', fill: 0xFFE9A0,
+        fontSize: themed ? 17 : 26, fontWeight: '900', fontStyle: 'italic', fill: 0xFFE9A0,
         letterSpacing: 1,
         stroke: { color: 0x1a0e02, width: 5 },
         dropShadow: { color: 0x000000, blur: 6, distance: 0, alpha: 0.5 },

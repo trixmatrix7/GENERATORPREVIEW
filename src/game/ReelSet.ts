@@ -1027,18 +1027,18 @@ export class ReelSet {
       spr.eventMode = 'none';
       const mask = new Graphics();
       mask.eventMode = 'none';
-      // The plant art is wider than the reel on purpose (it spills over the
-      // edges). The reveal mask must be just as wide, or it would clip that
-      // overhang straight off and the plant would look reel-width again.
-      const overX = bottomUp
-        ? Math.max(1, (tex.width * spr.scale.x - rr.w) / 2 + 2)
-        : 1;
+      // The bottom-up mask only has to gate the plant's HEIGHT as it grows —
+      // horizontally it must never clip, because the plant art deliberately
+      // spills past the reel edges (Noski: the left leaf was being cut off).
+      // So it runs a full reel-width wider on each side, with square corners
+      // (a rounded corner would nibble the overhanging leaves).
+      const overX = rr.w;
       const drawReveal = (t: number) => {
         mask.clear();
         if (bottomUp) {
           // The window grows from the reel FLOOR upward (plant growth).
           const topY = (rr.y + rr.h) - Math.max(cellR.h * 0.4, rr.h * t);
-          mask.roundRect(rr.x - overX, topY, rr.w + overX * 2, (rr.y + rr.h) - topY, rad).fill(0xffffff);
+          mask.rect(rr.x - overX, topY, rr.w + overX * 2, (rr.y + rr.h) - topY).fill(0xffffff);
         } else {
           const topY = cellR.y + (rr.y - cellR.y) * t;
           const botY = (cellR.y + cellR.h) + ((rr.y + rr.h) - (cellR.y + cellR.h)) * t;

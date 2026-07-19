@@ -61,7 +61,7 @@ const DEFAULT_MULTIS: [number, number][] = [
   [2, 620], [4, 240], [8, 90], [16, 32], [32, 11],
   [64, 4], [128, 2], [256, 1],
 ];
-const DEFAULT_COUNT_WEIGHTS = [55, 28, 12, 4, 1];
+const DEFAULT_COUNT_WEIGHTS = [575, 280, 130, 12, 3];
 
 /**
  * The base-game plant feature for this spin, or null when it does not fire.

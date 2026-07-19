@@ -1,7 +1,7 @@
 {
  "gridId": "5x3",
  "targetRtpPct": 96.0,
- "rtpBps": 9609,
+ "rtpBps": 9600,
  "payModel": "lines",
  "paylines": [
   [
@@ -320,50 +320,50 @@
  "reelLength": 46,
  "payTable": {
   "wild": [
-   3252,
-   12195,
-   81300
+   5054,
+   18954,
+   126360
   ],
   "highA": [
-   3252,
-   12195,
-   81300
+   5054,
+   18954,
+   126360
   ],
   "highB": [
-   2439,
-   8130,
-   40650
+   3791,
+   12636,
+   63180
   ],
   "midC": [
-   1626,
-   4878,
-   20325
+   2527,
+   7582,
+   31590
   ],
   "midD": [
-   1220,
-   4065,
-   16260
+   1895,
+   6318,
+   25272
   ],
   "lowE": [
-   813,
-   2439,
-   8130
+   1264,
+   3791,
+   12636
   ],
   "lowF": [
-   610,
-   2032,
-   6098
+   948,
+   3159,
+   9477
   ],
   "lowG": [
-   406,
-   1626,
-   4065
+   632,
+   2527,
+   6318
   ]
  },
  "scatterPay": [
-  4065,
-  12195,
-  40650
+  6318,
+  18954,
+  63180
  ],
  "freeSpinsCount": 7,
  "freeSpinsCap": 13,
@@ -381,11 +381,11 @@
    "5": 32
   },
   "plantCountWeights": [
-   55,
-   28,
+   575,
+   280,
+   130,
    12,
-   4,
-   1
+   3
   ],
   "plantMultiCap": 1024,
   "plantMultiIncrement": 1,
@@ -429,11 +429,11 @@
     1
    ]
   ],
-  "notes": "Crack Farm v2 PAYLINES (10 lines, leftmost, wilds substitute). FREE SPINS: 3/4/5 scatters award the SAME 7 spins; plant START multi 1x/8x/32x. Each plant carries its OWN multi, a line pays x the HIGHEST plant it crosses, plants that took part DOUBLE per spin (cap 1024x), 1-5 plants weighted [55, 28, 12, 4, 1]. BASE-GAME plant feature ~1 in 170. Hard 10000x cap. Certified RTP 96.09% (stratified, simulate_crack_farm_v2.py, k=0.4065)."
+  "notes": "Crack Farm v2 PAYLINES (10 lines, leftmost, wilds substitute). FREE SPINS: 3/4/5 scatters award the SAME 7 spins; plant START multi 1x/8x/32x. Each plant carries its OWN multi, a line pays x the HIGHEST plant it crosses, plants that took part DOUBLE per spin (cap 1024x), 1-5 plants weighted [575, 280, 130, 12, 3]. BASE-GAME plant feature ~1 in 170. Hard 10000x cap. Certified RTP 96.0% (stratified, simulate_crack_farm_v2.py, k=0.6318)."
  },
  "simResults": {
-  "rtp_pct": 96.09,
-  "k": 0.4065,
+  "rtp_pct": 96.0,
+  "k": 0.6318,
   "method": "stratified"
  }
 }

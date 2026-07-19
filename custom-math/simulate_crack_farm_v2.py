@@ -92,13 +92,14 @@ FS_RETRIG = 3
 FS_CAP = FS_SPINS + 6                                 # room for two retriggers
 MULTI_START = {3: 1, 4: 8, 5: 32}
 MULTI_CAP = 1024
-# 1..5 plants: normal 1-2, occasional 3, rare 4, VERY rare 5.
-# 4 and 5 plants blanket the board, so all 10 paylines pay the top symbol and
-# the multipliers land on every one of them. At [40,30,18,9,3] that happened
-# often enough to force the paytable down to k=0.12, which left the base game
-# paying 2.2% RTP — dead between features. These weights read the same way
-# Noski described it and keep the board-covering cases genuinely rare.
-PLANT_WEIGHTS = [55, 28, 12, 4, 1]
+# 1..5 plants. Noski (Wild Storm reference): even the 5-scatter super bonus
+# almost never shows more than ~3 storms — the thrill is the MULTIPLIER climbing
+# on ONE or two plants (doubling toward 1024x), not blanketing the board. So 4
+# and 5 are pushed MAXIMALLY rare (combined ~1.5%). That is also the easier
+# balance: the board-covering 4/5 cases that force the paytable down are gone,
+# so the common 1-3 plant cases can pay more (k rises). 5 still POSSIBLE.
+#   1:57.5%  2:28%  3:13%  4:1.2%  5:0.3%
+PLANT_WEIGHTS = [575, 280, 130, 12, 3]
 TARGET_RTP = float(os.environ.get('CF_TARGET_RTP', '96.0'))
 X = 10000  # one bet unit in bps
 
@@ -440,28 +441,38 @@ if __name__ == '__main__':
         k *= TARGET_RTP / rtp
     pays, scat = build(k)
 
-    # Certification pass: big samples, and a second seed to prove the number
-    # actually reproduces (the old play-through method disagreed by 16 points).
+    # Certification pass: big samples across SEVERAL seeds, averaged.
     #
     # The cheap fit lands a few points high — its smaller sample under-counts
     # the rare huge rounds — so trim k against the FULL-SIZE measurement before
-    # signing off, otherwise the shipped paytable reads ~90% instead of 96%.
+    # signing off. And trim/report against a SEED AVERAGE, not one seed: a
+    # single seed sits ~1pt off the true value (the max-win cap hits dominate
+    # the tail), so fitting to seed 99 alone left the true RTP ~0.9pt high while
+    # the report still read 96%. Averaging seeds centres k on the real number.
+    SEEDS = [99, 4242, 31337]
     big = dict(base_n=600_000 * scale, fs_rounds=120_000 * scale,
                feat_n=120_000 * scale)
-    for i in range(3):
-        c = certify(pays, scat, max_win, seed=99, **big)
-        rtp = c['rtp'] * 100
-        print(f'  trim {i + 1}: k={k:.4f} -> RTP {rtp:.2f}%')
-        if abs(rtp - TARGET_RTP) < 0.4:
+
+    def cert_seeds(pays, scat, seeds):
+        runs = [certify(pays, scat, max_win, seed=s, **big) for s in seeds]
+        mean = sum(r['rtp'] for r in runs) / len(runs)
+        return runs, mean
+
+    for i in range(2):
+        runs, mean = cert_seeds(pays, scat, SEEDS)
+        rtp = mean * 100
+        print(f'  trim {i + 1}: k={k:.4f} -> mean RTP {rtp:.2f}%')
+        if abs(rtp - TARGET_RTP) < 0.25:
             break
         k *= TARGET_RTP / rtp
         pays, scat = build(k)
-    c2 = certify(pays, scat, max_win, seed=4242, **big)
+    c = runs[0]
+    rtps = sorted(r['rtp'] * 100 for r in runs)
 
-    print(f'\n=== Crack Farm v2 - max win {max_win}x (stratified) ===')
+    print(f'\n=== Crack Farm v2 - max win {max_win}x (stratified, {len(SEEDS)} seeds) ===')
     print(f'k = {k:.4f}')
-    print(f'RTP        {c["rtp"]*100:.2f}%   (reproduce {c2["rtp"]*100:.2f}%, '
-          f'delta {abs(c["rtp"]-c2["rtp"])*100:.2f} pts)')
+    print(f'RTP        {mean*100:.2f}%   (seeds {" ".join(f"{r:.1f}" for r in rtps)}, '
+          f'spread {rtps[-1]-rtps[0]:.2f} pts)')
     print(f'  base     {c["base_rtp"]*100:.2f}%')
     print(f'  feature  {c["feat_rtp"]*100:.2f}%   1 in {1/c["p_feat"]:.0f}   avg {c["e_feat"]:.1f}x')
     print(f'  free sp  {c["fs_rtp"]*100:.2f}%')

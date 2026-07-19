@@ -244,7 +244,7 @@ export class MockHost {
       const plantRound = crackFS && !buyBonus && scatterCount >= 3;
       const startMulti = cfCfg.plantStartMultipliers?.[String(Math.min(scatterCount, 5))] ?? 1;
       const plantCap = cfCfg.plantMultiCap ?? 1024;
-      const countWeights = cfCfg.plantCountWeights ?? [55, 28, 12, 4, 1];
+      const countWeights = cfCfg.plantCountWeights ?? [575, 280, 130, 12, 3];
       // A plant is a FEATURE OVERLAY, so it can rise on ANY reel — including
       // reel 0, whose strip carries no wild. The certified model uses all five
       // (PLANT_REELS); restricting to wild-carrying reels capped a round at 4

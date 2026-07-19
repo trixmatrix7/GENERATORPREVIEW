@@ -208,6 +208,8 @@ export function App() {
         dimAlpha: 0.55,
       });
       void pixiAppRef.setWinTierImages(CRACKFARM.winTiers);
+      // Wooden plaque frame behind the FREE SPINS / TOTAL WIN counters.
+      void pixiAppRef.setFsPlaqueImage(`${CRACKFARM.base}plaque_frame.png`);
       // FS-END TOTAL WIN outro: the artist's one-piece night-scene assembly
       // (TOTAL WIN + metal plate + press-to-continue), contain-fit; the
       // count-up amount sits ON the plate (measured centre 958,646).

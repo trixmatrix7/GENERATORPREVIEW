@@ -101,6 +101,9 @@ export class PixiApp {
   /** FS dancers (left/right of the grid, looping through the round). */
   private fsDancerSheets: Texture[] | null = null;
   private fsDancerFrames: Texture[][] | null = null;
+  /** Themed art behind the FREE SPINS / TOTAL WIN plaques (wooden frame with
+   *  a glowing panel). Null → the plain neon plate is drawn instead. */
+  private fsPlaqueTex: Texture | null = null;
   private fsDancerFps = 12;
   private fsDancerTweens: gsap.core.Tween[] = [];
   /** Layered intro screens (game start / 3-scatter FS / 4-scatter FS) —
@@ -1133,6 +1136,22 @@ export class PixiApp {
 
   /** Load the six layered win-marquee images (big/mega/epic/max + WIN + plate).
    *  Pass null to clear (celebration falls back to baked text). */
+  /** Themed plaque art for the FREE SPINS / TOTAL WIN counters (wooden frame
+   *  with a glowing inner panel). Pass null to fall back to the neon plate. */
+  async setFsPlaqueImage(url: string | null): Promise<void> {
+    if (!url) { this.fsPlaqueTex = null; return; }
+    try {
+      const tex = await Assets.load<Texture>(url);
+      if (this._aborted) return;
+      tex.source.autoGenerateMipmaps = true;
+      tex.source.style.maxAnisotropy = 8;
+      tex.source.update();
+      this.fsPlaqueTex = tex;
+    } catch (err) {
+      console.warn('[PixiApp] failed to load FS plaque art:', err);
+    }
+  }
+
   async setWinTierImages(urls: WinTierImageUrls | null): Promise<void> {
     await this.winCelebration?.setTierImages(urls);
   }
@@ -3490,34 +3509,66 @@ export class PixiApp {
     // COMPACT (phone): the sides are off-canvas — the plaques move UP into the
     // top-left corner ABOVE the reel window (the letterbox/header band over the
     // machine), so they never cover the symbols (which start at HEADER_H+FRAME_PAD).
-    const panelW = 168, panelH = 92;
+    // Themed plaques (Crack Farm: wooden frame + glowing panel). The art is
+    // drawn CENTRED on the panel origin; the plain neon plate stays as the
+    // fallback for themes without plaque art.
+    const themed = this.fsPlaqueTex;
+    // Font matches the win marquee (Noski) so every number in the game reads
+    // as one family instead of two.
+    const NUM_FONT = "'Poppins', ui-sans-serif, sans-serif";
+    const panelW = themed ? 186 : 168;
+    const panelH = themed ? Math.round(186 * (themed.height / themed.width)) : 92;
+    // Text must stay inside the frame's inner panel (the wood eats ~15% a side).
+    const innerW = themed ? panelW * 0.66 : panelW - 24;
+    /** Shrink a Text so it can never overflow the plaque (Noski: numbers were
+     *  cut off on the right). */
+    const fitText = (t: Text, maxW: number) => {
+      t.scale.set(1);
+      const w = t.width;
+      if (w > maxW) t.scale.set(maxW / w);
+    };
     const panel = new Container();
     if (compact) {
       panel.scale.set(0.66);
       panel.position.set(8, -20);
     } else {
-      panel.position.set(-16 - panelW, HEADER_H + rh * 0.42);
+      // TOP-LEFT beside the grid — the old mid-height spot sat right on the
+      // pig mascot (Noski). Stacked downward from here.
+      panel.position.set(-14 - panelW, HEADER_H + rh * 0.16);
     }
     panel.eventMode = 'none';
-    const plate = new Graphics();
-    plate.roundRect(0, -panelH / 2, panelW, panelH, 14).fill({ color: 0x000000, alpha: 0.78 });
-    plate.roundRect(0, -panelH / 2, panelW, panelH, 14).stroke({ color: 0xFF64C8, width: 2, alpha: 0.9 });
-    plate.roundRect(3, -panelH / 2 + 3, panelW - 6, panelH - 6, 11).stroke({ color: 0x7DE3FF, width: 1, alpha: 0.35 });
+    let plate: Container;
+    if (themed) {
+      const spr = new Sprite(themed);
+      spr.anchor.set(0.5);
+      spr.width = panelW; spr.height = panelH;
+      spr.position.set(panelW / 2, 0);
+      spr.eventMode = 'none';
+      plate = spr;
+    } else {
+      const g = new Graphics();
+      g.roundRect(0, -panelH / 2, panelW, panelH, 14).fill({ color: 0x000000, alpha: 0.78 });
+      g.roundRect(0, -panelH / 2, panelW, panelH, 14).stroke({ color: 0xFF64C8, width: 2, alpha: 0.9 });
+      g.roundRect(3, -panelH / 2 + 3, panelW - 6, panelH - 6, 11).stroke({ color: 0x7DE3FF, width: 1, alpha: 0.35 });
+      plate = g;
+    }
     panel.addChild(plate);
     const label = new Text({
       text: 'FREE SPINS',
       style: new TextStyle({
-        fontFamily: "'Rubik', ui-sans-serif, system-ui, sans-serif",
-        fontSize: 13, fontWeight: '800', fill: 0xFF9ED8, letterSpacing: 3,
+        fontFamily: NUM_FONT,
+        fontSize: 13, fontWeight: '800', fill: themed ? 0xBFFFA8 : 0xFF9ED8, letterSpacing: 2,
+        stroke: themed ? { color: 0x0c2a10, width: 3 } : undefined,
       }),
     });
     label.anchor.set(0.5);
-    label.position.set(panelW / 2, -panelH / 2 + 24);
+    label.position.set(panelW / 2, themed ? -panelH * 0.17 : -panelH / 2 + 24);
+    fitText(label, innerW);
     panel.addChild(label);
     const counter = new Text({
       text: `1 / ${totalSpins}`,
       style: new TextStyle({
-        fontFamily: "'Rubik', ui-sans-serif, system-ui, sans-serif",
+        fontFamily: NUM_FONT,
         fontSize: 32, fontWeight: '900', fontStyle: 'italic', fill: 0xFFE9A0,
         letterSpacing: 1,
         stroke: { color: 0x1a0e02, width: 5 },
@@ -3525,42 +3576,58 @@ export class PixiApp {
       }),
     });
     counter.anchor.set(0.5);
-    counter.position.set(panelW / 2, 14);
+    counter.position.set(panelW / 2, themed ? panelH * 0.10 : 14);
+    fitText(counter, innerW);
     panel.addChild(counter);
     // Soft breathing on the neon rim so the plaque feels alive, not stamped.
-    this.fsDancerTweens.push(gsap.to(plate, { alpha: 0.82, duration: 1.6, yoyo: true, repeat: -1, ease: 'sine.inOut' }));
+    // Themed wood frame must NOT breathe its opacity (it would look like a
+    // flickering board); only the plain neon plate pulses.
+    if (!themed) this.fsDancerTweens.push(gsap.to(plate, { alpha: 0.82, duration: 1.6, yoyo: true, repeat: -1, ease: 'sine.inOut' }));
     fsContainer.addChild(panel);
 
     // TOTAL WIN plaque — same design, right below the spins counter; the
     // round's wins accumulate into it spin by spin.
-    const panel2H = 86;
+    const panel2H = themed ? panelH : 86;
     const panel2 = new Container();
     if (compact) {
       panel2.scale.set(0.66);
       panel2.position.set(8, 40);
     } else {
-      panel2.position.set(-16 - panelW, HEADER_H + rh * 0.42 + panelH / 2 + 14 + panel2H / 2);
+      panel2.position.set(-14 - panelW, HEADER_H + rh * 0.16 + panelH / 2 + 10 + panel2H / 2);
     }
     panel2.eventMode = 'none';
-    const plate2 = new Graphics();
-    plate2.roundRect(0, -panel2H / 2, panelW, panel2H, 14).fill({ color: 0x000000, alpha: 0.78 });
-    plate2.roundRect(0, -panel2H / 2, panelW, panel2H, 14).stroke({ color: 0xFF64C8, width: 2, alpha: 0.9 });
-    plate2.roundRect(3, -panel2H / 2 + 3, panelW - 6, panel2H - 6, 11).stroke({ color: 0x7DE3FF, width: 1, alpha: 0.35 });
+    let plate2: Container;
+    if (themed) {
+      const spr = new Sprite(themed);
+      spr.anchor.set(0.5);
+      spr.width = panelW; spr.height = panel2H;
+      spr.position.set(panelW / 2, 0);
+      spr.eventMode = 'none';
+      plate2 = spr;
+    } else {
+      const g = new Graphics();
+      g.roundRect(0, -panel2H / 2, panelW, panel2H, 14).fill({ color: 0x000000, alpha: 0.78 });
+      g.roundRect(0, -panel2H / 2, panelW, panel2H, 14).stroke({ color: 0xFF64C8, width: 2, alpha: 0.9 });
+      g.roundRect(3, -panel2H / 2 + 3, panelW - 6, panel2H - 6, 11).stroke({ color: 0x7DE3FF, width: 1, alpha: 0.35 });
+      plate2 = g;
+    }
     panel2.addChild(plate2);
     const label2 = new Text({
       text: 'TOTAL WIN',
       style: new TextStyle({
-        fontFamily: "'Rubik', ui-sans-serif, system-ui, sans-serif",
-        fontSize: 13, fontWeight: '800', fill: 0xFF9ED8, letterSpacing: 3,
+        fontFamily: NUM_FONT,
+        fontSize: 13, fontWeight: '800', fill: themed ? 0xBFFFA8 : 0xFF9ED8, letterSpacing: 2,
+        stroke: themed ? { color: 0x0c2a10, width: 3 } : undefined,
       }),
     });
     label2.anchor.set(0.5);
-    label2.position.set(panelW / 2, -panel2H / 2 + 22);
+    label2.position.set(panelW / 2, themed ? -panel2H * 0.17 : -panel2H / 2 + 22);
+    fitText(label2, innerW);
     panel2.addChild(label2);
     const total = new Text({
       text: '0.00',
       style: new TextStyle({
-        fontFamily: "'Rubik', ui-sans-serif, system-ui, sans-serif",
+        fontFamily: NUM_FONT,
         fontSize: 26, fontWeight: '900', fontStyle: 'italic', fill: 0xFFE9A0,
         letterSpacing: 1,
         stroke: { color: 0x1a0e02, width: 5 },
@@ -3568,11 +3635,12 @@ export class PixiApp {
       }),
     });
     total.anchor.set(0.5);
-    total.position.set(panelW / 2, 12);
+    total.position.set(panelW / 2, themed ? panel2H * 0.10 : 12);
     panel2.addChild(total);
-    // Long amounts shrink to stay inside the plaque.
-    const totalFit = () => { total.scale.set(Math.min(1, (panelW - 24) / Math.max(1, total.width / total.scale.x))); };
-    this.fsDancerTweens.push(gsap.to(plate2, { alpha: 0.82, duration: 1.6, yoyo: true, repeat: -1, ease: 'sine.inOut', delay: 0.4 }));
+    // Long amounts shrink to stay inside the plaque's inner panel.
+    const totalFit = () => { total.scale.set(1); fitText(total, innerW); };
+    totalFit();
+    if (!themed) this.fsDancerTweens.push(gsap.to(plate2, { alpha: 0.82, duration: 1.6, yoyo: true, repeat: -1, ease: 'sine.inOut', delay: 0.4 }));
     fsContainer.addChild(panel2);
 
     // Animate in

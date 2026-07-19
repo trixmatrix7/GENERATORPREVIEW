@@ -72,6 +72,7 @@ export interface WinCelebrationParams {
 // PER-GAME: each theme's marquee art carries its own element positions —
 // setWinTierGeometry() swaps the measured fractions (default = Vice v2 set).
 const ART_H = 1080;
+const ART_W = 1920;
 const TIER_KEYS = ['big', 'mega', 'epic', 'max'] as const;
 type TierKey = typeof TIER_KEYS[number];
 
@@ -357,6 +358,8 @@ export class WinCelebration {
       }
     };
 
+    /** Re-fits the count-up number inside the plate (set in the art path). */
+    let amountFit: (() => void) | null = null;
     if (hasArt) {
       // Scale so the art's content height ≈ 55% of the short screen edge,
       // and pivot on the content's centre so the stack sits dead-centre.
@@ -386,6 +389,17 @@ export class WinCelebration {
       amount.anchor.set(0.5);
       amount.position.set(0, (GEO.plateCy - 0.5) * ART_H);
       marquee.addChild(amount);
+      // KEEP THE NUMBER CENTRED AND INSIDE THE PLATE. Long amounts used to
+      // grow past the plate art (Noski: "nicht zentriert / rechts
+      // abgeschnitten") because nothing constrained the width — the text is
+      // centre-anchored, so overflow reads as off-centre. Re-fit on every
+      // count-up tick instead of only at build time.
+      const plateInnerW = ART_W * 0.62;
+      amountFit = () => {
+        amount.scale.set(1);
+        const w = amount.width;
+        if (w > plateInnerW) amount.scale.set(plateInnerW / w);
+      };
     } else {
       // Fallback (no art loaded): baked foil word + amount text below.
       const s = Math.max(0.6, Math.min(2, Math.min(sw, sh) / 720)) * C.sizeMul;
@@ -457,6 +471,7 @@ export class WinCelebration {
         setTierLayer(finalTier); curTier = finalTier;
         for (const sp of [plateSpr, winSpr, tierSpr, fallbackWord]) if (sp) sp.alpha = 1;
         amount.text = formatAmount(p.winAmount, p.decimals);
+        amountFit?.();
         amount.alpha = 1;
         const tl = gsap.timeline({ onComplete: () => this.finish() });
         this.tl = tl;
@@ -565,6 +580,7 @@ export class WinCelebration {
         onUpdate: () => {
           if (!this.overlay) return;
           amount.text = counter.val.toFixed(dp);
+          amountFit?.();
           const prog = finalVal > 0 ? Math.min(1, counter.val / finalVal) : 1;
           const interval = 115 - 45 * prog; // ms — density tightens toward the end
           const now = performance.now();
@@ -581,7 +597,7 @@ export class WinCelebration {
           }
         },
         onComplete: () => {
-          if (this.overlay) amount.text = formatAmount(p.winAmount, p.decimals);
+          if (this.overlay) { amount.text = formatAmount(p.winAmount, p.decimals); amountFit?.(); }
           // TERMINATOR — the count lands on the final amount (tonic hit).
           this.fireTallyEnd();
         },

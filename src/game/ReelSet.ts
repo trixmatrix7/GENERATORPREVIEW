@@ -916,6 +916,20 @@ export class ReelSet {
       chosen = paired.map(x => x.r);
       landingRows.length = 0;
       for (const x of paired) landingRows.push(x.row);
+      // EVERY wild in the round becomes a plant — no stray 1×1 wilds (Noski:
+      // "wilds die nicht zur pflanze werden das darf nicht sein"). So any
+      // NON-plant reel whose window would show a wild is re-stopped to a
+      // wild-free window; the only wilds on the board are the plants.
+      const chosenSet = new Set(chosen);
+      for (let r = 0; r < this.grid.reelCount; r++) {
+        if (chosenSet.has(r)) continue;
+        if (wildRowInWindow(r, displayStops[r]) === null) continue;
+        const len = this.config.reelLengths[r];
+        for (let k = 1; k <= len; k++) {
+          const s = (displayStops[r] + k) % len;
+          if (wildRowInWindow(r, s) === null) { displayStops[r] = s; break; }
+        }
+      }
       // Every previously standing plant sinks out; the pads then pick the
       // first new home (the rest rise with their own reveal).
       if (!opts.turbo && standing.length > 0 && chosen.length > 0) {

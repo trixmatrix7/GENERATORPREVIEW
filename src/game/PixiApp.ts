@@ -574,7 +574,7 @@ export class PixiApp {
     const ovL = compact ? 0 : this.frameArtOvL;
     const ovR = compact ? 0 : this.frameArtOvR;
     // Side character + mascot stand beside the machine — no room on compact.
-    if (this.sideCharSprite) this.sideCharSprite.visible = !compact;
+    if (this.sideCharSprite) this.sideCharSprite.visible = !compact && !this.fsActive;
     if (this.mascotSprite) this.mascotSprite.visible = !compact;
     const margin = compact ? 8 : SCENE_MARGIN;
     const availW = width - margin * 2;
@@ -1248,6 +1248,9 @@ export class PixiApp {
    *  layout/scale; hidden on compact (phone) where the sides are off-canvas.
    *  Pass url=null to clear. */
   private sideCharSprite: Sprite | null = null;
+  /** While a free-spins round is up, the farmer stays OFF-SCREEN — no layout or
+   *  resize may bring him back (Noski: "den bauer rechts weg machen"). */
+  private fsActive = false;
   private sideCharTween: gsap.core.Tween | null = null;
   private sideCharSheets: Texture[] | null = null;
   private sideCharFrames: Texture[] | null = null;
@@ -3642,7 +3645,9 @@ export class PixiApp {
     this.sceneRoot.addChild(fsContainer);
 
     // The side character (farmer) steps OUT for the round — the plaques take
-    // his side of the machine (Noski). Restored in hideFreeSpinOverlay.
+    // his side of the machine (Noski). fsActive keeps a mid-round resize from
+    // bringing him back. Restored in hideFreeSpinOverlay.
+    this.fsActive = true;
     if (this.sideCharSprite) this.sideCharSprite.visible = false;
 
     // (the old full-board aura ellipse is gone — it read as a giant circle
@@ -4025,6 +4030,7 @@ export class PixiApp {
     for (const t of this.fsDancerTweens) t.kill();
     this.fsDancerTweens = [];
     // The side character steps back in once the round is over.
+    this.fsActive = false;
     if (this.sideCharSprite) this.sideCharSprite.visible = this.app.screen.width >= 520;
     gsap.killTweensOf(overlay.container.children);
     gsap.to(overlay.container, {

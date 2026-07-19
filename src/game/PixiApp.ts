@@ -3477,6 +3477,10 @@ export class PixiApp {
     const fsContainer = new Container();
     this.sceneRoot.addChild(fsContainer);
 
+    // The side character (farmer) steps OUT for the round — the plaques take
+    // his side of the machine (Noski). Restored in hideFreeSpinOverlay.
+    if (this.sideCharSprite) this.sideCharSprite.visible = false;
+
     // (the old full-board aura ellipse is gone — it read as a giant circle
     // sitting over the animated FS background)
 
@@ -3522,8 +3526,9 @@ export class PixiApp {
     // Font matches the win marquee (Noski) so every number in the game reads
     // as one family instead of two.
     const NUM_FONT = "'Poppins', ui-sans-serif, sans-serif";
-    const panelW = themed ? 186 : 168;
-    const panelH = themed ? Math.round(186 * (themed.height / themed.width)) : 92;
+    // 5% smaller than the first pass (Noski).
+    const panelW = themed ? 177 : 168;
+    const panelH = themed ? Math.round(177 * (themed.height / themed.width)) : 92;
     // Text must stay inside the frame's inner panel (the wood eats ~15% a side).
     const innerW = themed ? panelW * 0.66 : panelW - 24;
     /** Shrink a Text so it can never overflow the plaque (Noski: numbers were
@@ -3538,9 +3543,9 @@ export class PixiApp {
       panel.scale.set(0.66);
       panel.position.set(8, -20);
     } else {
-      // TOP-LEFT beside the grid — the old mid-height spot sat right on the
-      // pig mascot (Noski). Stacked downward from here.
-      panel.position.set(-14 - panelW, HEADER_H + rh * 0.16);
+      // RIGHT of the barn frame, the PAIR centred on the machine's mid-line
+      // (Noski) — the farmer vacates that side during the round.
+      panel.position.set(rw + 14, HEADER_H + rh * 0.5 - (panelH + 10) / 2);
     }
     panel.eventMode = 'none';
     let plate: Container;
@@ -3599,7 +3604,7 @@ export class PixiApp {
       panel2.scale.set(0.66);
       panel2.position.set(8, 40);
     } else {
-      panel2.position.set(-14 - panelW, HEADER_H + rh * 0.16 + panelH / 2 + 10 + panel2H / 2);
+      panel2.position.set(rw + 14, HEADER_H + rh * 0.5 + (panel2H + 10) / 2);
     }
     panel2.eventMode = 'none';
     let plate2: Container;
@@ -3855,6 +3860,8 @@ export class PixiApp {
   private hideFreeSpinOverlay(overlay: { container: Container; counter: Text }): void {
     for (const t of this.fsDancerTweens) t.kill();
     this.fsDancerTweens = [];
+    // The side character steps back in once the round is over.
+    if (this.sideCharSprite) this.sideCharSprite.visible = this.app.screen.width >= 520;
     gsap.killTweensOf(overlay.container.children);
     gsap.to(overlay.container, {
       alpha: 0,

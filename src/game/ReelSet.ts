@@ -365,6 +365,11 @@ export class ReelSet {
     // Un-hide any reel a ghost-mode plant covered.
     for (const r of this.expandHiddenReels) { try { if (this.reels[r]?.container) this.reels[r].container.alpha = 1; } catch { /* torn down */ } }
     this.expandHiddenReels = [];
+    // The pad row lives in stickyContainer, which is about to be emptied —
+    // drop our references so ensurePads() rebuilds it next round.
+    this.killPadTweens();
+    this.padLayer = null;
+    this.padSprites = [];
     // Return wild art lifted above its gold frame to the cells.
     for (const c of this.stickyLiftedCells) c.restoreObject();
     this.stickyLiftedCells.length = 0;
@@ -699,6 +704,115 @@ export class ReelSet {
    *  black clear-panel. Alpha restored on clearStickyWilds. */
   private expandHiddenReels: number[] = [];
 
+  // ── PLANT PADS (Crack Farm relocation choreography) ──────────────────────
+  // Instead of floating across the board, a plant SINKS out of its reel and a
+  // row of glowing green pads under the grid picks the next spot: they pulse,
+  // the highlight whips left/right between reels, locks on one — and the
+  // plant pushes back UP out of that pad. Used for the free-spins position
+  // switch and (later) the base-game feature.
+  private padLayer: Container | null = null;
+  private padSprites: Graphics[] = [];
+  private padTweens: gsap.core.Tween[] = [];
+
+  /** Build (once) the row of pads sitting just under the reel window. */
+  private ensurePads(): Container {
+    if (this.padLayer) return this.padLayer;
+    const layer = new Container();
+    layer.eventMode = 'none';
+    const g = resolveAnchor(gridAnchor, this.grid);
+    for (let i = 0; i < this.grid.reelCount; i++) {
+      const rr = resolveAnchor(reelAnchor(i), this.grid);
+      const pad = new Graphics();
+      const w = rr.w * 0.88, h = 20;
+      // Soft stacked ellipses = a glow pool rather than a hard rectangle.
+      pad.ellipse(0, 0, w * 0.5, h * 0.9).fill({ color: 0x7CFF4F, alpha: 0.22 });
+      pad.ellipse(0, 0, w * 0.36, h * 0.62).fill({ color: 0xBFFF9A, alpha: 0.5 });
+      pad.ellipse(0, 0, w * 0.2, h * 0.4).fill({ color: 0xF2FFE8, alpha: 0.85 });
+      pad.blendMode = 'add'; // reads as light on the dark barn floor
+      pad.position.set(rr.x + rr.w / 2, g.y + g.h + 9);
+      pad.alpha = 0;
+      pad.scale.set(0.6, 0.6);
+      pad.eventMode = 'none';
+      layer.addChild(pad);
+      this.padSprites.push(pad);
+    }
+    this.stickyContainer.addChild(layer);
+    this.padLayer = layer;
+    return layer;
+  }
+
+  private killPadTweens(): void {
+    for (const t of this.padTweens) t.kill();
+    this.padTweens = [];
+  }
+
+  /** Fade every pad out (end of the choreography). */
+  hidePads(ms = 0.25): void {
+    if (!this.padLayer) return;
+    this.killPadTweens();
+    for (const pad of this.padSprites) {
+      this.padTweens.push(gsap.to(pad, { alpha: 0, duration: ms, ease: 'power1.in' }));
+      this.padTweens.push(gsap.to(pad.scale, { x: 0.6, y: 0.6, duration: ms, ease: 'power1.in' }));
+    }
+  }
+
+  /** All pads breathe faintly — "something is about to pick a spot". */
+  private padsIdle(): void {
+    this.ensurePads();
+    this.killPadTweens();
+    this.padSprites.forEach((pad, i) => {
+      gsap.killTweensOf(pad); gsap.killTweensOf(pad.scale);
+      pad.alpha = 0.22; pad.scale.set(0.8, 0.8);
+      this.padTweens.push(gsap.to(pad, {
+        alpha: 0.4, duration: 0.7, yoyo: true, repeat: -1, ease: 'sine.inOut', delay: i * 0.06,
+      }));
+    });
+  }
+
+  /** Light exactly ONE pad hard (the current candidate). */
+  private padFocus(idx: number): void {
+    this.padSprites.forEach((pad, i) => {
+      const on = i === idx;
+      gsap.killTweensOf(pad); gsap.killTweensOf(pad.scale);
+      pad.alpha = on ? 1 : 0.18;
+      pad.scale.set(on ? 1.35 : 0.8, on ? 1.5 : 0.8);
+    });
+  }
+
+  /** The pad tease: the highlight whips between reels, each hop quicker than
+   *  the last, then LOCKS on `target`. Resolves when the lock lands. */
+  private playPadTease(target: number): Promise<void> {
+    this.padsIdle();
+    const n = this.grid.reelCount;
+    const hops: number[] = [];
+    let cur = Math.floor(Math.random() * n);
+    // Bounce across the row, then settle on the target.
+    for (let i = 0; i < 7; i++) {
+      cur = (cur + (i % 2 === 0 ? 3 : n - 2)) % n;
+      hops.push(cur);
+    }
+    hops.push(target);
+    return new Promise(resolve => {
+      const tl = gsap.timeline({ onComplete: () => resolve() });
+      this.padTweens.push(tl as unknown as gsap.core.Tween);
+      let t = 0;
+      let step = 0.11;
+      hops.forEach((h, i) => {
+        const last = i === hops.length - 1;
+        tl.call(() => {
+          this.padFocus(h);
+          if (last) {
+            const pad = this.padSprites[h];
+            gsap.fromTo(pad.scale, { x: 1.9, y: 2.1 }, { x: 1.45, y: 1.6, duration: 0.28, ease: 'back.out(2.4)' });
+          }
+        }, undefined, t);
+        t += step;
+        step = Math.max(0.055, step * 0.88); // accelerate
+      });
+      tl.to({}, { duration: 0.14 }); // brief hold on the locked pad
+    });
+  }
+
   async playExpandingWildReveal(
     opts: { isLive?: () => boolean; turbo?: boolean; sticky?: boolean; force?: boolean; roaming?: boolean } = {},
   ): Promise<number[]> {
@@ -782,7 +896,7 @@ export class ReelSet {
         }
       }
       if (glideFrom !== null && chosen.length === 1) {
-        roamGlideActive = this.startRoamGlide(glideFrom, chosen[0]);
+        roamGlideActive = this.startPlantRelocate(glideFrom, chosen[0]);
       }
     } else if (opts.force) {
       // SHOWCASE (test button): guarantee 1-3 towers — each chosen reel's
@@ -843,6 +957,38 @@ export class ReelSet {
    *  spin's sticky lifecycle, so an aborted spin cleans it up. The preGrown
    *  park in expandOneWildReel swaps it for the real tower. */
   private roamGlideSpr: Sprite | null = null;
+
+  /** RELOCATION CHOREOGRAPHY (Crack Farm): the standing plant SINKS out of
+   *  its reel, the pad row under the grid whips its highlight left/right and
+   *  locks on the new reel — and expandOneWildReel then pushes the plant back
+   *  UP out of that pad. Replaces the old float-across-the-board roam. */
+  private startPlantRelocate(fromReel: number, toReel: number): boolean {
+    const tex = this.expandWildTexture;
+    if (!tex) return false;
+    const rFrom = resolveAnchor(reelAnchor(fromReel), this.grid);
+    const ghost = new Sprite(tex);
+    ghost.anchor.set(0.5, 1);
+    ghost.scale.set(this.expandGrowth === 'bottom-up'
+      ? Math.min(rFrom.h / tex.height, (rFrom.w * 1.3) / tex.width)
+      : (rFrom.w * 0.98) / tex.width);
+    ghost.position.set(rFrom.x + rFrom.w / 2, rFrom.y + rFrom.h);
+    ghost.alpha = this.expandStyle.plantAlpha;
+    ghost.eventMode = 'none';
+    this.stickyContainer.addChild(ghost);
+    this.stickyRevealObjects.push(ghost);
+    this.roamGlideSpr = ghost;
+
+    const tl = gsap.timeline();
+    this.stickyRevealTweens.push(tl);
+    // Sink out through the reel floor — a squash first, like it ducks away.
+    tl.to(ghost.scale, { y: ghost.scale.y * 0.9, duration: 0.1, ease: 'power2.out' }, 0);
+    tl.to(ghost, { y: rFrom.y + rFrom.h + rFrom.h * 0.85, duration: 0.32, ease: 'power2.in' }, 0.06);
+    tl.to(ghost, { alpha: 0, duration: 0.2, ease: 'power1.in' }, 0.2);
+    tl.call(() => { if (ghost.parent) ghost.parent.removeChild(ghost); this.roamGlideSpr = null; }, undefined, 0.4);
+    // Pads take over and pick the new spot while the reels are still rolling.
+    tl.call(() => { void this.playPadTease(toReel); }, undefined, 0.26);
+    return true;
+  }
 
   private startRoamGlide(fromReel: number, toReel: number): boolean {
     const tex = this.expandWildTexture;
@@ -1085,12 +1231,21 @@ export class ReelSet {
       // the lock-in slam plays.
       const T_CLEAR = preGrown ? 0 : T_SLIDE + 0.32 * speed;
       const T_RACE = preGrown ? 0.04 : T_SLIDE + 0.40 * speed;
-      const T_LOCK = preGrown ? 0.12 : T_RACE + 0.46 * speed;
+      // preGrown now PUSHES UP over 0.34s, so the lock-in slam waits for it
+      // to actually seat instead of firing while it is still rising.
+      const T_LOCK = preGrown ? 0.36 : T_RACE + 0.46 * speed;
       if (clear) tl.to(clear, { alpha: 1, duration: (preGrown ? 0.04 : 0.12) * speed, ease: 'power2.out' }, T_CLEAR);
       tl.to(spr, { alpha: this.expandStyle.plantAlpha, duration: (preGrown ? 0.03 : 0.07) * speed, ease: 'power1.out' }, Math.max(0, T_RACE - 0.02 * speed));
       if (preGrown) {
-        // The real column is visible — the traveler slides off the stage.
-        tl.call(() => this.clearRoamGlide(), undefined, T_RACE + 0.03);
+        // PUSH UP OUT OF THE PAD: the plant rises from below the reel floor
+        // into place (the pad under it stays lit until it lands), instead of
+        // simply appearing. This is the other half of the relocation.
+        tl.call(() => this.clearRoamGlide(), undefined, 0);
+        const restY = rr.y + rr.h;
+        spr.y = restY + rr.h * 0.95;
+        tl.to(spr, { y: restY, duration: 0.34, ease: 'back.out(1.25)' }, T_RACE);
+        // Pads dim away as the plant seats itself.
+        tl.call(() => this.hidePads(0.3), undefined, T_RACE + 0.2);
       } else {
         const reveal = { t: 0 };
         tl.to(reveal, {

@@ -1,7 +1,7 @@
 {
  "gridId": "5x3",
  "targetRtpPct": 96.0,
- "rtpBps": 9581,
+ "rtpBps": 9608,
  "payModel": "lines",
  "paylines": [
   [
@@ -320,56 +320,56 @@
  "reelLength": 46,
  "payTable": {
   "wild": [
-   3617,
-   13563,
-   90420
+   3181,
+   11928,
+   79520
   ],
   "highA": [
-   3617,
-   13563,
-   90420
+   3181,
+   11928,
+   79520
   ],
   "highB": [
-   2713,
-   9042,
-   45210
+   2386,
+   7952,
+   39760
   ],
   "midC": [
-   1808,
-   5425,
-   22605
+   1590,
+   4771,
+   19880
   ],
   "midD": [
-   1356,
-   4521,
-   18084
+   1193,
+   3976,
+   15904
   ],
   "lowE": [
-   904,
-   2713,
-   9042
+   795,
+   2386,
+   7952
   ],
   "lowF": [
-   678,
-   2260,
-   6782
+   596,
+   1988,
+   5964
   ],
   "lowG": [
-   452,
-   1808,
-   4521
+   398,
+   1590,
+   3976
   ]
  },
  "scatterPay": [
-  4521,
-  13563,
-  45210
+  3976,
+  11928,
+  39760
  ],
  "freeSpinsCount": 7,
  "freeSpinsCap": 13,
  "retriggerSpins": 3,
  "freeSpinMultiplier": 1,
- "maxWinMultiplier": 5000,
+ "maxWinMultiplier": 15000,
  "minWager": 10000,
  "custom": {
   "paylines": 10,
@@ -429,11 +429,11 @@
     1
    ]
   ],
-  "notes": "Crack Farm v2 PAYLINES (10 lines, leftmost, wilds substitute). FREE SPINS: 3/4/5 scatters award the SAME 7 spins; plant START multi 1x/8x/32x. Each plant carries its OWN multi, a line pays x the HIGHEST plant it crosses, plants that took part DOUBLE per spin (cap 1024x), 1-5 plants weighted [55, 28, 12, 4, 1]. BASE-GAME plant feature ~1 in 170. Hard 5000x cap. Certified RTP 95.81% (stratified, simulate_crack_farm_v2.py, k=0.4521)."
+  "notes": "Crack Farm v2 PAYLINES (10 lines, leftmost, wilds substitute). FREE SPINS: 3/4/5 scatters award the SAME 7 spins; plant START multi 1x/8x/32x. Each plant carries its OWN multi, a line pays x the HIGHEST plant it crosses, plants that took part DOUBLE per spin (cap 1024x), 1-5 plants weighted [55, 28, 12, 4, 1]. BASE-GAME plant feature ~1 in 170. Hard 15000x cap. Certified RTP 96.08% (stratified, simulate_crack_farm_v2.py, k=0.3976)."
  },
  "simResults": {
-  "rtp_pct": 95.81,
-  "k": 0.4521,
+  "rtp_pct": 96.08,
+  "k": 0.3976,
   "method": "stratified"
  }
 }

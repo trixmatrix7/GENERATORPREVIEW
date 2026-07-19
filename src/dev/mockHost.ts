@@ -13,6 +13,7 @@ import { GAME_CONFIG } from '@/config/gameConfig';
 import type { GameConfig } from '@/engine/GameConfig';
 import { SymbolId } from '@/config/symbols';
 import { playDeterministicHoldAndWin, HW_TRIGGER_MIN } from '@/engine/holdAndWin';
+import { baseFeaturePlants, type PlantFeatureConfig } from '@/game/plantFeature';
 
 const MOCK_CHAIN_ID = 84532; // Base Sepolia
 const MOCK_GAME_ADDRESS = '0x0000000000000000000000000000000000001234' as const;
@@ -155,7 +156,10 @@ export class MockHost {
       && typeof gameData === 'string' && gameData.length >= 66
       && decodeAbiParameters([{ type: 'bool' }], gameData as `0x${string}`)[0] === true;
     const bet = buyBonus ? (wager * 100n) / BigInt(Math.round(bonusBuyCost! * 100)) : wager;
-    const maxWin = bet * BigInt(5000);
+    // Session cap is the VERSION's max win — 5000x / 10000x / 15000x. Reading it
+    // from config (not a hardcoded 5000) keeps settlement's clamp identical to
+    // the display's capAmount (PixiApp) and the simulator's per-version cap.
+    const maxWin = bet * BigInt((this.config as { maxWinMultiplier?: number }).maxWinMultiplier ?? 5000);
 
     // 1. Base spin (evaluated at the base bet; a purchased round skips its win)
     const stops = this.deriveStops(randomness);
@@ -170,6 +174,37 @@ export class MockHost {
       totalWin = baseEval.totalWin;
       if (totalWin > maxWin) totalWin = maxWin;
       freeSpinsTriggered = scatterCount >= 3;
+    }
+
+    // 1b. BASE-GAME PLANT FEATURE — the screen darkens, the pads light up and
+    // 1..5 multiplied plants slide in; THIS spin is then re-evaluated with the
+    // plants standing as full-reel wilds (it replaces the plain result, it does
+    // not stack on top). Derived from the stops so the display reaches the same
+    // plants without a new game-state field — see src/game/plantFeature.ts.
+    if (!buyBonus && scatterCount < 3) {
+      const featPlants = baseFeaturePlants(
+        stops,
+        this.config.reelStrips.map((_, i) => i),
+        this.config as PlantFeatureConfig,
+      );
+      if (featPlants) {
+        const fb = this.buildBoardCfg(stops);
+        for (const reel of featPlants.keys()) {
+          for (let row = 0; row < fb.length; row++) fb[row][reel] = SymbolId.WILD;
+        }
+        const fe = evalWins(fb, bet, this.config);
+        let sum = 0n;
+        for (const c of fe.combinations) {
+          if (c.symbolId === SymbolId.SCATTER) { sum += c.winAmount; continue; }
+          let best = 1;
+          for (const [, reel] of c.cells) {
+            const m = featPlants.get(reel);
+            if (m !== undefined && m > best) best = m;
+          }
+          sum += c.winAmount * BigInt(best);
+        }
+        totalWin = sum > maxWin ? maxWin : sum;
+      }
     }
 
     // 2. Free spins loop — mirrors SlotGame.sol onRandomness exactly
@@ -196,11 +231,42 @@ export class MockHost {
       const cfCfg = this.config as {
         roamingWildFrom3Scatters?: boolean; stickyPlantFrom4Scatters?: boolean;
         plantMultiIncrement?: number; plantMultiCap?: number;
+        plantStartMultipliers?: Record<string, number>;
+        plantCountWeights?: number[];
       };
       const crackFS = !!(cfCfg.roamingWildFrom3Scatters || cfCfg.stickyPlantFrom4Scatters);
-      const plantRound = !!cfCfg.stickyPlantFrom4Scatters && !buyBonus && scatterCount >= 4;
-      const plantTowers = new Set<number>();
-      let plantMulti = 1;
+      // ── CRACK FARM v2 ───────────────────────────────────────────────────
+      // 3, 4 and 5 scatters all play the SAME round length; only the plants'
+      // STARTING multiplier differs (1x / 8x / 32x). Every plant carries its
+      // OWN multiplier, plants RELOCATE each spin, a line win pays x the
+      // HIGHEST plant it crosses, and each plant that took part in a spin
+      // then DOUBLES (capped). Mirrors simulate_crack_farm_v2.py.
+      const plantRound = crackFS && !buyBonus && scatterCount >= 3;
+      const startMulti = cfCfg.plantStartMultipliers?.[String(Math.min(scatterCount, 5))] ?? 1;
+      const plantCap = cfCfg.plantMultiCap ?? 1024;
+      const countWeights = cfCfg.plantCountWeights ?? [55, 28, 12, 4, 1];
+      // A plant is a FEATURE OVERLAY, so it can rise on ANY reel — including
+      // reel 0, whose strip carries no wild. The certified model uses all five
+      // (PLANT_REELS); restricting to wild-carrying reels capped a round at 4
+      // plants and diverged from the RTP. `plantCapable` stays ONLY for the
+      // landing-wild "gained" check below.
+      const plantReels = this.config.reelStrips.map((_, i) => i);
+      const plantCapable: number[] = [];
+      for (let reel = 0; reel < this.config.reelStrips.length; reel++) {
+        if (this.config.reelStrips[reel].includes(SymbolId.WILD)) plantCapable.push(reel);
+      }
+      // How many plants this round grows — drawn once, seed-derived.
+      const targetPlants = (() => {
+        const total = countWeights.reduce((a, b) => a + b, 0);
+        let x = Number(BigInt(randomness) % BigInt(total));
+        for (let i = 0; i < countWeights.length; i++) {
+          x -= countWeights[i];
+          if (x < 0) return Math.min(i + 1, plantReels.length);
+        }
+        return 1;
+      })();
+      // reel -> that plant's current multiplier
+      let plants = new Map<number, number>();
       // Sticky rounds run LONGER (towers need spins to accumulate) — their
       // own count/cap via the custom rules; 3sc rounds use the template's.
       if (stickyFS || plantRound) {
@@ -225,13 +291,27 @@ export class MockHost {
         // Crack Farm FS board transforms (before evaluation).
         if (crackFS) {
           if (plantRound) {
-            // Towers accumulate where wilds naturally land (leftmost first).
-            for (let reel = 0; reel < fsBoard[0].length; reel++) {
-              if (plantTowers.size >= stickyCap) break;
-              if (!plantTowers.has(reel) && fsBoard.some(r => r[reel] === 0)) plantTowers.add(reel);
+            // RELOCATE: every standing plant sinks and rises again on a fresh
+            // reel each spin (seed-derived). A landing wild grows one more,
+            // up to the round's drawn count. Multipliers travel WITH the
+            // plants — the strongest ones are kept when the count shrinks.
+            const gained = plants.size < targetPlants
+              && fsBoard.some(r => plantCapable.some(reel => r[reel] === SymbolId.WILD)) ? 1 : 0;
+            const want = Math.min(targetPlants, Math.max(plants.size, 1) + gained);
+            const carried = [...plants.values()].sort((a, b) => b - a).slice(0, want);
+            while (carried.length < want) carried.push(startMulti);
+            // Shuffle ALL reels deterministically, then take `want` (plants can
+            // stand on any reel — matches the certified PLANT_REELS).
+            const pool = [...plantReels];
+            let s = BigInt(seed);
+            for (let i = pool.length - 1; i > 0; i--) {
+              const j = Number(s % BigInt(i + 1));
+              s /= BigInt(i + 1);
+              [pool[i], pool[j]] = [pool[j], pool[i]];
             }
-            for (const reel of plantTowers) {
-              for (let row = 0; row < fsBoard.length; row++) fsBoard[row][reel] = 0;
+            plants = new Map(pool.slice(0, want).map((reel, i) => [reel, carried[i]]));
+            for (const reel of plants.keys()) {
+              for (let row = 0; row < fsBoard.length; row++) fsBoard[row][reel] = SymbolId.WILD;
             }
           } else {
             // ROAMING PLANT: exactly one wild-capable reel, seed-derived.
@@ -275,17 +355,29 @@ export class MockHost {
         // standing tower pay × the shared multi; each tower-CROSSING winning
         // connection then grows the multi by +plantMultiIncrement (capped) —
         // mirrors custom-math/simulate_crack_farm.py exactly.
-        if (plantRound && plantTowers.size > 0) {
+        if (plantRound && plants.size > 0) {
           let adjusted = 0n;
-          let crossings = 0;
+          const tookPart = new Set<number>();
           for (const c of fsEval.combinations) {
             if (c.symbolId === SymbolId.SCATTER) { adjusted += c.winAmount; continue; }
-            const crosses = c.cells.some(([, reel]) => plantTowers.has(reel));
-            if (crosses) crossings++;
-            adjusted += crosses ? c.winAmount * BigInt(plantMulti) : c.winAmount;
+            // A line pays x the HIGHEST plant it crosses. Multiplying every
+            // crossed plant together reads well on paper but is explosive:
+            // three plants at 16x would be 4096x on one line (measured RTP
+            // 3125% — see simulate_crack_farm_v2.py).
+            let best = 1;
+            for (const [, reel] of c.cells) {
+              const m = plants.get(reel);
+              if (m !== undefined) { tookPart.add(reel); if (m > best) best = m; }
+            }
+            adjusted += c.winAmount * BigInt(best);
           }
           rawFsWin = adjusted;
-          plantMulti = Math.min(cfCfg.plantMultiCap ?? 20, plantMulti + crossings * (cfCfg.plantMultiIncrement ?? 1));
+          // Each plant that took part DOUBLES — once per SPIN, not once per
+          // line (per-line doubling let a plant crossed by all 10 paylines
+          // jump 2^10 in a single spin).
+          for (const reel of tookPart) {
+            plants.set(reel, Math.min(plantCap, (plants.get(reel) ?? startMulti) * 2));
+          }
         }
         // SIMULTANEOUS-EXPANSION MULTIPLIERS (3-scatter rounds only): n reels
         // expanding in the SAME spin multiply the spin's win per the custom

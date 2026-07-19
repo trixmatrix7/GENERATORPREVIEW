@@ -1,0 +1,30 @@
+  fit 1: k=0.5000 -> RTP 114.61%
+  fit 2: k=0.4188 -> RTP 97.68%
+  fit 3: k=0.4116 -> RTP 96.09%
+  trim 1: k=0.4116 -> RTP 97.21%
+  trim 2: k=0.4065 -> RTP 96.09%
+
+=== Crack Farm v2 - max win 10000x (stratified) ===
+k = 0.4065
+RTP        96.09%   (reproduce 95.44%, delta 0.65 pts)
+  base     6.91%
+  feature  17.58%   1 in 170   avg 30.0x
+  free sp  71.59%
+FS trigger 1 in 395
+  3 sc     1 in 410   avg 247.1x   max 10000x
+  4 sc     1 in 11,250   avg 1237.0x   max 10000x
+  5 sc     1 in 900,000   avg 2523.8x   max 10000x
+
+win spread (per spin):
+            0-1x   1 in          2
+            1-5x   1 in        190
+           5-20x   1 in        544
+          20-50x   1 in      1,427
+         50-100x   1 in      2,341
+        100-250x   1 in      2,394
+        250-500x   1 in      4,404
+       500-1000x   1 in      6,374
+      1000-2500x   1 in      8,829
+      2500-5000x   1 in     20,194
+     5000-10000x   1 in     47,764
+   10000-999999x   1 in    174,674

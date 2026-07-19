@@ -21,6 +21,7 @@ import { deriveStopsFromRandomness, type SpinOutcome } from '@/engine/SlotEngine
 import { buildBoard } from '@/config/reels';
 import { type WinResult } from '@/engine/WinEvaluator';
 import { evalWins, activePayModel } from './winEval';
+import { baseFeaturePlants, type PlantFeatureConfig } from './plantFeature';
 import { DEFAULT_GAME_CONFIG, type GameConfig, type GameTheme } from '@/engine/GameConfig';
 import { playDeterministicHoldAndWin, HW_TRIGGER_MIN } from '@/engine/holdAndWin';
 import { loadSymbolAtlases, type SymbolAtlasMap } from './SymbolAtlasLoader';
@@ -2116,6 +2117,20 @@ export class PixiApp {
       // multiplier. displayPlantMulti mirrors the mock's settlement rule.
       const crackLines = activePayModel() === 'lines';
       let displayPlantMulti = 1;
+      // CRACK FARM v2: every plant carries its OWN multiplier. 3/4/5 scatters
+      // play the same length and differ only in where those multipliers START
+      // (1x / 8x / 32x); a line pays x the HIGHEST plant it crosses, and each
+      // plant that took part then DOUBLES. Mirrors mockHost settlement +
+      // simulate_crack_farm_v2.py.
+      const cfPlantCfg = this.config as {
+        plantStartMultipliers?: Record<string, number>; plantMultiCap?: number;
+      };
+      const plantStart = cfPlantCfg.plantStartMultipliers?.[String(Math.min(outcome.scatterCount, 5))] ?? 1;
+      const plantCapV2 = cfPlantCfg.plantMultiCap ?? 1024;
+      const displayPlants = new Map<number, number>();
+      // Draw this round's plant count fresh (clearStickyWilds runs on every
+      // spin, so the count cannot live there — it would redraw mid-round).
+      this.reelSet.resetPlantRound();
       // HARD SESSION CAP: the payout can NEVER exceed maxWinMultiplier x bet.
       // The moment the running round total reaches it, the round STOPS, the
       // plaque locks at the cap and the MAX WIN marquee takes over (the mock
@@ -2134,11 +2149,18 @@ export class PixiApp {
         this._winRevealId++;
         const expanded = await this.reelSet.playExpandingWildReveal(
           {
-            isLive: () => this.isLive, turbo: this.turbo, sticky: stickyMode,
-            roaming: crackLines && !stickyMode,
-            // Crack Farm: plants never stand still — even in the sticky (4sc)
-            // round they sink out and rise somewhere else every spin.
+            // Crack Farm v2: 3, 4 and 5 scatters play the IDENTICAL round —
+            // plants persist, relocate every spin, and only their starting
+            // multiplier differs. Vice Heat keeps the old tiered behaviour.
+            isLive: () => this.isLive, turbo: this.turbo,
+            sticky: crackLines ? true : stickyMode,
+            roaming: false,
+            // Plants never stand still: they sink out and rise somewhere else
+            // every spin.
             relocate: crackLines,
+            plantCountWeights: crackLines
+              ? (this.config as { plantCountWeights?: number[] }).plantCountWeights
+              : undefined,
           },
         );
         if (!this.isLive) break;
@@ -2162,26 +2184,33 @@ export class PixiApp {
         // combo), and the badge UPGRADE to the grown value plays only AFTER
         // the win presentation — never before the tally.
         let pendingPlantMulti = displayPlantMulti;
-        if (crackLines && stickyMode && expanded.length > 0) {
-          // Fresh towers get their badge at the CURRENT multi (debut rule:
-          // hidden while the shared multi is still 1x).
-          this.reelSet.setTowerMultiplier(displayPlantMulti);
-          const towerSet = new Set(expanded);
-          const multiCap = (this.config as { plantMultiCap?: number }).plantMultiCap ?? 20;
-          const multiInc = (this.config as { plantMultiIncrement?: number }).plantMultiIncrement ?? 1;
-          let crossings = 0;
+        const grown = new Map<number, number>();
+        if (crackLines && expanded.length > 0) {
+          // Plants that just rose start at this round's start multiplier; ones
+          // that relocated carry their own value across (the strongest stay
+          // when the count shrinks — same rule the mock settles with).
+          const standing = [...displayPlants.values()].sort((a, b) => b - a);
+          displayPlants.clear();
+          expanded.forEach((reel, i) => displayPlants.set(reel, standing[i] ?? plantStart));
+          this.reelSet.setTowerMultiplier(displayPlants);
           let total = 0n;
           const combos = winResult.combinations.map(c => {
             if (c.symbolId === 1) { total += c.winAmount; return c; }
-            const crosses = c.cells.some(([, reel]) => towerSet.has(reel));
-            if (crosses) crossings++;
-            const amt = crosses ? c.winAmount * BigInt(displayPlantMulti) : c.winAmount;
+            // HIGHEST crossed plant pays. Multiplying every crossed plant
+            // together looks generous on paper but is explosive — three at
+            // 16x would be 4096x on one line (simulated RTP 3125%).
+            let best = 1;
+            for (const [, reel] of c.cells) {
+              const m = displayPlants.get(reel);
+              if (m !== undefined) { grown.set(reel, m); if (m > best) best = m; }
+            }
+            const amt = c.winAmount * BigInt(best);
             total += amt;
-            if (crosses && displayPlantMulti > 1) {
+            if (best > 1) {
               // Display extras for the plaque's live xN tick-up (ReelSet.
               // spawnComboAmount) — pure presentation, amounts already settled.
               return {
-                ...c, winAmount: amt, multApplied: displayPlantMulti,
+                ...c, winAmount: amt, multApplied: best,
                 baseText: '+' + formatWin(c.winAmount, decimals),
                 finalText: '+' + formatWin(amt, decimals),
               } as typeof c;
@@ -2189,7 +2218,10 @@ export class PixiApp {
             return { ...c, winAmount: amt };
           });
           winResult = { ...winResult, combinations: combos, totalWin: total };
-          pendingPlantMulti = Math.min(multiCap, displayPlantMulti + crossings * multiInc);
+          // Each plant that took part DOUBLES — once per spin, not per line.
+          for (const [reel, m] of grown) grown.set(reel, Math.min(plantCapV2, m * 2));
+          pendingPlantMulti = Math.max(displayPlantMulti,
+            ...[...displayPlants.values()], ...[...grown.values()]);
         }
         const crossesCap = capAmount > 0n && fsRoundDisplayTotal + winResult.totalWin >= capAmount;
         if (winResult.totalWin > 0n && !crossesCap) {
@@ -2206,7 +2238,12 @@ export class PixiApp {
           this.reelSet.clearHighlights();
           // Badge UPGRADE after the presentation (WS: the new value spawns
           // above the slot, drifts in and pops — deferred past the win).
-          if (pendingPlantMulti !== displayPlantMulti) {
+          if (grown.size > 0) {
+            // v2: each plant upgrades to its OWN doubled value.
+            for (const [reel, m] of grown) displayPlants.set(reel, m);
+            this.reelSet.setTowerMultiplier(displayPlants);
+            displayPlantMulti = pendingPlantMulti;
+          } else if (pendingPlantMulti !== displayPlantMulti) {
             displayPlantMulti = pendingPlantMulti;
             this.reelSet.setTowerMultiplier(displayPlantMulti);
           }
@@ -2247,12 +2284,64 @@ export class PixiApp {
 
     if (!this.isLive) return;
 
+    // ── BASE-GAME PLANT FEATURE ──────────────────────────────────────────
+    // Crack Farm: on a non-FS spin the screen can DARKEN and 1..5 multiplied
+    // plants rise out of the soil, re-scoring that one spin. Derived from the
+    // SAME stops the settlement used (src/game/plantFeature.ts), so the plants
+    // shown are exactly the plants paid — no new game-state field needed.
+    let baseFeatureShown = false;
+    if (activePayModel() === 'lines' && !outcome.freeSpinsTriggered && !fsOverlayToClose
+        && !outcome.holdWinTriggered && !prefersReducedMotion()) {
+      const featPlants = baseFeaturePlants(
+        outcome.stops,
+        this.config.reelStrips.map((_, i) => i),
+        this.config as PlantFeatureConfig,
+      );
+      if (featPlants) {
+        const expanded = await this.reelSet.playBaseFeatureReveal(featPlants, {
+          isLive: () => this.isLive, turbo: this.turbo,
+        });
+        if (!this.isLive) return;
+        // Score the darkened board: each line pays x the HIGHEST plant it
+        // crosses (matches mockHost settlement + plantFeature model).
+        const board = this.reelSet.getVisibleBoard();
+        for (const reel of expanded) for (let row = 0; row < this.grid.visibleRows; row++) board[row][reel] = 0;
+        const plain = evalWins(board, outcome.wager ?? 1n, this.config);
+        let total = 0n;
+        const combos = plain.combinations.map(c => {
+          if (c.symbolId === 1) { total += c.winAmount; return c; }
+          let best = 1;
+          for (const [, reel] of c.cells) { const m = featPlants.get(reel); if (m !== undefined && m > best) best = m; }
+          const amt = c.winAmount * BigInt(best);
+          total += amt;
+          return best > 1
+            ? { ...c, winAmount: amt, multApplied: best,
+                baseText: '+' + formatWin(c.winAmount, decimals),
+                finalText: '+' + formatWin(amt, decimals) } as typeof c
+            : { ...c, winAmount: amt };
+        });
+        const winResult = { ...plain, combinations: combos, totalWin: total };
+        if (winResult.totalWin > 0n) {
+          const spinOutcome: SpinOutcome = {
+            stops: outcome.stops, board, winAmount: winResult.totalWin, wager: outcome.wager ?? 1n,
+            scatterCount: 0, freeSpinsTriggered: false, freeSpinsPlayed: 0,
+            holdWinTriggered: false, holdWinWin: 0n, holdWin: null, winResult,
+          };
+          await this.playWinSequence(spinOutcome, tokenSymbol, decimals);
+          if (!this.isLive) return;
+        }
+        this.reelSet.clearHighlights();
+        this.reelSet.endBaseFeatureReveal();
+        baseFeatureShown = true;
+      }
+    }
+
     // Sticky-wild AAA treatment on the settled board's wilds (visual feature).
     // SKIPPED after a free-spins round: outcome.board is the TRIGGER board while
     // the display still shows the last free spin (+ towers) — the borders would
     // mark cells showing unrelated symbols, and applyStickyWilds' internal clear
     // would tear the towers down mid-ceremony.
-    if (!fsOverlayToClose) this.reelSet.applyStickyWilds(outcome.board);
+    if (!fsOverlayToClose && !baseFeatureShown) this.reelSet.applyStickyWilds(outcome.board);
 
     // Hold & Win bonus — coins lock on the board and respins auto-run, before the
     // win ceremony tallies the payout. The round was derived deterministically
@@ -2267,12 +2356,13 @@ export class PixiApp {
       if (!this.isLive) return;
     }
 
-    if (outcome.winAmount > 0n && !fsOverlayToClose) {
+    if (outcome.winAmount > 0n && !fsOverlayToClose && !baseFeatureShown) {
       // Awaited: the spin HOLDS until the win ceremony (counting number + coins
       // flying from the winning symbols) finishes, like the reference game.
       // After a FREE-SPINS round there is deliberately NO marquee here: each
       // spin already showed its own tiered marquee (only when it actually
       // won), and the round total is presented by the TOTAL-WIN OUTRO below.
+      // The BASE PLANT FEATURE already presented its own re-scored win.
       await this.playWinSequence(outcome, tokenSymbol, decimals);
     }
 
@@ -2283,7 +2373,14 @@ export class PixiApp {
     // blink lands back on the normal base screen.
     if (this.isLive && fsOverlayToClose) {
       const overlay = fsOverlayToClose;
-      await this.playFreeSpinsOutro(fsRoundDisplayTotal, decimals, () => {
+      // The TOTAL WIN screen shows the AUTHORITATIVE settled payout, never the
+      // re-enacted running sum. The per-spin display drives an independent RNG
+      // stream from settlement (a faithful re-enactment, like Hold & Win), so
+      // fsRoundDisplayTotal can differ by a few x from what is actually
+      // credited — the final total the player reads must equal their balance.
+      // Capped rounds already locked fsRoundDisplayTotal to the cap = winAmount.
+      const authoritativeTotal = outcome.winAmount > 0n ? outcome.winAmount : fsRoundDisplayTotal;
+      await this.playFreeSpinsOutro(authoritativeTotal, decimals, () => {
         this.hideFreeSpinOverlay(overlay);
         if (this.fsOverlayOpen === overlay) this.fsOverlayOpen = null;
         this.exitFsBackground();
@@ -3133,6 +3230,48 @@ export class PixiApp {
       };
       // playWinSequence presents the win itself — no pre-highlight needed.
       await this.playWinSequence(outcome, symbol, decimals);
+    })();
+  }
+
+  /** QA hook: force the BASE-GAME PLANT FEATURE with an explicit plant map so
+   *  the darken → pads → rise → re-scored win can be verified without waiting
+   *  on the 1-in-170 trigger. `plants` is reel→multiplier; defaults to two. */
+  public __testBaseFeature(
+    plants: Array<[number, number]> = [[1, 8], [3, 32]],
+    symbol = 'WIN', decimals = 6, wager = 1_000_000n,
+  ): void {
+    if (!this.isLive) return;
+    void (async () => {
+      this._winRevealId++;
+      const map = new Map<number, number>(plants);
+      const expanded = await this.reelSet.playBaseFeatureReveal(map, { isLive: () => this.isLive, turbo: this.turbo });
+      if (!this.isLive || expanded.length === 0) return;
+      const board = this.reelSet.getVisibleBoard();
+      for (const reel of expanded) for (let row = 0; row < this.grid.visibleRows; row++) board[row][reel] = 0;
+      const plain = evalWins(board, wager, this.config);
+      let total = 0n;
+      const combos = plain.combinations.map(c => {
+        if (c.symbolId === 1) { total += c.winAmount; return c; }
+        let best = 1;
+        for (const [, reel] of c.cells) { const m = map.get(reel); if (m !== undefined && m > best) best = m; }
+        const amt = c.winAmount * BigInt(best);
+        total += amt;
+        return best > 1
+          ? { ...c, winAmount: amt, multApplied: best,
+              baseText: '+' + formatWin(c.winAmount, decimals), finalText: '+' + formatWin(amt, decimals) } as typeof c
+          : { ...c, winAmount: amt };
+      });
+      const winResult = { ...plain, combinations: combos, totalWin: total };
+      if (winResult.totalWin > 0n) {
+        await this.playWinSequence({
+          stops: this.config.reelLengths.map(() => 0), board, winAmount: winResult.totalWin, wager,
+          scatterCount: 0, freeSpinsTriggered: false, freeSpinsPlayed: 0,
+          holdWinTriggered: false, holdWinWin: 0n, holdWin: null, winResult,
+        }, symbol, decimals);
+      }
+      if (!this.isLive) return;
+      this.reelSet.clearHighlights();
+      this.reelSet.endBaseFeatureReveal();
     })();
   }
 

@@ -818,7 +818,10 @@ export class ReelSet {
   async playExpandingWildReveal(
     opts: { isLive?: () => boolean; turbo?: boolean; sticky?: boolean; force?: boolean; roaming?: boolean;
             /** Crack Farm: standing plants change reel every spin (sink out → pads → rise). */
-            relocate?: boolean } = {},
+            relocate?: boolean;
+            /** Crack Farm v2: weights for how many plants a round grows (index 0 = 1 plant).
+             *  Present = the round draws 1..N instead of the flat stickyTowerCap. */
+            plantCountWeights?: number[] } = {},
   ): Promise<number[]> {
     const live = opts.isLive ?? (() => true);
 
@@ -861,11 +864,36 @@ export class ReelSet {
       // stand still — every spin they sink out and push back up somewhere
       // else (Noski: "zwischen den spins immer dieser positions wechsel").
       // Count stays; a fresh wild landing can add one, up to the cap.
-      const cap = (this.config as unknown as { stickyTowerCap?: number }).stickyTowerCap ?? 2;
+      // How many plants this ROUND may grow. With plantCountWeights the count
+      // is drawn once per round from the weights (Noski: "meistens 1-2,
+      // manchmal 3, selten 4, ganz selten 5") and then held — redrawing every
+      // spin would make plants blink in and out instead of relocating.
+      let cap = (this.config as unknown as { stickyTowerCap?: number }).stickyTowerCap ?? 2;
+      if (opts.plantCountWeights?.length) {
+        if (this.roundPlantCap === null) {
+          const weights = opts.plantCountWeights;
+          const total = weights.reduce((a, b) => a + b, 0);
+          let x = Math.random() * total;
+          let n = 1;
+          for (let i = 0; i < weights.length; i++) {
+            x -= weights[i];
+            if (x < 0) { n = i + 1; break; }
+          }
+          this.roundPlantCap = Math.min(n, this.grid.reelCount);
+        }
+        cap = this.roundPlantCap;
+      }
       const standing = Array.from(this.expandedReels);
       this.startSpin(); // wipes the old plants — they are re-placed below
       gen = this.stickyRevealGen;
-      const pool = reelIdxs.slice();
+      // A plant is an OVERLAY, so it can rise on ANY reel — including reel 0,
+      // whose strip carries no wild. (Settlement + the certified model place on
+      // all five; restricting the display to wild-carrying reels would cap the
+      // shown plants at 4 while the payout used 5.) The plant covers the reel
+      // in ghost mode, so a "seed" sack is nice-to-have, not required.
+      const allReels = Array.from({ length: this.grid.reelCount }, (_, i) => i)
+        .filter(r => !this.expandedReels.has(r));
+      const pool = allReels.slice();
       for (let i = pool.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1));
         [pool[i], pool[j]] = [pool[j], pool[i]];
@@ -877,10 +905,11 @@ export class ReelSet {
       for (const r of pool) {
         if (chosen.length >= want) break;
         const hit = findWildStop(r);
-        if (!hit) continue;
-        displayStops[r] = hit.stop;   // force a sack so the plant has a seed
+        if (hit) displayStops[r] = hit.stop;   // land a sack under the plant when the strip has one
         chosen.push(r);
-        landingRows.push(hit.row);
+        // Bottom-up plants pop at the reel floor; the row only matters as the
+        // seed-drop origin, which reels without a wild simply skip.
+        landingRows.push(hit ? hit.row : this.grid.visibleRows - 1);
       }
       // Keep rows aligned with their reels when sorting.
       const paired = chosen.map((r, i) => ({ r, row: landingRows[i] })).sort((a, b) => a.r - b.r);
@@ -990,6 +1019,67 @@ export class ReelSet {
     // with the dev's WinEvaluator and run the standard per-combo win lines —
     // only same-symbol ways, wilds substituting, exactly like the math.)
     return chosen;
+  }
+
+  /** BASE-GAME PLANT FEATURE reveal. The reels have already stopped on the
+   *  spin's board; the screen then DARKENS (Noski: "der slot soll so
+   *  verdunkelt werden"), the green pads light up, and 1..5 plants — each with
+   *  its own multiplier — RISE out of the soil on the given reels. The caller
+   *  then evaluates the board with those reels wild and presents the win.
+   *
+   *  Placement is CALLER-CHOSEN (derived from the spin stops so settlement and
+   *  display agree), never random here. Returns the reels a plant now stands
+   *  on, sorted — the caller marks exactly these wild.
+   */
+  async playBaseFeatureReveal(
+    plants: ReadonlyMap<number, number>,
+    opts: { isLive?: () => boolean; turbo?: boolean } = {},
+  ): Promise<number[]> {
+    const live = opts.isLive ?? (() => true);
+    const reels = [...plants.keys()].filter(r => r >= 0 && r < this.grid.reelCount).sort((a, b) => a - b);
+    if (reels.length === 0) return [];
+
+    // Fresh reveal generation — a spin() cancels anything still in flight.
+    this.clearStickyWilds();
+    const gen = ++this.stickyRevealGen;
+
+    // 1) DARKEN the whole reel field, deeper than the FS momentary dim — the
+    //    feature owns the screen. Sits above the reels, below the plants.
+    const gr = resolveAnchor(gridAnchor, this.grid);
+    const veil = new Graphics();
+    veil.rect(gr.x - 14, gr.y - 14, gr.w + 28, gr.h + 28).fill({ color: 0x03060c, alpha: 1 });
+    veil.alpha = 0;
+    veil.eventMode = 'none';
+    this.stickyContainer.addChildAt(veil, 0);
+    this.stickyRevealObjects.push(veil);
+    this.stickyRevealTweens.push(gsap.to(veil, { alpha: 0.72, duration: 0.3, ease: 'power2.out' }));
+
+    // 2) Pads light + tease across the target reels, then the plants rise.
+    this.padsIdle();
+    await new Promise(res => setTimeout(res, opts.turbo ? 120 : 300));
+    if (this.stickyRevealGen !== gen || !live()) return [];
+
+    const bottomRow = this.grid.visibleRows - 1;
+    for (const reel of reels) {
+      if (this.stickyRevealGen !== gen || !live()) break;
+      // preGrown pushes the plant up out of the lit pad (the same seat used by
+      // the free-spin relocation), so the base feature reuses that motion.
+      await this.expandOneWildReel(reel, bottomRow, !!opts.turbo, true);
+      this.setTowerMultiplier(plants);
+      await new Promise(res => setTimeout(res, opts.turbo ? 70 : 170));
+    }
+    if (this.stickyRevealGen !== gen || !live()) return Array.from(this.expandedReels).sort((a, b) => a - b);
+    this.hidePads(0.3);
+    return reels;
+  }
+
+  /** Ease the base-feature darken back out and tear the plants down. */
+  endBaseFeatureReveal(): void {
+    // undim: fade the veil (it lives in stickyRevealObjects) before the clear.
+    for (const o of this.stickyRevealObjects) {
+      if (o instanceof Graphics) this.stickyRevealTweens.push(gsap.to(o, { alpha: 0, duration: 0.35, ease: 'power2.inOut' }));
+    }
+    this.schedule(() => this.clearStickyWilds(), 380);
   }
 
   /** The roaming plant's TRAVELER sprite: lifts off its old reel, pops out
@@ -1884,6 +1974,13 @@ export class ReelSet {
    *  lifecycle (stickyRevealObjects), swept with the towers. */
   private towerBadges = new Map<number, { root: Container; label: Text }>();
 
+  /** Plant count drawn for the CURRENT free-spin round (Crack Farm v2), or
+   *  null outside a round. Reset by resetPlantRound() when a round ends. */
+  private roundPlantCap: number | null = null;
+
+  /** Clears the round's drawn plant count so the next round draws fresh. */
+  resetPlantRound(): void { this.roundPlantCap = null; }
+
   /** Per-VALUE artwork for the multiplier ring that hangs in the plant
    *  (Crack Farm vine wreath with the number baked in). Values without art
    *  fall back to the drawn plate + text, so partial sets are fine. */
@@ -1891,10 +1988,20 @@ export class ReelSet {
 
   setMultiRingTextures(map: Map<number, Texture>): void { this.multiRingTex = map; }
 
-  setTowerMultiplier(mult: number): void {
+  /** @param mult  one shared value (Vice Heat), or a per-reel map (Crack Farm
+   *   v2, where every plant carries and doubles its OWN multiplier). */
+  setTowerMultiplier(mult: number | ReadonlyMap<number, number>): void {
+    if (typeof mult !== 'number') {
+      for (const [reelIdx, m] of mult) this.setOneTowerMultiplier(reelIdx, m);
+      return;
+    }
+    for (const reelIdx of this.expandedReels) this.setOneTowerMultiplier(reelIdx, mult);
+  }
+
+  private setOneTowerMultiplier(reelIdx: number, mult: number): void {
     if (mult <= 1) return; // debut rule: 1x carries no badge
     const text = `x${mult}`;
-    for (const reelIdx of this.expandedReels) {
+    {
       let badge = this.towerBadges.get(reelIdx);
       if (badge && !badge.root.parent) { this.towerBadges.delete(reelIdx); badge = undefined; }
       const rr = resolveAnchor(reelAnchor(reelIdx), this.grid);

@@ -12,6 +12,8 @@ import vol3x5 from '@/data/math_vol3_5x5.json';
 import vol3x3 from '@/data/math_vol3_5x3.json';
 import viceHeat from '@/data/math_vice_heat.json';
 import crackFarm from '@/data/math_crack_farm.json';
+import crackFarm10k from '@/data/math_crack_farm_10k.json';
+import crackFarm15k from '@/data/math_crack_farm_15k.json';
 
 const KEY_TO_ID: Record<string, number> = {
   wild: SymbolId.WILD, scatter: SymbolId.SCATTER,
@@ -75,6 +77,17 @@ function fromManifest(m: Record<string, unknown>): GameConfig {
     stickyPlantFrom4Scatters: !!(m['custom'] as { stickyPlantFrom4Scatters?: boolean } | undefined)?.stickyPlantFrom4Scatters,
     plantMultiIncrement: (m['custom'] as { plantMultiIncrement?: number } | undefined)?.plantMultiIncrement,
     plantMultiCap: (m['custom'] as { plantMultiCap?: number } | undefined)?.plantMultiCap,
+    // ── Crack Farm v2 plant rules ──────────────────────────────────────
+    // 3/4/5 scatters all award the SAME spin count; only the plants' START
+    // multiplier differs (1x / 8x / 32x). Each plant carries its OWN multi,
+    // a line win pays x the HIGHEST plant it crosses, and every plant that
+    // took part in a spin DOUBLES afterwards (capped at plantMultiCap).
+    plantStartMultipliers: (m['custom'] as { plantStartMultipliers?: Record<string, number> } | undefined)?.plantStartMultipliers,
+    // Weights for how many plants a round draws (index 0 = 1 plant).
+    plantCountWeights: (m['custom'] as { plantCountWeights?: number[] } | undefined)?.plantCountWeights,
+    // BASE-GAME plant feature: odds (1 in N) + weighted multiplier table.
+    baseFeatureOdds: (m['custom'] as { baseFeatureOdds?: number } | undefined)?.baseFeatureOdds,
+    baseFeatureMultipliers: (m['custom'] as { baseFeatureMultipliers?: [number, number][] } | undefined)?.baseFeatureMultipliers,
   } as unknown as GameConfig;
 }
 
@@ -98,9 +111,21 @@ export const MATH_PROFILES: readonly MathProfileOption[] = [
     grid: '5x3',
   },
   {
-    id: 'crack-farm-lines', name: '🌾 Crack Farm 96% (10 Paylines 5×3)',
-    description: 'PAYLINES-Slot (10 Linien, keine Ways): 3 SC = Roaming Plant (jeder FS-Spin ein Wild-Reel), 4 SC = Sticky Plants + Multi (+1× pro Connection, bis 20×). RTP ~96% (6M-Sim), Max Win 5000×.',
+    id: 'crack-farm-lines', name: '🌾 Crack Farm 96% · 5000× (10 Paylines 5×3)',
+    description: 'PAYLINES v2 (10 Linien): 3/4/5 SC = 7 Spins, Plant-Start-Multi 1×/8×/32×, jede Pflanze eigener Multi (höchste gekreuzte zahlt), verdoppelt pro Spin bis 1024×; 1-5 Pflanzen [55,28,12,4,1]. Base-Feature 1-in-170. RTP 95.8% (stratifiziert), Max Win 5000×.',
     build: () => fromManifest(crackFarm as Record<string, unknown>),
+    grid: '5x3',
+  },
+  {
+    id: 'crack-farm-lines-10k', name: '🌾 Crack Farm 96% · 10.000× (höhere Vola)',
+    description: 'Gleiches v2-Modell, Max Win 10.000× — mehr Volatilität (größerer Tail, gleicher 96%-RTP, kleinere Paytable). Certified 96.1% (stratifiziert).',
+    build: () => fromManifest(crackFarm10k as Record<string, unknown>),
+    grid: '5x3',
+  },
+  {
+    id: 'crack-farm-lines-15k', name: '🌾 Crack Farm 96% · 15.000× (max Vola)',
+    description: 'Gleiches v2-Modell, Max Win 15.000× — höchste Volatilität. Certified 96.1% (stratifiziert).',
+    build: () => fromManifest(crackFarm15k as Record<string, unknown>),
     grid: '5x3',
   },
   {

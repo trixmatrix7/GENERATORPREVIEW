@@ -849,21 +849,46 @@ export class ReelSet {
     this.stickyContainer.addChild(spr);
     this.stickyRevealObjects.push(spr);
     this.roamGlideSpr = spr;
-    const dir = Math.sign(toReel - fromReel) || 1;
     const base = spr.scale.x;
     const tl = gsap.timeline();
     this.stickyRevealTweens.push(tl);
+    const cxOf = (r: number) => {
+      const a = resolveAnchor(reelAnchor(r), this.grid);
+      return a.x + a.w / 2;
+    };
     // Lift + pop-out (the reference funnel overflows its panel while roaming).
-    tl.to(spr.scale, { x: base * 1.12, y: base * 1.12, duration: 0.28, ease: 'back.out(1.6)' }, 0);
-    tl.to(spr, { y: rFrom.y + rFrom.h - 14, duration: 0.28, ease: 'power2.out' }, 0);
-    // Lean into the travel direction, glide, counter-swing, straighten.
-    tl.to(spr, { rotation: dir * 0.2, duration: 0.35, ease: 'power1.inOut' }, 0.1);
-    tl.to(spr, { x: rTo.x + rTo.w / 2, duration: 1.35, ease: 'power1.inOut' }, 0.3);
-    tl.to(spr, { rotation: dir * -0.06, duration: 0.4, ease: 'power1.inOut' }, 1.3);
-    tl.to(spr, { rotation: 0, duration: 0.25, ease: 'power1.out' }, 1.7);
-    // Settle onto the new reel floor, tuck back to standing size.
-    tl.to(spr.scale, { x: base, y: base, duration: 0.3, ease: 'power2.in' }, 1.65);
-    tl.to(spr, { y: rTo.y + rTo.h, duration: 0.3, ease: 'power2.in' }, 1.65);
+    tl.to(spr.scale, { x: base * 1.12, y: base * 1.12, duration: 0.2, ease: 'back.out(1.8)' }, 0);
+    tl.to(spr, { y: rFrom.y + rFrom.h - 14, duration: 0.2, ease: 'power2.out' }, 0);
+
+    // FAST LEFT/RIGHT TEASE (Noski): instead of one slow drift, the plant
+    // whips between the outer reels several times — each pass quicker and
+    // shorter than the last — before snapping into its real reel. Reads as a
+    // "where will it land?" tease with real speed.
+    const last = this.grid.reelCount - 1;
+    const teaseStops = [last, 0, last, 1, toReel];
+    let t = 0.18;
+    let dur = 0.2;
+    let prevX = rFrom.x + rFrom.w / 2;
+    for (let i = 0; i < teaseStops.length; i++) {
+      const isFinal = i === teaseStops.length - 1;
+      const targetX = isFinal ? rTo.x + rTo.w / 2 : cxOf(teaseStops[i]);
+      const d = Math.sign(targetX - prevX) || 1;
+      tl.to(spr, {
+        x: targetX,
+        duration: dur,
+        ease: isFinal ? 'back.out(1.5)' : 'power2.inOut',
+      }, t);
+      // Lean hard into each dash, whip back out of it.
+      tl.to(spr, { rotation: d * (isFinal ? 0.05 : 0.26), duration: dur * 0.55, ease: 'power2.out' }, t);
+      tl.to(spr, { rotation: 0, duration: dur * 0.6, ease: 'power1.inOut' }, t + dur * 0.55);
+      prevX = targetX;
+      t += dur * 0.86;          // slight overlap keeps it flowing, not steppy
+      dur = Math.max(0.13, dur * 0.86); // each dash faster than the last
+    }
+    // Settle onto the new reel floor, tuck back to standing size — timed to
+    // the end of the tease chain, not a fixed clock.
+    tl.to(spr.scale, { x: base, y: base, duration: 0.22, ease: 'power2.in' }, t);
+    tl.to(spr, { y: rTo.y + rTo.h, duration: 0.22, ease: 'power2.in' }, t);
     return true;
   }
 

@@ -201,6 +201,11 @@ export function App() {
         plateH: 0.3593,   // price-area bbox h388/1080
         contentFrac: 0.8116, // y[124.5..1001] across tiers
         contentCy: 0.5211,
+        // The barn badges read small at the Vice default (Noski) — pushed up,
+        // and the board dims behind the coin layer so the marquee pops off
+        // the busy reels (reference convention, research 14 §5).
+        sizeMul: 0.74,
+        dimAlpha: 0.55,
       });
       void pixiAppRef.setWinTierImages(CRACKFARM.winTiers);
       // FS-END TOTAL WIN outro: the artist's one-piece night-scene assembly
@@ -380,10 +385,16 @@ export function App() {
     // are deliberately quiet here.
     soundManager.replaceSource('reel-stop', [`${C}reel-stop.ogg`], 0.3);
     // Per-symbol win voices (SymbolId → file). One fires per winning line.
-    // 0=plant/wild 2=cow 3=goat 4=dog 5=sheep 6=carrot 8=bucket.
-    // Still missing: 1 (money bag), 7 (corn).
-    for (const sym of [0, 2, 3, 4, 5, 6, 8]) {
+    // CHARACTER symbols get their own voice: 0=plant/wild 2=cow 3=goat
+    // 4=dog 5=sheep. Missing: 1 (crystal sack).
+    for (const sym of [0, 2, 3, 4, 5]) {
       soundManager.replaceSource(`quip-${sym}`, [`${C}quip-${sym}.ogg`], 0.22);
+    }
+    // LOW symbols (6 carrot, 7 corn, 8 bucket) share ONE clean connection
+    // sound — the studio convention: only premium symbols get a voice, the
+    // low pays share a neutral hit so the mix stays uncluttered (Noski).
+    for (const sym of [6, 7, 8]) {
+      soundManager.replaceSource(`quip-${sym}`, [`${C}quip-low.ogg`], 0.22);
     }
     // ── ONLY NOSKI'S OWN SOUNDS PLAY ──────────────────────────────────────
     // Every synthesized/AI-ish sound of mine reads as wrong to him ("läuft

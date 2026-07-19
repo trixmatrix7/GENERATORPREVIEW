@@ -13,7 +13,7 @@
 // Self-contained: ONE app.stage overlay (screen coords). play() resolves
 // EXACTLY once on every path. cancel()/dispose() tear everything down.
 
-import { Application, Assets, Container, Rectangle, Sprite, Text, TextStyle, Texture, Ticker } from 'pixi.js';
+import { Application, Assets, Container, Graphics, Rectangle, Sprite, Text, TextStyle, Texture, Ticker } from 'pixi.js';
 import { gsap } from 'gsap';
 
 /** URLs for the six aligned marquee layers. */
@@ -40,8 +40,12 @@ export const WIN_CELEBRATION_CONFIG = {
   amountFontSize: [46, 50, 54, 58], // fallback-only
   shake: [0, 5, 8, 12],
   shakeRot: [0, 0.006, 0.01, 0.016],
-  /** Overall marquee size multiplier (1 = full). */
+  /** Overall marquee size multiplier (1 = full). Themes can override via
+   *  setWinTierGeometry({ sizeMul }) — Crack Farm's badges read small at the
+   *  Vice default. */
   sizeMul: 0.48,
+  /** Darkness laid over the game board behind the celebration (0 = off). */
+  dimAlpha: 0,
   /** Per-tier marquee scale step — each promotion GROWS the whole marquee
    *  (this is the visible difference between the stages). */
   tierScale: [1.0, 1.16, 1.34, 1.6],
@@ -100,8 +104,11 @@ let GEO: WinTierGeometry = VICE_GEO;
 
 /** Swap the marquee-art geometry for a different theme's layer set (pass
  *  nothing to restore the Vice defaults). Call before the next celebration. */
-export function setWinTierGeometry(geo?: WinTierGeometry): void {
+export function setWinTierGeometry(geo?: WinTierGeometry & { sizeMul?: number; dimAlpha?: number }): void {
   GEO = geo ?? VICE_GEO;
+  // Per-theme presentation overrides (fall back to the Vice defaults).
+  WIN_CELEBRATION_CONFIG.sizeMul = geo?.sizeMul ?? 0.48;
+  WIN_CELEBRATION_CONFIG.dimAlpha = geo?.dimAlpha ?? 0;
 }
 
 function formatAmount(amount: bigint, decimals: number): string {
@@ -167,6 +174,8 @@ export class WinCelebration {
   private coinSheets: Texture[] | null = null;
   private coinFps = 30;
   private coinSprite: Sprite | null = null;
+  /** Board dim behind the celebration (owned by the overlay). */
+  private dimGraphic: Graphics | null = null;
   private coinIdx = 0;
   private coinAccum = 0;
 
@@ -287,6 +296,20 @@ export class WinCelebration {
     // the PROMOTIONS escalate it to each new tier's strength.
     this.traumaMax = Math.max(3, C.shake[Math.min(finalTier, 1)]);
     this.traumaRot = Math.max(0.004, C.shakeRot[Math.min(finalTier, 1)]);
+
+    // SCREEN DIM — first child, so it sits BEHIND the coin rain and marquee
+    // and darkens the game board underneath. Lifts the celebration off the
+    // busy reels (measured convention: the reference dims the whole scene,
+    // research/slot-feel/14 §5). 0 disables it.
+    if (C.dimAlpha > 0 && !p.reduced) {
+      const dim = new Graphics();
+      dim.rect(0, 0, sw, sh).fill({ color: 0x000000, alpha: 1 });
+      dim.alpha = 0;
+      dim.eventMode = 'none';
+      overlay.addChild(dim);
+      gsap.to(dim, { alpha: C.dimAlpha, duration: 0.4, ease: 'power2.out' });
+      this.dimGraphic = dim;
+    }
 
     // Coin rain — added BEFORE the marquee so it renders BEHIND the win screen
     // (the win screen itself is untouched). Cover-fit to the canvas; the tick
@@ -589,6 +612,8 @@ export class WinCelebration {
       if (tierSpr) tl.to(tierSpr, { alpha: 0, y: '-=18', duration: 0.45, ease: 'power2.in' }, exitAt + 0.14);
       if (fallbackWord) tl.to(fallbackWord, { alpha: 0, duration: 0.45, ease: 'power2.in' }, exitAt + 0.14);
       if (rain) tl.to(rain, { alpha: 0, duration: 0.55, ease: 'power1.in' }, exitAt);
+      // The board dim lifts WITH the exit so the game fades back in smoothly.
+      if (this.dimGraphic) tl.to(this.dimGraphic, { alpha: 0, duration: 0.55, ease: 'power1.in' }, exitAt);
       // Function-based values: evaluated when the tween STARTS, so the drift
       // grows from wherever the promotions left the marquee (not build-time).
       tl.to(marquee.scale, {

@@ -227,11 +227,17 @@ export function App() {
       void pixiAppRef.setWinTierImages(CRACKFARM.winTiers);
       // Wooden plaque frame behind the FREE SPINS / TOTAL WIN counters.
       void pixiAppRef.setFsPlaqueImage(`${CRACKFARM.base}plaque_frame.png`);
-      // Multiplier rings that hang in the plant. Only the delivered values
-      // use art; the rest fall back to the drawn badge until Noski ships them.
+      // Multiplier rings that hang in the plant — Noski's vine-wreath badge for
+      // EVERY value the doubling ladder + base feature reach (2→1024). 2× and
+      // 1024× are Noski's originals; the in-between values are composited onto
+      // his blank wreath in the same green-glow lettering so the whole ladder
+      // wears his design (was: only 2×/1024× had art, the rest fell back to the
+      // drawn plate — "meine multi felder fehlt komplett").
       void pixiAppRef.setMultiRingImages({
-        2: `${CRACKFARM.base}multi_2x.png`,
-        1024: `${CRACKFARM.base}multi_1024x.png`,
+        2: `${cf}multi_2x.png`, 4: `${cf}multi_4x.png`, 8: `${cf}multi_8x.png`,
+        16: `${cf}multi_16x.png`, 32: `${cf}multi_32x.png`, 64: `${cf}multi_64x.png`,
+        128: `${cf}multi_128x.png`, 256: `${cf}multi_256x.png`,
+        512: `${cf}multi_512x.png`, 1024: `${cf}multi_1024x.png`,
       });
       // FS-END TOTAL WIN outro: the artist's one-piece night-scene assembly
       // (TOTAL WIN + metal plate + press-to-continue), contain-fit; the

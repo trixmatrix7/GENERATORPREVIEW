@@ -233,7 +233,16 @@ export function App() {
       // Multiplier badge on the plant = a centred SQUARE FIELD, not the vine
       // wreath (Noski: "unser multi sieht kacke aus, mach ein feld mittig
       // quadratisch"). Frame/background/number colour + font are live params
-      // (multiBadge* → setMultiBadgeParam); the green defaults fit the barn.
+      // (multiBadge* → setMultiBadgeParam). EXPLICITLY set the barn-green look
+      // here so it can never render as a bare white box (Noski: "weißer error")
+      // — the studio param panel otherwise seeded a white/black default.
+      pixiAppRef.applyVisualParam('multiBadgeBg', '#14260d');
+      pixiAppRef.applyVisualParam('multiBadgeBorder', '#7ef23e');
+      pixiAppRef.applyVisualParam('multiBadgeNumberColor', '#cfff7a');
+      pixiAppRef.applyVisualParam('multiBadgeFont', 'Rubik');
+      pixiAppRef.applyVisualParam('multiBadgeBorderWidth', 3);
+      pixiAppRef.applyVisualParam('multiBadgeSize', 0.6);
+      pixiAppRef.applyVisualParam('multiBadgeCorner', 12);
       // FS-END TOTAL WIN outro: the artist's one-piece night-scene assembly
       // (TOTAL WIN + metal plate + press-to-continue), contain-fit; the
       // count-up amount sits ON the plate (measured centre 958,646).

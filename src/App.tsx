@@ -167,9 +167,11 @@ export function App() {
       void pixiAppRef.setSymbolWinSheet(4, `${cf}symbol_mid_c_win.png`, 6, 4, 24, 10);
       void pixiAppRef.setSymbolWinSheet(5, `${cf}symbol_mid_d_win.png`, 6, 4, 24, 10);
       void pixiAppRef.setSymbolWinSheet(0, `${cf}symbol_wild_win.png`, 6, 4, 24, 10);
+      void pixiAppRef.setSymbolWinSheet(6, `${cf}symbol_low_e_win.png`, 6, 4, 24, 10); // pumpkin
+      void pixiAppRef.setSymbolWinSheet(7, `${cf}symbol_low_f_win.png`, 6, 4, 24, 10);
       // Crack Farm's win clips are full framed tiles → render 1:1 on the static
       // footprint, no soft-mask vignette (fixes the dark zoom-in — Noski).
-      for (const id of [0, 2, 3, 4, 5]) SYMBOL_WIN_SHEET_FRAMED.add(id);
+      for (const id of [0, 2, 3, 4, 5, 6, 7]) SYMBOL_WIN_SHEET_FRAMED.add(id);
       // FARMER: removed entirely (Noski — "den bauer rechts weg machen, auch
       // base game"). No side character on this theme.
       // The FLYING PIG hovers LEFT of the barn (mockup: ~0.45× frame height,

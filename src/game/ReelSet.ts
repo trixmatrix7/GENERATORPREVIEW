@@ -101,6 +101,18 @@ export interface ReelSetAudioHooks {
   onWinStep?: (index: number, total: number, symbolId?: number) => void;
 }
 
+/** The plant multiplier BADGE — a centred square field the studio can recolour
+ *  and re-font live (Noski). Frame + background + number colour + font are all
+ *  parameters (setMultiBadgeParam). */
+export const multiBadgeConfig = {
+  bgColor: 0x14260d, bgAlpha: 0.9,
+  borderColor: 0x7ef23e, borderWidth: 3,
+  numberColor: 0xCFFF7A,
+  fontFamily: "'Rubik', ui-sans-serif, system-ui, sans-serif",
+  sizeFrac: 0.6,   // square side as a fraction of the reel width (smaller than the old ring)
+  corner: 12,
+};
+
 export class ReelSet {
   readonly container: Container;
   private readonly reels: Reel[] = [];
@@ -2002,6 +2014,25 @@ export class ReelSet {
 
   setMultiRingTextures(map: Map<number, Texture>): void { this.multiRingTex = map; }
 
+  /** Live-adjustable multiplier BADGE (Noski: drop the vine wreath, "mach ein
+   *  feld mittig quadratisch" with tweakable frame/background/number colour +
+   *  font). Read when a badge is drawn; studio param changes apply to the next
+   *  one shown. */
+  setMultiBadgeParam(id: string, value: string | number): void {
+    const c = multiBadgeConfig;
+    switch (id) {
+      case 'multiBadgeBg': c.bgColor = hexToNum(String(value)); break;
+      case 'multiBadgeBgAlpha': c.bgAlpha = Number(value); break;
+      case 'multiBadgeBorder': c.borderColor = hexToNum(String(value)); break;
+      case 'multiBadgeBorderWidth': c.borderWidth = Number(value); break;
+      case 'multiBadgeNumberColor': c.numberColor = hexToNum(String(value)); break;
+      case 'multiBadgeFont': c.fontFamily = `'${String(value)}', ui-sans-serif, system-ui, sans-serif`; break;
+      case 'multiBadgeSize': c.sizeFrac = Number(value); break;
+      case 'multiBadgeCorner': c.corner = Number(value); break;
+      default: return;
+    }
+  }
+
   /** @param mult  one shared value (Vice Heat), or a per-reel map (Crack Farm
    *   v2, where every plant carries and doubles its OWN multiplier). */
   setTowerMultiplier(mult: number | ReadonlyMap<number, number>): void {
@@ -2019,38 +2050,29 @@ export class ReelSet {
       let badge = this.towerBadges.get(reelIdx);
       if (badge && !badge.root.parent) { this.towerBadges.delete(reelIdx); badge = undefined; }
       const rr = resolveAnchor(reelAnchor(reelIdx), this.grid);
-      // The ring hangs in the PLANT's middle (where the art carries it), the
-      // drawn fallback plate stays down by the pot.
-      const ringTex = this.multiRingTex.get(mult) ?? null;
-      const slotY = ringTex ? rr.y + rr.h * 0.52 : rr.y + rr.h - 34;
+      const cfg = multiBadgeConfig;
+      // Centred square field in the plant's middle (Noski: "feld mittig
+      // quadratisch, etwas kleiner"). Side scales with the reel + the param.
+      const side = Math.round(rr.w * cfg.sizeFrac);
+      const slotY = rr.y + rr.h * 0.5;
       if (!badge) {
         const root = new Container();
         root.eventMode = 'none';
-        if (ringTex) {
-          const ring = new Sprite(ringTex);
-          ring.anchor.set(0.5);
-          const rw = rr.w * 0.78;
-          ring.width = rw;
-          ring.height = rw * (ringTex.height / ringTex.width);
-          ring.eventMode = 'none';
-          root.addChild(ring);
-        } else {
         const plate = new Graphics();
-        plate.roundRect(-32, -19, 64, 38, 11).fill({ color: 0x14260d, alpha: 0.92 });
-        plate.roundRect(-32, -19, 64, 38, 11).stroke({ color: 0x7ef23e, width: 2.5, alpha: 0.95 });
+        plate.roundRect(-side / 2, -side / 2, side, side, cfg.corner).fill({ color: cfg.bgColor, alpha: cfg.bgAlpha });
+        plate.roundRect(-side / 2, -side / 2, side, side, cfg.corner).stroke({ color: cfg.borderColor, width: cfg.borderWidth, alpha: 0.98 });
         root.addChild(plate);
-        }
         const label = new Text({
           text,
           style: new TextStyle({
-            fontFamily: "'Rubik', ui-sans-serif, system-ui, sans-serif",
-            fontSize: 22, fontWeight: '900', fontStyle: 'italic', fill: 0xCFFF7A,
-            stroke: { color: 0x0c1806, width: 4 },
+            fontFamily: cfg.fontFamily,
+            fontSize: Math.round(side * 0.4), fontWeight: '900', fontStyle: 'italic', fill: cfg.numberColor,
+            stroke: { color: 0x0c1806, width: Math.max(3, Math.round(side * 0.06)) },
           }),
         });
         label.anchor.set(0.5);
-        // The ring art has its value baked in — no text on top of it.
-        label.visible = !ringTex;
+        // Long numbers (x1024) shrink to stay inside the square.
+        if (label.width > side * 0.86) label.scale.set((side * 0.86) / label.width);
         root.addChild(label);
         root.position.set(rr.x + rr.w / 2, slotY);
         this.stickyContainer.addChild(root);

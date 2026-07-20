@@ -415,6 +415,55 @@ export const ADJUSTABLE_PARAMS: readonly AdjustableParam[] = [
     description: 'How lively the sticky-wild shine + orbit animate. Phrases: "calmer sticky wilds", "livelier wild shine".',
     keywords: ['sticky', 'sticky wild', 'motion', 'speed', 'calm', 'lively'],
   },
+  // ── Plant multiplier BADGE (Crack Farm) — the square field on the plant ──
+  {
+    id: 'multiBadgeBg', label: 'Multi badge — background', layer: 'symbols', type: 'color',
+    default: '#14260d',
+    description: 'Background/fill colour of the plant multiplier badge (the square field). Phrases: "make the multi field darker / green / black".',
+    keywords: ['multi', 'multiplier', 'badge', 'field', 'background', 'colour', 'color'],
+  },
+  {
+    id: 'multiBadgeBgAlpha', label: 'Multi badge — background opacity', layer: 'symbols', type: 'number',
+    min: 0, max: 1, step: 0.05, default: 0.9,
+    description: 'How opaque the multiplier badge background is (0 = see-through, 1 = solid).',
+    keywords: ['multi', 'badge', 'opacity', 'alpha', 'transparent'],
+  },
+  {
+    id: 'multiBadgeBorder', label: 'Multi badge — frame colour', layer: 'symbols', type: 'color',
+    default: '#7ef23e',
+    description: 'Frame/border colour of the plant multiplier badge. Phrases: "make the multi frame gold / white / green".',
+    keywords: ['multi', 'badge', 'frame', 'border', 'colour', 'color'],
+  },
+  {
+    id: 'multiBadgeBorderWidth', label: 'Multi badge — frame width', layer: 'symbols', type: 'number',
+    min: 0, max: 10, step: 0.5, default: 3,
+    description: 'Thickness of the multiplier badge frame in pixels (0 = no frame).',
+    keywords: ['multi', 'badge', 'frame', 'border', 'width', 'thickness'],
+  },
+  {
+    id: 'multiBadgeNumberColor', label: 'Multi badge — number colour', layer: 'symbols', type: 'color',
+    default: '#cfff7a',
+    description: 'Colour of the multiplier number (x8, x16 …) on the badge. Phrases: "make the multi number gold / white".',
+    keywords: ['multi', 'badge', 'number', 'text', 'colour', 'color'],
+  },
+  {
+    id: 'multiBadgeFont', label: 'Multi badge — font', layer: 'symbols', type: 'enum',
+    options: ['Rubik', 'Poppins', 'Impact', 'Arial Black', 'Georgia'], default: 'Rubik',
+    description: 'Font of the multiplier number on the badge.',
+    keywords: ['multi', 'badge', 'font', 'typeface', 'number'],
+  },
+  {
+    id: 'multiBadgeSize', label: 'Multi badge — size', layer: 'symbols', type: 'number',
+    min: 0.3, max: 0.9, step: 0.02, default: 0.6,
+    description: 'Size of the square multiplier badge as a fraction of the reel width. Phrases: "bigger / smaller multi field".',
+    keywords: ['multi', 'badge', 'size', 'bigger', 'smaller', 'square'],
+  },
+  {
+    id: 'multiBadgeCorner', label: 'Multi badge — corner radius', layer: 'symbols', type: 'number',
+    min: 0, max: 40, step: 1, default: 12,
+    description: 'Corner rounding of the square multiplier badge (0 = sharp square, high = pill).',
+    keywords: ['multi', 'badge', 'corner', 'radius', 'round', 'square'],
+  },
 ];
 
 export function getAdjustableParam(id: string): AdjustableParam | undefined {

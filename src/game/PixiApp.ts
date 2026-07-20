@@ -2894,6 +2894,17 @@ export class PixiApp {
         this.reelSet.setCellBackdropParam(id, value as string | number);
         break;
       }
+      case 'multiBadgeBg':
+      case 'multiBadgeBgAlpha':
+      case 'multiBadgeBorder':
+      case 'multiBadgeBorderWidth':
+      case 'multiBadgeNumberColor':
+      case 'multiBadgeFont':
+      case 'multiBadgeSize':
+      case 'multiBadgeCorner': {
+        this.reelSet.setMultiBadgeParam(id, value as string | number);
+        break;
+      }
       case 'reelSpeed': {
         const v = String(value);
         const mul = v === 'snappy' ? 1.7 : v === 'relaxed' ? 0.6 : 1.0;
@@ -3695,9 +3706,10 @@ export class PixiApp {
     // Font matches the win marquee (Noski) so every number in the game reads
     // as one family instead of two.
     const NUM_FONT = "'Poppins', ui-sans-serif, sans-serif";
-    // HALF the first pass (Noski: "50% kleiner nicht 5").
-    const panelW = themed ? 93 : 168;
-    const panelH = themed ? Math.round(93 * (themed.height / themed.width)) : 92;
+    // HALF the first pass (Noski: "50% kleiner nicht 5"), then +20% back for
+    // free games (Noski: "free spins und total win button 20% größer").
+    const panelW = themed ? 112 : 168;
+    const panelH = themed ? Math.round(112 * (themed.height / themed.width)) : 92;
     // Text must stay inside the frame's inner panel (the wood eats ~15% a side).
     const innerW = themed ? panelW * 0.66 : panelW - 24;
     /** Shrink a Text so it can never overflow the plaque (Noski: numbers were
@@ -3737,7 +3749,7 @@ export class PixiApp {
       text: 'FREE SPINS',
       style: new TextStyle({
         fontFamily: NUM_FONT,
-        fontSize: themed ? 9 : 13, fontWeight: '800', fill: themed ? 0xBFFFA8 : 0xFF9ED8, letterSpacing: themed ? 1 : 2,
+        fontSize: themed ? 11 : 13, fontWeight: '800', fill: themed ? 0xBFFFA8 : 0xFF9ED8, letterSpacing: themed ? 1 : 2,
         stroke: themed ? { color: 0x0c2a10, width: 2 } : undefined,
       }),
     });
@@ -3749,7 +3761,7 @@ export class PixiApp {
       text: `1 / ${totalSpins}`,
       style: new TextStyle({
         fontFamily: NUM_FONT,
-        fontSize: themed ? 20 : 32, fontWeight: '900', fontStyle: 'italic', fill: 0xFFE9A0,
+        fontSize: themed ? 24 : 32, fontWeight: '900', fontStyle: 'italic', fill: 0xFFE9A0,
         letterSpacing: 1,
         stroke: { color: 0x1a0e02, width: 5 },
         dropShadow: { color: 0x000000, blur: 6, distance: 0, alpha: 0.5 },
@@ -3796,7 +3808,7 @@ export class PixiApp {
       text: 'TOTAL WIN',
       style: new TextStyle({
         fontFamily: NUM_FONT,
-        fontSize: themed ? 9 : 13, fontWeight: '800', fill: themed ? 0xBFFFA8 : 0xFF9ED8, letterSpacing: themed ? 1 : 2,
+        fontSize: themed ? 11 : 13, fontWeight: '800', fill: themed ? 0xBFFFA8 : 0xFF9ED8, letterSpacing: themed ? 1 : 2,
         stroke: themed ? { color: 0x0c2a10, width: 2 } : undefined,
       }),
     });
@@ -3808,7 +3820,7 @@ export class PixiApp {
       text: '0.00',
       style: new TextStyle({
         fontFamily: NUM_FONT,
-        fontSize: themed ? 17 : 26, fontWeight: '900', fontStyle: 'italic', fill: 0xFFE9A0,
+        fontSize: themed ? 20 : 26, fontWeight: '900', fontStyle: 'italic', fill: 0xFFE9A0,
         letterSpacing: 1,
         stroke: { color: 0x1a0e02, width: 5 },
         dropShadow: { color: 0x000000, blur: 6, distance: 0, alpha: 0.5 },

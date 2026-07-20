@@ -37,6 +37,14 @@ import { SYMBOL_HEIGHT, SYMBOL_WIDTH } from './symbolMetrics';
  *  'win' state, replacing the static art). Filled by PixiApp.setSymbolWinSheet. */
 export const SYMBOL_WIN_SHEETS = new Map<number, { frames: Texture[]; fps: number }>();
 
+/** Symbols whose WIN sheet is already a FULL FRAMED TILE (Crack Farm: the
+ *  connection clip includes the wooden frame). For these the soft-edge vignette
+ *  mask is WRONG — it melts the frame away so the character reads as zoomed-in
+ *  and the faded edges darken (Noski: "werden dunkel und reingezoomt", a
+ *  Vice-era bug). Framed sheets render 1:1 on the static art's exact footprint,
+ *  no mask, no grow. Per-game wiring in App.tsx. */
+export const SYMBOL_WIN_SHEET_FRAMED = new Set<number>();
+
 /** Symbols whose cell art must NEVER warp in place (no landing squash, no
  *  idle breathing, no featured pulse) — in-place scaling pixelates upscaled
  *  art. The WIN spritesheet stays as the only animation. Per-game wiring in
@@ -286,10 +294,14 @@ export class AnimatedSymbol extends Container {
     // tease → win reads as ONE continuous, still image swap.
     const cell = Math.min(SYMBOL_WIDTH, SYMBOL_HEIGHT);
     const frameW = sheet.frames[0].width || 256;
+    const framed = SYMBOL_WIN_SHEET_FRAMED.has(this.symbolId);
     // Footprint: match whatever the RESTING art actually shows — the idle
     // sheet's size when one runs (the scatter badge renders bigger than the
-    // generic cell fit), else the cell fit.
-    const restW = this.idleSheetSprite ? this.idleSheetSprite.width : cell * 0.94;
+    // generic cell fit); a FRAMED tile sheet matches the STATIC icon's exact
+    // size so it swaps in place with zero zoom; else the generic cell fit.
+    const restW = this.idleSheetSprite
+      ? this.idleSheetSprite.width
+      : framed && this.iconSprite ? this.iconSprite.width : cell * 0.94;
     const restScale = restW / frameW;
     const spr = new Sprite(sheet.frames[0]);
     spr.anchor.set(0.5);
@@ -304,13 +316,17 @@ export class AnimatedSymbol extends Container {
     this.inner.addChild(spr);
     // Soft-edge mask: melts the square frame edges away so only the CHARACTER
     // pops — never a hard card. Parented to the sprite so it scales with it.
-    const mask = new Sprite(getSoftEdgeMask());
-    mask.anchor.set(0.5);
-    mask.width = frameW;
-    mask.height = (sheet.frames[0].height || 256);
-    mask.eventMode = 'none';
-    spr.addChild(mask);
-    spr.mask = mask;
+    // SKIPPED for framed-tile sheets (they carry their own frame; the vignette
+    // would fade it and read as a dark zoom-in — Noski).
+    if (!framed) {
+      const mask = new Sprite(getSoftEdgeMask());
+      mask.anchor.set(0.5);
+      mask.width = frameW;
+      mask.height = (sheet.frames[0].height || 256);
+      mask.eventMode = 'none';
+      spr.addChild(mask);
+      spr.mask = mask;
+    }
     this.preSheetIconVisible = this.iconSprite?.visible ?? false;
     this.preSheetShadowVisible = this.iconShadow?.visible ?? false;
     // The idle loop pauses out of sight while the win sheet owns the cell.

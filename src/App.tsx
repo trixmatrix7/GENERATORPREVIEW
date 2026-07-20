@@ -22,7 +22,7 @@ import { CRACKFARM, crackFarmSymbolMap, crackFarmGameIntro } from '@/config/crac
 import introLayers from '@/data/introLayers.json';
 import { loadAssets } from '@/studio/assetPersistence';
 import type { PixiApp } from '@/game/PixiApp';
-import { STATIC_LOOK_SYMBOLS, NO_IDLE_SYMBOLS, SYMBOL_SIZE_MULS } from '@/game/AnimatedSymbol';
+import { STATIC_LOOK_SYMBOLS, NO_IDLE_SYMBOLS, SYMBOL_SIZE_MULS, SYMBOL_WIN_SHEET_FRAMED } from '@/game/AnimatedSymbol';
 import { setActiveStatePreset } from '@/config/statePresets';
 import { landingImpactConfig } from '@/game/effects/LandingImpact';
 import { waysImmersiveConfig } from '@/game/effects/WaysImmersive';
@@ -167,6 +167,9 @@ export function App() {
       void pixiAppRef.setSymbolWinSheet(4, `${cf}symbol_mid_c_win.png`, 6, 4, 24, 10);
       void pixiAppRef.setSymbolWinSheet(5, `${cf}symbol_mid_d_win.png`, 6, 4, 24, 10);
       void pixiAppRef.setSymbolWinSheet(0, `${cf}symbol_wild_win.png`, 6, 4, 24, 10);
+      // Crack Farm's win clips are full framed tiles → render 1:1 on the static
+      // footprint, no soft-mask vignette (fixes the dark zoom-in — Noski).
+      for (const id of [0, 2, 3, 4, 5]) SYMBOL_WIN_SHEET_FRAMED.add(id);
       // FARMER: removed entirely (Noski — "den bauer rechts weg machen, auch
       // base game"). No side character on this theme.
       // The FLYING PIG hovers LEFT of the barn (mockup: ~0.45× frame height,
@@ -177,7 +180,7 @@ export function App() {
       // magenta-keyed). Win-state pig clips will swap in when Noski ships them.
       void pixiAppRef.setSideMascot(`${cf}pig_idle.png`, {
         cols: 6, rows: 5, count: 30, fps: 12,
-        side: 'left', centerYFrac: 0.36, heightFrac: 0.45, marginX: 120,
+        side: 'left', centerYFrac: 0.4, heightFrac: 0.66, marginX: 70,
       });
       // The tall 1×3 mutant plant fills a reel on expansion — and it GROWS:
       // the wild slides down to the reel floor and the plant rises out of it.
@@ -227,18 +230,10 @@ export function App() {
       void pixiAppRef.setWinTierImages(CRACKFARM.winTiers);
       // Wooden plaque frame behind the FREE SPINS / TOTAL WIN counters.
       void pixiAppRef.setFsPlaqueImage(`${CRACKFARM.base}plaque_frame.png`);
-      // Multiplier rings that hang in the plant — Noski's vine-wreath badge for
-      // EVERY value the doubling ladder + base feature reach (2→1024). 2× and
-      // 1024× are Noski's originals; the in-between values are composited onto
-      // his blank wreath in the same green-glow lettering so the whole ladder
-      // wears his design (was: only 2×/1024× had art, the rest fell back to the
-      // drawn plate — "meine multi felder fehlt komplett").
-      void pixiAppRef.setMultiRingImages({
-        2: `${cf}multi_2x.png`, 4: `${cf}multi_4x.png`, 8: `${cf}multi_8x.png`,
-        16: `${cf}multi_16x.png`, 32: `${cf}multi_32x.png`, 64: `${cf}multi_64x.png`,
-        128: `${cf}multi_128x.png`, 256: `${cf}multi_256x.png`,
-        512: `${cf}multi_512x.png`, 1024: `${cf}multi_1024x.png`,
-      });
+      // Multiplier badge on the plant = a centred SQUARE FIELD, not the vine
+      // wreath (Noski: "unser multi sieht kacke aus, mach ein feld mittig
+      // quadratisch"). Frame/background/number colour + font are live params
+      // (multiBadge* → setMultiBadgeParam); the green defaults fit the barn.
       // FS-END TOTAL WIN outro: the artist's one-piece night-scene assembly
       // (TOTAL WIN + metal plate + press-to-continue), contain-fit; the
       // count-up amount sits ON the plate (measured centre 958,646).

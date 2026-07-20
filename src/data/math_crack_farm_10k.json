@@ -320,54 +320,54 @@
  "reelLength": 46,
  "payTable": {
   "wild": [
-   5054,
-   18954,
-   126360
+   1941,
+   7278,
+   48520
   ],
   "highA": [
-   5054,
-   18954,
-   126360
+   1941,
+   7278,
+   48520
   ],
   "highB": [
-   3791,
-   12636,
-   63180
+   1456,
+   4852,
+   24260
   ],
   "midC": [
-   2527,
-   7582,
-   31590
+   970,
+   2911,
+   12130
   ],
   "midD": [
-   1895,
-   6318,
-   25272
+   728,
+   2426,
+   9704
   ],
   "lowE": [
-   1264,
-   3791,
-   12636
+   485,
+   1456,
+   4852
   ],
   "lowF": [
-   948,
-   3159,
-   9477
+   364,
+   1213,
+   3639
   ],
   "lowG": [
-   632,
-   2527,
-   6318
+   243,
+   970,
+   2426
   ]
  },
  "scatterPay": [
-  6318,
-  18954,
-  63180
+  2426,
+  7278,
+  24260
  ],
  "freeSpinsCount": 7,
- "freeSpinsCap": 13,
- "retriggerSpins": 3,
+ "freeSpinsCap": 18,
+ "retriggerSpins": 1,
  "freeSpinMultiplier": 1,
  "maxWinMultiplier": 10000,
  "minWager": 10000,
@@ -392,8 +392,8 @@
   "plantMultiMode": "double-per-spin",
   "stickyTowerCap": 5,
   "stickyRoundSpins": 7,
-  "stickyRoundCap": 13,
-  "retriggerSpins": 3,
+  "stickyRoundCap": 18,
+  "retriggerSpins": 1,
   "baseFeatureOdds": 170,
   "baseFeatureMultipliers": [
    [
@@ -429,11 +429,11 @@
     1
    ]
   ],
-  "notes": "Crack Farm v2 PAYLINES (10 lines, leftmost, wilds substitute). FREE SPINS: 3/4/5 scatters award the SAME 7 spins; plant START multi 1x/8x/32x. Each plant carries its OWN multi, a line pays x the HIGHEST plant it crosses, plants that took part DOUBLE per spin (cap 1024x), 1-5 plants weighted [575, 280, 130, 12, 3]. BASE-GAME plant feature ~1 in 170. Hard 10000x cap. Certified RTP 96.0% (stratified, simulate_crack_farm_v2.py, k=0.6318)."
+  "notes": "Crack Farm v2 PAYLINES (10 lines, leftmost, wilds substitute). FREE SPINS: 3/4/5 scatters award the SAME 7 spins; plant START multi 1x/8x/32x. Each plant carries its OWN multi, a line pays x the HIGHEST plant it crosses, plants that took part DOUBLE per spin (cap 1024x), 1-5 plants weighted [575, 280, 130, 12, 3]. BASE-GAME plant feature ~1 in 170. Hard 10000x cap. Certified RTP 96.0% (stratified, simulate_crack_farm_v2.py, k=0.2426)."
  },
  "simResults": {
   "rtp_pct": 96.0,
-  "k": 0.6318,
+  "k": 0.2426,
   "method": "stratified"
  }
 }

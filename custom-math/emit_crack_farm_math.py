@@ -19,9 +19,9 @@ spec.loader.exec_module(sim)
 # MEAN on 96.0%. Certified means were 96.62 / 96.34 / 96.22 at k 0.6874 /
 # 0.6340 / 0.6148; individual-seed spread ~3pt is genuine high-vol variance.
 VERSIONS = {
-    5000:  {'k': 0.6830, 'file': 'math_crack_farm.json',      'rtp': 96.0},
-    10000: {'k': 0.6318, 'file': 'math_crack_farm_10k.json',  'rtp': 96.0},
-    15000: {'k': 0.6134, 'file': 'math_crack_farm_15k.json',  'rtp': 96.0},
+    5000:  {'k': 0.2755, 'file': 'math_crack_farm.json',      'rtp': 96.0},
+    10000: {'k': 0.2426, 'file': 'math_crack_farm_10k.json',  'rtp': 96.0},
+    15000: {'k': 0.2327, 'file': 'math_crack_farm_15k.json',  'rtp': 96.0},
 }
 
 # symbol-id -> paytable key (activeMath KEY_TO_ID inverse). wild shares the top
@@ -54,7 +54,7 @@ for maxwin, cfg in VERSIONS.items():
         'scatterPay': scatter,
         'freeSpinsCount': sim.FS_SPINS,
         'freeSpinsCap': sim.FS_CAP,
-        'retriggerSpins': sim.FS_RETRIG,
+        'retriggerSpins': 1,  # crack-farm plantRound retriggers dynamically (+scatter count); this is the Vice-style fallback
         'freeSpinMultiplier': 1,
         'maxWinMultiplier': maxwin,
         'minWager': 10000,
@@ -71,7 +71,7 @@ for maxwin, cfg in VERSIONS.items():
             'stickyTowerCap': 5,
             'stickyRoundSpins': sim.FS_SPINS,
             'stickyRoundCap': sim.FS_CAP,
-            'retriggerSpins': sim.FS_RETRIG,
+            'retriggerSpins': 1,  # crack-farm plantRound retriggers dynamically (+scatter count); this is the Vice-style fallback
             # base-game plant feature
             'baseFeatureOdds': sim.BASE_FEAT_ODDS,
             'baseFeatureMultipliers': [[m, w] for m, w in sim.BASE_MULTI_TABLE],

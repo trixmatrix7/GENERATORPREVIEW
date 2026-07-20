@@ -394,10 +394,13 @@ export class MockHost {
         const fsWin = rawFsWin * simulMult * fullMult * BigInt(this.config.freeSpinsMultiplier);
         totalWin += fsWin;
         if (totalWin > maxWin) totalWin = maxWin;
-        // Retrigger awards the custom `retriggerSpins` (small, the tight
-        // freeSpinsCap allows at most one) — falls back to the template's
-        // re-award-freeSpinsCount when the rule is absent.
-        if (fsScatter >= 3) {
+        // RETRIGGER. Crack Farm v2: EVERY scatter landing in a free spin adds
+        // that many spins (1 sc → +1, 2 sc → +2 …) so the multiplier can climb
+        // past 128x — the fsCap keeps a streak from running away. Vice Heat
+        // keeps its 3+-scatter re-award.
+        if (plantRound) {
+          if (fsScatter >= 1) remaining += fsScatter;
+        } else if (fsScatter >= 3) {
           remaining += (this.config as { retriggerSpins?: number }).retriggerSpins
             ?? this.config.freeSpinsCount;
         }

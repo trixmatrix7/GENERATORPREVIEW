@@ -88,8 +88,11 @@ BASE_PAYS = {
 SCATTER_PAY = [10000, 30000, 100000]
 
 FS_SPINS = int(os.environ.get('CF_FS_SPINS', '7'))   # same for 3/4/5 scatters
-FS_RETRIG = 3
-FS_CAP = FS_SPINS + 6                                 # room for two retriggers
+# RETRIGGER: any scatter landing DURING a free spin adds that many spins
+# (1 sc → +1, 2 sc → +2 …). Without it a 3sc round (start 1x) can't get enough
+# winning spins to double past ~128x, so it can barely pay (Noski). The hard
+# FS_CAP keeps a lucky scatter streak from running away (no "100x retrigger").
+FS_CAP = FS_SPINS + 11                                # up to 18 spins total
 MULTI_START = {3: 1, 4: 8, 5: 32}
 MULTI_CAP = 1024
 # 1..5 plants. Noski (Wild Storm reference): even the 5-scatter super bonus
@@ -257,8 +260,8 @@ def free_round(rng, scatters, pays, scat, cap_bps, session_so_far):
         round_win += spin_win
         if session_so_far + round_win >= cap_bps:
             return cap_bps - session_so_far
-        if scn >= 3 and played < FS_CAP:
-            spins_left = min(spins_left + FS_RETRIG, FS_CAP - played)
+        if scn >= 1 and played < FS_CAP:
+            spins_left = min(spins_left + scn, FS_CAP - played)
     return round_win
 
 

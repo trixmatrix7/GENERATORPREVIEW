@@ -16,6 +16,9 @@ interface Props {
   /** Bottom control bar rendered INSIDE the bounded game box, under the
    *  canvas (chaingames control-bar preset — a DOM layer, not canvas). */
   controls?: ReactNode;
+  /** Game-relative overlay (bonus-buy trigger + page) — positions against the
+   *  slot box so the round trigger sits under the pig and the modal covers it. */
+  gameOverlay?: ReactNode;
   /** Boot loading overlay rendered INSIDE the game box (the generator shows
    *  it in the game iframe — never over the studio UI). */
   bootScreen?: ReactNode;
@@ -28,7 +31,7 @@ interface Props {
   device?: 'desktop' | 'mobile';
 }
 
-export function GameCanvas({ lastOutcome, phase, onPixiReady, config, controls, bootScreen, topBar, bottomDock, device = 'desktop' }: Props) {
+export function GameCanvas({ lastOutcome, phase, onPixiReady, config, controls, gameOverlay, bootScreen, topBar, bottomDock, device = 'desktop' }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const appRef = useRef<PixiApp | null>(null);
   const lastOutcomeRef = useRef(lastOutcome);
@@ -140,6 +143,7 @@ export function GameCanvas({ lastOutcome, phase, onPixiReady, config, controls, 
                   {controls}
                 </div>
               )}
+              {gameOverlay}
               {bootScreen}
             </div>
           </div>

@@ -48,10 +48,22 @@ Betrag NUR als Bottom-HUD-Formel „LINIE n ZAHLT base × mult = total"). **Crac
   Landung OHNE Overshoot, dann steht er still. Übergabe via `glideArrival` → preGrown-Park mit
   cleanem `back.out(1.6)`-Grow (nicht springy). Kein Teleport, kein Neu-Wachsen. Das alte
   Lean+Overshoot+Snap-back las sich für Noski "unclean". [[crackfarm-plant-relocation-dance]]
+- **Relocation-Lock: der Ghost VERSCHWINDET NICHT (2026-07-20):** kein Fade-out am Tanzende
+  (Noski: "verschwindet kurz durchsichtig"). Er bleibt bei plantAlpha sichtbar auf dem Ziel-Reel
+  stehen; das Ziel-Reel-Container wird auf `alpha 0` gesetzt (+ in `expandHiddenReels`), sodass
+  nichts durchspint = fixiert, WÄHREND die anderen Reels droppen. `clearRoamGlide` entfernt den
+  Ghost erst wenn der echte Turm reinpoppt → nie eine leere/durchsichtige Lücke.
 - **Erst-Landung = echte Frame-by-Frame-GROW-Clip** (Crack Farm): der Wild wächst als Sheet-
   Animation (Spross→volle Fliegenfalle) statt Mask-Wipe über Static; friert nahtlos auf
-  `wild_column.png` (= letzter Grow-Frame) ein, Bloom landet auf dem Lock-in-Slam. Nur bei
-  Erst-Landung (nicht preGrown/Relocation). `ReelSet.setExpandGrowSheet`.
+  `wild_column.png` (= letzter Grow-Frame) ein, Bloom landet auf dem Lock-in-Slam (Bloom-Tempo
+  25% langsamer via T_LOCK-Dehnung × 1.25, damit man das Aufgehen sieht). Nur bei Erst-Landung
+  (nicht preGrown/Relocation). `ReelSet.setExpandGrowSheet`.
+- **FS-Intro = 3 Pflanzen gehen auf (2026-07-20):** getierte Intro-Screens (fs3/fs4/fs5 = 0×/8×/32×
+  Start) als plant-LOSE Hintergründe (die eingebackene Center-Pflanze per Field-Copy-Inpaint
+  rausretuschiert), dann 3 Grow-Plants nebeneinander in `buildLayeredIntroScene` auf `bgRoot`
+  (Design-Space x 660/960/1260, Boden y838), Center-out-Ripple, ~1.35s (langsamer als in-reel),
+  via `setFsIntroGrowSheet`. Tier-Wahl `scatterCount>=5?'fs5':>=4?'fs4':'fs3'`. **Regel: baked-in-
+  Assets IMMER plant-los machen bevor man Live-Grow-Overlays draufsetzt** (sonst Doppel-Pflanze).
 - Badge sitzt am **Turm-BODEN**; **Debüt erst nach dem ersten beteiligten Win** (kein 1×-Badge).
 - Upgrade: alte Zahl instant weg, neue spawnt klein+dimm über dem Slot, driftet ~0,12s rein,
   Pop ≤100ms; **nach einem Marquee verzögert**. Win-Plaque tickt live "base ×1…×N" (90ms/Step,
@@ -124,6 +136,19 @@ GESAMTGEWINN wird still hinter dem Marquee verrechnet.
   vertauscht (Hund↔Schaf). Beim Sheet-Adden IMMER Static vs Sheet pro Symbol montieren. Verify:
   PNG in-page fetchen + Opak-Pixel-Sättigung/Luminanz messen (extract.pixels ist auf WebGL schwarz).
   [[sheet-from-mp4-grade-and-identity]]
+- **Land-Sheet-NAHTSTELLE: erster UND letzter Frame MÜSSEN exakt der Static sein** (2026-07-20,
+  Noski: "buggt beim landing zwischen graue alte Symbol und Spritesheet, nicht sauber grade").
+  Ein mp4-Land-Clip startet/endet NICHT in der Ruhepose (Kuh: Static = Zunge raus, Clip = Maul
+  offen) → jede Übergabe Static-Icon↔Sheet ploppt (Pose- + Grau-Sprung). `AnimatedSymbol.
+  startLandSheet` blendet das Icon aus und zeigt `sheet.frames[0]`, am Ende Icon wieder ein bei
+  letztem Frame — beide Boundaries müssen daher pixelgleich zum Static sein. Fix ASSET-seitig
+  (Reel.ts ist frozen): Static-PNG (`symbol_X_landing.png` == das Ruhe-Icon) in **Frame 0 und
+  Frame N-1** compositen, Zelle vorher auf transparent löschen; Frame 1 + Frame N-2 als 50%
+  Cross-Dissolve Static↔Movement, damit die Bewegung nicht hart aus dem Static springt. Ergebnis:
+  Static → f0(=Static) → Bewegung → f(N-1)(=Static) → Static, NAHTLOS. Bewegung startet ~1 Frame
+  (@16fps ~60ms) nach Reel-Drop = "direkt am Landen". Verify: Montage STATIC|f0|f1|f2|…|f(N-1)
+  bauen — f0 und f(N-1) müssen identisch zum STATIC sein, Farbe über alle Frames konstant.
+  NICHT 0,1,N-2,N-1 alle mit Static überschreiben (das fror die Bewegung ~125ms ein).
 - **Frosted-Reel-Pane ist theme-abhängig** (`PixiApp.setReelFrosted`): das geblurte BG-Duplikat
   hinter den Symbolen passt zu dunklen Neon-Themes (Vice); bei hellen/warmen BGs scheint es
   durch transparente Symbol-Ecken als milchig-weißer Schleier — für solche Themes AUS.

@@ -600,6 +600,10 @@ export class AnimatedSymbol extends Container {
     if (STATIC_LOOK_SYMBOLS.has(this.symbolId)) return; // never squash the scatter art
     // Don't fight a richer active state (win / featured / full landing).
     if (this.activeState !== 'static') return;
+    // LAND SHEET (Noski's clips) plays on EACH reel's drop for every symbol that
+    // has one. The sheets are now front-trimmed to their MOVEMENT (the static
+    // lead-in was the "delay"), so the motion hits right at the landing.
+    if (SYMBOL_LAND_SHEETS.has(this.symbolId)) { this.play('landing'); return; }
     this.killTween();
     this.activeState = 'landing';
     this.inner.rotation = 0;

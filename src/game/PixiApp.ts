@@ -87,6 +87,9 @@ export class PixiApp {
   // Optional custom free-spins INTRO SCREEN art (e.g. the Vice "BONUS" board),
   // shown when the iris opens. Falls back to the plain placeholder if unset.
   private fsIntroTexture: Texture | null = null;
+  /** Frame-by-frame plant GROW clip for the FS intro screens — 3 plants open
+   *  side by side as the intro shows (Crack Farm). Sliced like the reel grow. */
+  private fsIntroGrowFrames: Texture[] | null = null;
   // Free-spins-ONLY background: swapped in under the closed iris (never
   // visibly), swapped back when the round ends.
   private fsBgTexture: Texture | null = null;
@@ -109,7 +112,7 @@ export class PixiApp {
   private fsDancerTweens: gsap.core.Tween[] = [];
   /** Layered intro screens (game start / 3-scatter FS / 4-scatter FS) —
    *  every layer breathes so the whole screen reads ALIVE. */
-  private introSets: Partial<Record<'game' | 'fs3' | 'fs4' | 'outro', Array<{ tex: Texture; role: string; cx: number; cy: number; tw?: number }>>> = {};
+  private introSets: Partial<Record<'game' | 'fs3' | 'fs4' | 'fs5' | 'outro', Array<{ tex: Texture; role: string; cx: number; cy: number; tw?: number }>>> = {};
   private gameIntroShown = false;
   private fsBgSavedBase: Texture | null = null;
   private fsBgActive = false;
@@ -1555,11 +1558,24 @@ export class PixiApp {
     }
   }
 
+  /** Plant GROW spritesheet for the FS intro (3 plants open side by side as the
+   *  intro appears). Same slicing as the reel grow. Pass null to clear. */
+  async setFsIntroGrowSheet(url: string | null, cols: number, rows: number, count: number): Promise<void> {
+    if (this._aborted) return;
+    if (!url) { this.fsIntroGrowFrames = null; return; }
+    try {
+      const frames = await this.sliceSheetHD(url, cols, rows, count);
+      if (!this._aborted) this.fsIntroGrowFrames = frames;
+    } catch (err) {
+      console.warn('[PixiApp] failed to load FS intro grow sheet:', err);
+    }
+  }
+
   /** Load a LAYERED intro screen (design space 1920×1080; each layer is a
    *  cropped element with its centre position). kinds: 'game' (start screen),
    *  'fs3' / 'fs4' (tiered free-spins intros), 'outro' (total-win screen). */
   async setLayeredIntro(
-    kind: 'game' | 'fs3' | 'fs4' | 'outro',
+    kind: 'game' | 'fs3' | 'fs4' | 'fs5' | 'outro',
     defs: Array<{ file: string; role: string; cx: number; cy: number; tw?: number }>,
   ): Promise<void> {
     if (this._aborted) return;
@@ -1580,7 +1596,7 @@ export class PixiApp {
    *  sways, PRESS-TO-CONTINUE pulses. Cover-fits the 1920×1080 design space;
    *  caller centres the returned node and kills `sink` on teardown. */
   private buildLayeredIntroScene(
-    kind: 'game' | 'fs3' | 'fs4' | 'outro',
+    kind: 'game' | 'fs3' | 'fs4' | 'fs5' | 'outro',
     sw: number,
     sh: number,
     sink: gsap.core.Animation[],
@@ -1683,6 +1699,29 @@ export class PixiApp {
         gsap.to(h, { rotation: 0.022, duration: 3.3, yoyo: true, repeat: -1, ease: 'sine.inOut', overwrite: 'auto' }),
         gsap.to(h, { x: h.x + 6, duration: 4.7, yoyo: true, repeat: -1, ease: 'sine.inOut' }),
       );
+    }
+    // Crack Farm FS intros: THREE plants OPEN side by side on the field as the
+    // intro appears (Noski). Slower than the in-reel bloom; centre-out ripple.
+    // Added to bgRoot so they cover-scale with the field. The bg art is already
+    // plant-less (the baked plant was inpainted out).
+    if ((kind === 'fs3' || kind === 'fs4' || kind === 'fs5') && this.fsIntroGrowFrames && this.fsIntroGrowFrames.length > 1) {
+      const gf = this.fsIntroGrowFrames;
+      const last = gf.length - 1;
+      const potY = 838, headY = 345;                    // design-space field floor + head
+      const scale = (potY - headY) / gf[0].height;      // fit the plant height
+      for (const px of [660, 960, 1260]) {              // three pots, evenly spaced
+        const plant = new Sprite(gf[0]);
+        plant.anchor.set(0.5, 1);
+        plant.position.set(px - 960, potY - 540);
+        plant.scale.set(scale);
+        plant.eventMode = 'none';
+        bgRoot.addChild(plant);
+        const gi = { f: 0 };
+        sink.push(gsap.to(gi, {
+          f: last, duration: 1.35, ease: 'power1.inOut', delay: 0.3 + Math.abs(px - 960) / 300 * 0.14,
+          onUpdate: () => { const idx = Math.min(last, Math.max(0, Math.round(gi.f))); if (plant.texture !== gf[idx]) plant.texture = gf[idx]; },
+        }));
+      }
     }
     return root;
   }
@@ -2592,7 +2631,7 @@ export class PixiApp {
     // LAYERED tier intro (3sc vs 4sc sticky) — every layer breathing. Falls
     // back to the single-texture art, then to plain text.
     const introLayerTweens: gsap.core.Animation[] = [];
-    const layered = this.buildLayeredIntroScene(scatterCount >= 4 ? 'fs4' : 'fs3', sw, sh, introLayerTweens);
+    const layered = this.buildLayeredIntroScene(scatterCount >= 5 ? 'fs5' : scatterCount >= 4 ? 'fs4' : 'fs3', sw, sh, introLayerTweens);
     if (layered) {
       introContent.addChild(layered);
     } else if (this.fsIntroTexture) {
@@ -2946,6 +2985,13 @@ export class PixiApp {
       case 'multiBadgeSize':
       case 'multiBadgeCorner': {
         this.reelSet.setMultiBadgeParam(id, value as string | number);
+        break;
+      }
+      case 'oneWildBackdrop':
+      case 'oneWildBackdropAlpha':
+      case 'oneWildFrame':
+      case 'oneWildFrameWidth': {
+        this.reelSet.setOneWildParam(id, value as string | number);
         break;
       }
       case 'reelSpeed': {

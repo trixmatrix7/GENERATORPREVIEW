@@ -113,6 +113,14 @@ export const multiBadgeConfig = {
   corner: 12,
 };
 
+/** Live-adjustable look of the 1×1 wild LOCK backing (the panel + frame behind
+ *  the pot when a wild pops on a cell). Frame + backdrop colour/opacity are all
+ *  studio parameters (setOneWildParam). frameWidth 0 = no frame (default). */
+export const oneWildConfig = {
+  backdropColor: 0x0b0d14, backdropAlpha: 1,
+  frameColor: 0x7ef23e, frameWidth: 0,
+};
+
 export class ReelSet {
   readonly container: Container;
   private readonly reels: Reel[] = [];
@@ -380,7 +388,8 @@ export class ReelSet {
     this.stickyRevealGen++;
     this.expandedReels.clear();
     this.expandedTowerSprites.clear();
-    this.roamGlideSpr = null; // sprite itself dies with stickyRevealObjects below
+    this.roamGlideByReel.clear(); // sprites themselves die with stickyRevealObjects below
+    this.glideArrivalReels.clear();
     // Un-hide any reel a ghost-mode plant covered.
     for (const r of this.expandHiddenReels) { try { if (this.reels[r]?.container) this.reels[r].container.alpha = 1; } catch { /* torn down */ } }
     this.expandHiddenReels = [];
@@ -510,8 +519,13 @@ export class ReelSet {
     // nothing "spins through" the locked wild. Dark base + faint top sheen for
     // depth; sits directly under the wild art.
     const back = new Graphics();
-    back.roundRect(-rect.w / 2, -rect.h / 2, rect.w, rect.h, rad).fill({ color: 0x0b0d14, alpha: 1 });
+    back.roundRect(-rect.w / 2, -rect.h / 2, rect.w, rect.h, rad).fill({ color: oneWildConfig.backdropColor, alpha: oneWildConfig.backdropAlpha });
     back.roundRect(-rect.w / 2 + 3, -rect.h / 2 + 3, rect.w - 6, rect.h * 0.44, rad * 0.8).fill({ color: 0xffffff, alpha: 0.05 });
+    if (oneWildConfig.frameWidth > 0) {
+      const fw = oneWildConfig.frameWidth;
+      back.roundRect(-rect.w / 2 + fw / 2, -rect.h / 2 + fw / 2, rect.w - fw, rect.h - fw, rad)
+        .stroke({ color: oneWildConfig.frameColor, width: fw, alignment: 0.5 });
+    }
     back.position.set(cx, cy);
     back.eventMode = 'none';
     back.scale.set(0);
@@ -956,12 +970,17 @@ export class ReelSet {
           if (wildRowInWindow(r, s) === null) { displayStops[r] = s; break; }
         }
       }
-      // Every previously standing plant sinks out; the pads then pick the
-      // first new home (the rest rise with their own reveal).
+      // EVERY previously standing plant DANCES to a new reel (Noski: the bug
+      // was only the first plant swapping while the rest flew out the bottom
+      // and re-grew). All ghosts mix simultaneously; each locks when its own
+      // expandOneWildReel runs — and that loop is sequential, so they lock one
+      // after another (mix → 1 locks → rest keep mixing → 2 locks → 3 locks).
+      // Any NEW plant this spin (chosen beyond the standing count) grows fresh.
       if (!opts.turbo && standing.length > 0 && chosen.length > 0) {
         relocateActive = true;
-        this.startPlantRelocate(standing[0], chosen[0]);
-        for (const extra of standing.slice(1)) this.sinkPlantGhost(extra);
+        const nReloc = Math.min(standing.length, chosen.length);
+        for (let i = 0; i < nReloc; i++) this.startPlantRelocate(standing[i], chosen[i]);
+        for (const extra of standing.slice(nReloc)) this.sinkPlantGhost(extra);
       }
     } else if (opts.sticky) {
       // Keep standing towers; only presentation state clears. Spinning the
@@ -1044,10 +1063,13 @@ export class ReelSet {
     if (this.stickyRevealGen !== gen || !live()) return opts.sticky ? allExpanded() : [];
     await this.stopOnStops(displayStops, !!opts.turbo);
 
-    // Sequential, one reel finishing before the next starts (like the ref).
+    // Sequential, one reel finishing before the next starts (like the ref) —
+    // this is the LOCK ORDER: each relocating plant locks in turn while the
+    // others keep standing/mixing. A reel with a dancing ghost glide-pops
+    // (preGrown); a fresh plant grows.
     for (let k = 0; k < chosen.length; k++) {
       if (this.stickyRevealGen !== gen || !live()) return opts.sticky ? allExpanded() : [];
-      await this.expandOneWildReel(chosen[k], landingRows[k], !!opts.turbo, relocateActive && k === 0);
+      await this.expandOneWildReel(chosen[k], landingRows[k], !!opts.turbo, relocateActive && this.roamGlideByReel.has(chosen[k]));
       await new Promise(res => setTimeout(res, opts.turbo ? 90 : 200));
     }
     if (this.stickyRevealGen !== gen || !live()) return opts.sticky ? allExpanded() : [];
@@ -1128,7 +1150,10 @@ export class ReelSet {
    *  roam, research 14 §3 — continuous glide, no hop). Registered on the NEW
    *  spin's sticky lifecycle, so an aborted spin cleans it up. The preGrown
    *  park in expandOneWildReel swaps it for the real tower. */
-  private roamGlideSpr: Sprite | null = null;
+  /** Relocating plant ghosts, KEYED BY TARGET REEL — several plants can dance
+   *  at once in the sticky round (Noski: every plant must swap, not just the
+   *  first). Each locks when its own expandOneWildReel runs (sequential). */
+  private roamGlideByReel = new Map<number, Sprite>();
 
   /** RELOCATION CHOREOGRAPHY (Crack Farm): the standing plant SINKS out of
    *  its reel, the pad row under the grid whips its highlight left/right and
@@ -1161,7 +1186,9 @@ export class ReelSet {
 
   /** Set while a relocating plant has GLIDED into its target reel — the reveal
    *  there locks it in place (small pop) instead of rising it from the floor. */
-  private glideArrival = false;
+  /** Target reels whose relocating ghost has arrived and locked — the reveal
+   *  there does the clean glide-pop (per reel, so several can lock in turn). */
+  private glideArrivalReels = new Set<number>();
 
   private startPlantRelocate(fromReel: number, toReel: number): boolean {
     const tex = this.expandWildTexture;
@@ -1179,7 +1206,7 @@ export class ReelSet {
     ghost.eventMode = 'none';
     this.stickyContainer.addChild(ghost);
     this.stickyRevealObjects.push(ghost);
-    this.roamGlideSpr = ghost;
+    this.roamGlideByReel.set(toReel, ghost);
 
     // WILD-STORM DANCE (Noski, ref: 'wild storm .mov' FS). The tornado wild
     // there stays DEAD VERTICAL and LEVEL — it never tilts. Between spins it
@@ -1202,7 +1229,7 @@ export class ReelSet {
     // Tiny lift so the base clears the reel lip; it then stays LEVEL the whole
     // dance (no vertical bob, no arc — 'gerade bleiben').
     tl.to(ghost, { y: floorY - 6, duration: 0.10, ease: 'power2.out' }, 0);
-    let t = 0.06, dur = 0.185, prevX = fromX;
+    let t = 0.06, dur = 0.32, prevX = fromX;   // slower swipes (Noski: swap was too fast in FS)
     for (let i = 0; i < route.length; i++) {
       const isFinal = i === route.length - 1;
       const tx = isFinal ? toX : cxOf(route[i]);
@@ -1214,14 +1241,24 @@ export class ReelSet {
       tl.to(ghost.scale, { x: baseSX, y: baseSY, duration: dur * 0.5, ease: 'power2.in' }, t + dur * 0.5);
       prevX = tx;
       t += dur * 0.9;
-      dur = Math.max(0.13, dur * 0.86);       // each swipe a touch quicker
+      dur = Math.max(0.22, dur * 0.92);       // each swipe a touch quicker (gentle decay)
     }
-    // Settle level and STAND STILL (soft, no spring), then hand off to the reveal.
+    // Settle level and LOCK ON — the plant does NOT fade out (Noski:
+    // "verschwindet kurz durchsichtig"). It stays fully visible and FIXED on the
+    // target reel while the other reels drop; the opaque backdrop pop hides the
+    // reel rolling behind it. The real tower reveal takes over seamlessly —
+    // clearRoamGlide (in expandOneWildReel's preGrown branch) removes this ghost
+    // exactly as the tower pops in, so there is never an empty/transparent gap.
     tl.to(ghost, { y: floorY, duration: 0.12, ease: 'power2.inOut' }, t);
     t += 0.15;
-    tl.call(() => { this.glideArrival = true; }, undefined, t);
-    tl.to(ghost, { alpha: 0, duration: 0.10, ease: 'power1.in' }, t + 0.05);
-    tl.call(() => { if (ghost.parent) ghost.parent.removeChild(ghost); this.roamGlideSpr = null; }, undefined, t + 0.18);
+    tl.call(() => {
+      this.glideArrivalReels.add(toReel);
+      // LOCK ON: hide the target reel so its spin can't show through the
+      // translucent plant — it now stands FIXED on the blank reel window
+      // (barn bg) exactly like the parked tower, while the OTHER reels drop.
+      const rc = this.reels[toReel]?.container;
+      if (rc && !this.expandHiddenReels.includes(toReel)) { rc.alpha = 0; this.expandHiddenReels.push(toReel); }
+    }, undefined, t);
     return true;
   }
 
@@ -1242,7 +1279,7 @@ export class ReelSet {
     spr.eventMode = 'none';
     this.stickyContainer.addChild(spr);
     this.stickyRevealObjects.push(spr);
-    this.roamGlideSpr = spr;
+    this.roamGlideByReel.set(toReel, spr);
     const base = spr.scale.x;
     const tl = gsap.timeline();
     this.stickyRevealTweens.push(tl);
@@ -1289,14 +1326,13 @@ export class ReelSet {
   /** Remove the traveler the moment the REAL tower takes over (preGrown park).
    *  Destruction stays with the sticky lifecycle (the sprite is registered
    *  in stickyRevealObjects) — this only takes it off screen. */
-  private clearRoamGlide(): void {
-    const spr = this.roamGlideSpr;
-    this.roamGlideSpr = null;
-    if (spr) {
-      gsap.killTweensOf(spr);
-      gsap.killTweensOf(spr.scale);
-      if (spr.parent) spr.parent.removeChild(spr);
-    }
+  private clearRoamGlide(reel: number): void {
+    const spr = this.roamGlideByReel.get(reel);
+    if (!spr) return;
+    this.roamGlideByReel.delete(reel);
+    gsap.killTweensOf(spr);
+    gsap.killTweensOf(spr.scale);
+    if (spr.parent) spr.parent.removeChild(spr);
   }
 
   /** One reel's expansion: wild pops in its landing cell → the reel's other
@@ -1468,20 +1504,23 @@ export class ReelSet {
       const T_RACE = preGrown ? 0.04 : T_SLIDE + 0.40 * speed;
       // preGrown now PUSHES UP over 0.34s, so the lock-in slam waits for it
       // to actually seat instead of firing while it is still rising.
-      const T_LOCK = preGrown ? 0.36 : T_RACE + 0.46 * speed;
       // Crack Farm plays a real frame-by-frame GROW clip on the first landing.
       const useGrow = !preGrown && bottomUp && !!this.growSheet && this.growSheet.length > 1;
+      // The bloom (aufgeh-Animation) plays 25% SLOWER so it reads clearly — the
+      // race→lock window stretches with it, so the lock-in slam still lands on
+      // the fully-open plant (Noski: "aufgeh animation 25% langsamer").
+      const T_LOCK = preGrown ? 0.36 : T_RACE + 0.46 * speed * (useGrow ? 1.25 : 1);
       if (clear) tl.to(clear, { alpha: 1, duration: (preGrown ? 0.04 : 0.12) * speed, ease: 'power2.out' }, T_CLEAR);
       // The static tower fades in at T_RACE for the mask-wipe / roam paths; for
       // the grow clip it stays hidden until the bloom lands on the lock-in slam.
       if (!useGrow) tl.to(spr, { alpha: this.expandStyle.plantAlpha, duration: (preGrown ? 0.03 : 0.07) * speed, ease: 'power1.out' }, Math.max(0, T_RACE - 0.02 * speed));
       if (preGrown) {
-        tl.call(() => this.clearRoamGlide(), undefined, 0);
+        tl.call(() => this.clearRoamGlide(reelIdx), undefined, 0);
         const restY = rr.y + rr.h;
-        if (this.glideArrival) {
+        if (this.glideArrivalReels.has(reelIdx)) {
           // GLIDED IN sideways (Wild-Storm relocation): the dance already set
           // it down straight — lock in with a CLEAN grow-in, no springy snap.
-          this.glideArrival = false;
+          this.glideArrivalReels.delete(reelIdx);
           spr.y = restY;
           const bsx = spr.scale.x, bsy = spr.scale.y;
           spr.scale.set(bsx * 0.9, bsy * 0.9);
@@ -2126,6 +2165,19 @@ export class ReelSet {
       case 'multiBadgeFont': c.fontFamily = `'${String(value)}', ui-sans-serif, system-ui, sans-serif`; break;
       case 'multiBadgeSize': c.sizeFrac = Number(value); break;
       case 'multiBadgeCorner': c.corner = Number(value); break;
+      default: return;
+    }
+  }
+
+  /** Live-adjustable 1×1 wild lock backing (frame colour/width + backdrop
+   *  colour/opacity). Read when the next wild pops. */
+  setOneWildParam(id: string, value: string | number): void {
+    const c = oneWildConfig;
+    switch (id) {
+      case 'oneWildBackdrop': c.backdropColor = hexToNum(String(value)); break;
+      case 'oneWildBackdropAlpha': c.backdropAlpha = Number(value); break;
+      case 'oneWildFrame': c.frameColor = hexToNum(String(value)); break;
+      case 'oneWildFrameWidth': c.frameWidth = Number(value); break;
       default: return;
     }
   }

@@ -464,6 +464,31 @@ export const ADJUSTABLE_PARAMS: readonly AdjustableParam[] = [
     description: 'Corner rounding of the square multiplier badge (0 = sharp square, high = pill).',
     keywords: ['multi', 'badge', 'corner', 'radius', 'round', 'square'],
   },
+  // ── 1×1 WILD lock backing (Crack Farm) — the panel behind the pot ──
+  {
+    id: 'oneWildBackdrop', label: '1×1 wild — backdrop colour', layer: 'symbols', type: 'color',
+    default: '#0b0d14',
+    description: 'Backdrop/fill colour of the panel behind the single (1×1) wild pot when it locks. Phrases: "change the 1:1 wild backdrop / background colour".',
+    keywords: ['wild', '1x1', 'one', 'pot', 'backdrop', 'background', 'panel', 'colour', 'color'],
+  },
+  {
+    id: 'oneWildBackdropAlpha', label: '1×1 wild — backdrop opacity', layer: 'symbols', type: 'number',
+    min: 0, max: 1, step: 0.05, default: 1,
+    description: 'How opaque the 1×1 wild backdrop panel is (0 = see-through, 1 = solid).',
+    keywords: ['wild', '1x1', 'backdrop', 'opacity', 'alpha', 'transparent'],
+  },
+  {
+    id: 'oneWildFrame', label: '1×1 wild — frame colour', layer: 'symbols', type: 'color',
+    default: '#7ef23e',
+    description: 'Frame/border colour of the 1×1 wild lock panel. Only visible when the frame width is above 0. Phrases: "change the 1:1 wild frame colour".',
+    keywords: ['wild', '1x1', 'one', 'pot', 'frame', 'border', 'colour', 'color'],
+  },
+  {
+    id: 'oneWildFrameWidth', label: '1×1 wild — frame width', layer: 'symbols', type: 'number',
+    min: 0, max: 12, step: 0.5, default: 0,
+    description: 'Thickness of the 1×1 wild frame in pixels (0 = no frame). Raise it to add a coloured border around the wild pot.',
+    keywords: ['wild', '1x1', 'frame', 'border', 'width', 'thickness'],
+  },
 ];
 
 export function getAdjustableParam(id: string): AdjustableParam | undefined {

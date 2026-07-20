@@ -1,0 +1,113 @@
+import { useState } from 'react';
+
+/**
+ * Bonus-buy / bet-multiplier page (Crack Farm) — Noski's OFFICIAL PNGs, 1:1.
+ * A round trigger (ours; placeholder round shape, swap the knob image later)
+ * opens the page. The card / bet-box / dialog art are the exact PNGs; the real
+ * feature title + dynamic price are overlaid (the baked template text is a
+ * near-invisible placeholder). Order (Noski): 3× scatter boost · plant feature
+ * · buy 3-scatter · buy 4-scatter · buy 5-scatter.
+ */
+
+const BB = `${import.meta.env.BASE_URL}theme/crackfarm/bonusbuy/`;
+
+type Card = { id: string; title: string; mult: number; kind: 'activate' | 'buy' };
+const CARDS: Card[] = [
+  { id: 'boost3x', title: '3× SCATTER\nBOOST',   mult: 3,   kind: 'activate' },
+  { id: 'plant',   title: 'PLANT\nFEATURE',       mult: 50,  kind: 'activate' },
+  { id: 'buy3',    title: 'BUY\n3 SCATTER',        mult: 100, kind: 'buy' },
+  { id: 'buy4',    title: 'BUY\n4 SCATTER',        mult: 200, kind: 'buy' },
+  { id: 'buy5',    title: 'BUY\n5 SCATTER',        mult: 400, kind: 'buy' },
+];
+
+const money = (n: number) => `$${n.toFixed(2)}`;
+const CW = 150;                 // card display width (PNG is 360×598)
+const CH = Math.round(CW * 598 / 360);
+// One place to change all bonus-buy text styling (Noski wants the fonts easy to
+// swap). Change this string (or per-slot below) to restyle the cards / bet.
+const FONT = "'Rubik', ui-sans-serif, system-ui, sans-serif";
+
+export function BonusBuyOverlay({ betDisplay, onBuy }: { betDisplay: string; onBuy?: (id: string, kind: Card['kind']) => void }) {
+  const [open, setOpen] = useState(false);
+  const [active, setActive] = useState<Set<string>>(new Set());
+  const [confirm, setConfirm] = useState<Card | null>(null);
+  const bet = Math.max(0.01, Number(betDisplay || '0'));
+
+  const cardClick = (c: Card) => {
+    if (c.kind === 'activate') {
+      setActive(prev => { const n = new Set(prev); n.has(c.id) ? n.delete(c.id) : n.add(c.id); return n; });
+      onBuy?.(c.id, c.kind);
+    } else setConfirm(c);
+  };
+
+  return (
+    <>
+      {/* ── ROUND TRIGGER (ours; placeholder round shape) ── */}
+      <button onClick={() => setOpen(true)} title="Bonus buy" style={{
+        position: 'absolute', left: 14, bottom: 14, zIndex: 40, width: 62, height: 62, borderRadius: '50%',
+        border: 'none', cursor: 'pointer', background: 'radial-gradient(circle at 34% 28%, #8dff5a 0%, #4bbf1f 46%, #2b7d10 100%)',
+        boxShadow: '0 4px 14px rgba(0,0,0,0.5), inset 0 2px 3px rgba(255,255,255,0.55), inset 0 -4px 8px rgba(0,0,0,0.35)',
+        color: '#0b2a06', fontWeight: 900, fontStyle: 'italic', fontSize: 11, lineHeight: 1.02,
+        display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center',
+        fontFamily: "'Rubik', ui-sans-serif, system-ui, sans-serif",
+      }}>BONUS<br />BUY</button>
+
+      {!open ? null : (
+        <div onClick={() => setOpen(false)} style={{
+          position: 'absolute', inset: 0, zIndex: 60, display: 'flex', flexDirection: 'column',
+          alignItems: 'center', justifyContent: 'center', gap: 14, overflow: 'auto', padding: 14,
+          background: 'rgba(4,6,10,0.82)', backdropFilter: 'blur(3px)',
+          fontFamily: "'Rubik', ui-sans-serif, system-ui, sans-serif",
+        }}>
+          <div onClick={e => e.stopPropagation()} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, maxWidth: '98%' }}>
+            {/* BET box (PNG) with dynamic bet value overlaid */}
+            <div style={{ position: 'relative', width: 190, height: Math.round(190 * 478 / 400), backgroundImage: `url(${BB}betbox.png)`, backgroundSize: 'contain', backgroundRepeat: 'no-repeat', backgroundPosition: 'center' }}>
+              <div style={{ position: 'absolute', top: '52%', left: '18%', right: '18%', height: '13%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'linear-gradient(180deg,#f2f3f5,#e6e9ec)', borderRadius: 8 }}>
+                <span style={{ color: '#15171c', fontWeight: 900, fontStyle: 'italic', fontSize: 18, fontFamily: FONT }}>{money(bet)}</span>
+              </div>
+            </div>
+
+            {/* 5 feature cards (exact PNG frames) */}
+            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', justifyContent: 'center' }}>
+              {CARDS.map(c => {
+                const on = active.has(c.id);
+                return (
+                  <div key={c.id} onClick={() => cardClick(c)} style={{
+                    position: 'relative', width: CW, height: CH, cursor: 'pointer',
+                    backgroundImage: `url(${BB}${c.kind === 'buy' ? 'card_d' : 'card_a'}.png)`,
+                    backgroundSize: 'contain', backgroundRepeat: 'no-repeat', backgroundPosition: 'center',
+                  }}>
+                    {/* editable TITLE covers the baked template title (top of card) */}
+                    <div style={{ position: 'absolute', top: '3.5%', left: '5%', right: '5%', height: '15%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'linear-gradient(180deg,#f4f5f7,#e9ecef)', borderRadius: 7 }}>
+                      <span style={{ color: '#15171c', fontWeight: 900, fontStyle: 'italic', fontSize: 12, lineHeight: 1.02, textAlign: 'center', whiteSpace: 'pre-line', fontFamily: FONT }}>{c.title}</span>
+                    </div>
+                    {/* dynamic PRICE covers the baked "$3.00" (~71% down the card) */}
+                    <div style={{ position: 'absolute', top: '68.5%', left: '14%', right: '14%', height: '7%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'linear-gradient(180deg,#eef0f2,#e4e7ea)', borderRadius: 6 }}>
+                      <span style={{ color: '#15171c', fontWeight: 900, fontStyle: 'italic', fontSize: 15, fontFamily: FONT }}>{money(bet * c.mult)}</span>
+                    </div>
+                    {on && <div style={{ position: 'absolute', inset: '2% 4% 3%', borderRadius: 16, boxShadow: '0 0 0 3px #ff9d2e', pointerEvents: 'none' }} />}
+                  </div>
+                );
+              })}
+            </div>
+            <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: 11 }}>tap outside to close</div>
+          </div>
+
+          {/* Confirmation dialog (exact PNG) */}
+          {confirm && (
+            <div onClick={e => e.stopPropagation()} style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(4,6,10,0.6)' }}>
+              <div style={{ position: 'relative', width: 320, height: Math.round(320 * 528 / 500), backgroundImage: `url(${BB}dialog.png)`, backgroundSize: 'contain', backgroundRepeat: 'no-repeat', backgroundPosition: 'center' }}>
+                <div style={{ position: 'absolute', top: '49%', left: '28%', right: '28%', height: '9%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'linear-gradient(180deg,#f2f3f5,#e6e9ec)', borderRadius: 8 }}>
+                  <span style={{ color: '#15171c', fontWeight: 900, fontStyle: 'italic', fontSize: 20 }}>{money(bet * confirm.mult)}</span>
+                </div>
+                {/* BACK / OK click regions over the baked buttons */}
+                <div onClick={() => setConfirm(null)} style={{ position: 'absolute', left: '6%', bottom: '6%', width: '42%', height: '18%', cursor: 'pointer' }} />
+                <div onClick={() => { onBuy?.(confirm.id, confirm.kind); setConfirm(null); setOpen(false); }} style={{ position: 'absolute', right: '6%', bottom: '6%', width: '42%', height: '18%', cursor: 'pointer' }} />
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </>
+  );
+}

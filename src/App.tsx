@@ -11,6 +11,7 @@ import { useSoundLayer } from '@/audio/useSoundLayer';
 import { Sidebar } from '@/ui/Sidebar';
 import { GameCanvas } from '@/ui/GameCanvas';
 import { ControlBar } from '@/ui/ControlBar';
+import { BonusBuyOverlay } from '@/ui/BonusBuyOverlay';
 import { StudioDrawer } from '@/studio/StudioDrawer';
 import { DEFAULT_GAME_CONFIG, type GameConfig } from '@/engine/GameConfig';
 import { GRID_5x3, GRID_5x5 } from '@/config/gridConfig';
@@ -190,7 +191,7 @@ export function App() {
       // Pig idle animation ALWAYS loops (Noski's mp4 → 6×5 = 30 frames @12fps,
       // magenta-keyed). Win-state pig clips will swap in when Noski ships them.
       void pixiAppRef.setSideMascot(`${cf}pig_idle.png`, {
-        cols: 6, rows: 5, count: 30, fps: 12,
+        cols: 6, rows: 5, count: 30, fps: 9, // 25% slower idle-fly tempo (Noski)
         side: 'left', centerYFrac: 0.4, heightFrac: 0.66, marginX: 70,
       });
       // The tall 1×3 mutant plant fills a reel on expansion — and it GROWS:
@@ -199,7 +200,7 @@ export function App() {
       // Crack Farm plant look (Noski): NO gold shine frame ("das wild fuckt
       // mich ab"), plant grows in translucent like the roaming traveller on a
       // blank reel behind it.
-      pixiAppRef.setExpandStyle({ shine: false, plantAlpha: 0.82 });
+      pixiAppRef.setExpandStyle({ shine: false, plantAlpha: 1 }); // opaque plant (Noski: no see-through/gray)
       // No frosted reel pane on the barn: the blurred sunset bg showed through
       // the symbols' transparent corners as a milky white film.
       pixiAppRef.setReelFrosted(false);
@@ -257,6 +258,12 @@ export function App() {
       pixiAppRef.applyVisualParam('multiBadgeBorderWidth', 3);
       pixiAppRef.applyVisualParam('multiBadgeSize', 0.6);
       pixiAppRef.applyVisualParam('multiBadgeCorner', 12);
+      // 1×1 wild lock backing — Crack Farm defaults (dark backdrop, no frame;
+      // the frame/backdrop colours are now studio-adjustable, Noski).
+      pixiAppRef.applyVisualParam('oneWildBackdrop', '#0b0d14');
+      pixiAppRef.applyVisualParam('oneWildBackdropAlpha', 1);
+      pixiAppRef.applyVisualParam('oneWildFrame', '#7ef23e');
+      pixiAppRef.applyVisualParam('oneWildFrameWidth', 0);
       // FS-END TOTAL WIN outro: the artist's one-piece night-scene assembly
       // (TOTAL WIN + metal plate + press-to-continue), contain-fit; the
       // count-up amount sits ON the plate (measured centre 958,646).
@@ -264,6 +271,13 @@ export function App() {
         { file: `${CRACKFARM.base}outro/outro-screen.png`, role: 'card', cx: 960, cy: 540 },
       ]);
       pixiAppRef.setOutroAmountStyle(958, 646, 88);
+      // TIERED FS intro screens (plant-less bg per scatter tier: 3sc/4sc/5sc =
+      // 0×/8×/32× start). Three plants OPEN side by side on the field as the
+      // intro appears (setFsIntroGrowSheet drives the grow, slower than in-reel).
+      void pixiAppRef.setLayeredIntro('fs3', [{ file: `${cf}intro/fs_intro_3.png`, role: 'bg', cx: 960, cy: 540 }]);
+      void pixiAppRef.setLayeredIntro('fs4', [{ file: `${cf}intro/fs_intro_4.png`, role: 'bg', cx: 960, cy: 540 }]);
+      void pixiAppRef.setLayeredIntro('fs5', [{ file: `${cf}intro/fs_intro_5.png`, role: 'bg', cx: 960, cy: 540 }]);
+      void pixiAppRef.setFsIntroGrowSheet(`${cf}wild_grow_sheet.png`, 6, 4, 24);
       const Tc = `${import.meta.env.BASE_URL}theme/win-tiers/`;
       void pixiAppRef.setWinCoinRain(
         [`${Tc}coinrain3_0.webp`, `${Tc}coinrain3_1.webp`, `${Tc}coinrain3_2.webp`], 10, 10, 300, 45,
@@ -585,6 +599,14 @@ export function App() {
         device={device}
         topBar={<BuildTopBar device={device} onDevice={setDevice} />}
         bottomDock={<BuildSlots />}
+        gameOverlay={loadActiveGame() === 'crackfarm' && !introOpen && !fsIntroOpen
+          ? <BonusBuyOverlay betDisplay={state.betDisplay} onBuy={(id, kind) => {
+              // BUY tiers → trigger the bonus session (FS). ACTIVATE tiers are
+              // persistent bet-enhancer modes (toggled in the overlay); the
+              // per-spin mechanics wire up with the certified plant/ante math.
+              if (kind === 'buy') handleBuyBonus();
+            }} />
+          : null}
         controls={
           <div style={{ opacity: introOpen || fsIntroOpen ? 0 : 1, pointerEvents: introOpen || fsIntroOpen ? 'none' : 'auto', transition: 'opacity 0.6s ease' }}>
             <ControlBar

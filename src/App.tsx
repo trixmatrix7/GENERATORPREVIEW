@@ -140,32 +140,43 @@ export function App() {
       waysImmersiveConfig.enabled = false;
       // Scatter sack: 20% smaller than its default presence boost.
       SYMBOL_SIZE_MULS.set(1, 0.96);
+      const cf = CRACKFARM.base;
       const cfSymbols = saved.symbols && Object.keys(saved.symbols).length
         ? new Map(Object.entries(saved.symbols).map(([k, v]) => [Number(k), v]))
         : crackFarmSymbolMap();
       track(pixiAppRef.setUserAssetTextures(cfSymbols));
       track(pixiAppRef.setBackgroundImage(saved.bg ?? CRACKFARM.bgBase));
+      // LIVING base background (Noski's night-farm mp4 → 3×(4×4) sheets = 48
+      // frames @8fps, loops every spin). The static paints instantly, then the
+      // loop takes over. No custom-bg override → use the animated barn.
+      if (!saved.bg) void pixiAppRef.setBackgroundSpritesheet(
+        [`${cf}bg_base_anim_1.webp`, `${cf}bg_base_anim_2.webp`, `${cf}bg_base_anim_3.webp`],
+        4, 4, 48, 8,
+      );
       track(pixiAppRef.setTitleImage(CRACKFARM.logo));
-      // Static 512² symbols (no per-symbol win sheets in this pack): scatter
-      // keeps a clean static look, the 1:1 wild drops the fallback idle breath.
       STATIC_LOOK_SYMBOLS.add(1);
       NO_IDLE_SYMBOLS.add(0);
-      // The FARMER mascot idles beside the barn (96f seamless loop @12fps,
-      // magenta-keyed). Size + position measured off the artist mockups:
-      // ~1.12× frame-box height, boots on the GRASS just below the barn's
-      // hay base (feet ≈ rh+110), pushed right so he stands clear of the
-      // barn door edge.
-      // HD sheets (448px frames, 2× display size — research/slot-feel/11:
-      // never upscale; the old 224px frames rendered soft at ~2× stretch).
-      void pixiAppRef.setSideCharacter(
-        [`${CRACKFARM.base}farmer_idle_hd_1.webp`, `${CRACKFARM.base}farmer_idle_hd_2.webp`],
-        8, 6, 96, 12, 1.25, { marginX: 45, feetOffsetY: 110 },
-      );
+      // Per-symbol WIN animations (Noski's connection clips, magenta-keyed →
+      // 6×4 = 24 frames @ 10fps each). On a connection the symbol's own clip
+      // plays IN PLACE of the static art; AnimatedSymbol suppresses the leap/
+      // outline for sheet-carrying symbols (§1) so it's "static tile → our
+      // sheet on top", no competing effect. HIGH_A(2)=cow, HIGH_B(3)=goat,
+      // MID_C(4), MID_D(5), WILD(0).
+      void pixiAppRef.setSymbolWinSheet(2, `${cf}symbol_high_a_win.png`, 6, 4, 24, 10);
+      void pixiAppRef.setSymbolWinSheet(3, `${cf}symbol_high_b_win.png`, 6, 4, 24, 10);
+      void pixiAppRef.setSymbolWinSheet(4, `${cf}symbol_mid_c_win.png`, 6, 4, 24, 10);
+      void pixiAppRef.setSymbolWinSheet(5, `${cf}symbol_mid_d_win.png`, 6, 4, 24, 10);
+      void pixiAppRef.setSymbolWinSheet(0, `${cf}symbol_wild_win.png`, 6, 4, 24, 10);
+      // FARMER: removed entirely (Noski — "den bauer rechts weg machen, auch
+      // base game"). No side character on this theme.
       // The FLYING PIG hovers LEFT of the barn (mockup: ~0.45× frame height,
       // centre at ~36% height, well clear of the frame edge). Static art
       // with a hover bob — swaps to the idle sheet when it arrives (just
       // pass cols/rows/count/fps in the opts).
-      void pixiAppRef.setSideMascot(`${CRACKFARM.base}pig_mascot.png`, {
+      // Pig idle animation ALWAYS loops (Noski's mp4 → 6×5 = 30 frames @12fps,
+      // magenta-keyed). Win-state pig clips will swap in when Noski ships them.
+      void pixiAppRef.setSideMascot(`${cf}pig_idle.png`, {
+        cols: 6, rows: 5, count: 30, fps: 12,
         side: 'left', centerYFrac: 0.36, heightFrac: 0.45, marginX: 120,
       });
       // The tall 1×3 mutant plant fills a reel on expansion — and it GROWS:
@@ -190,6 +201,12 @@ export function App() {
       // Barn frame — alpha window auto-detected from the transparent centre.
       track(pixiAppRef.setFrameImage(saved.frame ?? CRACKFARM.frame));
       void pixiAppRef.setFreeSpinsBackgroundImage(saved.fsBg ?? CRACKFARM.bgFs);
+      // LIVING FS background (Noski's moonlit night-farm mp4 → 3×(4×4) = 48
+      // frames @8fps). Loops through the whole round behind the plants.
+      if (!saved.fsBg) void pixiAppRef.setFreeSpinsBackgroundSpritesheet(
+        [`${cf}bg_fs_anim_1.webp`, `${cf}bg_fs_anim_2.webp`, `${cf}bg_fs_anim_3.webp`],
+        4, 4, 48, 8,
+      );
       // Win marquee: crack-farm wooden-slime tier badges + price-area plate
       // (universal layered marquee); coin rain kept (theme-neutral gold shower).
       // The GEOMETRY matches the artist's files exactly (alpha-bbox measured

@@ -1145,31 +1145,45 @@ export class ReelSet {
     tl.call(() => { if (ghost.parent) ghost.parent.removeChild(ghost); }, undefined, 0.4);
   }
 
+  /** Set while a relocating plant has GLIDED into its target reel — the reveal
+   *  there locks it in place (small pop) instead of rising it from the floor. */
+  private glideArrival = false;
+
   private startPlantRelocate(fromReel: number, toReel: number): boolean {
     const tex = this.expandWildTexture;
     if (!tex) return false;
     const rFrom = resolveAnchor(reelAnchor(fromReel), this.grid);
+    const rTo = resolveAnchor(reelAnchor(toReel), this.grid);
     const ghost = new Sprite(tex);
     ghost.anchor.set(0.5, 1);
     ghost.scale.set(this.expandGrowth === 'bottom-up'
       ? Math.min(rFrom.h / tex.height, (rFrom.w * 1.3) / tex.width)
       : (rFrom.w * 0.98) / tex.width);
-    ghost.position.set(rFrom.x + rFrom.w / 2, rFrom.y + rFrom.h);
+    const floorY = rFrom.y + rFrom.h;         // reel floor — stays level (no sink)
+    ghost.position.set(rFrom.x + rFrom.w / 2, floorY);
     ghost.alpha = this.expandStyle.plantAlpha;
     ghost.eventMode = 'none';
     this.stickyContainer.addChild(ghost);
     this.stickyRevealObjects.push(ghost);
     this.roamGlideSpr = ghost;
 
+    // WILD-STORM RELOCATION (Noski): the plant DASHES sideways on the spot —
+    // fast horizontal wander with a lean, a teaser overshoot past the target,
+    // then a snappy snap-back into place. NO floating down. Pure pacing.
+    const dir = Math.sign((rTo.x + rTo.w / 2) - (rFrom.x + rFrom.w / 2)) || 1;
+    const targetX = rTo.x + rTo.w / 2;
+    const overshootX = targetX + dir * rTo.w * 0.5;
+    const baseSY = ghost.scale.y;
     const tl = gsap.timeline();
     this.stickyRevealTweens.push(tl);
-    // Sink out through the reel floor — a squash first, like it ducks away.
-    tl.to(ghost.scale, { y: ghost.scale.y * 0.9, duration: 0.1, ease: 'power2.out' }, 0);
-    tl.to(ghost, { y: rFrom.y + rFrom.h + rFrom.h * 0.85, duration: 0.32, ease: 'power2.in' }, 0.06);
-    tl.to(ghost, { alpha: 0, duration: 0.2, ease: 'power1.in' }, 0.2);
-    tl.call(() => { if (ghost.parent) ghost.parent.removeChild(ghost); this.roamGlideSpr = null; }, undefined, 0.4);
-    // Pads take over and pick the new spot while the reels are still rolling.
-    tl.call(() => { void this.playPadTease(toReel); }, undefined, 0.26);
+    tl.to(ghost, { rotation: dir * 0.16, duration: 0.07, ease: 'power2.out' }, 0);          // lean into the dash
+    tl.to(ghost.scale, { y: baseSY * 0.94, duration: 0.07 }, 0);                              // squash-stretch
+    tl.to(ghost, { x: overshootX, duration: 0.19, ease: 'power3.in' }, 0.04);                 // FAST slide across
+    tl.to(ghost, { x: targetX, rotation: 0, duration: 0.15, ease: 'back.out(2.6)' }, 0.23);   // snap-back into the slot
+    tl.to(ghost.scale, { y: baseSY, duration: 0.12, ease: 'back.out(2)' }, 0.23);
+    tl.call(() => { this.glideArrival = true; }, undefined, 0.30);                            // the reveal now locks in place
+    tl.to(ghost, { alpha: 0, duration: 0.08, ease: 'power1.in' }, 0.34);                      // hand off to the real reveal
+    tl.call(() => { if (ghost.parent) ghost.parent.removeChild(ghost); this.roamGlideSpr = null; }, undefined, 0.42);
     return true;
   }
 
@@ -1420,13 +1434,22 @@ export class ReelSet {
       if (clear) tl.to(clear, { alpha: 1, duration: (preGrown ? 0.04 : 0.12) * speed, ease: 'power2.out' }, T_CLEAR);
       tl.to(spr, { alpha: this.expandStyle.plantAlpha, duration: (preGrown ? 0.03 : 0.07) * speed, ease: 'power1.out' }, Math.max(0, T_RACE - 0.02 * speed));
       if (preGrown) {
-        // PUSH UP OUT OF THE PAD: the plant rises from below the reel floor
-        // into place (the pad under it stays lit until it lands), instead of
-        // simply appearing. This is the other half of the relocation.
         tl.call(() => this.clearRoamGlide(), undefined, 0);
         const restY = rr.y + rr.h;
-        spr.y = restY + rr.h * 0.95;
-        tl.to(spr, { y: restY, duration: 0.34, ease: 'back.out(1.25)' }, T_RACE);
+        if (this.glideArrival) {
+          // GLIDED IN sideways (Wild-Storm relocation): lock in place with a
+          // snappy scale-pop — no rise from the floor.
+          this.glideArrival = false;
+          spr.y = restY;
+          const bsx = spr.scale.x, bsy = spr.scale.y;
+          spr.scale.set(bsx * 0.82, bsy * 0.82);
+          tl.to(spr.scale, { x: bsx, y: bsy, duration: 0.22, ease: 'back.out(2.6)' }, T_RACE);
+        } else {
+          // PUSH UP OUT OF THE PAD: the plant rises from below the reel floor
+          // into place (used by the base-game feature reveal).
+          spr.y = restY + rr.h * 0.95;
+          tl.to(spr, { y: restY, duration: 0.34, ease: 'back.out(1.25)' }, T_RACE);
+        }
         // Pads dim away as the plant seats itself.
         tl.call(() => this.hidePads(0.3), undefined, T_RACE + 0.2);
       } else {

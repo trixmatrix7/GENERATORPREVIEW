@@ -910,6 +910,10 @@ export class PixiApp {
     }
     this.frameImageSprite = sp;
     this.gameContainer.addChild(sp);
+    // The flying-pig mascot rides IN FRONT of the frame art (Noski: "schwein
+    // muss layer davor sein"). The frame can load after the mascot, so lift it
+    // back on top here.
+    if (this.mascotSprite?.parent) this.gameContainer.addChild(this.mascotSprite.parent);
     // SYMBOLS RIDE OVER THE FRAME (Noski: corners were getting nibbled by the
     // barn border). The reel set is clipped to the grid anyway, so lifting it
     // above the frame art can't spill outside the window — it only stops the

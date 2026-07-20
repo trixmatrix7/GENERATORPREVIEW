@@ -139,6 +139,13 @@ export class ReelSet {
   private stickyRevealObjects: Container[] = [];
   /** Money-tower art for the expanding-wild showcase (set via PixiApp). */
   private expandWildTexture: Texture | null = null;
+  /** Optional frame-by-frame GROW clip (Crack Farm plant). When set, a
+   *  bottom-up wild landing plays these frames (sprout → full plant) in place
+   *  of the static mask-wipe reveal. The last frame must match
+   *  expandWildTexture (wild_column.png) so the freeze onto the crisp static
+   *  tower is seamless. Relocation glides still use the static art. */
+  private growSheet: Texture[] | null = null;
+  private growSheetFps = 40;
   /** Reels currently covered by a full expanding-wild tower. Their cells are
    *  hidden behind the opaque clear-beat + tower art, so EVERY win
    *  presentation (win states, dim/highlight, object lifts, sticky borders)
@@ -564,6 +571,13 @@ export class ReelSet {
    *  panel; normally the Vice money tower). */
   setExpandingWildTexture(tex: Texture | null): void {
     this.expandWildTexture = tex;
+  }
+
+  /** Frame-by-frame plant-grow clip for bottom-up wild landings (Crack Farm).
+   *  Pass null to fall back to the static mask-wipe reveal. */
+  setExpandGrowSheet(frames: Texture[] | null, fps = 40): void {
+    this.growSheet = frames && frames.length ? frames : null;
+    if (fps) this.growSheetFps = fps;
   }
 
   /** Run a mechanic showcase (see mechTypes.ts). Overlays/tweens ride the
@@ -1167,23 +1181,47 @@ export class ReelSet {
     this.stickyRevealObjects.push(ghost);
     this.roamGlideSpr = ghost;
 
-    // WILD-STORM RELOCATION (Noski): the plant DASHES sideways on the spot —
-    // fast horizontal wander with a lean, a teaser overshoot past the target,
-    // then a snappy snap-back into place. NO floating down. Pure pacing.
-    const dir = Math.sign((rTo.x + rTo.w / 2) - (rFrom.x + rFrom.w / 2)) || 1;
-    const targetX = rTo.x + rTo.w / 2;
-    const overshootX = targetX + dir * rTo.w * 0.5;
+    // WILD-STORM DANCE (Noski, ref: 'wild storm .mov' FS). The tornado wild
+    // there stays DEAD VERTICAL and LEVEL — it never tilts. Between spins it
+    // swipes left↔right ACROSS the reels a couple of times (a "where will it
+    // land?" shuffle), then glides onto the target and STANDS STILL. Speed
+    // reads through a horizontal squash-stretch in the travel direction, never
+    // a lean; the arrival is a soft ease, never a springy overshoot.
+    const baseSX = ghost.scale.x;
     const baseSY = ghost.scale.y;
+    const cxOf = (r: number) => { const a = resolveAnchor(reelAnchor(r), this.grid); return a.x + a.w / 2; };
+    const last = this.grid.reelCount - 1;
+    const fromX = rFrom.x + rFrom.w / 2;
+    const toX = rTo.x + rTo.w / 2;
+    // Dance to the opposite outer reel, back across, then home — always visibly
+    // travelling "über die reels", ending on the target.
+    const farA = fromReel <= last / 2 ? last : 0;
+    const route = [farA, farA === 0 ? last : 0, toReel];
     const tl = gsap.timeline();
     this.stickyRevealTweens.push(tl);
-    tl.to(ghost, { rotation: dir * 0.16, duration: 0.07, ease: 'power2.out' }, 0);          // lean into the dash
-    tl.to(ghost.scale, { y: baseSY * 0.94, duration: 0.07 }, 0);                              // squash-stretch
-    tl.to(ghost, { x: overshootX, duration: 0.19, ease: 'power3.in' }, 0.04);                 // FAST slide across
-    tl.to(ghost, { x: targetX, rotation: 0, duration: 0.15, ease: 'back.out(2.6)' }, 0.23);   // snap-back into the slot
-    tl.to(ghost.scale, { y: baseSY, duration: 0.12, ease: 'back.out(2)' }, 0.23);
-    tl.call(() => { this.glideArrival = true; }, undefined, 0.30);                            // the reveal now locks in place
-    tl.to(ghost, { alpha: 0, duration: 0.08, ease: 'power1.in' }, 0.34);                      // hand off to the real reveal
-    tl.call(() => { if (ghost.parent) ghost.parent.removeChild(ghost); this.roamGlideSpr = null; }, undefined, 0.42);
+    // Tiny lift so the base clears the reel lip; it then stays LEVEL the whole
+    // dance (no vertical bob, no arc — 'gerade bleiben').
+    tl.to(ghost, { y: floorY - 6, duration: 0.10, ease: 'power2.out' }, 0);
+    let t = 0.06, dur = 0.185, prevX = fromX;
+    for (let i = 0; i < route.length; i++) {
+      const isFinal = i === route.length - 1;
+      const tx = isFinal ? toX : cxOf(route[i]);
+      const stretch = Math.min(1.16, 1 + Math.min(0.16, Math.abs(tx - prevX) / (rFrom.w * 6)));
+      // Smooth level swipe — sine while shuffling, a clean decel onto the target.
+      tl.to(ghost, { x: tx, duration: dur, ease: isFinal ? 'power3.out' : 'sine.inOut' }, t);
+      // Horizontal squash-stretch → speed cue WITHOUT any tilt.
+      tl.to(ghost.scale, { x: baseSX * (isFinal ? 1 : stretch), y: baseSY * (isFinal ? 1 : 0.98), duration: dur * 0.5, ease: 'power1.out' }, t);
+      tl.to(ghost.scale, { x: baseSX, y: baseSY, duration: dur * 0.5, ease: 'power2.in' }, t + dur * 0.5);
+      prevX = tx;
+      t += dur * 0.9;
+      dur = Math.max(0.13, dur * 0.86);       // each swipe a touch quicker
+    }
+    // Settle level and STAND STILL (soft, no spring), then hand off to the reveal.
+    tl.to(ghost, { y: floorY, duration: 0.12, ease: 'power2.inOut' }, t);
+    t += 0.15;
+    tl.call(() => { this.glideArrival = true; }, undefined, t);
+    tl.to(ghost, { alpha: 0, duration: 0.10, ease: 'power1.in' }, t + 0.05);
+    tl.call(() => { if (ghost.parent) ghost.parent.removeChild(ghost); this.roamGlideSpr = null; }, undefined, t + 0.18);
     return true;
   }
 
@@ -1431,19 +1469,23 @@ export class ReelSet {
       // preGrown now PUSHES UP over 0.34s, so the lock-in slam waits for it
       // to actually seat instead of firing while it is still rising.
       const T_LOCK = preGrown ? 0.36 : T_RACE + 0.46 * speed;
+      // Crack Farm plays a real frame-by-frame GROW clip on the first landing.
+      const useGrow = !preGrown && bottomUp && !!this.growSheet && this.growSheet.length > 1;
       if (clear) tl.to(clear, { alpha: 1, duration: (preGrown ? 0.04 : 0.12) * speed, ease: 'power2.out' }, T_CLEAR);
-      tl.to(spr, { alpha: this.expandStyle.plantAlpha, duration: (preGrown ? 0.03 : 0.07) * speed, ease: 'power1.out' }, Math.max(0, T_RACE - 0.02 * speed));
+      // The static tower fades in at T_RACE for the mask-wipe / roam paths; for
+      // the grow clip it stays hidden until the bloom lands on the lock-in slam.
+      if (!useGrow) tl.to(spr, { alpha: this.expandStyle.plantAlpha, duration: (preGrown ? 0.03 : 0.07) * speed, ease: 'power1.out' }, Math.max(0, T_RACE - 0.02 * speed));
       if (preGrown) {
         tl.call(() => this.clearRoamGlide(), undefined, 0);
         const restY = rr.y + rr.h;
         if (this.glideArrival) {
-          // GLIDED IN sideways (Wild-Storm relocation): lock in place with a
-          // snappy scale-pop — no rise from the floor.
+          // GLIDED IN sideways (Wild-Storm relocation): the dance already set
+          // it down straight — lock in with a CLEAN grow-in, no springy snap.
           this.glideArrival = false;
           spr.y = restY;
           const bsx = spr.scale.x, bsy = spr.scale.y;
-          spr.scale.set(bsx * 0.82, bsy * 0.82);
-          tl.to(spr.scale, { x: bsx, y: bsy, duration: 0.22, ease: 'back.out(2.6)' }, T_RACE);
+          spr.scale.set(bsx * 0.9, bsy * 0.9);
+          tl.to(spr.scale, { x: bsx, y: bsy, duration: 0.2, ease: 'back.out(1.6)' }, T_RACE);
         } else {
           // PUSH UP OUT OF THE PAD: the plant rises from below the reel floor
           // into place (used by the base-game feature reveal).
@@ -1452,6 +1494,38 @@ export class ReelSet {
         }
         // Pads dim away as the plant seats itself.
         tl.call(() => this.hidePads(0.3), undefined, T_RACE + 0.2);
+      } else if (useGrow) {
+        // GROW CLIP: a dedicated sprite plays the sprout→full-plant frames on
+        // the blank reel window. Its footprint matches the static tower's, so
+        // freezing onto wild_column.png at the end is seamless. The bloom is
+        // timed to COMPLETE on the lock-in slam (flash + board-thud punctuate
+        // the moment the plant fully opens). spr's own scale is never touched
+        // here, so the lock-in squash still reads off its resting baseScale.
+        const gs = this.growSheet!;
+        const last = gs.length - 1;
+        drawReveal(1); // spr's mask fully open for the freeze-frame hand-off
+        const grow = new Sprite(gs[0]);
+        grow.anchor.set(0.5, 1);
+        grow.position.set(cx, rr.y + rr.h);
+        grow.scale.set((spr.height || rr.h) / gs[0].height);
+        grow.alpha = this.expandStyle.plantAlpha;
+        grow.eventMode = 'none';
+        this.stickyContainer.addChild(grow);
+        this.stickyRevealObjects.push(grow);
+        const gi = { f: 0 };
+        const growDur = Math.max(0.06, T_LOCK - T_RACE);
+        this.stickyRevealTweens.push(gsap.to(gi, {
+          f: last, duration: growDur, ease: 'power1.in', // accelerating bloom
+          onUpdate: () => {
+            const idx = Math.min(last, Math.max(0, Math.round(gi.f)));
+            if (grow.texture !== gs[idx]) grow.texture = gs[idx];
+          },
+          onComplete: () => {
+            spr.alpha = this.expandStyle.plantAlpha; // reveal crisp static tower
+            if (grow.parent) grow.parent.removeChild(grow);
+          },
+          delay: T_RACE,
+        }));
       } else {
         const reveal = { t: 0 };
         tl.to(reveal, {

@@ -1,7 +1,7 @@
 // PixiJS Application — initialises the WebGL canvas and manages the game scene.
 // Lifecycle is owned by the GameCanvas React component via useEffect.
 
-import { Application, Assets, BlurFilter, Container, Graphics, Rectangle, Sprite, Text, TextStyle, Texture, Ticker } from 'pixi.js';
+import { Application, Assets, BlurFilter, Container, Filter, Graphics, Rectangle, Sprite, Text, TextStyle, Texture, Ticker } from 'pixi.js';
 import { gsap } from 'gsap';
 import { ReelSet, type ReelSetAudioHooks } from './ReelSet';
 import { setActiveGrid, type GridConfig } from '@/config/gridConfig';
@@ -312,9 +312,15 @@ export class PixiApp {
         resizeTo: canvas.parentElement ?? canvas,
         background: CANVAS_THEME.modes.dark.rendererBg,
         antialias: true,
-        // DPR cap 2 (research/slot-feel/11): DPR-3 phones are fill-rate
-        // limited; 2× is visually identical at slot viewing distance.
-        resolution: Math.min(window.devicePixelRatio ?? 1, 2),
+        // Render resolution FLOOR 2, CAP 2 (research/slot-feel/11 + sharpness
+        // probe 2026-07-20). Symbols display at ~110-126px from 512² art (~4×
+        // minification). On a DPR-1 display the GPU samples the 128² mip → soft;
+        // the pig looks crisp only because it renders near 1:1 at 267px. Forcing
+        // resolution 2 supersamples the whole scene (backing = 2× the CSS box,
+        // browser box-filters it back down) so small symbols resolve from the
+        // 256² mip → pig-level crispness at any DPR. Cap 2: DPR-3 phones are
+        // fill-rate limited and 2× is visually identical at slot distance.
+        resolution: Math.max(2, Math.min(window.devicePixelRatio ?? 1, 2)),
         autoDensity: true,
       }),
       loadSymbolAtlases(),
@@ -322,6 +328,15 @@ export class PixiApp {
         ? preloadLucideTextures(iconEntries, this.lucideCache, 96)
         : Promise.resolve(new Map<number, Texture>()),
     ]);
+
+    // Filters default to resolution 1 → on the floor-2 render they sample at
+    // HALF density, so the reel SPIN-BLUR (frozen Reel.ts, creates its
+    // BlurFilter with no resolution) left symbols soft right up to the landing
+    // snap ("alter blur look" kurz vorm Landen). Make every filter INHERIT the
+    // render-target resolution instead — the settling symbols stay crisp while
+    // only the motion blur fades. Global default so the frozen reel picks it up
+    // without being touched; explicit per-filter resolutions still win.
+    Filter.defaultOptions.resolution = 'inherit';
 
     // If destroy() ran while these resources were loading, drop everything
     // and exit cleanly. The renderer was successfully attached to the
@@ -863,6 +878,13 @@ export class PixiApp {
         { pixels: Uint8ClampedArray; width: number; height: number };
       probe.destroy();
       const px = out.pixels, tw = out.width, th = out.height;
+      // extract.pixels renders at the RENDERER RESOLUTION, so tw/th are
+      // resolution× the texture's logical size (2× since the sharpness floor).
+      // The Sprite below is scaled in texture-LOGICAL space, so every measured
+      // window / overhang coordinate must be converted back with these factors
+      // — otherwise win.w comes out 2× too big, sx halves, and the frame shrinks
+      // to half size (reels overflow the barn window). No-op at resolution 1.
+      const kx = tex.width / tw, ky = tex.height / th;
       const a = (x: number, y: number) => px[(y * tw + x) * 4 + 3];
       if (!win) {
         const cx = tw >> 1, cy = th >> 1;
@@ -873,7 +895,7 @@ export class PixiApp {
           for (let x = cx; x >= 0; x--) if (a(x, cy) > 16) { lef = x + 1; break; }
           for (let x = cx; x < tw; x++) if (a(x, cy) > 16) { rig = x - 1; break; }
           if (rig - lef > tw * 0.2 && bot - top > th * 0.2) {
-            win = { x: lef, y: top, w: rig - lef + 1, h: bot - top + 1 };
+            win = { x: lef * kx, y: top * ky, w: (rig - lef + 1) * kx, h: (bot - top + 1) * ky };
           }
         }
       }
@@ -884,8 +906,10 @@ export class PixiApp {
           for (let x = tw - 1; x > maxX; x--) if (a(x, y) > 16) { maxX = x; break; }
         }
         if (maxX >= 0) {
-          ovL = Math.max(0, win.x - minX);
-          ovR = Math.max(0, maxX - (win.x + win.w));
+          // win is already texture-logical (auto-detected above, or caller-given);
+          // minX/maxX are extract-space → scale them to match before differencing.
+          ovL = Math.max(0, win.x - minX * kx);
+          ovR = Math.max(0, maxX * kx - (win.x + win.w));
         }
       }
     } catch { /* extract unavailable — keep explicit/legacy mapping */ }
@@ -3228,6 +3252,21 @@ export class PixiApp {
       if (!this._aborted) this.reelSet.setExpandingWildTexture(tex);
     } catch (err) {
       console.warn('[PixiApp] failed to load expanding wild image:', err);
+    }
+  }
+
+  /** Frame-by-frame plant-GROW spritesheet for Crack Farm bottom-up wild
+   *  landings (sprout → full plant). The last frame must match the expanding
+   *  wild image so the freeze onto the static tower is seamless. Pass url=null
+   *  to fall back to the static mask-wipe reveal. */
+  async setExpandGrowSheet(url: string | null, cols: number, rows: number, count: number, fps = 40): Promise<void> {
+    if (!this._initialized || this._aborted) return;
+    if (!url) { this.reelSet?.setExpandGrowSheet(null); return; }
+    try {
+      const frames = await this.sliceSheetHD(url, cols, rows, count);
+      if (!this._aborted) this.reelSet?.setExpandGrowSheet(frames, fps);
+    } catch (err) {
+      console.warn('[PixiApp] failed to load expand grow sheet:', err);
     }
   }
 

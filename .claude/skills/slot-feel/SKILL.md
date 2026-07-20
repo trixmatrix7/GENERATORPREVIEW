@@ -12,8 +12,11 @@ Destillat aus `research/slot-feel/00-16` (Studio-Formeln, vermessene Video-Groun
 
 1. **Research first (Noski-Arbeitsregel):** Vor JEDEM Feature erst research/slot-feel/ checken;
    fehlt das Thema → Video-/Web-Recherche, Findings als NEU NUMMERIERTER Report ablegen.
-2. Jede neue vermessene Erkenntnis und jede Noski-Korrektur wird HIER als Regel ergänzt
-   (kurz, mit Report-Verweis) — dieser Skill ist die Summe, die Reports sind der Beleg.
+2. **JEDER Fortschritt bei EGAL WAS gehört HIER rein (Noski-Regel 2026-07-20, hart):** nicht nur
+   vermessene Research — auch jede Noski-Korrektur, jeder Look-/Crispiness-/Animations-/
+   Engineering-Fortschritt, jeder Fix. Sofort als kurze Regel ergänzen, mit Verweis auf Report
+   ODER `[[memory]]` ODER `file.ts:zeile`. Der Skill ist die lebende Summe von ALLEM, was wir
+   gelernt haben — wenn etwas besser wurde, steht das WARUM/WIE hier, sonst geht es wieder verloren.
 3. Video-Analyse-Methode: research/tools/analyze_slot_video.py (Audio-Onsets + Reel-Motion)
    + Frame-Sweep 1-2fps + gezielte 10-30fps-Bursts auf jede Unklarheit. Nie schätzen — messen.
 
@@ -38,8 +41,17 @@ Betrag NUR als Bottom-HUD-Formel „LINIE n ZAHLT base × mult = total"). **Crac
 - Verlust-Spin: **absolut nichts** (keine Präsentation, direkt Idle).
 
 **Multiplikator-Türme (Roaming/Sticky, Report 14 §3):**
-- Roaming-Wechsel = **kontinuierlicher GLIDE** über die rollenden Reels (~2s, Pop-out 1,1–1,5×,
-  Lean 15–20° in Fahrtrichtung), kein Teleport, kein Neu-Wachsen (preGrown-Park + Slam).
+- **Relocation = aufrechter Tanz ÜBER die Reels (2026-07-20 Noski-Korrektur, ref `wild storm .mov`;
+  ERSETZT das alte "Lean 15-20°"):** der Plant/Tornado-Ghost bleibt **DEAD VERTIKAL und EBEN** —
+  KEIN Kippen/Lean, KEIN vertikaler Bogen. Er wischt links↔rechts über die Reels (Route: äußeres
+  Reel → anderes äußeres → Ziel), Speed NUR über horizontale Squash-Stretch, weiche `power3.out`-
+  Landung OHNE Overshoot, dann steht er still. Übergabe via `glideArrival` → preGrown-Park mit
+  cleanem `back.out(1.6)`-Grow (nicht springy). Kein Teleport, kein Neu-Wachsen. Das alte
+  Lean+Overshoot+Snap-back las sich für Noski "unclean". [[crackfarm-plant-relocation-dance]]
+- **Erst-Landung = echte Frame-by-Frame-GROW-Clip** (Crack Farm): der Wild wächst als Sheet-
+  Animation (Spross→volle Fliegenfalle) statt Mask-Wipe über Static; friert nahtlos auf
+  `wild_column.png` (= letzter Grow-Frame) ein, Bloom landet auf dem Lock-in-Slam. Nur bei
+  Erst-Landung (nicht preGrown/Relocation). `ReelSet.setExpandGrowSheet`.
 - Badge sitzt am **Turm-BODEN**; **Debüt erst nach dem ersten beteiligten Win** (kein 1×-Badge).
 - Upgrade: alte Zahl instant weg, neue spawnt klein+dimm über dem Slot, driftet ~0,12s rein,
   Pop ≤100ms; **nach einem Marquee verzögert**. Win-Plaque tickt live "base ×1…×N" (90ms/Step,
@@ -72,16 +84,46 @@ GESAMTGEWINN wird still hinter dem Marquee verrechnet.
 
 ## 3. Crispy-HD-Regeln (Pixi, Reports 11 + 14-Lektionen)
 
-- DPR-Cap 2, autoDensity; **nie über Author-Größe skalieren** (Art in 2× Displaygröße authoren).
+- **Renderer-Resolution FLOOR 2, nicht nur Cap (2026-07-20, DER Crispiness-Durchbruch):** DPR-1-
+  Monitore (Preview-Pane meldet `devicePixelRatio===1`) samplen sonst die weiche **128²-Mip** von
+  512²-Art in ~110-126px-Zellen (≈4× Minification) → matt/blurry; das Maskottchen wirkt nur scharf,
+  weil es nahe 1:1 rendert (320²→267px). Fix: `resolution: Math.max(2, Math.min(dpr,2))` in
+  `PixiApp.init` → supersampled global (Backing = 2× CSS-Box, Browser boxt runter) → Symbole lösen
+  aus der 256²-Mip = knackscharf bei jedem DPR. Cap bleibt 2 (Fill-Rate). Global → hilft Vice mit.
+  Diagnose: `__pixi.app.renderer.resolution` + Sprite `texture.source.width` vs gerendertes `width`.
+  [[pixi-sharpness-resolution-floor]]
+- **`extract.pixels` rendert in Renderer-Resolution** (Falle beim Floor 2): Rückgabe-`width/height`
+  sind `resolution×` der Textur-Logik. Layout-Mathe die darauf rechnet (z.B. `setFrameImage`
+  Alpha-Fenster-Erkennung des Barn-Rahmens) MUSS mit `kx=tex.width/tw, ky=tex.height/th` zurück in
+  Textur-Logik-Space normieren — sonst kommt das Fenster 2× zu breit raus, sx halbiert, Rahmen
+  schrumpft auf halbe Größe ("Rahmen verschoben"). No-op bei Resolution 1.
+- **nie über Author-Größe skalieren** (Art in 2× Displaygröße authoren).
 - Heavy-Downscale-Einzeltexturen: mipmaps + maxAnisotropy 8 + source.update().
 - **Atlas-Frames können NICHT mipmappen (Bleed)** → Symbol-Sheets beim Laden in EINZELNE
   Canvas-Texturen slicen (`PixiApp.sliceSheetHD`), dann mipmaps+aniso pro Frame. Downscale
   ohne Mipmaps = Alias-Flimmern in Bewegung ("pixelig").
+- **Filter-Default GLOBAL auf `Filter.defaultOptions.resolution = 'inherit'` setzen (2026-07-20,
+  direkt nach `app.init`):** Pixis Default ist `resolution: 1` → JEDER Filter ohne eigene Resolution
+  (u.a. der Reel-SPIN-BLUR im FROZEN `Reel.ts`, der seinen BlurFilter ohne Resolution baut) rendert
+  auf der Floor-2-Szene mit HALBER Dichte → Symbole bleiben bis zum Landen-Snap weich ("alter Blur-
+  Look kurz vorm Landen", Noski). Global auf 'inherit' → der eingefrorene Reel-Blur erbt volle Res
+  OHNE Reel.ts anzufassen; die absetzenden Symbole bleiben scharf, nur der Motion-Blur (strengthY→0)
+  faded. Verify: Spin auslösen, `reels[0].container.filters[0].resolution === 'inherit'`.
 - **Filter auf Zellen/Symbolen: grundsätzlich vermeiden.** Wenn unvermeidbar: `resolution:
   'inherit'` + `antialias: 'inherit'` (Default-Resolution 1 halbiert auf DPR-2 die Dichte).
   Brightness-Filter BLEICHEN die Art (blasser Matt-Film) — Emphase stattdessen als additives
   Licht HINTER dem Symbol (Backlight-Burst) oder echte Art-Varianten.
 - Charakter-Sheets: HD authoren (Frame ≥ Displaygröße), >4096px in mehrere Sheets splitten.
+- **mp4-gebackene Symbol-Sheets DRIFTEN farblich (2026-07-20, Noski: "kein Kontrast, Farbe nicht
+  gleich"):** H.264 + Chroma-Key macht Win-/Land-Sheets ~30-40% entsättigt, kontrastärmer, mit
+  Blau-/Magenta-Stich vs die statischen PNG-Bakes. Fix: pro Sheet ein per-Kanal-(Mean,Std)-
+  Transfer vom RUHENDEN letzten Frame → Static, auf ALLE Frames anwenden (Ruhepose matcht Static,
+  Animation weicht natürlich ab); + Despill (`B=min(B,G)`) + Edge-Bleed gegen Magenta-Rand. Eine
+  ANDERE Pose (z.B. Wild-Win = Blüte statt Topf-Static) NUR sanft nachsättigen, nie mean-matchen.
+  **Und Identität prüfen:** mp4-Symbolreihenfolge ≠ Static-Bake-Reihenfolge → mid_c/mid_d waren
+  vertauscht (Hund↔Schaf). Beim Sheet-Adden IMMER Static vs Sheet pro Symbol montieren. Verify:
+  PNG in-page fetchen + Opak-Pixel-Sättigung/Luminanz messen (extract.pixels ist auf WebGL schwarz).
+  [[sheet-from-mp4-grade-and-identity]]
 - **Frosted-Reel-Pane ist theme-abhängig** (`PixiApp.setReelFrosted`): das geblurte BG-Duplikat
   hinter den Symbolen passt zu dunklen Neon-Themes (Vice); bei hellen/warmen BGs scheint es
   durch transparente Symbol-Ecken als milchig-weißer Schleier — für solche Themes AUS.

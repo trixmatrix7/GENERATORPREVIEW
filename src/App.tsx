@@ -146,13 +146,8 @@ export function App() {
         : crackFarmSymbolMap();
       track(pixiAppRef.setUserAssetTextures(cfSymbols));
       track(pixiAppRef.setBackgroundImage(saved.bg ?? CRACKFARM.bgBase));
-      // LIVING base background (Noski's night-farm mp4 → 3×(4×4) sheets = 48
-      // frames @8fps, loops every spin). The static paints instantly, then the
-      // loop takes over. No custom-bg override → use the animated barn.
-      if (!saved.bg) void pixiAppRef.setBackgroundSpritesheet(
-        [`${cf}bg_base_anim_1.webp`, `${cf}bg_base_anim_2.webp`, `${cf}bg_base_anim_3.webp`],
-        4, 4, 48, 8,
-      );
+      // BASE background is STATIC (Noski) — the still barn scene, no loop. The
+      // animated bg_base_anim sheets are kept in /theme/crackfarm/ but not wired.
       track(pixiAppRef.setTitleImage(CRACKFARM.logo));
       STATIC_LOOK_SYMBOLS.add(1);
       NO_IDLE_SYMBOLS.add(0);
@@ -217,6 +212,9 @@ export function App() {
       // white beam read generic.
       pixiAppRef.applyVisualParam('waysLightColor', 'green');
       void pixiAppRef.setExpandingWildImage(saved.expandingWild ?? CRACKFARM.expandingWild);
+      // Frame-by-frame plant GROW clip (sprout → full flytrap) plays on the
+      // first wild landing; freezes on wild_column.png (its last frame).
+      void pixiAppRef.setExpandGrowSheet(`${cf}wild_grow_sheet.png`, 6, 4, 24, 40);
       // Barn frame — alpha window auto-detected from the transparent centre.
       track(pixiAppRef.setFrameImage(saved.frame ?? CRACKFARM.frame));
       void pixiAppRef.setFreeSpinsBackgroundImage(saved.fsBg ?? CRACKFARM.bgFs);

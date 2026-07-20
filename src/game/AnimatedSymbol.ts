@@ -37,6 +37,10 @@ import { SYMBOL_HEIGHT, SYMBOL_WIDTH } from './symbolMetrics';
  *  'win' state, replacing the static art). Filled by PixiApp.setSymbolWinSheet. */
 export const SYMBOL_WIN_SHEETS = new Map<number, { frames: Texture[]; fps: number }>();
 
+/** symbolId → LANDING-state spritesheet (played ONCE when the symbol settles,
+ *  then hands back to the static art). Filled by PixiApp.setSymbolLandSheet. */
+export const SYMBOL_LAND_SHEETS = new Map<number, { frames: Texture[]; fps: number }>();
+
 /** Symbols whose WIN sheet is already a FULL FRAMED TILE (Crack Farm: the
  *  connection clip includes the wooden frame). For these the soft-edge vignette
  *  mask is WRONG — it melts the frame away so the character reads as zoomed-in
@@ -139,6 +143,9 @@ export class AnimatedSymbol extends Container {
   private winSheetTween: gsap.core.Tween | null = null;
   private preSheetIconVisible = false;
   private preSheetShadowVisible = false;
+  /** LANDING-spritesheet overlay — plays ONCE on settle (see startLandSheet). */
+  private landSheetSprite: Sprite | null = null;
+  private landSheetTween: gsap.core.Tween | null = null;
   /** IDLE-spritesheet overlay (see SYMBOL_IDLE_SHEETS / syncIdleSheet). */
   private idleSheetSprite: Sprite | null = null;
   private idleSheetTween: gsap.core.Tween | null = null;
@@ -267,6 +274,14 @@ export class AnimatedSymbol extends Container {
       return; // no other win effect on top
     }
     this.stopWinSheet();
+
+    // LANDING sheet: plays ONCE as the symbol settles (Noski's landing clips),
+    // then hands back to the static art. The sheet IS the landing animation.
+    if (state === 'landing' && SYMBOL_LAND_SHEETS.has(this.symbolId)) {
+      this.startLandSheet();
+      return;
+    }
+    this.stopLandSheet();
 
     const supported = this.supportedStates();
     if (!supported.includes(state)) return;
@@ -448,6 +463,52 @@ export class AnimatedSymbol extends Container {
         try { spr.destroy({ children: true }); } catch { /* torn down */ }
       },
     });
+  }
+
+  /** LANDING sheet: play the symbol's landing clip ONCE on the static art's
+   *  exact footprint (framed tile, no vignette), then hand back to the icon. */
+  private startLandSheet(): void {
+    if (this.landSheetSprite) return;
+    const sheet = SYMBOL_LAND_SHEETS.get(this.symbolId);
+    if (!sheet || sheet.frames.length === 0) return;
+    const cell = Math.min(SYMBOL_WIDTH, SYMBOL_HEIGHT);
+    const frameW = sheet.frames[0].width || 256;
+    const restW = this.iconSprite ? this.iconSprite.width : cell * 0.94;
+    const spr = new Sprite(sheet.frames[0]);
+    spr.anchor.set(0.5);
+    spr.scale.set(restW / frameW);
+    spr.eventMode = 'none';
+    this.inner.addChild(spr);
+    this.landSheetSprite = spr;
+    // The static icon hides under the clip while it plays.
+    const iconWas = this.iconSprite?.visible ?? false;
+    const shadowWas = this.iconShadow?.visible ?? false;
+    if (this.iconSprite) this.iconSprite.visible = false;
+    if (this.iconShadow) this.iconShadow.visible = false;
+    const proxy = { f: 0 };
+    this.landSheetTween = gsap.to(proxy, {
+      f: sheet.frames.length - 1,
+      duration: sheet.frames.length / sheet.fps,
+      ease: 'none',
+      repeat: 0,   // ONE-SHOT
+      onUpdate: () => { spr.texture = sheet.frames[Math.round(proxy.f) % sheet.frames.length]; },
+      onComplete: () => {
+        if (this.iconSprite) this.iconSprite.visible = iconWas;
+        if (this.iconShadow) this.iconShadow.visible = shadowWas;
+        this.stopLandSheet();
+      },
+    });
+  }
+
+  private stopLandSheet(): void {
+    if (this.landSheetTween) { this.landSheetTween.kill(); this.landSheetTween = null; }
+    const spr = this.landSheetSprite;
+    if (!spr) return;
+    this.landSheetSprite = null;
+    if (this.iconSprite && !this.iconSprite.visible) this.iconSprite.visible = true;
+    if (this.iconShadow && !this.iconShadow.visible) this.iconShadow.visible = true;
+    spr.parent?.removeChild(spr);
+    try { spr.destroy({ children: true }); } catch { /* torn down */ }
   }
 
   /** Trace a bright outline around the symbol's silhouette (the object only —

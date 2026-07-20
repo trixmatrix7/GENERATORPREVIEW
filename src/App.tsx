@@ -166,14 +166,26 @@ export function App() {
       void pixiAppRef.setSymbolWinSheet(3, `${cf}symbol_high_b_win.png`, 6, 4, 24, 10);
       void pixiAppRef.setSymbolWinSheet(4, `${cf}symbol_mid_c_win.png`, 6, 4, 24, 10);
       void pixiAppRef.setSymbolWinSheet(5, `${cf}symbol_mid_d_win.png`, 6, 4, 24, 10);
-      void pixiAppRef.setSymbolWinSheet(6, `${cf}symbol_low_e_win.png`, 6, 4, 24, 10); // pumpkin
-      void pixiAppRef.setSymbolWinSheet(7, `${cf}symbol_low_f_win.png`, 6, 4, 24, 10);
+      void pixiAppRef.setSymbolWinSheet(6, `${cf}symbol_low_e_win.png`, 6, 4, 24, 10); // carrot
+      void pixiAppRef.setSymbolWinSheet(7, `${cf}symbol_low_f_win.png`, 6, 4, 24, 10); // corn
+      void pixiAppRef.setSymbolWinSheet(8, `${cf}symbol_low_g_win.png`, 6, 4, 24, 10); // slime bucket
+      void pixiAppRef.setSymbolWinSheet(1, `${cf}symbol_scatter_win.png`, 6, 4, 24, 12); // SCATTER
+      // Per-symbol LANDING clips — play ONCE on the drop, then hand back to the
+      // static tile (Noski: "landing einmal"). Wild(0) stays a static pot,
+      // scatter(1) keeps its own win clip only.
+      void pixiAppRef.setSymbolLandSheet(2, `${cf}symbol_high_a_landanim.png`, 6, 4, 24, 16);
+      void pixiAppRef.setSymbolLandSheet(3, `${cf}symbol_high_b_landanim.png`, 6, 4, 24, 16);
+      void pixiAppRef.setSymbolLandSheet(4, `${cf}symbol_mid_c_landanim.png`, 6, 4, 24, 16);
+      void pixiAppRef.setSymbolLandSheet(5, `${cf}symbol_mid_d_landanim.png`, 6, 4, 24, 16);
+      void pixiAppRef.setSymbolLandSheet(6, `${cf}symbol_low_e_landanim.png`, 6, 4, 24, 16);
+      void pixiAppRef.setSymbolLandSheet(7, `${cf}symbol_low_f_landanim.png`, 6, 4, 24, 16);
+      void pixiAppRef.setSymbolLandSheet(8, `${cf}symbol_low_g_landanim.png`, 6, 4, 24, 16);
       // Crack Farm's win clips are full framed tiles → render 1:1 on the static
       // footprint, no soft-mask vignette (fixes the dark zoom-in — Noski).
       // WILD(0) gets NO 1×1 win sheet: the tall-plant connection clip blew the
       // small cell up ("wild eimer viel zu groß"); the pot plays a normal win.
       // The wild connection + growing clips belong on the EXPANDED plant.
-      for (const id of [2, 3, 4, 5, 6, 7]) SYMBOL_WIN_SHEET_FRAMED.add(id);
+      for (const id of [1, 2, 3, 4, 5, 6, 7, 8]) SYMBOL_WIN_SHEET_FRAMED.add(id);
       // FARMER: removed entirely (Noski — "den bauer rechts weg machen, auch
       // base game"). No side character on this theme.
       // The FLYING PIG hovers LEFT of the barn (mockup: ~0.45× frame height,

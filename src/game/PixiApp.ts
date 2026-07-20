@@ -9,7 +9,7 @@ import { WIN_LINE_PRESETS, WIN_COIN_PRESETS, ACCENT_PRESETS } from '@/config/adj
 import { waysLightConfig, WAYS_LIGHT_PRESETS, WAYS_LIGHT_SPEED_MS, WAYS_LIGHT_WIDTH_PX } from './effects/WaysLightComet';
 import { waysImmersiveConfig } from './effects/WaysImmersive';
 import { stickyWildConfig, STICKY_WILD_PRESETS, STICKY_WILD_SPEED_MS } from './effects/StickyWildShine';
-import { SYMBOL_WIN_SHEETS, SYMBOL_IDLE_SHEETS, AnimatedSymbol } from './AnimatedSymbol';
+import { SYMBOL_WIN_SHEETS, SYMBOL_IDLE_SHEETS, SYMBOL_LAND_SHEETS, AnimatedSymbol } from './AnimatedSymbol';
 import { fxById } from './effects/fxRegistry';
 import { mechById } from './effects/mechRegistry';
 import type { FxContext } from './effects/fxTypes';
@@ -1484,6 +1484,21 @@ export class PixiApp {
       SYMBOL_WIN_SHEETS.set(symbolId, { frames, fps });
     } catch (err) {
       console.warn('[PixiApp] failed to load symbol win sheet:', err);
+    }
+  }
+
+  /** Per-symbol LANDING spritesheet: plays ONCE as the symbol settles, then
+   *  hands back to the static art. Same slicing rules as setSymbolWinSheet. */
+  async setSymbolLandSheet(symbolId: number, url: string | null, cols: number, rows: number, count: number, fps = 12): Promise<void> {
+    const old = SYMBOL_LAND_SHEETS.get(symbolId);
+    SYMBOL_LAND_SHEETS.delete(symbolId);
+    if (old) for (const f of old.frames) { try { f.destroy(true); } catch { /* torn down */ } }
+    if (!url) return;
+    try {
+      const frames = await this.sliceSheetHD(url, cols, rows, count);
+      SYMBOL_LAND_SHEETS.set(symbolId, { frames, fps });
+    } catch (err) {
+      console.warn('[PixiApp] failed to load symbol land sheet:', err);
     }
   }
 

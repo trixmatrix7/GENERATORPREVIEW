@@ -7,6 +7,7 @@ import { SpinButton } from './components/SpinButton';
 import { RecentBets } from './components/RecentBets';
 import { AudioControl } from './components/AudioControl';
 import { SoundParamsPanel } from './components/SoundParamsPanel';
+import { SoundLibraryPanel } from './components/SoundLibraryPanel';
 import { previewWin } from '@/engine/SlotEngine';
 import { GAME_CONFIG } from '@/config/gameConfig';
 import { WinTierTestPanel } from '@/dev/WinTierTestPanel';
@@ -137,6 +138,15 @@ export function Sidebar({ gameState, snapshot, onBetChange, onSpin, onSkip, onAu
             </summary>
             <div className="mt-2">
               <SoundParamsPanel soundManager={soundManager} />
+            </div>
+          </details>
+          {/* Curated CC0 library — pick, hear, it's live in the build. */}
+          <details className="mt-2">
+            <summary className="cursor-pointer select-none text-[10px] font-medium uppercase tracking-[0.07em] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]">
+              Sound-Bibliothek
+            </summary>
+            <div className="mt-2">
+              <SoundLibraryPanel soundManager={soundManager} />
             </div>
           </details>
         </div>

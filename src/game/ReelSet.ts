@@ -3116,6 +3116,25 @@ export class ReelSet {
     for (const s of this.separators) s.visible = v;
   }
 
+  /** BONUS (scatter) renders IN FRONT of every other symbol (Noski): raise
+   *  scatter cells inside their reel AND the whole reel column that carries
+   *  one (cross-reel overlap — the basket art overhangs its cell). */
+  elevateScatterCells(): void {
+    this.clipContainer.sortableChildren = true;
+    for (const reel of this.reels) {
+      let has = false;
+      for (let row = 0; row < this.grid.visibleRows; row++) {
+        const cell = reel.getVisibleCell(row);
+        if (!cell) continue;
+        if (cell.symbol === SymbolId.SCATTER) {
+          has = true;
+          try { cell.parent?.setChildIndex(cell, cell.parent.children.length - 1); } catch { /* buffer cells */ }
+        }
+      }
+      reel.container.zIndex = has ? 5 : 0;
+    }
+  }
+
   /** DROP-OUT (cluster construct, replaces the reel spin): the standing board
    *  falls away downward, column by column — the grid then waits empty. */
   async playFruitDropOut(opts: { isLive: () => boolean; turbo?: boolean }): Promise<void> {
@@ -3213,6 +3232,7 @@ export class ReelSet {
         if (!opts.turbo) cell.playLandBounce(); // subtle knick per landing
       }
     }
+    this.elevateScatterCells(); // BONUS in front of everything (Noski)
   }
 
   showFruitPlaque(initial = ''): void {
@@ -3536,6 +3556,7 @@ export class ReelSet {
         if (moved && !opts.turbo) cell.playLandBounce();
       }
     }
+    this.elevateScatterCells(); // BONUS in front of everything (Noski)
   }
 
 }

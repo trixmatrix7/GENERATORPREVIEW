@@ -540,6 +540,22 @@ export function App() {
     soundManager.replaceSource('reel-spin-loop', [`${C}reel-spin-loop.ogg`], 0.24, false);
   }, [soundManager]);
 
+  // SOUND-LIBRARY picks (studio "Sound-Bibliothek"): a saved selection WINS
+  // over the game pack's default source for that event — applied last, so a
+  // build carries exactly the sounds Noski picked (and exports them). Runs
+  // after the crackfarm effect above (hook order = declaration order).
+  useEffect(() => {
+    const picks = loadAssets().sounds ?? {};
+    for (const [eventId, url] of Object.entries(picks)) {
+      if (typeof url !== 'string' || !url) continue;
+      // A muted-by-design event (volume 0 = "no approved sound yet") becomes
+      // audible the moment Noski picks a library sound for it — the pick IS
+      // the approval.
+      const design = soundManager.getEventDefault(eventId);
+      soundManager.replaceSource(eventId, [url], design > 0 ? undefined : 0.5);
+    }
+  }, [soundManager]);
+
   useEffect(() => {
     if (!pixiApp) return;
     // FS intro/iris covers the screen — hide the control bar like the game intro.

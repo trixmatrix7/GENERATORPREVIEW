@@ -14,6 +14,9 @@ export interface SavedAssets {
   fsBg?: string | null;
   /** Expanding-wild column art — 512×2560 px on 5×5, 512×1484 px on 5×3. */
   expandingWild?: string | null;
+  /** Sound-library picks: eventId → library OGG url. Applied after the
+   *  game's default sound wiring; snapshotted into builds + exports. */
+  sounds?: Record<string, string>;
 }
 
 /** Full-replace variant for preset apply: overwrites every known key. */
@@ -25,6 +28,7 @@ export function replaceAssets(next: SavedAssets): void {
       frame: next.frame ?? null,
       fsBg: next.fsBg ?? null,
       expandingWild: next.expandingWild ?? null,
+      sounds: next.sounds ?? {},
     }));
   } catch { /* quota — skip */ }
 }

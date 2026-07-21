@@ -54,18 +54,29 @@ function persist(builds: SavedBuild[]): void {
   try { localStorage.setItem(BUILDS_KEY, JSON.stringify(builds)); } catch { /* quota */ }
 }
 
-/** Snapshot the CURRENT state under a name and add it to the dock. */
+/** SAVE BUILD (Noski): overwrites the ACTIVE slot in place — "Create New
+ *  Build" is the only way to open a fresh slot. With no active slot (e.g.
+ *  standing on a built-in game like Crack Farm) the first save creates the
+ *  slot and makes it active, so every save after lands in that same slot. */
 export function saveBuild(name: string): SavedBuild[] {
-  const b: SavedBuild = {
-    id: Date.now(),
-    name,
-    createdAt: Date.now(),
+  const snapshot = {
     gridId: loadGridId(),
     mathProfileId: loadMathProfileId(),
     bare: isBareBuild(),
     assets: loadAssets(),
   };
-  const next = [...listBuilds(), b];
+  const builds = listBuilds();
+  const activeId = activeBuildId();
+  const idx = activeId !== null ? builds.findIndex(b => b.id === activeId) : -1;
+  if (idx >= 0) {
+    // overwrite in place — keep id + createdAt, refresh the rest
+    const cur = builds[idx];
+    builds[idx] = { ...cur, ...snapshot, name: name || cur.name };
+    persist(builds);
+    return builds;
+  }
+  const b: SavedBuild = { id: Date.now(), name, createdAt: Date.now(), ...snapshot };
+  const next = [...builds, b];
   persist(next);
   try { localStorage.setItem(ACTIVE_KEY, String(b.id)); } catch { /* quota */ }
   return next;
@@ -184,6 +195,9 @@ export function buildExportPreset(name: string): Record<string, unknown> {
     },
     audio: bare ? {} : {
       dir: 'audio/',
+      // Sound-library picks (eventId -> library OGG) — the exported game
+      // must ship EXACTLY the sounds Noski fixed into the build.
+      libraryPicks: o.sounds ?? {},
       events: ['ambient-music', 'win-marquee', 'spin-start', 'reel-stop', 'coin-chime', 'wild-land', 'wild-expand', 'scatter-land', 'near-miss-tease', 'free-spin-trigger'],
       oggFirst: true,
       marqueeDucksAmbient: true,

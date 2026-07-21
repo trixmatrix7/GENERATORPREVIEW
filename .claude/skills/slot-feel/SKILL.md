@@ -126,6 +126,10 @@ GESAMTGEWINN wird still hinter dem Marquee verrechnet.
   Brightness-Filter BLEICHEN die Art (blasser Matt-Film) — Emphase stattdessen als additives
   Licht HINTER dem Symbol (Backlight-Burst) oder echte Art-Varianten.
 - Charakter-Sheets: HD authoren (Frame ≥ Displaygröße), >4096px in mehrere Sheets splitten.
+- **Bildgen-Prompt-Regeln (Noski, hart, 2026-07-21):** NIE "casino"/"slot" im Prompt; NUR
+  Design-Inhalt (kein "game"/"asset", keine Masse - Sizing macht Noski); Artstyle illustrated/
+  gezeichnet: hand-drawn illustration + bold clean outlines + smooth cel shading + rich saturated
+  colors + soft painterly highlights, identischer Wortlaut pro Set. [[feedback-higgsfield-prompt-rules]]
 - **mp4-gebackene Symbol-Sheets DRIFTEN farblich (2026-07-20, Noski: "kein Kontrast, Farbe nicht
   gleich"):** H.264 + Chroma-Key macht Win-/Land-Sheets ~30-40% entsättigt, kontrastärmer, mit
   Blau-/Magenta-Stich vs die statischen PNG-Bakes. Fix: pro Sheet ein per-Kanal-(Mean,Std)-
@@ -208,7 +212,12 @@ GESAMTGEWINN wird still hinter dem Marquee verrechnet.
 
 ## 7. Offene Referenz-Themen
 
-- Reports 14 (Wild Storm), 15 (Ways ×10), 16 (Paylines cross-studio) = FERTIG & vermessen.
+- Reports 14 (Wild Storm), 15 (Ways ×10), 16 (Paylines cross-studio), 18 (Fruit Stacks /
+  Winna-Trillion 6×5-Scatter-Pays-Tumbler Ground Truth) = FERTIG & vermessen. Fruit-Stacks-
+  Bau-Regeln: Tumble NUR im Non-Frozen-Layer orchestrieren (PixiApp.resolve-Loop +
+  ReelSet-Cascade-Methode via getVisibleBoard/setSymbol; FS-Sub-Spin-Loop = Präzedenz);
+  frozen uint8[5]-Decode via Decode-Façade in useGameState.ts umgehen (Hold&Win-Re-Enactment-
+  Muster); Theme-Prompts `design/fruit-stacks/HIGGSFIELD_PROMPTS.md`.
 - Offene Präsentations-Deltas (nach Noski-Freigabe, Report 16 §3): P6 grüner Slime-Beam
   (Crack Farm), P3 Winner-Wiggle, P1/D4 Label-Stacking, P2 Beam<Label-Entkopplung, P5
   Deferred-Badge-Reveal am Stop. Vice-Ways-Deltas W1–W5 (Report 15 §6) — nur mit Go, weil

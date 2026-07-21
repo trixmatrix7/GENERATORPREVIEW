@@ -14,12 +14,13 @@ import { ControlBar } from '@/ui/ControlBar';
 import { BonusBuyOverlay } from '@/ui/BonusBuyOverlay';
 import { StudioDrawer } from '@/studio/StudioDrawer';
 import { DEFAULT_GAME_CONFIG, type GameConfig } from '@/engine/GameConfig';
-import { GRID_5x3, GRID_5x5 } from '@/config/gridConfig';
+import { GRID_5x3, GRID_5x5, GRID_6x5 } from '@/config/gridConfig';
 import { PresetDock, loadGridId, type GridId } from '@/dev/PresetDock';
 import { mathProfileById, loadMathProfileId, saveMathProfileId } from '@/config/mathProfiles';
 import { getThemeByName } from '@/config/themes';
 import { viceSymbolMap, VICE_INTRO_URL } from '@/config/viceAssets';
 import { CRACKFARM, crackFarmSymbolMap, crackFarmGameIntro } from '@/config/crackFarmTheme';
+import { FRUITSTACKS, fruitStacksSymbolMap } from '@/config/fruitStacksTheme';
 import introLayers from '@/data/introLayers.json';
 import { loadAssets } from '@/studio/assetPersistence';
 import type { PixiApp } from '@/game/PixiApp';
@@ -79,7 +80,7 @@ export function App() {
     if (profile.build) return profile.build();
     return {
       ...DEFAULT_GAME_CONFIG,
-      gridConfig: gridId === '5x3' ? GRID_5x3 : GRID_5x5,
+      gridConfig: gridId === '5x3' ? GRID_5x3 : gridId === '6x5' ? GRID_6x5 : GRID_5x5,
       theme: getThemeByName('Fantasy'),
     };
   }, [gridId]);
@@ -284,6 +285,34 @@ export function App() {
       );
       // Layered game intro (each element is a full pre-positioned 1920×1080 frame).
       track(pixiAppRef.setLayeredIntro('game', crackFarmGameIntro()));
+    } else if (activeGame === 'fruitstacks') {
+      // ── FRUIT STACKS (6×5 scatter-pays tumbler, fruit-forest theme) ──────
+      // Presentation rules (Noski): landing = SUBTLE knick only (no slam,
+      // no cheap FX); wins pop apart and fresh symbols fall in (tumble) —
+      // the cascade IS the show, so everything else stays calm.
+      landingImpactConfig.enabled = true;
+      landingImpactConfig.squashMul = 0.55;  // gentle knick, not a slam
+      landingImpactConfig.thudAmp = 0;       // no board jolt
+      waysImmersiveConfig.enabled = false;
+      const fsSymbols = saved.symbols && Object.keys(saved.symbols).length
+        ? new Map(Object.entries(saved.symbols).map(([k, v]) => [Number(k), v]))
+        : fruitStacksSymbolMap();
+      track(pixiAppRef.setUserAssetTextures(fsSymbols));
+      track(pixiAppRef.setBackgroundImage(saved.bg ?? FRUITSTACKS.bgBase));
+      track(pixiAppRef.setTitleImage(FRUITSTACKS.logo));
+      // Scatter (B-starfruit) + crate (multiplier) keep a clean static look —
+      // no fallback pulse/squash warping the illustrated art.
+      STATIC_LOOK_SYMBOLS.add(1);
+      NO_IDLE_SYMBOLS.add(0);
+      // Frosted reel pane OFF: the warm forest scene would bleed through
+      // transparent symbol corners as a milky veil (theme rule, skill §3).
+      pixiAppRef.setReelFrosted(false);
+      const Tf = `${import.meta.env.BASE_URL}theme/win-tiers/`;
+      void pixiAppRef.setWinCoinRain(
+        [`${Tf}coinrain3_0.webp`, `${Tf}coinrain3_1.webp`, `${Tf}coinrain3_2.webp`], 10, 10, 300, 45,
+      );
+      // Audio: NO sounds wired — none recorded for this game yet, and the
+      // hard rule is silence over placeholders (skill §4).
     } else {
     const symbols = saved.symbols && Object.keys(saved.symbols).length
       ? new Map(Object.entries(saved.symbols).map(([k, v]) => [Number(k), v]))

@@ -5,6 +5,8 @@ import { parseUnits } from 'viem';
 import type { HostApiV1, HostSnapshotV1 } from '@/bridge/types';
 import { gameReducer, initialState } from '@/state/GameStateMachine';
 import { decodeSpinOutcome, encodeGameData } from '@/engine/SlotEngine';
+import { decodeFruitStacksOutcome } from '@/game/decodeFruitStacks';
+import { activePayModel } from '@/game/winEval';
 import type { PixiApp } from '@/game/PixiApp';
 import { EMPTY_HEX, GAME_CONFIG } from '@/config/gameConfig';
 
@@ -57,11 +59,20 @@ export function useGameState(
         if (spinTimerRef.current) { clearTimeout(spinTimerRef.current); spinTimerRef.current = null; }
         const wager = BigInt(settled.wager);
         try {
-          const outcome = decodeSpinOutcome(
-            settled.raw.gameState as `0x${string}`,
-            wager,
-            settled.raw.randomness as `0x${string}` | undefined,
-          );
+          // Fruit Stacks bypasses the frozen uint8[5] decode — its 6-reel
+          // cascade round is re-derived from the randomness via the same
+          // pure core the settlement used (decode façade).
+          const outcome = activePayModel() === 'scatterpays'
+            ? decodeFruitStacksOutcome(
+                settled.raw.gameState as `0x${string}`,
+                wager,
+                settled.raw.randomness as `0x${string}`,
+              )
+            : decodeSpinOutcome(
+                settled.raw.gameState as `0x${string}`,
+                wager,
+                settled.raw.randomness as `0x${string}` | undefined,
+              );
 
           // pixiApp.resolve() now AWAITS the win ceremony (coins + counting
           // number) before resolving — so the next spin holds until the win

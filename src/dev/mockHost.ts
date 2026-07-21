@@ -7,7 +7,10 @@ import { encodeAbiParameters, decodeAbiParameters, keccak256 } from 'viem';
 const encodeAbi = encodeAbiParameters;
 import type { HostApiV1, HostSnapshotV1 } from '@/bridge/types';
 import { buildBoard } from '@/config/reels';
-import { evalWins } from '@/game/winEval';
+import { evalWins, activePayModel } from '@/game/winEval';
+import { deriveFruitStacksRound } from '@/game/fruitStacksSpin';
+import { FRUIT_STACKS_MATH } from '@/game/fruitStacksMath';
+import { FRUIT_GAME_STATE } from '@/game/decodeFruitStacks';
 import { deriveStopsFromRandomness } from '@/engine/SlotEngine';
 import { GAME_CONFIG } from '@/config/gameConfig';
 import type { GameConfig } from '@/engine/GameConfig';
@@ -147,6 +150,16 @@ export class MockHost {
   private settleSession(sessionId: string, sessionKey: string, wager: bigint, gameData?: string) {
     const randBytes = crypto.getRandomValues(new Uint8Array(32));
     const randomness = ('0x' + Array.from(randBytes).map(b => b.toString(16).padStart(2, '0')).join('')) as `0x${string}`;
+
+    // ── FRUIT STACKS (scatter-pays tumbler) ────────────────────────────────
+    // The whole round (tumble chains, crates, FS pool) settles through the
+    // pure math core; the decode façade re-derives the identical round from
+    // the same randomness, so display == payout by construction. The frozen
+    // uint8[5] schema can't carry 6 reels — this branch encodes its own.
+    if (activePayModel() === 'scatterpays') {
+      this.settleFruitStacks(sessionId, sessionKey, wager, randomness);
+      return;
+    }
 
     // Bonus buy (gameData = abi.encode(true)): the wager is the premium, and the
     // free-spins round plays at the BASE bet derived from the configured cost.
@@ -478,6 +491,55 @@ export class MockHost {
       ],
     };
 
+    this.onStateChange(snapshot);
+  }
+
+  /** FRUIT STACKS settlement — the certified pure core derives the whole
+   *  round (base tumble chain + crates + FS pool) from the randomness; only
+   *  the authoritative totals are encoded. Mirrors what a SlotGame.sol
+   *  variant would compute on-chain from the same seed. */
+  private settleFruitStacks(sessionId: string, sessionKey: string, wager: bigint, randomness: `0x${string}`) {
+    const round = deriveFruitStacksRound(randomness, wager, FRUIT_STACKS_MATH);
+    const totalWin = round.totalWin;
+
+    const gameState = encodeAbiParameters(
+      FRUIT_GAME_STATE as unknown as { type: string; name: string }[],
+      [
+        round.base.stops as unknown as [number, number, number, number, number, number],
+        totalWin,
+        Math.min(round.base.scatters, 255),
+        round.fsSpins.length,
+        round.fsTriggered,
+      ],
+    );
+
+    this.balance += totalWin;
+
+    const now = Math.floor(Date.now() / 1000);
+    const snapshot = this.getSnapshot();
+    snapshot.sessions = {
+      items: [
+        {
+          sessionId,
+          sessionKey,
+          gameAddress: MOCK_GAME_ADDRESS,
+          phase: 3,
+          phaseName: 'SETTLED',
+          wager: wager.toString(),
+          payout: totalWin.toString(),
+          outcome: totalWin > 0n ? 1 : 0,
+          isSettled: true,
+          openedAt: now - 2,
+          settledAt: now,
+          lastEventTimestamp: now,
+          raw: {
+            gameData: '0x' as `0x${string}`,
+            gameState,
+            randomness,
+          },
+        },
+      ],
+    };
     this.onStateChange(snapshot);
   }
 }

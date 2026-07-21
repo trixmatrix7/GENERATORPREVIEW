@@ -18,8 +18,11 @@ const GRID_KEY = 'studio-grid';
 const GAME_KEY = 'active-game';
 
 /** Which baked game theme the App wires (default Vice Heat). */
-export function loadActiveGame(): 'vice' | 'crackfarm' {
-  try { return localStorage.getItem(GAME_KEY) === 'crackfarm' ? 'crackfarm' : 'vice'; }
+export function loadActiveGame(): 'vice' | 'crackfarm' | 'fruitstacks' {
+  try {
+    const g = localStorage.getItem(GAME_KEY);
+    return g === 'crackfarm' ? 'crackfarm' : g === 'fruitstacks' ? 'fruitstacks' : 'vice';
+  }
   catch { return 'vice'; }
 }
 
@@ -118,6 +121,20 @@ export function applyCrackFarm(): void {
     localStorage.setItem(GRID_KEY, '5x3');
     localStorage.setItem(BARE_KEY, '0');
     localStorage.setItem(GAME_KEY, 'crackfarm');
+    localStorage.removeItem(ACTIVE_KEY);
+  } catch { /* quota */ }
+  window.location.reload();
+}
+
+/** Built-in FRUIT STACKS 6×5 scatter-pays tumbler (fruit-forest theme,
+ *  baked in public/theme/fruitstacks/). */
+export function applyFruitStacks(): void {
+  replaceAssets({});
+  saveMathProfileId('fruit-stacks-tumble');
+  try {
+    localStorage.setItem(GRID_KEY, '6x5');
+    localStorage.setItem(BARE_KEY, '0');
+    localStorage.setItem(GAME_KEY, 'fruitstacks');
     localStorage.removeItem(ACTIVE_KEY);
   } catch { /* quota */ }
   window.location.reload();

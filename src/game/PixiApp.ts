@@ -21,6 +21,8 @@ import { deriveStopsFromRandomness, type SpinOutcome } from '@/engine/SlotEngine
 import { buildBoard } from '@/config/reels';
 import { type WinResult } from '@/engine/WinEvaluator';
 import { evalWins, activePayModel } from './winEval';
+import { isFruitStacksOutcome, type FruitStacksOutcome } from './decodeFruitStacks';
+import type { FruitSpin } from './fruitStacksSpin';
 import { baseFeaturePlants, type PlantFeatureConfig } from './plantFeature';
 import { DEFAULT_GAME_CONFIG, type GameConfig, type GameTheme } from '@/engine/GameConfig';
 import { playDeterministicHoldAndWin, HW_TRIGGER_MIN } from '@/engine/holdAndWin';
@@ -2117,6 +2119,7 @@ export class PixiApp {
     this.winBanner.visible = false;
     this.winBanner.alpha = 0;
     this.reelSet.clearHighlights();
+    this.reelSet.clearCrateBadges(); // Fruit Stacks ×N badges are per-spin
     this._scatterLands = 0;
     this.reelSet.startSpin();
   }
@@ -2133,6 +2136,12 @@ export class PixiApp {
    */
   async resolve(outcome: SpinOutcome, tokenSymbol: string, decimals: number): Promise<void> {
     if (!this.isLive) return;
+    // FRUIT STACKS (scatter-pays tumbler): the whole round was re-derived
+    // from the settlement randomness (decode façade) — play the cascade
+    // script instead of the ways/lines flow.
+    if (activePayModel() === 'scatterpays' && isFruitStacksOutcome(outcome)) {
+      return this.resolveTumble(outcome, tokenSymbol, decimals);
+    }
     // PAYLINES games (Crack Farm): the decoded outcome.winResult came from the
     // frozen engine's WAYS evaluation — re-evaluate the same board through the
     // façade so the presented combos are the clean payline connections the
@@ -2471,6 +2480,136 @@ export class PixiApp {
         this.exitFsBackground();
       });
     }
+  }
+
+  // ── FRUIT STACKS: tumble round presentation ────────────────────────────
+  // Plays the DERIVED cascade script (decode façade → same pure core the
+  // settlement used): land the initial board, run the tumble steps, badge
+  // the crates, apply the multiplier beat, then FS chain + outro. The
+  // authoritative total is outcome.winAmount — the script sums to it by
+  // construction.
+  private async resolveTumble(outcome: FruitStacksOutcome, tokenSymbol: string, decimals: number): Promise<void> {
+    const round = outcome.fruitRound;
+    if (this.fsOverlayOpen) {
+      this.hideFreeSpinOverlay(this.fsOverlayOpen);
+      this.fsOverlayOpen = null;
+      this.exitFsBackground();
+    }
+    await this.reelSet.stopOnStops(outcome.stops, this.turbo);
+    if (!this.isLive) return;
+
+    // BASE spin cascade (crate badges appear as soon as the board rests).
+    await this.playTumbleSpin(round.base, decimals);
+    if (!this.isLive) return;
+
+    // FREE SPINS: 4+ scatters → iris → per-spin tumble chains with the pool.
+    let fsOverlayToClose: { container: Container; counter: Text } | null = null;
+    if (round.fsTriggered && round.fsSpins.length > 0 && !prefersReducedMotion()) {
+      // trigger beat: the landed scatters play their win state
+      const scatterCells: AnimatedSymbol[] = [];
+      const walkSc = (n: Container) => {
+        for (const c of n.children) {
+          if (c instanceof AnimatedSymbol) { if (c.symbol === 1) scatterCells.push(c); }
+          else if (c instanceof Container) walkSc(c);
+        }
+      };
+      walkSc(this.reelSet.container);
+      for (const c of scatterCells) c.play('win');
+      await new Promise<void>(r => { gsap.delayedCall(this.turbo ? 0.6 : 1.6, () => r()); });
+      if (!this.isLive) return;
+
+      await this.playFreeSpinsIris(round.fsSpins.length, Math.max(4, outcome.scatterCount));
+      if (!this.isLive) return;
+      const fsOverlay = this.showFreeSpinOverlay(round.fsSpins.length);
+
+      for (let i = 0; i < round.fsSpins.length; i++) {
+        if (!this.isLive) break;
+        const spin = round.fsSpins[i];
+        if (fsOverlay.counter) {
+          fsOverlay.counter.text = `${i + 1} / ${round.fsSpins.length}`;
+          gsap.fromTo(fsOverlay.counter.scale, { x: 1.22, y: 1.22 }, { x: 1, y: 1, duration: 0.35, ease: 'back.out(2.5)' });
+        }
+        this._winRevealId++;
+        this.reelSet.clearCrateBadges();
+        this.reelSet.startSpin();
+        await new Promise<void>(r => { gsap.delayedCall(this.turbo ? 0.25 : 0.55, () => r()); });
+        if (!this.isLive) break;
+        await this.reelSet.stopOnStops(spin.stops, this.turbo);
+        if (!this.isLive) break;
+        await this.playTumbleSpin(spin, decimals);
+        await new Promise<void>(r => { gsap.delayedCall(0.3, () => r()); });
+      }
+      fsOverlayToClose = fsOverlay;
+      this.fsOverlayOpen = fsOverlay;
+    }
+
+    // Final ceremony: coins from the winning cells; MAX WIN handled by tier.
+    if (this.isLive && outcome.winAmount > 0n && !fsOverlayToClose) {
+      const lastWinSpin = round.base;
+      const originsResult = this.tumbleWinResult(lastWinSpin);
+      const origins = this.reelSet.getWinningCellCenters(originsResult);
+      await this.playCoinWin(outcome.winAmount, outcome.wager ?? 1n, tokenSymbol, decimals, origins);
+    }
+    if (this.isLive && fsOverlayToClose) {
+      const overlay = fsOverlayToClose;
+      await this.playFreeSpinsOutro(outcome.winAmount, decimals, () => {
+        this.hideFreeSpinOverlay(overlay);
+        if (this.fsOverlayOpen === overlay) this.fsOverlayOpen = null;
+        this.exitFsBackground();
+      });
+    }
+  }
+
+  /** One spin's cascade: crate badges → tumble steps → multiplier beat. */
+  private async playTumbleSpin(spin: FruitSpin, decimals: number): Promise<void> {
+    // crates visible on the resting board (landed up to now = step -1)
+    const showCrates = (upToStep: number) => {
+      const active = spin.crates.filter(c => c.step <= upToStep);
+      if (active.length) this.reelSet.setCrateBadges(active.map(c => ({ cell: c.cell, value: c.value })));
+    };
+    showCrates(-1);
+    for (let s = 0; s < spin.steps.length; s++) {
+      if (!this.isLive) return;
+      const step = spin.steps[s];
+      await this.reelSet.playTumbleStep(
+        step,
+        step.wins.map(w => '+' + formatWin(w.amount, decimals)),
+        { isLive: () => this.isLive, turbo: this.turbo },
+      );
+      showCrates(s);
+      await new Promise<void>(r => { gsap.delayedCall(this.turbo ? 0.08 : 0.18, () => r()); });
+    }
+    // MULTIPLIER BEAT: crates pulse and the applied ×N slams centre-board.
+    const applied = spin.multiSum > 0 ? Math.min(spin.multiSum + spin.poolBefore, 500) : 0;
+    if (applied > 1 && spin.winBeforeMulti > 0n && !prefersReducedMotion()) {
+      const gridRect = { x: this.reelSet.totalWidth / 2, y: this.reelSet.totalHeight / 2 };
+      const label = new Text({
+        text: `×${applied}`,
+        style: new TextStyle({
+          fontFamily: 'Arial, sans-serif', fontSize: 92, fontWeight: '900', fontStyle: 'italic',
+          fill: 0xffe93e, stroke: { color: 0x1a0f00, width: 10 }, align: 'center',
+        }),
+      });
+      label.anchor.set(0.5);
+      label.x = gridRect.x; label.y = gridRect.y;
+      label.eventMode = 'none';
+      this.reelSet.container.addChild(label);
+      await new Promise<void>(resolve => {
+        gsap.timeline({ onComplete: () => { try { label.parent?.removeChild(label); label.destroy(); } catch { /* gone */ } resolve(); } })
+          .fromTo(label.scale, { x: 2.4, y: 2.4 }, { x: 1, y: 1, duration: 0.34, ease: 'power3.in' })
+          .to(label, { alpha: 0, duration: 0.4, ease: 'power1.in' }, '+=0.75');
+      });
+    }
+  }
+
+  /** Minimal WinResult carrying the spin's first-step winner cells — feeds
+   *  getWinningCellCenters for the coin-ceremony origins. */
+  private tumbleWinResult(spin: FruitSpin): WinResult {
+    const combos = (spin.steps[0]?.wins ?? []).map(w => ({
+      symbolId: w.symbolId, matchCount: w.count, ways: 1, payBps: w.payBps,
+      winAmount: w.amount, cells: w.cells,
+    }));
+    return { totalWin: spin.spinWin, combinations: combos, scatterCount: spin.scatters, scatterPaid: spin.scatterPay > 0n };
   }
 
   /** Win presentation. With MULTIPLE winning patterns, cycle through them one

@@ -25,6 +25,7 @@ import viceHeat from '@/data/math_vice_heat.json';
 import crackFarm from '@/data/math_crack_farm.json';
 import crackFarm10k from '@/data/math_crack_farm_10k.json';
 import crackFarm15k from '@/data/math_crack_farm_15k.json';
+import fruitStacks from '@/data/math_fruit_stacks.json';
 
 type Pay3 = [number, number, number];
 
@@ -44,6 +45,7 @@ const MANIFESTS: Record<string, Record<string, unknown>> = {
   'crack-farm-lines': crackFarm as Record<string, unknown>,
   'crack-farm-lines-10k': crackFarm10k as Record<string, unknown>,
   'crack-farm-lines-15k': crackFarm15k as Record<string, unknown>,
+  'fruit-stacks-tumble': fruitStacks as Record<string, unknown>,
 };
 
 const KEY_TO_ID: Record<string, number> = {
@@ -73,7 +75,7 @@ export const ACTIVE_MATH: ActiveMathOverride | null = (() => {
   }
   return {
     reelStrips: m['reelStrips'] as number[][],
-    visibleRows: m['gridId'] === '5x5' ? 5 : 3,
+    visibleRows: m['gridId'] === '5x5' || m['gridId'] === '6x5' ? 5 : 3,
     payTable,
     scatterPay: (m['scatterPay'] as Pay3) ?? [40, 219, 1495],
   };

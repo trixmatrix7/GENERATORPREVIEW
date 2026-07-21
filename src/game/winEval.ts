@@ -6,14 +6,17 @@
 
 import { evaluateWins, type WinResult } from '@/engine/WinEvaluator';
 import { evaluatePaylines } from './paylineEval';
+import { evaluateScatterPays } from './scatterPaysEval';
 import type { GameConfig } from '@/engine/GameConfig';
 
-export type PayModel = 'ways' | 'lines';
+export type PayModel = 'ways' | 'lines' | 'scatterpays';
 
-/** Crack Farm plays PAYLINES; every other game keeps the engine's ways. */
+/** Crack Farm plays PAYLINES, Fruit Stacks plays SCATTER-PAYS (pay-anywhere
+ *  tumbler); every other game keeps the engine's ways. */
 export function activePayModel(): PayModel {
   try {
-    return localStorage.getItem('active-game') === 'crackfarm' ? 'lines' : 'ways';
+    const g = localStorage.getItem('active-game');
+    return g === 'crackfarm' ? 'lines' : g === 'fruitstacks' ? 'scatterpays' : 'ways';
   } catch {
     return 'ways';
   }
@@ -24,7 +27,10 @@ export function evalWins(
   totalWager: bigint,
   config: Pick<GameConfig, 'gridConfig' | 'payTable' | 'scatterPay'>,
 ): WinResult {
-  return activePayModel() === 'lines'
+  const model = activePayModel();
+  return model === 'lines'
     ? evaluatePaylines(board, totalWager, config)
-    : evaluateWins(board, totalWager, config);
+    : model === 'scatterpays'
+      ? evaluateScatterPays(board, totalWager, config)
+      : evaluateWins(board, totalWager, config);
 }

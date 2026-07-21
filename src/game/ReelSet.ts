@@ -3050,4 +3050,160 @@ export class ReelSet {
     return false;
   }
 
+  // ── FRUIT STACKS: tumble cascade + crate badges ──────────────────────────
+  // The cascade runs ENTIRELY on the live cells between spins: winners pop
+  // apart (Noski: "auseinander ploppen"), survivors gravity-fall, fresh
+  // symbols drop in from above the mask, then every cell is normalised via
+  // setSymbol() to the derived boardAfter. The frozen Reel never notices —
+  // it re-derives cells only on the next startSpin().
+
+  /** ×N value badges on the multiplier crates currently on the board.
+   *  Cleared on startSpin (winAmountsContainer children are per-spin). */
+  private crateBadges: Text[] = [];
+
+  setCrateBadges(crates: { cell: [number, number]; value: number }[]): void {
+    this.clearCrateBadges();
+    for (const c of crates) {
+      const [row, reel] = c.cell;
+      const rect = resolveAnchor(cellAnchor(reel, row), this.grid);
+      const label = new Text({
+        text: `×${c.value}`,
+        style: new TextStyle({
+          fontFamily: 'Arial, sans-serif', fontSize: 30, fontWeight: '900', fontStyle: 'italic',
+          fill: 0xffe93e, stroke: { color: 0x1a0f00, width: 6 }, align: 'center',
+        }),
+      });
+      label.anchor.set(0.5);
+      label.x = rect.x + rect.w / 2;
+      label.y = rect.y + rect.h * 0.78; // badge rides the crate's lower third
+      label.eventMode = 'none';
+      this.winAmountsContainer.addChild(label);
+      this.crateBadges.push(label);
+      gsap.fromTo(label.scale, { x: 0.2, y: 0.2 }, { x: 1, y: 1, duration: 0.28, ease: 'back.out(2.2)' });
+    }
+  }
+
+  clearCrateBadges(): void {
+    for (const b of this.crateBadges) { try { b.parent?.removeChild(b); b.destroy(); } catch { /* torn down */ } }
+    this.crateBadges = [];
+  }
+
+  /** One tumble step: pop the winning cells, drop the survivors, refill from
+   *  the top, then normalise every cell to `boardAfter`. */
+  async playTumbleStep(
+    step: {
+      wins: { symbolId: number; cells: [number, number][]; amount: bigint }[];
+      removed: [number, number][];
+      refills: number[][];
+      boardAfter: number[][];
+    },
+    amountTexts: string[],
+    opts: { isLive: () => boolean; turbo?: boolean },
+  ): Promise<void> {
+    const speed = opts.turbo ? 0.5 : 1;
+    const rows = this.grid.visibleRows;
+    const reels = this.grid.reelCount;
+
+    // 1. POP-APART: quick swell → burst to nothing. Each win floats its own
+    //    +amount at the cluster centroid (free bold text, no box — §1).
+    for (let w = 0; w < step.wins.length; w++) {
+      const win = step.wins[w];
+      let cx = 0, cy = 0;
+      for (const [row, reel] of win.cells) {
+        const cell = this.reels[reel]?.getVisibleCell(row);
+        const rect = resolveAnchor(cellAnchor(reel, row), this.grid);
+        cx += rect.x + rect.w / 2; cy += rect.y + rect.h / 2;
+        if (!cell) continue;
+        cell.clearState();
+        const inner = cell.objectLayer;
+        gsap.killTweensOf(inner); gsap.killTweensOf(inner.scale);
+        gsap.timeline()
+          .to(inner.scale, { x: 1.24, y: 1.24, duration: 0.12 * speed, ease: 'back.out(1.8)' })
+          .to(inner.scale, { x: 0, y: 0, duration: 0.16 * speed, ease: 'power2.in' }, '>')
+          .to(inner, { alpha: 0, duration: 0.14 * speed, ease: 'power2.in' }, '<');
+      }
+      cx /= win.cells.length; cy /= win.cells.length;
+      const label = new Text({
+        text: amountTexts[w] ?? '',
+        style: new TextStyle({
+          fontFamily: 'Arial, sans-serif', fontSize: 40, fontWeight: '900', fontStyle: 'italic',
+          fill: 0xffffff, stroke: { color: 0x102010, width: 7 }, align: 'center',
+        }),
+      });
+      label.anchor.set(0.5); label.x = cx; label.y = cy; label.eventMode = 'none';
+      this.winAmountsContainer.addChild(label);
+      gsap.timeline({ onComplete: () => { try { label.parent?.removeChild(label); label.destroy(); } catch { /* gone */ } } })
+        .fromTo(label.scale, { x: 0.3, y: 0.3 }, { x: 1, y: 1, duration: 0.2 * speed, ease: 'back.out(2)' })
+        .to(label, { y: cy - 34, duration: 0.8 * speed, ease: 'power1.out' }, 0.1)
+        .to(label, { alpha: 0, duration: 0.3 * speed }, '>-0.25');
+    }
+    await new Promise<void>(r => { gsap.delayedCall(0.34 * speed, () => r()); });
+    if (!opts.isLive()) return;
+
+    // 2. GRAVITY-FALL + REFILL (no bounce — clean drop, subtle knick after).
+    const removedByReel = new Map<number, number[]>();
+    for (const [row, reel] of step.removed) {
+      let arr = removedByReel.get(reel);
+      if (!arr) removedByReel.set(reel, arr = []);
+      arr.push(row);
+    }
+    const fallDur = 0.3 * speed;
+    const temps: Sprite[] = [];
+    const theme = this.config.theme as { userAssetTextures?: Map<number, Texture> };
+    for (let reel = 0; reel < reels; reel++) {
+      const removedRows = removedByReel.get(reel) ?? [];
+      if (removedRows.length === 0) continue;
+      // survivors above a removed cell slide down by the count below them
+      for (let row = rows - 1; row >= 0; row--) {
+        if (removedRows.includes(row)) continue;
+        const below = removedRows.filter(rr => rr > row).length;
+        if (below === 0) continue;
+        const cell = this.reels[reel]?.getVisibleCell(row);
+        if (!cell) continue;
+        const inner = cell.objectLayer;
+        gsap.killTweensOf(inner);
+        gsap.to(inner, { y: SYMBOL_HEIGHT / 2 + below * CELL_HEIGHT, duration: fallDur, ease: 'power2.in' });
+      }
+      // fresh symbols fall in from above the mask (temp sprites; the real
+      // cells take over at normalise)
+      const fresh = step.refills[reel] ?? [];
+      for (let i = 0; i < fresh.length; i++) {
+        const tex = theme.userAssetTextures?.get(fresh[i]);
+        if (!tex) continue;
+        const rect = resolveAnchor(cellAnchor(reel, i), this.grid);
+        const spr = new Sprite(tex);
+        spr.anchor.set(0.5);
+        const fit = Math.min((rect.w * 0.92) / spr.width, (rect.h * 0.92) / spr.height);
+        spr.scale.set(fit);
+        spr.x = rect.x + rect.w / 2;
+        spr.y = rect.y + rect.h / 2 - fresh.length * CELL_HEIGHT;
+        spr.eventMode = 'none';
+        this.clipContainer.addChild(spr); // masked at the grid top
+        temps.push(spr);
+        gsap.to(spr, { y: rect.y + rect.h / 2, duration: fallDur, ease: 'power2.in', delay: 0.03 * speed * i });
+      }
+    }
+    await new Promise<void>(r => { gsap.delayedCall(fallDur + 0.12 * speed, () => r()); });
+
+    // 3. NORMALISE: every cell snaps to its canonical spot showing boardAfter
+    //    (same-frame swap with the settled visuals — seamless), temps die.
+    for (const t of temps) { try { t.parent?.removeChild(t); t.destroy(); } catch { /* gone */ } }
+    for (let reel = 0; reel < reels; reel++) {
+      const moved = removedByReel.has(reel);
+      for (let row = 0; row < rows; row++) {
+        const cell = this.reels[reel]?.getVisibleCell(row);
+        if (!cell) continue;
+        const inner = cell.objectLayer;
+        gsap.killTweensOf(inner); gsap.killTweensOf(inner.scale);
+        inner.y = SYMBOL_HEIGHT / 2;
+        inner.scale.set(1);
+        inner.alpha = 1;
+        cell.setSymbol(step.boardAfter[row][reel] as SymbolIdType);
+        // subtle landing knick on the cells that actually moved (soft
+        // landingImpact preset — Noski: "Knick, keine Billig-Effekte")
+        if (moved && !opts.turbo) cell.playLandBounce();
+      }
+    }
+  }
+
 }

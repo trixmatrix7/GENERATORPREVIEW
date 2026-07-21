@@ -9,12 +9,13 @@ import { useState } from 'react';
 import { loadAssets, replaceAssets, type SavedAssets } from '@/studio/assetPersistence';
 import { MATH_PROFILES, loadMathProfileId, saveMathProfileId } from '@/config/mathProfiles';
 
-export type GridId = '5x5' | '5x3';
+export type GridId = '5x5' | '5x3' | '6x5';
 const GRID_KEY = 'studio-grid';
 const PRESETS_KEY = 'studio-presets';
 
 export function loadGridId(): GridId {
-  return localStorage.getItem(GRID_KEY) === '5x3' ? '5x3' : '5x5';
+  const g = localStorage.getItem(GRID_KEY);
+  return g === '5x3' ? '5x3' : g === '6x5' ? '6x5' : '5x5';
 }
 
 interface SlotPreset {
@@ -74,6 +75,7 @@ export function PresetDock({ grid, onGrid }: { grid: GridId; onGrid: (g: GridId)
         <div style={{ display: 'flex', gap: 4 }}>
           <button type="button" style={btn(grid === '5x5')} onClick={() => onGrid('5x5')}>5×5</button>
           <button type="button" style={btn(grid === '5x3')} onClick={() => onGrid('5x3')}>5×3</button>
+          <button type="button" style={btn(grid === '6x5')} onClick={() => onGrid('6x5')}>6×5</button>
           <button type="button" style={{ ...btn(false), marginLeft: 'auto', color: '#8fe6a0' }} onClick={savePreset} title="Snapshot the current grid + all asset swaps as a named preset">
             + Save
           </button>

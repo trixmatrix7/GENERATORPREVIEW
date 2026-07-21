@@ -4,7 +4,7 @@
 // The original Fantasy math (older library snapshot) stays the default.
 
 import { SymbolId } from './symbols';
-import { GRID_5x3, GRID_5x5 } from './gridConfig';
+import { GRID_5x3, GRID_5x5, GRID_6x5 } from './gridConfig';
 import type { GameConfig } from '@/engine/GameConfig';
 import type { PayEntry } from './paytable';
 import { getThemeByName } from './themes';
@@ -14,6 +14,7 @@ import viceHeat from '@/data/math_vice_heat.json';
 import crackFarm from '@/data/math_crack_farm.json';
 import crackFarm10k from '@/data/math_crack_farm_10k.json';
 import crackFarm15k from '@/data/math_crack_farm_15k.json';
+import fruitStacks from '@/data/math_fruit_stacks.json';
 
 const KEY_TO_ID: Record<string, number> = {
   wild: SymbolId.WILD, scatter: SymbolId.SCATTER,
@@ -42,7 +43,7 @@ function fromManifest(m: Record<string, unknown>): GameConfig {
   }
   const reelStrips = m['reelStrips'] as number[][];
   return {
-    gridConfig: m['gridId'] === '5x5' ? GRID_5x5 : GRID_5x3,
+    gridConfig: m['gridId'] === '6x5' ? GRID_6x5 : m['gridId'] === '5x5' ? GRID_5x5 : GRID_5x3,
     reelStrips,
     reelLengths: reelStrips.map(s => s.length),
     payTable,
@@ -127,6 +128,12 @@ export const MATH_PROFILES: readonly MathProfileOption[] = [
     description: 'Gleiches v2-Modell, Max Win 15.000× — höchste Volatilität. Certified 96.1% (stratifiziert).',
     build: () => fromManifest(crackFarm15k as Record<string, unknown>),
     grid: '5x3',
+  },
+  {
+    id: 'fruit-stacks-tumble', name: '🍉 Fruit Stacks 96% (6×5 Tumbler)',
+    description: 'SCATTER-PAYS: 8+/10-11/12+ gleiche irgendwo zahlen, Tumble-Kaskade, Kisten-Multis ×2-×500 summieren, FS 15 Spins mit persistentem Multi-Pool (Cap ×500). RTP 96.25% (200k-Sim), Max Win 5000×.',
+    build: () => fromManifest(fruitStacks as Record<string, unknown>),
+    grid: null, // 6x5 — outside the classic pair; grid comes from the manifest
   },
   {
     id: 'vice-heat-custom', name: '⭐ Vice Heat 96% (Custom 5×5)',

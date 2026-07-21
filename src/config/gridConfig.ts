@@ -32,8 +32,10 @@ export const DEFAULT_CELL_METRICS: CellMetrics = {
   reelGap: 8,
 } as const;
 
-/** V2 ships ways-pays only */
-export type PayModel = 'ways';
+/** V2 shipped ways-pays; Fruit Stacks adds SCATTER-PAYS (pay anywhere by
+ *  count, tumbling cascade — evaluated via the winEval façade's
+ *  'scatterpays' branch, the engine stays byte-identical). */
+export type PayModel = 'ways' | 'scatterpays';
 
 export interface GridConfig {
   /** Number of reels (columns). 5 for both V2 grids. */
@@ -47,7 +49,7 @@ export interface GridConfig {
   /** Pay model. V2 = ways-only. */
   readonly payModel: PayModel;
   /** Stable string id used for manifest keys + registry compatibility checks. */
-  readonly id: '5x3' | '5x5';
+  readonly id: '5x3' | '5x5' | '6x5';
 }
 
 export const GRID_5x3: GridConfig = {
@@ -66,9 +68,20 @@ export const GRID_5x5: GridConfig = {
   id: '5x5',
 } as const;
 
+/** Fruit Stacks: 6 columns × 5 rows, scatter-pays tumbler. Layout math
+ *  (buildLayout/ReelSet/PixiApp) is fully parametric on reelCount — nothing
+ *  else changes for the extra column. */
+export const GRID_6x5: GridConfig = {
+  reelCount: 6,
+  visibleRows: 5,
+  stripLength: 60,
+  payModel: 'scatterpays',
+  id: '6x5',
+} as const;
+
 /** All shipped V2 grids, in canonical order. Useful for compatibility-matrix
  *  declarations on registry entries. */
-export const ALL_GRIDS: ReadonlyArray<GridConfig> = [GRID_5x3, GRID_5x5];
+export const ALL_GRIDS: ReadonlyArray<GridConfig> = [GRID_5x3, GRID_5x5, GRID_6x5];
 
 // ── Active-grid singleton ──────────────────────────────────────────────────
 //

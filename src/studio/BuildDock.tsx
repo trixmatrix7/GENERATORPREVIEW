@@ -8,7 +8,7 @@
 import { useEffect, useState } from 'react';
 import {
   listBuilds, saveBuild, deleteBuild, applyBuild, createNewBuild,
-  applyViceBase, applyCrackFarm, loadActiveGame, downloadExport, activeBuildId, isBareBuild, type SavedBuild,
+  applyViceBase, applyCrackFarm, applyFruitStacks, loadActiveGame, downloadExport, activeBuildId, isBareBuild, type SavedBuild,
 } from './buildPresets';
 
 const chip: React.CSSProperties = {
@@ -95,6 +95,15 @@ export function BuildSlots() {
         onClick={() => applyCrackFarm()}
         title="Das eingebaute Crack-Farm-Spiel (5×3, Scheunen-Theme)"
       >🌾 Crack Farm 5×3</button>
+      <button
+        style={{
+          ...chip,
+          background: !bare && active === null && game === 'fruitstacks' ? '#b45309' : '#15151d',
+          borderColor: !bare && active === null && game === 'fruitstacks' ? '#b45309' : '#34344a',
+        }}
+        onClick={() => applyFruitStacks()}
+        title="Das eingebaute Fruit-Stacks-Spiel (6×5 Scatter-Pays-Tumbler)"
+      >🍉 Fruit Stacks 6×5</button>
       {builds.map(b => (
         <span key={b.id} style={{ position: 'relative', display: 'inline-flex' }}>
           <button

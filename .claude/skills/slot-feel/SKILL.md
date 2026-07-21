@@ -194,6 +194,12 @@ GESAMTGEWINN wird still hinter dem Marquee verrechnet.
 ## 5. Verify-Muster (Browser-Pane, verbindlich vor jedem Commit)
 
 - `window.__pixi` (dev-only) treibt PixiApp deterministisch; TS-private = runtime-public.
+- **`__pixi` ist ein HANDLE-OBJEKT, NICHT die PixiApp-Instanz (2026-07-21):** `Object.
+  getPrototypeOf(window.__pixi)` = Object.prototype — App-Methoden-Hooks darauf greifen ins
+  Leere (und verschmutzen Object.prototype). Runtime-Hooks IMMER über echte Klassen-Prototypen
+  der Felder setzen: `Object.getPrototypeOf(__pixi.reelSet)` = ReelSet.prototype funktioniert.
+  Verifiziert beim Fruit-Stacks-Tumble-Verify (playTumbleStep-Hook lieferte, resolveTumble-Hook
+  auf dem Handle nicht).
 - **EINE Instanz-Referenz pro Test-Closure** — `window.__pixi` kann zwischen JS-Calls remounten!
 - Sampler-Interval auf Runtime-Felder (revealCombo wrappen, getBounds, texture.uid) statt
   Screenshots vertrauen (stale-Screenshot-Macke); document.hidden vor fps-Messungen prüfen.

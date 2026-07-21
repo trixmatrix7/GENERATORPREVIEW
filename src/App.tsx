@@ -11,7 +11,7 @@ import { useSoundLayer } from '@/audio/useSoundLayer';
 import { Sidebar } from '@/ui/Sidebar';
 import { GameCanvas } from '@/ui/GameCanvas';
 import { ControlBar } from '@/ui/ControlBar';
-import { BonusBuyOverlay } from '@/ui/BonusBuyOverlay';
+import { BonusBuyOverlay, FruitBuyRail } from '@/ui/BonusBuyOverlay';
 import { StudioDrawer } from '@/studio/StudioDrawer';
 import { DEFAULT_GAME_CONFIG, type GameConfig } from '@/engine/GameConfig';
 import { GRID_5x3, GRID_5x5, GRID_6x5 } from '@/config/gridConfig';
@@ -299,7 +299,7 @@ export function App() {
         : fruitStacksSymbolMap();
       track(pixiAppRef.setUserAssetTextures(fsSymbols));
       track(pixiAppRef.setBackgroundImage(saved.bg ?? FRUITSTACKS.bgBase));
-      track(pixiAppRef.setTitleImage(FRUITSTACKS.logo));
+      track(pixiAppRef.setTitleImage(FRUITSTACKS.logo, 'left')); // BIG left-rail logo (reference construct)
       // Scatter (B-starfruit) + crate (multiplier) keep a clean static look —
       // no fallback pulse/squash warping the illustrated art.
       STATIC_LOOK_SYMBOLS.add(1);
@@ -628,13 +628,19 @@ export function App() {
         device={device}
         topBar={<BuildTopBar device={device} onDevice={setDevice} />}
         bottomDock={<BuildSlots />}
-        gameOverlay={loadActiveGame() === 'crackfarm' && !introOpen && !fsIntroOpen
-          ? <BonusBuyOverlay betDisplay={state.betDisplay} onBuy={(id, kind) => {
-              // BUY tiers → trigger the bonus session (FS). ACTIVATE tiers are
-              // persistent bet-enhancer modes (toggled in the overlay); the
-              // per-spin mechanics wire up with the certified plant/ante math.
-              if (kind === 'buy') handleBuyBonus();
-            }} />
+        gameOverlay={!introOpen && !fsIntroOpen
+          ? (loadActiveGame() === 'crackfarm'
+              ? <BonusBuyOverlay betDisplay={state.betDisplay} onBuy={(id, kind) => {
+                  // BUY tiers → trigger the bonus session (FS). ACTIVATE tiers are
+                  // persistent bet-enhancer modes (toggled in the overlay); the
+                  // per-spin mechanics wire up with the certified plant/ante math.
+                  if (kind === 'buy') handleBuyBonus();
+                }} />
+              : loadActiveGame() === 'fruitstacks'
+                ? <FruitBuyRail betDisplay={state.betDisplay} onBuy={(id, kind) => {
+                    if (kind === 'buy') handleBuyBonus();
+                  }} />
+                : null)
           : null}
         controls={
           <div style={{ opacity: introOpen || fsIntroOpen ? 0 : 1, pointerEvents: introOpen || fsIntroOpen ? 'none' : 'auto', transition: 'opacity 0.6s ease' }}>

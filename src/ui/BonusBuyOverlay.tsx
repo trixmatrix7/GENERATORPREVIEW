@@ -27,6 +27,79 @@ const CH = Math.round(CW * 598 / 360);
 // swap). Change this string (or per-slot below) to restyle the cards / bet.
 const FONT = "'Rubik', ui-sans-serif, system-ui, sans-serif";
 
+// ── FRUIT STACKS (reference construct): the trigger is a PILL on the LEFT
+// RAIL under the big logo — "BUY BONUS" + live price — and the page shows
+// three plain FS-buy tiers (no baked art yet; CSS cards until the official
+// Fruit Stacks buy PNGs exist).
+const FRUIT_CARDS: Card[] = [
+  { id: 'fs-buy',     title: 'FREE SPINS',                    mult: 100, kind: 'buy' },
+  { id: 'fs-buy-50',  title: 'FREE SPINS\nINITIAL ×50',       mult: 300, kind: 'buy' },
+  { id: 'fs-buy-100', title: 'FREE SPINS\nINITIAL ×100',      mult: 500, kind: 'buy' },
+];
+
+export function FruitBuyRail({ betDisplay, onBuy }: { betDisplay: string; onBuy?: (id: string, kind: Card['kind']) => void }) {
+  const [open, setOpen] = useState(false);
+  const [confirm, setConfirm] = useState<Card | null>(null);
+  const bet = Math.max(0.01, Number(betDisplay || '0'));
+  return (
+    <>
+      {/* LEFT-RAIL trigger pill, docked under the canvas logo */}
+      <button onClick={() => setOpen(true)} title="Buy bonus" style={{
+        position: 'absolute', left: '1.6%', top: '46%', zIndex: 40, width: '15%', minWidth: 120,
+        padding: '10px 8px', borderRadius: 999, cursor: 'pointer',
+        border: '3px solid #f7b733', background: 'linear-gradient(180deg,#1d3b24 0%, #0d2113 100%)',
+        boxShadow: '0 4px 16px rgba(0,0,0,0.55), inset 0 2px 4px rgba(255,255,255,0.18)',
+        color: '#ffe9a8', fontWeight: 900, fontStyle: 'italic', lineHeight: 1.15,
+        textAlign: 'center', fontFamily: FONT,
+      }}>
+        <span style={{ display: 'block', fontSize: 15, letterSpacing: 0.5 }}>BUY BONUS</span>
+        <span style={{ display: 'block', fontSize: 12, color: '#d9f7c9', marginTop: 2 }}>{money(bet * 100)}</span>
+      </button>
+
+      {!open ? null : (
+        <div onClick={() => setOpen(false)} style={{
+          position: 'absolute', inset: 0, zIndex: 60, display: 'flex', flexDirection: 'column',
+          alignItems: 'center', justifyContent: 'center', gap: 14, overflow: 'auto', padding: 14,
+          background: 'rgba(3,10,5,0.84)', backdropFilter: 'blur(3px)', fontFamily: FONT,
+        }}>
+          <div onClick={e => e.stopPropagation()} style={{ display: 'flex', gap: 12, flexWrap: 'wrap', justifyContent: 'center', maxWidth: '96%' }}>
+            {FRUIT_CARDS.map(c => (
+              <div key={c.id} onClick={() => setConfirm(c)} style={{
+                width: CW, height: CH, cursor: 'pointer', borderRadius: 18,
+                border: '3px solid #f7b733',
+                background: 'linear-gradient(180deg,#173521 0%, #0a1b10 100%)',
+                boxShadow: '0 6px 18px rgba(0,0,0,0.5), inset 0 2px 5px rgba(255,255,255,0.12)',
+                display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'space-between',
+                padding: '18px 10px',
+              }}>
+                <span style={{ color: '#ffe9a8', fontWeight: 900, fontStyle: 'italic', fontSize: 15, lineHeight: 1.15, textAlign: 'center', whiteSpace: 'pre-line' }}>{c.title}</span>
+                <span style={{ fontSize: 34 }}>🍉</span>
+                <span style={{ color: '#0b2a06', background: 'linear-gradient(180deg,#ffd75e,#f7a733)', borderRadius: 10, padding: '6px 14px', fontWeight: 900, fontStyle: 'italic', fontSize: 15 }}>{money(bet * c.mult)}</span>
+              </div>
+            ))}
+          </div>
+          <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: 11 }}>tap outside to close</div>
+          {confirm && (
+            <div onClick={e => e.stopPropagation()} style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(3,10,5,0.6)' }}>
+              <div style={{
+                width: 300, borderRadius: 20, border: '3px solid #f7b733', padding: '22px 18px',
+                background: 'linear-gradient(180deg,#1d3b24 0%, #0d2113 100%)', textAlign: 'center',
+              }}>
+                <div style={{ color: '#ffe9a8', fontWeight: 900, fontStyle: 'italic', fontSize: 17, whiteSpace: 'pre-line' }}>{confirm.title}</div>
+                <div style={{ color: '#fff', fontWeight: 900, fontSize: 24, margin: '12px 0' }}>{money(bet * confirm.mult)}</div>
+                <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
+                  <button onClick={() => setConfirm(null)} style={{ padding: '8px 20px', borderRadius: 10, border: '2px solid #7a8a7a', background: '#15241a', color: '#cfe3cf', fontWeight: 800, cursor: 'pointer', fontFamily: FONT }}>BACK</button>
+                  <button onClick={() => { onBuy?.(confirm.id, confirm.kind); setConfirm(null); setOpen(false); }} style={{ padding: '8px 24px', borderRadius: 10, border: '2px solid #f7b733', background: 'linear-gradient(180deg,#ffd75e,#f7a733)', color: '#0b2a06', fontWeight: 900, cursor: 'pointer', fontFamily: FONT }}>OK</button>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </>
+  );
+}
+
 export function BonusBuyOverlay({ betDisplay, onBuy }: { betDisplay: string; onBuy?: (id: string, kind: Card['kind']) => void }) {
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState<Set<string>>(new Set());

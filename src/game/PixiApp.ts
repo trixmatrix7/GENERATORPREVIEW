@@ -691,7 +691,7 @@ export class PixiApp {
    *  grid: height-capped so it stays inside the box's top padding, width-capped
    *  at 60% of the reel width; bottom-anchored just above the frame. Pass null
    *  to restore the text title. */
-  async setTitleImage(url: string | null): Promise<void> {
+  async setTitleImage(url: string | null, layout: 'top' | 'left' = 'top'): Promise<void> {
     if (!this._initialized || this._aborted) return;
     if (this.titleSprite) {
       this.titleSprite.parent?.removeChild(this.titleSprite);
@@ -710,16 +710,28 @@ export class PixiApp {
     if (this._aborted) { try { tex.destroy(true); } catch { /* torn down */ } return; }
 
     const rw = this.reelSet.totalWidth + FRAME_PAD * 2;
-    // Fit: ≤60% of grid width AND ≤150 scene-px tall (clears the box top even
-    // after the 60vh height cap), preserving the logo's aspect ratio.
-    const s = Math.min((rw * 0.6) / tex.width, 150 / tex.height);
     this.titleSprite = new Sprite(tex);
-    this.titleSprite.anchor.set(0.5, 1);
-    this.titleSprite.scale.set(s);
-    this.titleSprite.x = rw / 2;
-    this.titleSprite.y = HEADER_H - 2; // bottom edge sits just above the frame
     this.titleTexture = tex;
     this.titleText.visible = false;
+    if (layout === 'left') {
+      // LEFT-RAIL logo (Fruit Stacks, reference construct): BIG, standing in
+      // the letterbox area left of the grid, upper third — the buy button
+      // (DOM rail) docks underneath it.
+      const rh = this.reelSet.totalHeight + FRAME_PAD * 2;
+      const s = Math.min(330 / tex.width, 300 / tex.height);
+      this.titleSprite.anchor.set(0.5);
+      this.titleSprite.scale.set(s);
+      this.titleSprite.x = -(FRAME_PAD + 44 + (tex.width * s) / 2);
+      this.titleSprite.y = HEADER_H + rh * 0.24;
+    } else {
+      // Fit: ≤60% of grid width AND ≤150 scene-px tall (clears the box top even
+      // after the 60vh height cap), preserving the logo's aspect ratio.
+      const s = Math.min((rw * 0.6) / tex.width, 150 / tex.height);
+      this.titleSprite.anchor.set(0.5, 1);
+      this.titleSprite.scale.set(s);
+      this.titleSprite.x = rw / 2;
+      this.titleSprite.y = HEADER_H - 2; // bottom edge sits just above the frame
+    }
     this.sceneRoot.addChild(this.titleSprite);
   }
 

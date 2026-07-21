@@ -69,6 +69,32 @@ Betrag NUR als Bottom-HUD-Formel „LINIE n ZAHLT base × mult = total"). **Crac
   Pop ≤100ms; **nach einem Marquee verzögert**. Win-Plaque tickt live "base ×1…×N" (90ms/Step,
   max ~8 Steps, Badge pulst synchron), morpht dann ins Produkt.
 
+**SCATTER-PAYS TUMBLER (Fruit Stacks, Report 18 + 15fps-Burst vermessen 2026-07-21):**
+- Kaskaden-Wins ticken in eine **TOP-PLATE über dem Grid** (price-area-Art, ~250px, y=-58 im
+  ReelSet-Space); Verlust-Spin = keine Plate.
+- **Multi-Beat = Referenz-Anatomie:** Gift PULST → sein ×N löst sich, fliegt gebogen zur Plate
+  (Stagger 160ms) → Plate liest "«win» ×«sum»" (Preis+Multi CONNECTED) → ~0,8s Hold → resolved
+  zum Produkt (Pop). Pool-Wert reitet in die Summe (Referenz-Regel: Pool zählt nur wenn NEUES
+  Gift droppt). FS: **Pool-Badge** (Gift-Icon + ×pool) rechts vom Grid, tickt NACH dem Beat hoch.
+- **Winner-Removal = FRUIT-NINJA-CUT** (Noski-Wunsch): heller Slash in Zufallswinkel über die
+  Zelle, Symbol splittet in 2 polygon-maskierte Hälften (rotierte Rect-Maske durch den Origin),
+  fliegen entlang der Cut-Normalen auseinander + faden. Kein Scale-Pop mehr (nur Placeholder).
+- Win-Screens = Layer-Set wie Vice (big/mega/epic/max/win/plate auf 1080p-Canvas ausgerichtet)
+  → `setWinTierGeometry` mit Alpha-BBox-Messwerten PRO Theme (Fruit: plateCy 0.686, Vice 0.768
+  — falsche Geo = Betrag sitzt neben der Plate).
+
+- **Cluster = DROP, kein Reel-Spin (2026-07-22, Noski):** Fruit Stacks spinnt NICHT — Board
+  fällt nach unten raus (`playFruitDropOut`, Spalten-Stagger), neues Board regnet von oben rein
+  (`playFruitDropIn`, Spalte für Spalte l→r). **Tease = Slow-Drop:** ab 2 stehenden Scattern
+  droppen die restlichen Spalten LANGSAM Symbol für Symbol (×2.6, Stagger 160ms). Keine
+  Separatoren (Cluster-Look), Symbole 10% kleiner (SYMBOL_SIZE_MULS 0.9). Frozen Reel bleibt
+  unberührt — Zellen werden per setSymbol normalisiert, Reels rollen nie.
+- **Gift-Badges sind an die GIFTS GEPINNT:** der Math-Kern trackt Gift-Positionen durch jede
+  Gravity (TumbleStep.cratesAfter); Badge-Render nutzt IMMER cratesAfter des aktuellen Steps
+  (stale Landing-Cell = Badge hängt über fremdem Symbol — der Bug). Tier-Art am Gift selbst
+  (silber ×2-5 / rot ×6-30 / gold ×31-500, Referenz-Stufen) via Display-Ids 11-13 + setSymbol.
+  Verify: custom-math/verify_crate_ride.mjs (cratesAfter-Zelle muss id 0 auf boardAfter sein).
+
 **Spin/Stop:**
 - Stop = **100–150ms Blur-Auflösung → harter Dead-Lock. KEIN Bounce, keine Feder.**
 - Stagger links→rechts ~400ms (WS) / bei uns 150ms-Basis + Tease-Verlängerung.

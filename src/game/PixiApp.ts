@@ -604,7 +604,10 @@ export class PixiApp {
     // ×0.85 — grid sits 15% smaller in the bounded box (still centred below),
     // giving the animated background more breathing room around the reels.
     // Compact keeps nearly full width (0.98) — phone play needs the grid big.
-    let scale = Math.min(scaleX, scaleY, 1.3) * (compact ? 0.98 : 0.85);
+    // Fruit Stacks (cluster): the board IS the show — bigger diagonal, no
+    // side-actor margins needed (Noski: "grid größer, etwas hochschieben").
+    const spays = activePayModel() === 'scatterpays';
+    let scale = Math.min(scaleX, scaleY, 1.3) * (compact ? 0.98 : spays ? 0.97 : 0.85);
     // Only-if-needed clamp: never let the grid extend into the bar band.
     if (hud > 0 && totalH * scale > height - hud - 8) {
       scale = (height - hud - 8) / totalH;
@@ -618,7 +621,8 @@ export class PixiApp {
     if (artR > width - 2) sx -= Math.round(artR - (width - 2));
     if (sx - ovL * scale < 2) sx = Math.round(2 + ovL * scale);
     this.sceneRoot.x = sx;
-    this.sceneRoot.y = Math.round((height - hud - totalH * scale) / 2);
+    this.sceneRoot.y = Math.round((height - hud - totalH * scale) / 2)
+      - (spays && !compact ? Math.round(height * 0.045) : 0);
     // Side actors: keep beside the frame, clamped onto the canvas.
     this.layoutSideActors();
 
@@ -2135,6 +2139,12 @@ export class PixiApp {
     this.reelSet.hideFruitPlaque();
     this.reelSet.setFruitPool(null);
     this._scatterLands = 0;
+    // CLUSTER CONSTRUCT (Fruit Stacks): no reels roll — the board DROPS OUT
+    // downward and waits empty; resolve() rains the new board in from above.
+    if (activePayModel() === 'scatterpays') {
+      void this.reelSet.playFruitDropOut({ isLive: () => this.isLive, turbo: this.turbo });
+      return;
+    }
     this.reelSet.startSpin();
   }
 
@@ -2509,7 +2519,13 @@ export class PixiApp {
       this.fsOverlayOpen = null;
       this.exitFsBackground();
     }
-    await this.reelSet.stopOnStops(outcome.stops, this.turbo);
+    // Cluster drop-in: the fresh board rains in from above (slow-drop tease
+    // takes over reel-by-reel once 2 scatters stand — no reel spin at all).
+    await this.reelSet.playFruitDropIn(
+      round.base.initialBoard,
+      round.base.crates.filter(c => c.step === -1),
+      { isLive: () => this.isLive, turbo: this.turbo },
+    );
     if (!this.isLive) return;
 
     // BASE spin cascade (crate badges appear as soon as the board rests).
@@ -2549,10 +2565,13 @@ export class PixiApp {
         // POOL BADGE (reference): the accumulated multiplier pool stands at
         // the grid's right through the whole round.
         this.reelSet.setFruitPool(spin.poolBefore);
-        this.reelSet.startSpin();
-        await new Promise<void>(r => { gsap.delayedCall(this.turbo ? 0.25 : 0.55, () => r()); });
+        await this.reelSet.playFruitDropOut({ isLive: () => this.isLive, turbo: this.turbo });
         if (!this.isLive) break;
-        await this.reelSet.stopOnStops(spin.stops, this.turbo);
+        await this.reelSet.playFruitDropIn(
+          spin.initialBoard,
+          spin.crates.filter(c => c.step === -1),
+          { isLive: () => this.isLive, turbo: this.turbo },
+        );
         if (!this.isLive) break;
         await this.playTumbleSpin(spin, decimals);
         // fresh gifts grew the pool — badge ticks up AFTER the multi beat
@@ -2581,6 +2600,12 @@ export class PixiApp {
     }
   }
 
+  /** Cluster games: hide the vertical reel separators. */
+  setSeparatorsVisible(v: boolean): void {
+    if (!this.isLive) return;
+    this.reelSet.setSeparatorsVisible(v);
+  }
+
   /** Fruit Stacks plate art for the top win plaque (cropped to the plate's
    *  alpha bbox on the 1080p canvas — measured at bake time). */
   async setFruitPlaqueArt(url: string): Promise<void> {
@@ -2601,9 +2626,15 @@ export class PixiApp {
    *  wins tick into the top plate → gifts pulse, their ×N flies to the
    *  plate → plate reads "«win» ×«sum»" → holds → resolves to the product. */
   private async playTumbleSpin(spin: FruitSpin, decimals: number): Promise<void> {
-    const showCrates = (upToStep: number) => {
-      const active = spin.crates.filter(c => c.step <= upToStep);
-      if (active.length) this.reelSet.setCrateBadges(active.map(c => ({ cell: c.cell, value: c.value })));
+    // Badges are PINNED to their gifts: step -1 uses the landing cells, each
+    // later step uses the core's cratesAfter (gifts RIDE the gravity slide).
+    const showCrates = (stepIdx: number) => {
+      // cratesAfter IS the full stand as of that step (positions ridden
+      // through the gravity) — landing cells only before the first step.
+      const active = stepIdx < 0
+        ? spin.crates.filter(c => c.step === -1).map(c => ({ cell: c.cell, value: c.value }))
+        : (spin.steps[stepIdx]?.cratesAfter ?? []);
+      if (active.length) this.reelSet.setCrateBadges(active);
     };
     showCrates(-1);
     let running = 0n;

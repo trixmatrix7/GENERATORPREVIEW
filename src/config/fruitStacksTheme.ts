@@ -2,7 +2,7 @@
 // theme (Noski's Higgsfield art, baked via the chroma-key pipeline into
 // public/theme/fruitstacks/). Mirrors the crackFarmTheme.ts pattern.
 
-import { SymbolId, FRUIT_LOW_I } from './symbols';
+import { SymbolId, FRUIT_LOW_I, FRUIT_GIFT_T1, FRUIT_GIFT_T2, FRUIT_GIFT_T3 } from './symbols';
 
 const F = `${import.meta.env.BASE_URL}theme/fruitstacks/`;
 
@@ -32,5 +32,8 @@ export function fruitStacksSymbolMap(): Map<number, string> {
     [SymbolId.LOW_G, `${F}symbol_low_g.png`],     // orange
     [SymbolId.COIN, `${F}symbol_low_h.png`],      // lemon (id 9 as LOW_H)
     [FRUIT_LOW_I, `${F}symbol_low_i.png`],        // watermelon (10)
+    [FRUIT_GIFT_T1, `${F}gift_tier1.png`],        // gift ×2-5 (silver)
+    [FRUIT_GIFT_T2, `${F}gift_tier2.png`],        // gift ×6-30 (red)
+    [FRUIT_GIFT_T3, `${F}gift_tier3.png`],        // gift ×31-500 (gold)
   ]);
 }

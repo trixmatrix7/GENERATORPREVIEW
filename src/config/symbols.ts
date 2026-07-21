@@ -131,3 +131,22 @@ export const FRUIT_LOW_I = 10 as SymbolIdType;
 };
 
 export const SYMBOL_LIST = Object.values(SYMBOLS);
+
+// Fruit Stacks gift TIERS (reference rules: silver ×2-5, red ×6-30, gold
+// ×31-500) — presentation-only ids; the math keeps id 0 on strips/boards
+// and the display swaps the crate cell to its tier art when the value is
+// known. Same out-of-union pattern as FRUIT_LOW_I.
+export const FRUIT_GIFT_T1 = 11 as SymbolIdType;
+export const FRUIT_GIFT_T2 = 12 as SymbolIdType;
+export const FRUIT_GIFT_T3 = 13 as SymbolIdType;
+for (const [id, key] of [[11, 'gift_t1'], [12, 'gift_t2'], [13, 'gift_t3']] as const) {
+  (SYMBOLS as unknown as Record<number, SymbolDef>)[id] = {
+    id: id as SymbolIdType, key, label: 'G',
+    placeholderColor: 0x4a7de8, isWild: false, isScatter: false,
+  };
+}
+
+/** Gift value → its tier's display id (reference stage art). */
+export function fruitGiftTierId(value: number): SymbolIdType {
+  return (value <= 5 ? FRUIT_GIFT_T1 : value <= 30 ? FRUIT_GIFT_T2 : FRUIT_GIFT_T3);
+}

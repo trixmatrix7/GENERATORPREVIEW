@@ -15,7 +15,7 @@ import { CELL_HEIGHT, REEL_GAP } from './symbolMetrics';
 import { getActiveGrid, type GridConfig } from '@/config/gridConfig';
 import { resolveAnchor, cell as cellAnchor, reel as reelAnchor, grid as gridAnchor } from '@/engine/anchors';
 import { CANVAS_THEME } from '@/config/canvasTheme';
-import { SymbolId, type SymbolIdType } from '@/config/symbols';
+import { SymbolId, fruitGiftTierId, type SymbolIdType } from '@/config/symbols';
 import { numToHsl, hexToNum } from '@/config/color';
 import { cellBackdropConfig } from '@/config/cellBackdrop';
 import { FALLBACK_TIMINGS } from '@/config/symbolAnimations';
@@ -3065,6 +3065,10 @@ export class ReelSet {
     this.clearCrateBadges();
     for (const c of crates) {
       const [row, reel] = c.cell;
+      // The gift art itself carries the TIER (reference stages: silver ×2-5,
+      // red ×6-30, gold ×31-500) — swap the cell to its stage the moment the
+      // value is known. Math keeps id 0; this is display-only.
+      this.reels[reel]?.getVisibleCell(row)?.setSymbol(fruitGiftTierId(c.value));
       const rect = resolveAnchor(cellAnchor(reel, row), this.grid);
       const label = new Text({
         text: `×${c.value}`,
@@ -3105,6 +3109,110 @@ export class ReelSet {
 
   setFruitPlaqueTexture(tex: Texture | null): void {
     this.fruitPlaqueTex = tex;
+  }
+
+  /** Cluster games have no reel separators (Noski: symbols frontmost). */
+  setSeparatorsVisible(v: boolean): void {
+    for (const s of this.separators) s.visible = v;
+  }
+
+  /** DROP-OUT (cluster construct, replaces the reel spin): the standing board
+   *  falls away downward, column by column — the grid then waits empty. */
+  async playFruitDropOut(opts: { isLive: () => boolean; turbo?: boolean }): Promise<void> {
+    const speed = opts.turbo ? 0.5 : 1;
+    const rows = this.grid.visibleRows;
+    const drop = rows * CELL_HEIGHT + CELL_HEIGHT;
+    for (let reel = 0; reel < this.grid.reelCount; reel++) {
+      for (let row = 0; row < rows; row++) {
+        const cell = this.reels[reel]?.getVisibleCell(row);
+        if (!cell) continue;
+        cell.clearState();
+        const inner = cell.objectLayer;
+        gsap.killTweensOf(inner); gsap.killTweensOf(inner.scale);
+        gsap.to(inner, {
+          y: SYMBOL_HEIGHT / 2 + drop, alpha: 0,
+          duration: 0.3 * speed, ease: 'power2.in',
+          delay: 0.05 * speed * reel + 0.015 * speed * (rows - row),
+        });
+      }
+    }
+    await new Promise<void>(r => { gsap.delayedCall((0.3 + 0.05 * this.grid.reelCount + 0.1) * speed, () => r()); });
+  }
+
+  /** DROP-IN (cluster construct): fresh symbols rain in from above the mask,
+   *  column by column left→right. TEASE (Noski): once 2+ scatters stand in
+   *  the already-landed columns, every remaining column drops SLOW, symbol
+   *  by symbol. Cells normalise to `board` (+ gift tier art) at the end. */
+  async playFruitDropIn(
+    board: number[][],
+    crates: { cell: [number, number]; value: number }[],
+    opts: { isLive: () => boolean; turbo?: boolean },
+  ): Promise<void> {
+    const speed = opts.turbo ? 0.5 : 1;
+    const rows = this.grid.visibleRows;
+    const reels = this.grid.reelCount;
+    const theme = this.config.theme as { userAssetTextures?: Map<number, Texture> };
+    const crateAt = new Map(crates.map(c => [c.cell[0] * reels + c.cell[1], c.value]));
+    // park the real cells invisible until their column lands
+    for (let reel = 0; reel < reels; reel++) {
+      for (let row = 0; row < rows; row++) {
+        const cell = this.reels[reel]?.getVisibleCell(row);
+        if (!cell) continue;
+        const inner = cell.objectLayer;
+        gsap.killTweensOf(inner);
+        inner.alpha = 0;
+      }
+    }
+    let scattersSoFar = 0;
+    let teasing = false;
+    for (let reel = 0; reel < reels; reel++) {
+      if (!opts.isLive()) return;
+      // SLOW-DROP TEASE: 2 scatters already standing → the rest crawls in
+      if (!teasing && scattersSoFar >= 2 && !opts.turbo) teasing = true;
+      const slow = teasing ? 2.6 : 1;
+      const temps: Sprite[] = [];
+      const dur = 0.26 * speed * slow;
+      const stagger = (teasing ? 0.16 : 0.045) * speed;
+      for (let row = rows - 1; row >= 0; row--) {
+        const sym = board[row][reel];
+        const dispId = crateAt.get(row * reels + reel) !== undefined
+          ? fruitGiftTierId(crateAt.get(row * reels + reel)!)
+          : sym;
+        const tex = theme.userAssetTextures?.get(dispId);
+        if (!tex) continue;
+        const rect = resolveAnchor(cellAnchor(reel, row), this.grid);
+        const spr = new Sprite(tex);
+        spr.anchor.set(0.5);
+        const fit = Math.min((rect.w * 0.84) / spr.texture.width, (rect.h * 0.84) / spr.texture.height);
+        spr.scale.set(fit);
+        spr.x = rect.x + rect.w / 2;
+        spr.y = -CELL_HEIGHT * 0.7 - (rows - 1 - row) * 8;
+        spr.eventMode = 'none';
+        this.clipContainer.addChild(spr);
+        temps.push(spr);
+        gsap.to(spr, {
+          y: rect.y + rect.h / 2,
+          duration: dur, ease: 'power2.in',
+          delay: stagger * (rows - 1 - row),
+        });
+      }
+      await new Promise<void>(r => { gsap.delayedCall(dur + stagger * rows + 0.04 * speed, () => r()); });
+      // normalise this column: real cells take over, temps die
+      for (const t of temps) { try { t.parent?.removeChild(t); t.destroy(); } catch { /* gone */ } }
+      for (let row = 0; row < rows; row++) {
+        const cell = this.reels[reel]?.getVisibleCell(row);
+        if (!cell) continue;
+        const sym = board[row][reel];
+        const crateVal = crateAt.get(row * reels + reel);
+        cell.setSymbol((crateVal !== undefined ? fruitGiftTierId(crateVal) : sym) as SymbolIdType);
+        const inner = cell.objectLayer;
+        inner.y = SYMBOL_HEIGHT / 2;
+        inner.scale.set(1);
+        inner.alpha = 1;
+        if (sym === SymbolId.SCATTER) scattersSoFar++;
+        if (!opts.turbo) cell.playLandBounce(); // subtle knick per landing
+      }
+    }
   }
 
   showFruitPlaque(initial = ''): void {
@@ -3260,6 +3368,7 @@ export class ReelSet {
       removed: [number, number][];
       refills: number[][];
       boardAfter: number[][];
+      cratesAfter?: { cell: [number, number]; value: number }[];
     },
     amountTexts: string[],
     opts: { isLive: () => boolean; turbo?: boolean },
@@ -3405,6 +3514,8 @@ export class ReelSet {
 
     // 3. NORMALISE: every cell snaps to its canonical spot showing boardAfter
     //    (same-frame swap with the settled visuals — seamless), temps die.
+    //    Gifts keep their TIER art (cratesAfter rode the gravity in the core).
+    const crateAt = new Map((step.cratesAfter ?? []).map(c => [c.cell[0] * reels + c.cell[1], c.value]));
     for (const t of temps) { try { t.parent?.removeChild(t); t.destroy(); } catch { /* gone */ } }
     for (let reel = 0; reel < reels; reel++) {
       const moved = removedByReel.has(reel);
@@ -3416,7 +3527,10 @@ export class ReelSet {
         inner.y = SYMBOL_HEIGHT / 2;
         inner.scale.set(1);
         inner.alpha = 1;
-        cell.setSymbol(step.boardAfter[row][reel] as SymbolIdType);
+        const crateVal = crateAt.get(row * reels + reel);
+        cell.setSymbol((crateVal !== undefined
+          ? fruitGiftTierId(crateVal)
+          : step.boardAfter[row][reel]) as SymbolIdType);
         // subtle landing knick on the cells that actually moved (soft
         // landingImpact preset — Noski: "Knick, keine Billig-Effekte")
         if (moved && !opts.turbo) cell.playLandBounce();

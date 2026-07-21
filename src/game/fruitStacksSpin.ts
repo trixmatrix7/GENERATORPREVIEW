@@ -48,6 +48,10 @@ export interface TumbleStep {
   /** refills[reel] = symbols entering from the top, TOP-FIRST order */
   refills: number[][];
   boardAfter: number[][];
+  /** Gift positions AFTER this step's gravity — badges are PINNED to their
+   *  gift and ride the slide (Noski bug: a stale badge hung over whatever
+   *  landed in the old cell). */
+  cratesAfter: { cell: [number, number]; value: number }[];
 }
 
 export interface CrateLanding {
@@ -175,12 +179,15 @@ function playSpin(
     const removed = wins.flatMap(w => w.cells);
     const removedSet = new Set(removed.map(([r, c]) => r * reels + c));
 
-    // gravity + refill, column by column
+    // gravity + refill, column by column — crates RIDE the slide (their
+    // recorded cell moves down by the removed-below count)
     const refills: number[][] = [];
     for (let c = 0; c < reels; c++) {
+      const removedRows: number[] = [];
       const survivors: number[] = [];
       for (let r = 0; r < rows; r++) {
-        if (!removedSet.has(r * reels + c)) survivors.push(board[r][c]);
+        if (removedSet.has(r * reels + c)) removedRows.push(r);
+        else survivors.push(board[r][c]);
       }
       const need = rows - survivors.length;
       const strip = cfg.reelStrips[c];
@@ -189,9 +196,19 @@ function playSpin(
       refills.push(fresh);
       const col = [...fresh, ...survivors]; // fresh land on top
       for (let r = 0; r < rows; r++) board[r][c] = col[r];
+      if (removedRows.length) {
+        for (const cr of crates) {
+          if (cr.cell[1] !== c) continue;
+          const below = removedRows.filter(rr => rr > cr.cell[0]).length;
+          if (below > 0) cr.cell = [cr.cell[0] + below, cr.cell[1]];
+        }
+      }
       noteLandings(fresh.map((sym, i) => [i, c, sym] as [number, number, number]), steps.length);
     }
-    steps.push({ wins, removed, refills, boardAfter: board.map(r => [...r]) });
+    steps.push({
+      wins, removed, refills, boardAfter: board.map(r => [...r]),
+      cratesAfter: crates.map(cr => ({ cell: [cr.cell[0], cr.cell[1]] as [number, number], value: cr.value })),
+    });
     if (steps.length > 40) break; // physical impossibility guard
   }
 

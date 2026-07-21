@@ -306,9 +306,15 @@ export function App() {
       // no fallback pulse/squash warping the illustrated art.
       STATIC_LOOK_SYMBOLS.add(1);
       NO_IDLE_SYMBOLS.add(0);
+      // Symbols 10% smaller (Noski) — glossy art breathes inside the cell;
+      // applies to every fruit id incl. the out-of-union 10-13.
+      for (const id of [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]) SYMBOL_SIZE_MULS.set(id, 0.9);
       // Frosted reel pane OFF: the warm forest scene would bleed through
       // transparent symbol corners as a milky veil (theme rule, skill §3).
       pixiAppRef.setReelFrosted(false);
+      // Cluster look: no reel separators — symbols read as the frontmost
+      // layer on the open board (Noski).
+      pixiAppRef.setSeparatorsVisible(false);
       const Tf = `${import.meta.env.BASE_URL}theme/win-tiers/`;
       void pixiAppRef.setWinCoinRain(
         [`${Tf}coinrain3_0.webp`, `${Tf}coinrain3_1.webp`, `${Tf}coinrain3_2.webp`], 10, 10, 300, 45,

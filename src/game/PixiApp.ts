@@ -2132,6 +2132,8 @@ export class PixiApp {
     this.winBanner.alpha = 0;
     this.reelSet.clearHighlights();
     this.reelSet.clearCrateBadges(); // Fruit Stacks ×N badges are per-spin
+    this.reelSet.hideFruitPlaque();
+    this.reelSet.setFruitPool(null);
     this._scatterLands = 0;
     this.reelSet.startSpin();
   }
@@ -2543,14 +2545,21 @@ export class PixiApp {
         }
         this._winRevealId++;
         this.reelSet.clearCrateBadges();
+        this.reelSet.hideFruitPlaque();
+        // POOL BADGE (reference): the accumulated multiplier pool stands at
+        // the grid's right through the whole round.
+        this.reelSet.setFruitPool(spin.poolBefore);
         this.reelSet.startSpin();
         await new Promise<void>(r => { gsap.delayedCall(this.turbo ? 0.25 : 0.55, () => r()); });
         if (!this.isLive) break;
         await this.reelSet.stopOnStops(spin.stops, this.turbo);
         if (!this.isLive) break;
         await this.playTumbleSpin(spin, decimals);
+        // fresh gifts grew the pool — badge ticks up AFTER the multi beat
+        if (spin.poolAfter !== spin.poolBefore) this.reelSet.setFruitPool(spin.poolAfter, true);
         await new Promise<void>(r => { gsap.delayedCall(0.3, () => r()); });
       }
+      this.reelSet.setFruitPool(null);
       fsOverlayToClose = fsOverlay;
       this.fsOverlayOpen = fsOverlay;
     }
@@ -2572,45 +2581,74 @@ export class PixiApp {
     }
   }
 
-  /** One spin's cascade: crate badges → tumble steps → multiplier beat. */
+  /** Fruit Stacks plate art for the top win plaque (cropped to the plate's
+   *  alpha bbox on the 1080p canvas — measured at bake time). */
+  async setFruitPlaqueArt(url: string): Promise<void> {
+    try {
+      const tex = await Assets.load<Texture>(url);
+      if (this._aborted) return;
+      const cropped = new Texture({
+        source: tex.source,
+        frame: new Rectangle(554, 523, 811, 436),
+      });
+      this.reelSet?.setFruitPlaqueTexture(cropped);
+    } catch (err) {
+      console.warn('[PixiApp] fruit plaque art failed:', err);
+    }
+  }
+
+  /** One spin's cascade — the FULL reference choreography:
+   *  wins tick into the top plate → gifts pulse, their ×N flies to the
+   *  plate → plate reads "«win» ×«sum»" → holds → resolves to the product. */
   private async playTumbleSpin(spin: FruitSpin, decimals: number): Promise<void> {
-    // crates visible on the resting board (landed up to now = step -1)
     const showCrates = (upToStep: number) => {
       const active = spin.crates.filter(c => c.step <= upToStep);
       if (active.length) this.reelSet.setCrateBadges(active.map(c => ({ cell: c.cell, value: c.value })));
     };
     showCrates(-1);
+    let running = 0n;
     for (let s = 0; s < spin.steps.length; s++) {
       if (!this.isLive) return;
       const step = spin.steps[s];
+      if (s === 0) this.reelSet.showFruitPlaque(''); // plate appears with the first win
       await this.reelSet.playTumbleStep(
         step,
         step.wins.map(w => '+' + formatWin(w.amount, decimals)),
         { isLive: () => this.isLive, turbo: this.turbo },
       );
+      for (const w of step.wins) running += w.amount;
+      this.reelSet.setFruitPlaqueText(formatWin(running, decimals), true);
       showCrates(s);
       await new Promise<void>(r => { gsap.delayedCall(this.turbo ? 0.08 : 0.18, () => r()); });
     }
-    // MULTIPLIER BEAT: crates pulse and the applied ×N slams centre-board.
+    if (spin.scatterPay > 0n) {
+      running += spin.scatterPay;
+      this.reelSet.showFruitPlaque(formatWin(running, decimals));
+    }
+
+    // MULTI BEAT (reference): only when a gift is on board AND the spin won.
     const applied = spin.multiSum > 0 ? Math.min(spin.multiSum + spin.poolBefore, 500) : 0;
     if (applied > 1 && spin.winBeforeMulti > 0n && !prefersReducedMotion()) {
-      const gridRect = { x: this.reelSet.totalWidth / 2, y: this.reelSet.totalHeight / 2 };
-      const label = new Text({
-        text: `×${applied}`,
-        style: new TextStyle({
-          fontFamily: 'Arial, sans-serif', fontSize: 92, fontWeight: '900', fontStyle: 'italic',
-          fill: 0xffe93e, stroke: { color: 0x1a0f00, width: 10 }, align: 'center',
-        }),
-      });
-      label.anchor.set(0.5);
-      label.x = gridRect.x; label.y = gridRect.y;
-      label.eventMode = 'none';
-      this.reelSet.container.addChild(label);
-      await new Promise<void>(resolve => {
-        gsap.timeline({ onComplete: () => { try { label.parent?.removeChild(label); label.destroy(); } catch { /* gone */ } resolve(); } })
-          .fromTo(label.scale, { x: 2.4, y: 2.4 }, { x: 1, y: 1, duration: 0.34, ease: 'power3.in' })
-          .to(label, { alpha: 0, duration: 0.4, ease: 'power1.in' }, '+=0.75');
-      });
+      const winText = formatWin(spin.winBeforeMulti, decimals);
+      this.reelSet.showFruitPlaque(winText);
+      // pool joins the sum the moment the FIRST gift arrives (its value rides
+      // along with the fresh gifts — reference "pool applies when a new
+      // multiplier drops").
+      const poolBase = spin.poolBefore;
+      await this.reelSet.flyGiftMultisToPlaque(
+        spin.crates.map(c => ({ cell: c.cell, value: c.value })),
+        sum => {
+          const shown = Math.min(sum + poolBase, 500);
+          this.reelSet.setFruitPlaqueText(`${winText} ×${shown}`, true);
+        },
+        { isLive: () => this.isLive, turbo: this.turbo },
+      );
+      if (!this.isLive) return;
+      // hold the connected "win ×N", then RESOLVE to the product
+      await new Promise<void>(r => { gsap.delayedCall(this.turbo ? 0.35 : 0.8, () => r()); });
+      this.reelSet.setFruitPlaqueText(formatWin(spin.spinWin, decimals), true);
+    } else if (spin.spinWin > 0n) {
+      this.reelSet.setFruitPlaqueText(formatWin(spin.spinWin, decimals), true);
     }
   }
 

@@ -3090,6 +3090,168 @@ export class ReelSet {
     this.crateBadges = [];
   }
 
+  // ── FRUIT STACKS: top win plaque + FS pool badge + gift-fly choreography ─
+  // Reference construct (research 18, frame-measured 15fps burst): cascade
+  // wins tick into a PLATE above the grid; when the chain ends, each gift
+  // PULSES, its ×N detaches and FLIES to the plate, the plate reads
+  // "«win» ×«sum»" (price + multi connected), holds ~0.8s, then resolves
+  // to the product.
+
+  private fruitPlaque: Container | null = null;
+  private fruitPlaqueText: Text | null = null;
+  private fruitPlaqueTex: Texture | null = null;
+  private fruitPool: Container | null = null;
+  private fruitPoolText: Text | null = null;
+
+  setFruitPlaqueTexture(tex: Texture | null): void {
+    this.fruitPlaqueTex = tex;
+  }
+
+  showFruitPlaque(initial = ''): void {
+    if (!this.fruitPlaque) {
+      const c = new Container();
+      c.eventMode = 'none';
+      if (this.fruitPlaqueTex) {
+        const s = new Sprite(this.fruitPlaqueTex);
+        s.anchor.set(0.5);
+        s.scale.set(250 / this.fruitPlaqueTex.width);
+        c.addChild(s);
+      }
+      const t = new Text({
+        text: '',
+        style: new TextStyle({
+          fontFamily: 'Arial, sans-serif', fontSize: 34, fontWeight: '900', fontStyle: 'italic',
+          fill: 0xffe07a, stroke: { color: 0x2a1403, width: 5 }, align: 'center',
+        }),
+      });
+      t.anchor.set(0.5);
+      c.addChild(t);
+      c.x = this.totalWidth / 2;
+      c.y = -58; // rides above the grid, overlapping the frame top (reference)
+      this.container.addChild(c);
+      this.fruitPlaque = c;
+      this.fruitPlaqueText = t;
+    }
+    this.fruitPlaque.visible = true;
+    this.fruitPlaque.alpha = 1;
+    this.setFruitPlaqueText(initial);
+  }
+
+  setFruitPlaqueText(text: string, pop = false): void {
+    if (!this.fruitPlaqueText || !this.fruitPlaque) return;
+    this.fruitPlaqueText.text = text;
+    // keep the amount inside the plate art
+    const maxW = 205;
+    this.fruitPlaqueText.scale.set(Math.min(1, maxW / Math.max(1, this.fruitPlaqueText.width / this.fruitPlaqueText.scale.x)));
+    if (pop) {
+      gsap.killTweensOf(this.fruitPlaque.scale);
+      gsap.fromTo(this.fruitPlaque.scale, { x: 1.18, y: 1.18 }, { x: 1, y: 1, duration: 0.3, ease: 'back.out(2.2)' });
+    }
+  }
+
+  hideFruitPlaque(): void {
+    if (this.fruitPlaque) this.fruitPlaque.visible = false;
+  }
+
+  /** FS pool badge (right of the grid): gift icon + ×pool. null hides. */
+  setFruitPool(value: number | null, pop = false): void {
+    if (value === null) {
+      if (this.fruitPool) this.fruitPool.visible = false;
+      return;
+    }
+    if (!this.fruitPool) {
+      const c = new Container();
+      c.eventMode = 'none';
+      const giftTex = (this.config.theme as { userAssetTextures?: Map<number, Texture> }).userAssetTextures?.get(0);
+      if (giftTex) {
+        const g = new Sprite(giftTex);
+        g.anchor.set(0.5);
+        g.scale.set(74 / giftTex.width);
+        c.addChild(g);
+      }
+      const t = new Text({
+        text: '',
+        style: new TextStyle({
+          fontFamily: 'Arial, sans-serif', fontSize: 30, fontWeight: '900', fontStyle: 'italic',
+          fill: 0xffd21e, stroke: { color: 0x241300, width: 6 }, align: 'center',
+        }),
+      });
+      t.anchor.set(0.5);
+      t.y = 52;
+      c.addChild(t);
+      c.x = this.totalWidth + 64;
+      c.y = this.totalHeight * 0.34;
+      this.container.addChild(c);
+      this.fruitPool = c;
+      this.fruitPoolText = t;
+    }
+    this.fruitPool.visible = true;
+    if (this.fruitPoolText) this.fruitPoolText.text = `×${value}`;
+    if (pop) {
+      gsap.killTweensOf(this.fruitPool.scale);
+      gsap.fromTo(this.fruitPool.scale, { x: 1.25, y: 1.25 }, { x: 1, y: 1, duration: 0.35, ease: 'back.out(2.4)' });
+    }
+  }
+
+  /** THE reference multi beat: every gift pulses, its ×value detaches and
+   *  flies to the plate; `onArrive(runningSum)` fires per arrival so the
+   *  caller appends "×sum" to the plate text. */
+  async flyGiftMultisToPlaque(
+    gifts: { cell: [number, number]; value: number }[],
+    onArrive: (runningSum: number) => void,
+    opts: { isLive: () => boolean; turbo?: boolean },
+  ): Promise<void> {
+    if (!this.fruitPlaque || gifts.length === 0) return;
+    const speed = opts.turbo ? 0.55 : 1;
+    const target = { x: this.fruitPlaque.x, y: this.fruitPlaque.y };
+    let sum = 0;
+    const flights: Promise<void>[] = [];
+    for (let i = 0; i < gifts.length; i++) {
+      const g = gifts[i];
+      const [row, reel] = g.cell;
+      const rect = resolveAnchor(cellAnchor(reel, row), this.grid);
+      // gift pulse (the cell art itself)
+      const cell = this.reels[reel]?.getVisibleCell(row);
+      if (cell) {
+        const inner = cell.objectLayer;
+        gsap.killTweensOf(inner.scale);
+        gsap.timeline({ delay: 0.16 * speed * i })
+          .to(inner.scale, { x: 1.18, y: 1.18, duration: 0.14 * speed, ease: 'power2.out' })
+          .to(inner.scale, { x: 1, y: 1, duration: 0.22 * speed, ease: 'back.out(2)' });
+      }
+      const label = new Text({
+        text: `×${g.value}`,
+        style: new TextStyle({
+          fontFamily: 'Arial, sans-serif', fontSize: 36, fontWeight: '900', fontStyle: 'italic',
+          fill: 0xffd21e, stroke: { color: 0x241300, width: 7 }, align: 'center',
+        }),
+      });
+      label.anchor.set(0.5);
+      label.x = rect.x + rect.w / 2;
+      label.y = rect.y + rect.h * 0.95;
+      label.eventMode = 'none';
+      this.winAmountsContainer.addChild(label);
+      flights.push(new Promise<void>(resolve => {
+        const midX = (label.x + target.x) / 2 + (target.x > label.x ? -40 : 40);
+        gsap.timeline({
+          delay: 0.16 * speed * i,
+          onComplete: () => {
+            try { label.parent?.removeChild(label); label.destroy(); } catch { /* gone */ }
+            sum += g.value;
+            onArrive(sum);
+            resolve();
+          },
+        })
+          .to(label.scale, { x: 1.3, y: 1.3, duration: 0.16 * speed, ease: 'power2.out' })
+          .to(label, { x: midX, y: (label.y + target.y) / 2 - 30, duration: 0.24 * speed, ease: 'power1.in' }, '>')
+          .to(label, { x: target.x, y: target.y, duration: 0.22 * speed, ease: 'power2.in' }, '>')
+          .to(label.scale, { x: 0.55, y: 0.55, duration: 0.22 * speed, ease: 'power2.in' }, '<');
+      }));
+    }
+    await Promise.all(flights);
+    if (!opts.isLive()) return;
+  }
+
   /** One tumble step: pop the winning cells, drop the survivors, refill from
    *  the top, then normalise every cell to `boardAfter`. */
   async playTumbleStep(
@@ -3106,23 +3268,77 @@ export class ReelSet {
     const rows = this.grid.visibleRows;
     const reels = this.grid.reelCount;
 
-    // 1. POP-APART: quick swell → burst to nothing. Each win floats its own
-    //    +amount at the cluster centroid (free bold text, no box — §1).
+    // 1. FRUIT-NINJA CUT (Noski): a slash flashes across each winner, the
+    //    symbol SPLITS into two halves that fly apart along the cut normal.
+    //    Each win floats its +amount at the cluster centroid (bold, no box).
+    const themeTex = (this.config.theme as { userAssetTextures?: Map<number, Texture> }).userAssetTextures;
     for (let w = 0; w < step.wins.length; w++) {
       const win = step.wins[w];
       let cx = 0, cy = 0;
       for (const [row, reel] of win.cells) {
         const cell = this.reels[reel]?.getVisibleCell(row);
         const rect = resolveAnchor(cellAnchor(reel, row), this.grid);
-        cx += rect.x + rect.w / 2; cy += rect.y + rect.h / 2;
+        const ccx = rect.x + rect.w / 2, ccy = rect.y + rect.h / 2;
+        cx += ccx; cy += ccy;
         if (!cell) continue;
         cell.clearState();
         const inner = cell.objectLayer;
         gsap.killTweensOf(inner); gsap.killTweensOf(inner.scale);
-        gsap.timeline()
-          .to(inner.scale, { x: 1.24, y: 1.24, duration: 0.12 * speed, ease: 'back.out(1.8)' })
-          .to(inner.scale, { x: 0, y: 0, duration: 0.16 * speed, ease: 'power2.in' }, '>')
-          .to(inner, { alpha: 0, duration: 0.14 * speed, ease: 'power2.in' }, '<');
+        const tex = themeTex?.get(win.symbolId);
+        const theta = -Math.PI / 4 + (Math.random() - 0.5) * 0.9; // slash angle
+        if (tex) {
+          // two masked halves in the (clipped) board layer, hidden real icon
+          const C = Math.max(rect.w, rect.h);
+          const fit = Math.min((rect.w * 0.92) / tex.width, (rect.h * 0.92) / tex.height);
+          const nx = -Math.sin(theta), ny = Math.cos(theta); // cut normal
+          const halves: Container[] = [];
+          for (const side of [0, 1] as const) {
+            const holder = new Container();
+            holder.x = ccx; holder.y = ccy;
+            const spr = new Sprite(tex);
+            spr.anchor.set(0.5);
+            spr.scale.set(fit);
+            const m = new Graphics();
+            m.rect(-C, side === 0 ? -C * 2 : 0, C * 2, C * 2);
+            m.fill(0xffffff);
+            m.rotation = theta;
+            holder.addChild(m);
+            holder.addChild(spr);
+            spr.mask = m;
+            holder.eventMode = 'none';
+            this.clipContainer.addChild(holder);
+            halves.push(holder);
+            const dir = side === 0 ? 1 : -1;
+            gsap.timeline({ delay: 0.09 * speed, onComplete: () => { try { holder.parent?.removeChild(holder); holder.destroy({ children: true }); } catch { /* gone */ } } })
+              .to(holder, {
+                x: ccx + dir * nx * 26, y: ccy + dir * ny * 26,
+                rotation: dir * 0.16, duration: 0.26 * speed, ease: 'power2.in',
+              })
+              .to(holder, { alpha: 0, duration: 0.18 * speed, ease: 'power2.in' }, '<0.06');
+          }
+          // swell then hide the real icon at the cut moment
+          gsap.timeline()
+            .to(inner.scale, { x: 1.12, y: 1.12, duration: 0.09 * speed, ease: 'power2.out' })
+            .set(inner, { alpha: 0 });
+          // slash flash: a bright line whips across the cell
+          const slash = new Graphics();
+          slash.rect(-C * 0.72, -2.2, C * 1.44, 4.4);
+          slash.fill({ color: 0xffffff, alpha: 0.95 });
+          slash.x = ccx; slash.y = ccy;
+          slash.rotation = theta;
+          slash.scale.set(0, 1);
+          slash.eventMode = 'none';
+          this.winAmountsContainer.addChild(slash);
+          gsap.timeline({ onComplete: () => { try { slash.parent?.removeChild(slash); slash.destroy(); } catch { /* gone */ } } })
+            .to(slash.scale, { x: 1, duration: 0.08 * speed, ease: 'power3.out' })
+            .to(slash, { alpha: 0, duration: 0.14 * speed, ease: 'power1.in' }, '>');
+        } else {
+          // no texture (placeholder build) — the plain pop
+          gsap.timeline()
+            .to(inner.scale, { x: 1.24, y: 1.24, duration: 0.12 * speed, ease: 'back.out(1.8)' })
+            .to(inner.scale, { x: 0, y: 0, duration: 0.16 * speed, ease: 'power2.in' }, '>')
+            .to(inner, { alpha: 0, duration: 0.14 * speed, ease: 'power2.in' }, '<');
+        }
       }
       cx /= win.cells.length; cy /= win.cells.length;
       const label = new Text({

@@ -313,6 +313,26 @@ export function App() {
       void pixiAppRef.setWinCoinRain(
         [`${Tf}coinrain3_0.webp`, `${Tf}coinrain3_1.webp`, `${Tf}coinrain3_2.webp`], 10, 10, 300, 45,
       );
+      // Win marquee: Noski's Fruit-Stacks layer set ("win screen" pack,
+      // alpha-bbox measured fractions of the 1080p canvas — as authored).
+      setWinTierGeometry({
+        tierCy: { big: 0.1921, mega: 0.1995, epic: 0.1940, max: 0.1944 },
+        winCy: 0.4458,
+        plateCy: 0.6861,
+        plateH: 0.4037,
+        contentFrac: 0.8278, // y[65..959] across tiers
+        contentCy: 0.4741,
+        sizeMul: 0.74,
+        dimAlpha: 0.55,
+      });
+      const Fw = `${FRUITSTACKS.base}win-tiers/`;
+      void pixiAppRef.setWinTierImages({
+        big: `${Fw}big.png`, mega: `${Fw}mega.png`, epic: `${Fw}epic.png`,
+        max: `${Fw}max.png`, win: `${Fw}win.png`, plate: `${Fw}plate.png`,
+      });
+      // TOP WIN PLAQUE (reference construct): the price-area plate sits above
+      // the grid; cascade wins tick into it and the gift ×N values fly to it.
+      void pixiAppRef.setFruitPlaqueArt(`${Fw}plate.png`);
       // Audio: NO sounds wired — none recorded for this game yet, and the
       // hard rule is silence over placeholders (skill §4).
     } else {

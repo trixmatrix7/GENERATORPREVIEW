@@ -39,6 +39,24 @@ export interface SoundManagerConfig {
 }
 
 const STORAGE_KEY = 'slot:audio-prefs';
+// Per-event USER volume overrides (the studio's SOUND panel). An override
+// WINS over the game wiring's design volume (setEventVolume/replaceSource)
+// so Noski's tweaks survive theme boots + reloads.
+const EVENT_VOL_KEY = 'slot:audio-event-volumes';
+
+function loadEventOverrides(): Map<string, number> {
+  const out = new Map<string, number>();
+  if (typeof window === 'undefined') return out;
+  try {
+    const raw = window.localStorage.getItem(EVENT_VOL_KEY);
+    if (!raw) return out;
+    const parsed = JSON.parse(raw) as Record<string, number>;
+    for (const [k, v] of Object.entries(parsed)) {
+      if (typeof v === 'number' && Number.isFinite(v)) out.set(k, Math.max(0, Math.min(1, v)));
+    }
+  } catch { /* corrupt prefs */ }
+  return out;
+}
 
 interface PersistedPrefs {
   volume: number;
@@ -73,6 +91,7 @@ export class SoundManager {
   private howls = new Map<string, Howl>();
   private bindings = new Map<string, SoundEventBinding>();
   private exclusivePlaying = new Map<string, number>(); // eventId → soundId
+  private overrides = loadEventOverrides();
   private _volume: number;
   private _muted: boolean;
   private listeners = new Set<() => void>();
@@ -88,7 +107,7 @@ export class SoundManager {
         const howl = new Howl({
           src: binding.src,
           loop: binding.loop ?? false,
-          volume: binding.volume * this._volume,
+          volume: this.effVolume(binding.id),
           mute: this._muted,
           onloaderror: (_id, err) => {
             // Do not throw — game must keep running silently.
@@ -128,6 +147,13 @@ export class SoundManager {
     }
   }
 
+  /** EFFECTIVE per-event volume: user override (SOUND panel) wins over the
+   *  binding's design volume; master multiplies on top. */
+  private effVolume(eventId: string): number {
+    const design = this.bindings.get(eventId)?.volume ?? 0;
+    return (this.overrides.get(eventId) ?? design) * this._volume;
+  }
+
   /** Set one event's resting volume (0 = silent). Used to mute sounds that
    *  have no approved recording yet — silence beats a placeholder. */
   setEventVolume(eventId: string, volume: number): void {
@@ -135,7 +161,49 @@ export class SoundManager {
     if (!binding) return;
     this.bindings.set(eventId, { ...binding, volume });
     const howl = this.howls.get(eventId);
-    if (howl) { try { howl.volume(volume * this._volume); } catch { /* torn down */ } }
+    if (howl) { try { howl.volume(this.effVolume(eventId)); } catch { /* torn down */ } }
+  }
+
+  // ── Per-event USER overrides (studio SOUND panel) ────────────────────────
+
+  /** The value the SOUND panel shows: override if set, else design volume. */
+  getEventVolume(eventId: string): number {
+    return this.overrides.get(eventId) ?? this.bindings.get(eventId)?.volume ?? 0;
+  }
+
+  /** The game wiring's design volume (RESET target). */
+  getEventDefault(eventId: string): number {
+    return this.bindings.get(eventId)?.volume ?? 0;
+  }
+
+  hasEventOverride(eventId: string): boolean {
+    return this.overrides.has(eventId);
+  }
+
+  /** Set (or clear with null) a user override; applies live + persists. */
+  setEventOverride(eventId: string, volume: number | null): void {
+    if (volume === null) this.overrides.delete(eventId);
+    else this.overrides.set(eventId, Math.max(0, Math.min(1, volume)));
+    const howl = this.howls.get(eventId);
+    if (howl) { try { howl.volume(this.effVolume(eventId)); } catch { /* torn down */ } }
+    try {
+      window.localStorage.setItem(EVENT_VOL_KEY, JSON.stringify(Object.fromEntries(this.overrides)));
+    } catch { /* quota */ }
+    this.notify();
+  }
+
+  clearEventOverrides(): void {
+    this.overrides.clear();
+    for (const [id, howl] of this.howls) {
+      try { howl.volume(this.effVolume(id)); } catch { /* torn down */ }
+    }
+    try { window.localStorage.removeItem(EVENT_VOL_KEY); } catch { /* quota */ }
+    this.notify();
+  }
+
+  /** All registered event ids (for the SOUND panel's row list). */
+  listEventIds(): string[] {
+    return [...this.bindings.keys()];
   }
 
   /** True once this event's audio file actually decoded. Used to fall back
@@ -170,7 +238,7 @@ export class SoundManager {
     if (!howl || !binding || !howl.playing()) return;
     // Restore the BOUND volume unconditionally — mute is an orthogonal layer
     // (howl.mute()), so a muted session must still land on the right volume.
-    howl.fade(howl.volume() as number, binding.volume * this._volume, ms);
+    howl.fade(howl.volume() as number, this.effVolume(eventId), ms);
   }
 
   /** Fade the currently-playing instance out over `ms`, then stop it. Only
@@ -181,7 +249,7 @@ export class SoundManager {
     const binding = this.bindings.get(eventId);
     if (!howl || !binding || !howl.playing()) return;
     const id = this.exclusivePlaying.get(eventId);
-    const from = binding.volume * this._volume;
+    const from = this.effVolume(eventId);
     if (id !== undefined) {
       howl.fade(from, 0, ms, id);
       if (this.exclusivePlaying.get(eventId) === id) this.exclusivePlaying.delete(eventId);
@@ -235,7 +303,7 @@ export class SoundManager {
       const howl = new Howl({
         src,
         loop: nextBinding.loop ?? false,
-        volume: nextBinding.volume * this._volume,
+        volume: this.effVolume(eventId),
         mute: this._muted,
         onloaderror: (_id, err) => {
           console.warn(`[audio] failed to load '${eventId}':`, err);
@@ -268,9 +336,8 @@ export class SoundManager {
     const clamped = Math.max(0, Math.min(1, v));
     this._volume = clamped;
     for (const [id, howl] of this.howls) {
-      const binding = this.bindings.get(id);
-      if (!binding) continue;
-      howl.volume(binding.volume * clamped);
+      if (!this.bindings.has(id)) continue;
+      howl.volume(this.effVolume(id));
     }
     this.persist();
     this.notify();

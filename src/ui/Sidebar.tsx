@@ -6,6 +6,7 @@ import { BetInput } from './components/BetInput';
 import { SpinButton } from './components/SpinButton';
 import { RecentBets } from './components/RecentBets';
 import { AudioControl } from './components/AudioControl';
+import { SoundParamsPanel } from './components/SoundParamsPanel';
 import { previewWin } from '@/engine/SlotEngine';
 import { GAME_CONFIG } from '@/config/gameConfig';
 import { WinTierTestPanel } from '@/dev/WinTierTestPanel';
@@ -128,6 +129,16 @@ export function Sidebar({ gameState, snapshot, onBetChange, onSpin, onSkip, onAu
             {t('audio_label')}
           </label>
           <AudioControl soundManager={soundManager} />
+          {/* Per-event mix panel — every core sound gets its own slider
+              (Noski tweakt den Mix live; Overrides überleben Reloads). */}
+          <details className="mt-2">
+            <summary className="cursor-pointer select-none text-[10px] font-medium uppercase tracking-[0.07em] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]">
+              Sound-Parameter
+            </summary>
+            <div className="mt-2">
+              <SoundParamsPanel soundManager={soundManager} />
+            </div>
+          </details>
         </div>
       )}
 

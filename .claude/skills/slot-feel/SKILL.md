@@ -157,6 +157,14 @@ GESAMTGEWINN wird still hinter dem Marquee verrechnet.
   hinter den Symbolen passt zu dunklen Neon-Themes (Vice); bei hellen/warmen BGs scheint es
   durch transparente Symbol-Ecken als milchig-weißer Schleier — für solche Themes AUS.
 
+- **Neue Symbol-IDs (>9) NIE in die SymbolId-Union** (2026-07-21, Fruit Stacks 9-Pay-Umbau):
+  das FROZEN symbolAnimations.ts enumeriert `Record<SymbolIdType, ...>` EXHAUSTIV — Union
+  erweitern = Typbruch im Frozen File. Muster: `export const FRUIT_LOW_I = 10 as SymbolIdType`
+  + Registry-Eintrag via Cast `(SYMBOLS as Record<number, SymbolDef>)[10] = {...}` in symbols.ts
+  (nicht frozen). AnimatedSymbol ist safe (SYMBOL_ANIMATIONS[id]?.states optional-chained);
+  id 9 (COIN) ist als Pay-Symbol nutzbar solange der Pay-Model-Branch die Engine-COIN-Pfade
+  (Hold&Win) umgeht.
+
 ## 4. Audio-Regeln (hart, zweimal gelernt)
 
 - **DAS KRACKEN = CLIPPING durch 0-dBFS-Assets** (2026-07-18 diagnostiziert): jede Roh-

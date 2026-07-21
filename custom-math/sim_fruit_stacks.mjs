@@ -14,7 +14,10 @@ const WRITE = process.argv.includes('--write');
 // ── strip generation (deterministic) ───────────────────────────────────────
 // Lows carry the hit rate (dense), mids/highs are genuinely premium (sparse
 // → an 8+ of them is an event). Crates only live on reels 1/3/5.
-const COMP_BASE = { 8: 9, 7: 9, 6: 8, 5: 8, 4: 8, 3: 7, 2: 6, 1: 1 }; // Σ=56
+// 9-PAY reference construct (Noski's glossy pack): 4 jewel highs (sparse,
+// premium) + 5 fruit lows (dense, hit engine). Ids: 2 heart, 3 gold star,
+// 4 blue star, 5 diamond, 6 cherry, 7 grapes, 8 orange, 9 lemon, 10 melon.
+const COMP_BASE = { 2: 5, 3: 4, 4: 4, 5: 3, 6: 8, 7: 6, 8: 7, 9: 7, 10: 6, 1: 1 }; // Σ=51
 const STRIP_LEN = 60;
 
 function mulberry(seed) {
@@ -26,13 +29,13 @@ function mulberry(seed) {
   };
 }
 
-function makeStrip(seed, withCrate) {
+function makeStrip(seed, withCrate, extraScatter) {
   const items = [];
   for (const [id, n] of Object.entries(COMP_BASE)) for (let i = 0; i < n; i++) items.push(Number(id));
   if (withCrate) items.push(0);
-  // pad to length spread across the pay range (near-uniform density is what
-  // makes an 8+ cluster an EVENT on a 30-cell board — lows only slightly hotter)
-  const pads = [8, 7, 6, 5, 4];
+  if (extraScatter) items.push(1);
+  // pad with the fruit lows (they carry the hit rate; jewels stay premium)
+  const pads = [6, 8, 9, 7, 10];
   let p = 0;
   while (items.length < STRIP_LEN) items.push(pads[p++ % 5]);
   const rand = mulberry(seed);
@@ -44,16 +47,18 @@ function makeStrip(seed, withCrate) {
 }
 
 const CFG = {
-  reelStrips: [101, 202, 303, 404, 505, 606].map((s, i) => makeStrip(s, true)),
+  reelStrips: [101, 202, 303, 404, 505, 606].map((s, i) => makeStrip(s, true, i === 2 || i === 5)),
   visibleRows: 5,
   payTiers: {
-    2: [13400, 34200, 113000],
-    3: [9500, 22400, 56700],
-    4: [5700, 11300, 32900],
-    5: [4400, 9500, 28400],
-    6: [2800, 5700, 18000],
-    7: [2200, 4400, 13400],
-    8: [1800, 3400, 11300],
+    2: [23200, 30900, 185000],
+    3: [30900, 77300, 232000],
+    4: [38600, 154300, 386300],
+    5: [154300, 386300, 772600],
+    6: [3900, 11500, 30900],
+    7: [12400, 18500, 123700],
+    8: [6100, 13900, 61800],
+    9: [7800, 15400, 77300],
+    10: [15400, 23200, 154300],
   },
   scatterPayBps: [30000, 50000, 1000000],
   multiWeights: [[2, 600], [3, 250], [4, 120], [5, 70], [6, 35], [8, 20], [10, 12], [15, 6], [20, 4], [25, 3], [50, 1.5], [100, 0.6], [250, 0.25], [500, 0.1]],

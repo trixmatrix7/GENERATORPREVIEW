@@ -3069,13 +3069,15 @@ export class ReelSet {
       const label = new Text({
         text: `×${c.value}`,
         style: new TextStyle({
-          fontFamily: 'Arial, sans-serif', fontSize: 30, fontWeight: '900', fontStyle: 'italic',
-          fill: 0xffe93e, stroke: { color: 0x1a0f00, width: 6 }, align: 'center',
+          fontFamily: 'Arial, sans-serif', fontSize: 34, fontWeight: '900', fontStyle: 'italic',
+          fill: 0xffd21e, stroke: { color: 0x241300, width: 7 }, align: 'center',
         }),
       });
       label.anchor.set(0.5);
       label.x = rect.x + rect.w / 2;
-      label.y = rect.y + rect.h * 0.78; // badge rides the crate's lower third
+      // Reference construct (Winna): the value hangs AT THE GIFT'S BOTTOM
+      // EDGE, centered — same spot on every gift.
+      label.y = rect.y + rect.h * 0.95;
       label.eventMode = 'none';
       this.winAmountsContainer.addChild(label);
       this.crateBadges.push(label);

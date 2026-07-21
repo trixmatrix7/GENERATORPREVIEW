@@ -115,4 +115,19 @@ export const SYMBOLS: Record<SymbolIdType, SymbolDef> = {
   },
 };
 
+// ── Fruit Stacks: 9th pay symbol (id 10) ────────────────────────────────────
+// Registered OUTSIDE the SymbolIdType union: the FROZEN symbolAnimations.ts
+// exhaustively enumerates that union, so extending it would break the frozen
+// file's Record type. AnimatedSymbol reads SYMBOLS[10] at runtime (guarded
+// entry below); SYMBOL_ANIMATIONS[10] is optional-chained → fallback path.
+export const FRUIT_LOW_I = 10 as SymbolIdType;
+(SYMBOLS as unknown as Record<number, SymbolDef>)[10] = {
+  id: FRUIT_LOW_I,
+  key: 'low_i',
+  label: 'I',
+  placeholderColor: 0x53C46B,
+  isWild: false,
+  isScatter: false,
+};
+
 export const SYMBOL_LIST = Object.values(SYMBOLS);

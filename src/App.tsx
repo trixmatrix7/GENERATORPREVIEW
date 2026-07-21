@@ -300,6 +300,8 @@ export function App() {
       track(pixiAppRef.setUserAssetTextures(fsSymbols));
       track(pixiAppRef.setBackgroundImage(saved.bg ?? FRUITSTACKS.bgBase));
       track(pixiAppRef.setTitleImage(FRUITSTACKS.logo, 'left')); // BIG left-rail logo (reference construct)
+      // Gold rounded frame around the grid (alpha window auto-detected).
+      track(pixiAppRef.setFrameImage(saved.frame ?? FRUITSTACKS.frame));
       // Scatter (B-starfruit) + crate (multiplier) keep a clean static look —
       // no fallback pulse/squash warping the illustrated art.
       STATIC_LOOK_SYMBOLS.add(1);

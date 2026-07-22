@@ -3127,15 +3127,17 @@ export class ReelSet {
    *  Fruit Stacks): compresses toward the floor and springs back — never
    *  stretches taller, never leaves the cell. */
   private squashLand(cell: AnimatedSymbol): void {
+    // TUMBLE-Nachdroppen landet SANFT (Noski: der starke Aufprall gehört
+    // dem ERSTEN Drop, nicht jedem Refill) — nur ein Hauch von Setzen.
     const inner = cell.objectLayer;
     gsap.killTweensOf(inner.scale); gsap.killTweensOf(inner, 'y');
     const baseY = SYMBOL_HEIGHT / 2;
-    const sink = SYMBOL_HEIGHT * 0.055;
+    const sink = SYMBOL_HEIGHT * 0.022;
     gsap.timeline()
-      .to(inner.scale, { y: 0.84, x: 1.06, duration: 0.08, ease: 'power1.out' }, 0)
-      .to(inner, { y: baseY + sink, duration: 0.08, ease: 'power1.out' }, 0)
-      .to(inner.scale, { y: 1, x: 1, duration: 0.2, ease: 'back.out(2.2)' }, 0.08)
-      .to(inner, { y: baseY, duration: 0.2, ease: 'back.out(2.2)' }, 0.08);
+      .to(inner.scale, { y: 0.94, x: 1.02, duration: 0.07, ease: 'power1.out' }, 0)
+      .to(inner, { y: baseY + sink, duration: 0.07, ease: 'power1.out' }, 0)
+      .to(inner.scale, { y: 1, x: 1, duration: 0.16, ease: 'power2.out' }, 0.07)
+      .to(inner, { y: baseY, duration: 0.16, ease: 'power2.out' }, 0.07);
   }
 
   /** BONUS (scatter) renders IN FRONT of every other symbol (Noski): raise

@@ -16,6 +16,22 @@ const BARE_KEY = 'vice:bare';
 const ACTIVE_KEY = 'vice:active-build';
 const GRID_KEY = 'studio-grid';
 const GAME_KEY = 'active-game';
+/** Per-BUILT-IN saved settings (Noski: Save on Vice/CrackFarm/FruitStacks
+ *  must update THAT game's settings — never open a dock slot). */
+const builtinKey = (g: string) => `vice:builtin:${g}`;
+
+interface BuiltinSnapshot {
+  gridId: GridId;
+  mathProfileId: string;
+  assets: SavedAssets;
+}
+
+function loadBuiltinSnapshot(game: string): BuiltinSnapshot | null {
+  try {
+    const raw = localStorage.getItem(builtinKey(game));
+    return raw ? JSON.parse(raw) as BuiltinSnapshot : null;
+  } catch { return null; }
+}
 
 /** Which baked game theme the App wires (default Vice Heat). */
 export function loadActiveGame(): 'vice' | 'crackfarm' | 'fruitstacks' {
@@ -69,17 +85,23 @@ export function saveBuild(name: string): SavedBuild[] {
   const activeId = activeBuildId();
   const idx = activeId !== null ? builds.findIndex(b => b.id === activeId) : -1;
   if (idx >= 0) {
-    // overwrite in place — keep id + createdAt, refresh the rest
+    // ACTIVE SLOT → overwrite in place (keep id + createdAt)
     const cur = builds[idx];
     builds[idx] = { ...cur, ...snapshot, name: name || cur.name };
     persist(builds);
     return builds;
   }
-  const b: SavedBuild = { id: Date.now(), name, createdAt: Date.now(), ...snapshot };
-  const next = [...builds, b];
-  persist(next);
-  try { localStorage.setItem(ACTIVE_KEY, String(b.id)); } catch { /* quota */ }
-  return next;
+  // BUILT-IN game active (no slot): Save updates THE GAME's own settings —
+  // never a new dock slot. The chip re-applies this snapshot on every
+  // click/reload, so nothing has to be redone (Noski).
+  try {
+    localStorage.setItem(builtinKey(loadActiveGame()), JSON.stringify({
+      gridId: snapshot.gridId,
+      mathProfileId: snapshot.mathProfileId,
+      assets: snapshot.assets,
+    }));
+  } catch { /* quota */ }
+  return builds;
 }
 
 export function deleteBuild(id: number): SavedBuild[] {
@@ -113,10 +135,11 @@ export function createNewBuild(): void {
 
 /** Back to the built-in VICE HEAT base game (no overrides, full theme). */
 export function applyViceBase(): void {
-  replaceAssets({});
-  saveMathProfileId('vice-heat-custom');
+  const saved = loadBuiltinSnapshot('vice');
+  replaceAssets(saved?.assets ?? {});
+  saveMathProfileId(saved?.mathProfileId ?? 'vice-heat-custom');
   try {
-    localStorage.setItem(GRID_KEY, '5x5');
+    localStorage.setItem(GRID_KEY, saved?.gridId ?? '5x5');
     localStorage.setItem(BARE_KEY, '0');
     localStorage.setItem(GAME_KEY, 'vice');
     localStorage.removeItem(ACTIVE_KEY);
@@ -126,10 +149,11 @@ export function applyViceBase(): void {
 
 /** Built-in CRACK FARM 5×3 game (barn theme, baked in public/theme/crackfarm/). */
 export function applyCrackFarm(): void {
-  replaceAssets({});
-  saveMathProfileId('crack-farm-lines');
+  const saved = loadBuiltinSnapshot('crackfarm');
+  replaceAssets(saved?.assets ?? {});
+  saveMathProfileId(saved?.mathProfileId ?? 'crack-farm-lines');
   try {
-    localStorage.setItem(GRID_KEY, '5x3');
+    localStorage.setItem(GRID_KEY, saved?.gridId ?? '5x3');
     localStorage.setItem(BARE_KEY, '0');
     localStorage.setItem(GAME_KEY, 'crackfarm');
     localStorage.removeItem(ACTIVE_KEY);
@@ -140,10 +164,11 @@ export function applyCrackFarm(): void {
 /** Built-in FRUIT STACKS 6×5 scatter-pays tumbler (fruit-forest theme,
  *  baked in public/theme/fruitstacks/). */
 export function applyFruitStacks(): void {
-  replaceAssets({});
-  saveMathProfileId('fruit-stacks-tumble');
+  const saved = loadBuiltinSnapshot('fruitstacks');
+  replaceAssets(saved?.assets ?? {});
+  saveMathProfileId(saved?.mathProfileId ?? 'fruit-stacks-tumble');
   try {
-    localStorage.setItem(GRID_KEY, '6x5');
+    localStorage.setItem(GRID_KEY, saved?.gridId ?? '6x5');
     localStorage.setItem(BARE_KEY, '0');
     localStorage.setItem(GAME_KEY, 'fruitstacks');
     localStorage.removeItem(ACTIVE_KEY);

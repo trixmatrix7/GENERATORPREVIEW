@@ -10,6 +10,7 @@ import { useGameState } from '@/hooks/useGameState';
 import { useSoundLayer } from '@/audio/useSoundLayer';
 import { uiSfx } from '@/audio/uiSfx';
 import { ULTRA_CLEAN } from '@/audio/soundPresets';
+import viceSoundPreset from '@/data/viceSoundPreset.json';
 import { Sidebar } from '@/ui/Sidebar';
 import { GameCanvas } from '@/ui/GameCanvas';
 import { ControlBar } from '@/ui/ControlBar';
@@ -357,6 +358,20 @@ export function App() {
     // scatter 1.2 — whole set scaled down, scatter keeps its relative pop.
     for (const id of [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]) SYMBOL_SIZE_MULS.set(id, 0.8);
     SYMBOL_SIZE_MULS.set(1, 0.96);
+    // NOSKIS VICE-MIX (repo-baked, src/data/viceSoundPreset.json): seeded as
+    // the game's sound state whenever the user has no own picks stored —
+    // survives every reload/reboot; Save Build/Export carry it as usual.
+    {
+      const savedSounds = loadAssets().sounds ?? {};
+      if (Object.keys(savedSounds).length === 0) {
+        const vsp = viceSoundPreset as { picks: Record<string, string>; volumes: Record<string, number> };
+        for (const [ev, url] of Object.entries(vsp.picks)) {
+          soundManager.replaceSource(ev, [`${import.meta.env.BASE_URL}${url}`], vsp.volumes[ev]);
+        }
+        for (const [ev, vol] of Object.entries(vsp.volumes)) soundManager.setEventVolume(ev, vol);
+        soundManager.play('ambient-music');
+      }
+    }
     // Vice tease: NO landed-cell FX (burst/brackets/dim on the 1:1 field) —
     // only the pending-reel gold gate + rising embers stay (Noski 2026-07-22).
     teaseTuning.scatterLandedFx = false;

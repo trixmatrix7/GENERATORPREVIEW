@@ -1,0 +1,29 @@
+{
+ "_source": "Rekonstruktion 2026-07-22: Ultra-Clean-Basis + Noskis Musik-Pick (Gimme that Groove @0.06) + dokumentierte Regler-Entscheidungen. Ab jetzt IM REPO versioniert - nie wieder nur im Browser-Speicher.",
+ "picks": {
+  "ambient-music": "audio/library/ambient-music/gimme-that-groove-6d8237.ogg",
+  "coin-chime": "audio/library/coin-chime/space-coin-win-notification-cc796e.ogg",
+  "reel-stop": "audio/library/reel-stop/cool-interface-click-tone-adc015.ogg",
+  "spin-start": "audio/library/spin-start/fast-small-sweep-transition-a5ee99.ogg",
+  "wild-land": "audio/library/reel-stop/arcade-game-jump-coin-fdb57d.ogg",
+  "wild-expand": "audio/library/spin-start/arrow-whoosh-4ba7f0.ogg",
+  "scatter-land": "audio/library/scatter-land/magic-bubbles-spell-f303f8.ogg",
+  "free-spin-trigger": "audio/library/free-spin-trigger/winning-notification-64c08f.ogg",
+  "near-miss-tease": "audio/library/near-miss-tease/cybernetic-technology-affirmation-3c6642.ogg",
+  "win-marquee": "audio/library/win-marquee/payout-award-d55ce2.ogg"
+ },
+ "volumes": {
+  "ambient-music": 0.06,
+  "coin-chime": 0.38,
+  "reel-stop": 0.2,
+  "spin-start": 0.22,
+  "wild-land": 0.34,
+  "wild-expand": 0.16,
+  "scatter-land": 0.42,
+  "free-spin-trigger": 0.55,
+  "near-miss-tease": 0.45,
+  "win-marquee": 0.8,
+  "tease-riser": 0.4,
+  "tease-miss": 0.45
+ }
+}

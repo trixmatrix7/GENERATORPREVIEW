@@ -22,10 +22,25 @@ const GAME_KEY = 'active-game';
  *  must update THAT game's settings — never open a dock slot). */
 const builtinKey = (g: string) => `vice:builtin:${g}`;
 
+const VOLUMES_KEY = 'slot:audio-event-volumes';
+function readVolumes(): Record<string, number> {
+  try { return JSON.parse(localStorage.getItem(VOLUMES_KEY) ?? '{}') as Record<string, number>; }
+  catch { return {}; }
+}
+function writeVolumes(v: Record<string, number> | undefined): void {
+  try {
+    if (v && Object.keys(v).length) localStorage.setItem(VOLUMES_KEY, JSON.stringify(v));
+    else localStorage.removeItem(VOLUMES_KEY);
+  } catch { /* quota */ }
+}
+
 interface BuiltinSnapshot {
   gridId: GridId;
   mathProfileId: string;
   assets: SavedAssets;
+  /** Per-event volume-slider overrides (Noski: "speichern mit Sound-
+   *  Lautstärke alles") — snapshotted + restored with the game. */
+  soundVolumes?: Record<string, number>;
 }
 
 function loadBuiltinSnapshot(game: string): BuiltinSnapshot | null {
@@ -82,6 +97,7 @@ export function saveBuild(name: string): SavedBuild[] {
     mathProfileId: loadMathProfileId(),
     bare: isBareBuild(),
     assets: loadAssets(),
+    soundVolumes: readVolumes(),
   };
   const builds = listBuilds();
   const activeId = activeBuildId();
@@ -101,6 +117,7 @@ export function saveBuild(name: string): SavedBuild[] {
       gridId: snapshot.gridId,
       mathProfileId: snapshot.mathProfileId,
       assets: snapshot.assets,
+      soundVolumes: snapshot.soundVolumes,
     }));
   } catch { /* quota */ }
   return builds;
@@ -115,6 +132,7 @@ export function deleteBuild(id: number): SavedBuild[] {
 /** Apply a saved build and reload (full re-derive, like a fresh boot). */
 export function applyBuild(b: SavedBuild): void {
   replaceAssets(b.assets);
+  writeVolumes((b as { soundVolumes?: Record<string, number> }).soundVolumes);
   saveMathProfileId(b.mathProfileId);
   try {
     localStorage.setItem(GRID_KEY, b.gridId);
@@ -139,6 +157,7 @@ export function createNewBuild(): void {
 export function applyViceBase(): void {
   const saved = loadBuiltinSnapshot('vice');
   replaceAssets(saved?.assets ?? {});
+  writeVolumes(saved?.soundVolumes);
   saveMathProfileId(saved?.mathProfileId ?? 'vice-heat-custom');
   try {
     localStorage.setItem(GRID_KEY, saved?.gridId ?? '5x5');
@@ -153,6 +172,7 @@ export function applyViceBase(): void {
 export function applyCrackFarm(): void {
   const saved = loadBuiltinSnapshot('crackfarm');
   replaceAssets(saved?.assets ?? {});
+  writeVolumes(saved?.soundVolumes);
   saveMathProfileId(saved?.mathProfileId ?? 'crack-farm-lines');
   try {
     localStorage.setItem(GRID_KEY, saved?.gridId ?? '5x3');
@@ -168,6 +188,7 @@ export function applyCrackFarm(): void {
 export function applyFruitStacks(): void {
   const saved = loadBuiltinSnapshot('fruitstacks');
   replaceAssets(saved?.assets ?? {});
+  writeVolumes(saved?.soundVolumes);
   saveMathProfileId(saved?.mathProfileId ?? 'fruit-stacks-tumble');
   try {
     localStorage.setItem(GRID_KEY, saved?.gridId ?? '6x5');

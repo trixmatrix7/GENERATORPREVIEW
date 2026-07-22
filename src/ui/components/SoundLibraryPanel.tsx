@@ -8,6 +8,7 @@ import type { SoundManager } from '@/audio/SoundManager';
 import { loadAssets, saveAssets } from '@/studio/assetPersistence';
 import library from '@/data/soundLibrary.json';
 import { SOUND_PRESETS } from '@/audio/soundPresets';
+import { defaultSoundConfig } from '@/audio/defaultSoundConfig';
 
 const LIB = library as Record<string, { name: string; url: string }[]>;
 
@@ -57,6 +58,19 @@ export function SoundLibraryPanel({ soundManager }: { soundManager: SoundManager
     else delete next[eventId];
     setPicks(next);
     saveAssets({ sounds: next }); // live in the build store — Save Build fixes it
+    if (!url) {
+      // BACK TO GAME-DEFAULT: restore the original source — replaceSource
+      // stops + unloads the running howl, so a playing library sound (the
+      // stuck win-marquee, Noski) dies instantly instead of looping on.
+      stopPreview();
+      const def = defaultSoundConfig().events.find(e => e.id === eventId);
+      if (def) soundManager.replaceSource(eventId, [...def.src], def.volume, def.loop);
+      // replaceSource carries a was-playing state over — the restored default
+      // must stay SILENT (only the music bed keeps running).
+      if (eventId === 'ambient-music') soundManager.play('ambient-music');
+      else soundManager.stop(eventId);
+      return;
+    }
     if (url) {
       const design = soundManager.getEventDefault(eventId);
       soundManager.replaceSource(eventId, [url], design > 0 ? undefined : 0.5);

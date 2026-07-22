@@ -3349,7 +3349,7 @@ export class ReelSet {
       t.y = textY;
       c.addChild(t);
       c.x = this.totalWidth + 78;
-      c.y = this.totalHeight * 0.34;
+      c.y = this.totalHeight * 0.62; // below the FS overlay plaques (no overlap)
       this.container.addChild(c);
       this.fruitPool = c;
       this.fruitPoolText = t;
@@ -3526,6 +3526,8 @@ export class ReelSet {
     const fallDur = 0.3 * speed;
     const temps: Sprite[] = [];
     const theme = this.config.theme as { userAssetTextures?: Map<number, Texture> };
+    // gift tier art by CURRENT position (cratesAfter rode the gravity)
+    const crateAt = new Map((step.cratesAfter ?? []).map(cc => [cc.cell[0] * reels + cc.cell[1], cc.value]));
     // SCATTER-TEASE (Noski): with 2+ scatters STANDING, the refills crawl in
     // column by column — the slow "Walzen" moment lives HERE, in the
     // NACHDROPPEN, never in the normal spin drop.
@@ -3550,13 +3552,19 @@ export class ReelSet {
       // cells take over at normalise)
       const fresh = step.refills[reel] ?? [];
       for (let i = 0; i < fresh.length; i++) {
-        const tex = theme.userAssetTextures?.get(fresh[i]);
+        // a gift refill falls WITH its tier art (id 0 raw = the gold base
+        // gift Noski never wants to see) + EXACT real-cell sizing.
+        const freshCrate = crateAt.get(i * reels + reel);
+        const dispId = fresh[i] === 0 && freshCrate !== undefined ? fruitGiftTierId(freshCrate) : (fresh[i] === 0 ? fruitGiftTierId(2) : fresh[i]);
+        const tex = theme.userAssetTextures?.get(dispId);
         if (!tex) continue;
         const rect = resolveAnchor(cellAnchor(reel, i), this.grid);
         const spr = new Sprite(tex);
         spr.anchor.set(0.5);
-        const fit = Math.min((rect.w * 0.92) / spr.width, (rect.h * 0.92) / spr.height);
-        spr.scale.set(fit);
+        const mul = SYMBOL_SIZE_MULS.get(dispId) ?? (dispId === SymbolId.SCATTER ? 1.2 : 1);
+        const target = Math.round(Math.min(SYMBOL_WIDTH, SYMBOL_HEIGHT) * 0.88 * symbolSizing.objectScale * mul);
+        spr.width = target;
+        spr.height = target;
         spr.x = rect.x + rect.w / 2;
         spr.y = rect.y + rect.h / 2 - fresh.length * CELL_HEIGHT;
         spr.eventMode = 'none';
@@ -3570,8 +3578,7 @@ export class ReelSet {
 
     // 3. NORMALISE: every cell snaps to its canonical spot showing boardAfter
     //    (same-frame swap with the settled visuals — seamless), temps die.
-    //    Gifts keep their TIER art (cratesAfter rode the gravity in the core).
-    const crateAt = new Map((step.cratesAfter ?? []).map(c => [c.cell[0] * reels + c.cell[1], c.value]));
+    //    Gifts keep their TIER art (crateAt built before the fall).
     for (const t of temps) { try { t.parent?.removeChild(t); t.destroy(); } catch { /* gone */ } }
     for (let reel = 0; reel < reels; reel++) {
       const moved = removedByReel.has(reel);

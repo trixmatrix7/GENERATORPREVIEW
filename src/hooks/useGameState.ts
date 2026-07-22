@@ -6,7 +6,9 @@ import type { HostApiV1, HostSnapshotV1 } from '@/bridge/types';
 import { gameReducer, initialState } from '@/state/GameStateMachine';
 import { decodeSpinOutcome, encodeGameData } from '@/engine/SlotEngine';
 import { decodeFruitStacksOutcome } from '@/game/decodeFruitStacks';
+import { FRUIT_BUY_STAGES } from '@/game/fruitStacksMath';
 import { activePayModel } from '@/game/winEval';
+import { encodeAbiParameters } from 'viem';
 import type { PixiApp } from '@/game/PixiApp';
 import { EMPTY_HEX, GAME_CONFIG } from '@/config/gameConfig';
 
@@ -193,6 +195,42 @@ export function useGameState(
     }
   }, [hostApi, snapshot, pixiApp]);
 
+  // FRUIT STACKS purchased FS stage: wager = bet x stage cost, gameData
+  // carries the stage; settlement + decode derive the same bought round.
+  const handleBuyFruit = useCallback(async (stage: number) => {
+    if (!hostApi || !snapshot) return;
+    const current = stateRef.current;
+    if (current.phase !== 'idle') return;
+    const def = FRUIT_BUY_STAGES[stage - 1];
+    if (!def) return;
+    const baseBet = BigInt(current.betBaseUnits || '0');
+    const cost = baseBet * BigInt(def.costMult);
+    const balance = BigInt(snapshot.balances.smartVaultBalance ?? '0');
+    if (cost <= 0n || cost > balance) return;
+
+    dispatch({ type: 'SPIN_REQUESTED' });
+    pixiApp?.spin();
+    if (spinTimerRef.current) clearTimeout(spinTimerRef.current);
+    spinTimerRef.current = setTimeout(() => {
+      const p = stateRef.current.phase;
+      if (p === 'spinning' || p === 'awaiting_tx' || p === 'resolving') {
+        dispatch({ type: 'ERROR', payload: 'Spin timed out — please try again.' });
+      }
+    }, SPIN_TIMEOUT_MS);
+    try {
+      const { sessionKey } = await hostApi.openSession({
+        wager: cost.toString(),
+        gameData: encodeAbiParameters([{ type: 'uint8' }], [stage]),
+        randomnessRequestData: EMPTY_HEX,
+      });
+      dispatch({ type: 'SESSION_OPENED', payload: { sessionKey } });
+    } catch (err: unknown) {
+      if (spinTimerRef.current) { clearTimeout(spinTimerRef.current); spinTimerRef.current = null; }
+      const msg = err instanceof Error ? err.message : 'Transaction failed.';
+      dispatch({ type: 'ERROR', payload: mapTxError(msg) });
+    }
+  }, [hostApi, snapshot, pixiApp]);
+
   const handleAutoSpin = useCallback(
     (count: number) => {
       dispatch({ type: 'AUTO_SPIN_START', payload: { count } });
@@ -225,6 +263,7 @@ export function useGameState(
     handleBetChange,
     handleSpin,
     handleBuyBonus,
+    handleBuyFruit,
     handleSkip,
     handleAutoSpin,
     handleStopAuto,

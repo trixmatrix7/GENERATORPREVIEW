@@ -9,7 +9,7 @@ import type { HostApiV1, HostSnapshotV1 } from '@/bridge/types';
 import { buildBoard } from '@/config/reels';
 import { evalWins, activePayModel } from '@/game/winEval';
 import { deriveFruitStacksRound } from '@/game/fruitStacksSpin';
-import { FRUIT_STACKS_MATH } from '@/game/fruitStacksMath';
+import { FRUIT_STACKS_MATH, FRUIT_BUY_STAGES } from '@/game/fruitStacksMath';
 import { FRUIT_GAME_STATE } from '@/game/decodeFruitStacks';
 import { deriveStopsFromRandomness } from '@/engine/SlotEngine';
 import { GAME_CONFIG } from '@/config/gameConfig';
@@ -157,7 +157,12 @@ export class MockHost {
     // the same randomness, so display == payout by construction. The frozen
     // uint8[5] schema can't carry 6 reels — this branch encodes its own.
     if (activePayModel() === 'scatterpays') {
-      this.settleFruitStacks(sessionId, sessionKey, wager, randomness);
+      // gameData = abi.encode(uint8 stage) marks a purchased FS round.
+      let buyStage = 0;
+      if (typeof gameData === 'string' && gameData.length >= 66) {
+        try { buyStage = Number(decodeAbiParameters([{ type: 'uint8' }], gameData as `0x${string}`)[0]); } catch { buyStage = 0; }
+      }
+      this.settleFruitStacks(sessionId, sessionKey, wager, randomness, buyStage);
       return;
     }
 
@@ -498,8 +503,11 @@ export class MockHost {
    *  round (base tumble chain + crates + FS pool) from the randomness; only
    *  the authoritative totals are encoded. Mirrors what a SlotGame.sol
    *  variant would compute on-chain from the same seed. */
-  private settleFruitStacks(sessionId: string, sessionKey: string, wager: bigint, randomness: `0x${string}`) {
-    const round = deriveFruitStacksRound(randomness, wager, FRUIT_STACKS_MATH);
+  private settleFruitStacks(sessionId: string, sessionKey: string, wager: bigint, randomness: `0x${string}`, buyStage = 0) {
+    // A purchase pays the COST as the wager; the round plays at the base bet.
+    const costMult = buyStage > 0 ? FRUIT_BUY_STAGES[buyStage - 1].costMult : 0;
+    const bet = buyStage > 0 ? (wager * 10n) / BigInt(Math.round(costMult * 10)) : wager;
+    const round = deriveFruitStacksRound(randomness, bet, FRUIT_STACKS_MATH, buyStage);
     const totalWin = round.totalWin;
 
     const gameState = encodeAbiParameters(
@@ -510,6 +518,7 @@ export class MockHost {
         Math.min(round.base.scatters, 255),
         round.fsSpins.length,
         round.fsTriggered,
+        buyStage,
       ],
     );
 

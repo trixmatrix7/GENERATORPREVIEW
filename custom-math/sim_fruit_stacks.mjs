@@ -10,6 +10,7 @@ import { dirname, join } from 'node:path';
 
 const ROUNDS = Number(process.argv[2]) || 200_000;
 const WRITE = process.argv.includes('--write');
+const BUY = process.argv.includes('--buy') ? Number(process.argv[process.argv.indexOf('--buy') + 1]) : 0;
 
 // ── strip generation (deterministic) ───────────────────────────────────────
 // Lows carry the hit rate (dense), mids/highs are genuinely premium (sparse
@@ -77,7 +78,7 @@ const seedRand = mulberry(20260721);
 const randHex = () => '0x' + Array.from({ length: 64 }, () => Math.floor(seedRand() * 16).toString(16)).join('');
 
 for (let i = 0; i < ROUNDS; i++) {
-  const round = deriveFruitStacksRound(randHex(), BET, CFG);
+  const round = deriveFruitStacksRound(randHex(), BET, CFG, BUY);
   paid += round.totalWin;
   basePaid += round.base.spinWin;
   if (round.fsTriggered) { fsCount++; fsPaid += round.totalWin - round.base.spinWin; }
@@ -88,7 +89,7 @@ for (let i = 0; i < ROUNDS; i++) {
 }
 
 const rtp = Number(paid) / Number(BET * BigInt(ROUNDS)) * 100;
-console.log(`rounds=${ROUNDS}`);
+console.log(`rounds=${ROUNDS}` + (BUY ? ` BUY-STAGE ${BUY} (EV per bet = ${(Number(paid) / Number(BET * BigInt(ROUNDS))).toFixed(2)}x -> cost @96% = ${(Number(paid) / Number(BET * BigInt(ROUNDS)) / 0.96).toFixed(1)}x)` : ''));
 console.log(`RTP total  ${rtp.toFixed(2)}%`);
 console.log(`  base     ${(Number(basePaid) / Number(BET * BigInt(ROUNDS)) * 100).toFixed(2)}%`);
 console.log(`  fs part  ${(Number(fsPaid) / Number(BET * BigInt(ROUNDS)) * 100).toFixed(2)}%`);

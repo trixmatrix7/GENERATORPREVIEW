@@ -2535,22 +2535,30 @@ export class PixiApp {
     // FREE SPINS: 4+ scatters → iris → per-spin tumble chains with the pool.
     let fsOverlayToClose: { container: Container; counter: Text } | null = null;
     if (round.fsTriggered && round.fsSpins.length > 0 && !prefersReducedMotion()) {
-      // trigger beat: the landed scatters play their win state
-      const scatterCells: AnimatedSymbol[] = [];
-      const walkSc = (n: Container) => {
-        for (const c of n.children) {
-          if (c instanceof AnimatedSymbol) { if (c.symbol === 1) scatterCells.push(c); }
-          else if (c instanceof Container) walkSc(c);
-        }
-      };
-      walkSc(this.reelSet.container);
-      for (const c of scatterCells) c.play('win');
-      await new Promise<void>(r => { gsap.delayedCall(this.turbo ? 0.6 : 1.6, () => r()); });
-      if (!this.isLive) return;
+      // trigger beat: the landed scatters play their win state — skipped on
+      // a PURCHASED round (the base board is only the entry, no 4-scatter).
+      if (round.buyStage === 0) {
+        const scatterCells: AnimatedSymbol[] = [];
+        const walkSc = (n: Container) => {
+          for (const c of n.children) {
+            if (c instanceof AnimatedSymbol) { if (c.symbol === 1) scatterCells.push(c); }
+            else if (c instanceof Container) walkSc(c);
+          }
+        };
+        walkSc(this.reelSet.container);
+        for (const c of scatterCells) c.play('win');
+        await new Promise<void>(r => { gsap.delayedCall(this.turbo ? 0.6 : 1.6, () => r()); });
+        if (!this.isLive) return;
+      }
 
       await this.playFreeSpinsIris(round.fsSpins.length, Math.max(4, outcome.scatterCount));
       if (!this.isLive) return;
       const fsOverlay = this.showFreeSpinOverlay(round.fsSpins.length);
+      // Purchased stage 2/3: the start pool STANDS in the multi field the
+      // moment the round opens (Noski) — before the first spin rolls.
+      if (round.fsSpins[0] && round.fsSpins[0].poolBefore > 0) {
+        this.reelSet.setFruitPool(round.fsSpins[0].poolBefore, true);
+      }
 
       for (let i = 0; i < round.fsSpins.length; i++) {
         if (!this.isLive) break;

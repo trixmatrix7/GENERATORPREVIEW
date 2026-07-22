@@ -11,6 +11,7 @@ import { decodeAbiParameters } from 'viem';
 import type { HexString } from '@/bridge/types';
 import type { SpinOutcome } from '@/engine/SlotEngine';
 import { deriveFruitStacksRound, type FruitRound } from './fruitStacksSpin';
+import { FRUIT_BUY_STAGES } from './fruitStacksMath';
 import { FRUIT_STACKS_MATH } from './fruitStacksMath';
 import { evaluateScatterPays } from './scatterPaysEval';
 
@@ -25,6 +26,7 @@ export const FRUIT_GAME_STATE = [
   { type: 'uint8', name: 'scatterCount' },
   { type: 'uint16', name: 'freeSpinsPlayed' },
   { type: 'bool', name: 'freeSpinsTriggered' },
+  { type: 'uint8', name: 'buyStage' },
 ] as const;
 
 export function decodeFruitStacksOutcome(
@@ -32,23 +34,28 @@ export function decodeFruitStacksOutcome(
   totalWager: bigint,
   randomness: HexString,
 ): FruitStacksOutcome {
-  const [stopsRaw, totalWin, scatterCount, freeSpinsPlayed, freeSpinsTriggered] =
+  const [stopsRaw, totalWin, scatterCount, freeSpinsPlayed, freeSpinsTriggered, buyStage] =
     decodeAbiParameters(FRUIT_GAME_STATE, rawGameState) as unknown as
-    [readonly number[], bigint, number, number, boolean];
+    [readonly number[], bigint, number, number, boolean, number];
 
-  // Re-derive the WHOLE round from the seed (identical function to settlement).
-  const round = deriveFruitStacksRound(randomness, totalWager, FRUIT_STACKS_MATH);
+  // Re-derive the WHOLE round from the seed (identical function to
+  // settlement) — a purchased round derives with its stage (min-gift rule).
+  // For buys the wager is the COST; the round plays at the base bet.
+  const stage = Number(buyStage);
+  const costMult = stage > 0 ? FRUIT_BUY_STAGES[stage - 1].costMult : 0;
+  const bet = stage > 0 ? (totalWager * 10n) / BigInt(Math.round(costMult * 10)) : totalWager;
+  const round = deriveFruitStacksRound(randomness, bet, FRUIT_STACKS_MATH, stage);
 
   const board = round.base.initialBoard;
   return {
     stops: Array.from(stopsRaw),
     board,
     winAmount: BigInt(totalWin.toString()),
-    wager: totalWager,
+    wager: bet,
     scatterCount: Number(scatterCount),
     freeSpinsTriggered: Boolean(freeSpinsTriggered),
     freeSpinsPlayed: Number(freeSpinsPlayed),
-    winResult: evaluateScatterPays(board, totalWager, undefined as never),
+    winResult: evaluateScatterPays(board, bet, undefined as never),
     holdWinTriggered: false,
     holdWinWin: 0n,
     holdWin: null,

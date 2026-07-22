@@ -21,7 +21,7 @@ export const FRUITSTACKS = {
  *  never baked into the art. Id 9 doubles as lemon, id 10 = watermelon. */
 export function fruitStacksSymbolMap(): Map<number, string> {
   return new Map<number, string>([
-    [SymbolId.WILD, `${F}symbol_multi.png`],      // GIFT (multiplier)
+    [SymbolId.WILD, `${F}gift_tier1.png`],        // GIFT base = silver tier (no gold base in this construct)
     [SymbolId.SCATTER, `${F}symbol_scatter.png`], // BONUS basket
     [SymbolId.HIGH_A, `${F}symbol_high_a.png`],   // heart
     [SymbolId.HIGH_B, `${F}symbol_high_b.png`],   // gold star

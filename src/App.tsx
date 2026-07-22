@@ -487,6 +487,7 @@ export function App() {
     handleBetChange,
     handleSpin,
     handleBuyBonus,
+    handleBuyFruit,
     handleSkip,
     handleAutoSpin,
     handleStopAuto,
@@ -708,9 +709,7 @@ export function App() {
                   if (kind === 'buy') handleBuyBonus();
                 }} />
               : loadActiveGame() === 'fruitstacks'
-                ? <FruitBuyRail betDisplay={state.betDisplay} onBuy={(id, kind) => {
-                    if (kind === 'buy') handleBuyBonus();
-                  }} />
+                ? <FruitBuyRail betDisplay={state.betDisplay} onBuy={stage => { void handleBuyFruit(stage); }} />
                 : null)
           : null}
         controls={

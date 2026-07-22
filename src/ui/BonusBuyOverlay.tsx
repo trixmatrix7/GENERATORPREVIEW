@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { uiSfx } from '@/audio/uiSfx';
+import { FRUIT_BUY_STAGES } from '@/game/fruitStacksMath';
 
 /**
  * Bonus-buy / bet-multiplier page (Crack Farm) — Noski's OFFICIAL PNGs, 1:1.
@@ -28,19 +29,12 @@ const CH = Math.round(CW * 598 / 360);
 // swap). Change this string (or per-slot below) to restyle the cards / bet.
 const FONT = "'Rubik', ui-sans-serif, system-ui, sans-serif";
 
-// ── FRUIT STACKS (reference construct): the trigger is a PILL on the LEFT
-// RAIL under the big logo — "BUY BONUS" + live price — and the page shows
-// three plain FS-buy tiers (no baked art yet; CSS cards until the official
-// Fruit Stacks buy PNGs exist).
-const FRUIT_CARDS: Card[] = [
-  { id: 'fs-buy',     title: 'FREE SPINS',                    mult: 100, kind: 'buy' },
-  { id: 'fs-buy-50',  title: 'FREE SPINS\nINITIAL ×50',       mult: 300, kind: 'buy' },
-  { id: 'fs-buy-100', title: 'FREE SPINS\nINITIAL ×100',      mult: 500, kind: 'buy' },
-];
+// ── FRUIT STACKS: purchased FS stages (sim-calibrated costs, min-gift
+// tiers matching the card ribbons: silver ×2+ / red ×6+ / gold ×31+). ──
 
-export function FruitBuyRail({ betDisplay, onBuy }: { betDisplay: string; onBuy?: (id: string, kind: Card['kind']) => void }) {
+export function FruitBuyRail({ betDisplay, onBuy }: { betDisplay: string; onBuy?: (stage: number) => void }) {
   const [open, setOpen] = useState(false);
-  const [confirm, setConfirm] = useState<Card | null>(null);
+  const [confirm, setConfirm] = useState<number | null>(null); // stage 1-3
   const bet = Math.max(0.01, Number(betDisplay || '0'));
   return (
     <>
@@ -54,7 +48,7 @@ export function FruitBuyRail({ betDisplay, onBuy }: { betDisplay: string; onBuy?
         textAlign: 'center', fontFamily: FONT,
       }}>
         <span style={{ display: 'block', fontSize: 15, letterSpacing: 0.5 }}>BUY BONUS</span>
-        <span style={{ display: 'block', fontSize: 12, color: '#d9f7c9', marginTop: 2 }}>{money(bet * 100)}</span>
+        <span style={{ display: 'block', fontSize: 12, color: '#d9f7c9', marginTop: 2 }}>{money(bet * FRUIT_BUY_STAGES[0].costMult)}</span>
       </button>
 
       {!open ? null : (
@@ -64,16 +58,18 @@ export function FruitBuyRail({ betDisplay, onBuy }: { betDisplay: string; onBuy?
           background: 'rgba(3,10,5,0.84)', backdropFilter: 'blur(3px)', fontFamily: FONT,
         }}>
           <div onClick={e => e.stopPropagation()} style={{ display: 'flex', gap: 12, flexWrap: 'wrap', justifyContent: 'center', maxWidth: '96%' }}>
-            {FRUIT_CARDS.map((c, i) => (
-              <div key={c.id} onClick={() => { uiSfx.click(); setConfirm(c); }} style={{
-                position: 'relative', width: 170, height: Math.round(170 * 2400 / 1792), cursor: 'pointer',
-                backgroundImage: `url(${import.meta.env.BASE_URL}theme/fruitstacks/buycard_${i + 1}.png)`,
+            {FRUIT_BUY_STAGES.map(st => (
+              <div key={st.stage} onClick={() => { uiSfx.click(); setConfirm(st.stage); }} style={{
+                position: 'relative', width: 180, height: Math.round(180 * 2400 / 1792), cursor: 'pointer',
+                backgroundImage: `url(${import.meta.env.BASE_URL}theme/fruitstacks/buycard_${st.stage}.png)`,
                 backgroundSize: 'contain', backgroundRepeat: 'no-repeat', backgroundPosition: 'center',
+                fontFamily: FONT,
               }}>
-                {/* dynamic price over the card's lower area */}
-                <div style={{ position: 'absolute', left: '12%', right: '12%', bottom: '7.5%', display: 'flex', justifyContent: 'center' }}>
-                  <span style={{ color: '#ffe9a8', textShadow: '0 2px 4px rgba(0,0,0,0.85)', fontWeight: 900, fontStyle: 'italic', fontSize: 17 }}>{money(bet * c.mult)}</span>
-                </div>
+                {/* the cards are EMPTY frames — title / stage / price overlay */}
+                <div style={{ position: 'absolute', top: '27%', left: '10%', right: '10%', textAlign: 'center', color: '#fff', fontWeight: 900, fontStyle: 'italic', fontSize: 19, textShadow: '0 2px 6px rgba(0,0,0,0.6)' }}>FREE SPINS</div>
+                <div style={{ position: 'absolute', top: '44%', left: '10%', right: '10%', textAlign: 'center', color: '#ffe9a8', fontWeight: 900, fontStyle: 'italic', fontSize: 24, textShadow: '0 2px 6px rgba(0,0,0,0.7)' }}>{st.stage === 1 ? '15 SPINS' : st.label}</div>
+                <div style={{ position: 'absolute', top: '58%', left: '12%', right: '12%', textAlign: 'center', color: 'rgba(255,255,255,0.78)', fontWeight: 700, fontSize: 11 }}>{st.startPool > 0 ? `Multi-Pool startet bei ×${st.startPool}` : '15 Free Spins, Pool ab ×0'}</div>
+                <div style={{ position: 'absolute', bottom: '9%', left: '12%', right: '12%', textAlign: 'center', color: '#ffe9a8', fontWeight: 900, fontStyle: 'italic', fontSize: 18, textShadow: '0 2px 5px rgba(0,0,0,0.85)' }}>{money(bet * st.costMult)}</div>
               </div>
             ))}
           </div>
@@ -84,11 +80,11 @@ export function FruitBuyRail({ betDisplay, onBuy }: { betDisplay: string; onBuy?
                 width: 300, borderRadius: 20, border: '3px solid #f7b733', padding: '22px 18px',
                 background: 'linear-gradient(180deg,#1d3b24 0%, #0d2113 100%)', textAlign: 'center',
               }}>
-                <div style={{ color: '#ffe9a8', fontWeight: 900, fontStyle: 'italic', fontSize: 17, whiteSpace: 'pre-line' }}>{confirm.title}</div>
-                <div style={{ color: '#fff', fontWeight: 900, fontSize: 24, margin: '12px 0' }}>{money(bet * confirm.mult)}</div>
+                <div style={{ color: '#ffe9a8', fontWeight: 900, fontStyle: 'italic', fontSize: 17 }}>FREE SPINS — {FRUIT_BUY_STAGES[confirm - 1].label}</div>
+                <div style={{ color: '#fff', fontWeight: 900, fontSize: 24, margin: '12px 0' }}>{money(bet * FRUIT_BUY_STAGES[confirm - 1].costMult)}</div>
                 <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
                   <button onClick={() => { uiSfx.click(); setConfirm(null); }} style={{ padding: '8px 20px', borderRadius: 10, border: '2px solid #7a8a7a', background: '#15241a', color: '#cfe3cf', fontWeight: 800, cursor: 'pointer', fontFamily: FONT }}>BACK</button>
-                  <button onClick={() => { uiSfx.click(); onBuy?.(confirm.id, confirm.kind); setConfirm(null); setOpen(false); }} style={{ padding: '8px 24px', borderRadius: 10, border: '2px solid #f7b733', background: 'linear-gradient(180deg,#ffd75e,#f7a733)', color: '#0b2a06', fontWeight: 900, cursor: 'pointer', fontFamily: FONT }}>OK</button>
+                  <button onClick={() => { uiSfx.click(); onBuy?.(confirm); setConfirm(null); setOpen(false); }} style={{ padding: '8px 24px', borderRadius: 10, border: '2px solid #f7b733', background: 'linear-gradient(180deg,#ffd75e,#f7a733)', color: '#0b2a06', fontWeight: 900, cursor: 'pointer', fontFamily: FONT }}>OK</button>
                 </div>
               </div>
             </div>

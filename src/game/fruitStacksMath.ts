@@ -17,6 +17,15 @@ const m = manifest as unknown as {
   custom: { retriggerSpins: number; multiPoolCap: number; multiWeights: [number, number][] };
 };
 
+/** Purchased FS stages (Noski, fixed reference prices): stage 2/3 pre-load
+ *  the multiplier POOL with ×50 / ×100 (standing in the pool field at round
+ *  start). Card art: silver / red / gold ribbons. */
+export const FRUIT_BUY_STAGES = [
+  { stage: 1, startPool: 0, costMult: 100, label: 'FREE SPINS' },
+  { stage: 2, startPool: 50, costMult: 300, label: 'START ×50' },
+  { stage: 3, startPool: 100, costMult: 500, label: 'START ×100' },
+] as const;
+
 export const FRUIT_STACKS_MATH: FruitStacksMathConfig = {
   reelStrips: m.reelStrips,
   visibleRows: 5,

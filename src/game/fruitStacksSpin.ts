@@ -81,6 +81,8 @@ export interface FruitRound {
   fsSpins: FruitSpin[];
   totalWin: bigint;            // capped, authoritative
   capped: boolean;
+  /** 0 = natural round; 1/2/3 = purchased FS stage (min gift ×2/×6/×31). */
+  buyStage: number;
 }
 
 // ── deterministic RNG (sfc32) seeded from the bytes32 randomness ───────────
@@ -254,25 +256,46 @@ export function boardFromStops(stops: number[], cfg: FruitStacksMathConfig): num
   return board;
 }
 
-/** THE round derivation — settlement and presentation both call this. */
+/** Purchased FS stages (Noski, reference construct): stage 2/3 START the
+ *  multiplier POOL at ×50 / ×100 — the value stands in the pool field the
+ *  moment the round opens (it applies per the pool rule: when a new gift
+ *  drops). Stage 1 is the plain FS round. */
+export const BUY_STAGE_START_POOL = [0, 0, 50, 100] as const;
+
+/** THE round derivation — settlement and presentation both call this.
+ *  `buyStage` 1-3 = purchased free spins: the base spin is only the trigger
+ *  (no pays) and the stage's start pool is pre-loaded. */
 export function deriveFruitStacksRound(
   randomness: string,
   bet: bigint,
   cfg: FruitStacksMathConfig,
+  buyStage = 0,
 ): FruitRound {
   const rand = rngFromHex(randomness);
   const maxWin = bet * BigInt(cfg.maxWinMultiplier);
+  const startPool: number = BUY_STAGE_START_POOL[buyStage] ?? 0;
 
-  const base = playSpin(rand, bet, cfg, 0);
-  base.initialBoard = boardFromStops(base.stops, cfg);
+  let base: FruitSpin;
+  if (buyStage > 0) {
+    // purchased round: the base spin is only the TRIGGER — no pays, no beat
+    const stops = cfg.reelStrips.map(st => Math.floor(rand() * st.length));
+    base = {
+      stops, initialBoard: boardFromStops(stops, cfg), steps: [], crates: [],
+      scatters: 4, scatterPay: 0n, winBeforeMulti: 0n, multiSum: 0,
+      poolBefore: 0, poolAfter: 0, spinWin: 0n,
+    };
+  } else {
+    base = playSpin(rand, bet, cfg, 0);
+    base.initialBoard = boardFromStops(base.stops, cfg);
+  }
   let totalWin = base.spinWin > maxWin ? maxWin : base.spinWin;
 
-  const fsTriggered = base.scatters >= 4;
+  const fsTriggered = buyStage > 0 || base.scatters >= 4;
   const fsSpins: FruitSpin[] = [];
   let capped = totalWin >= maxWin;
   if (fsTriggered && !capped) {
     let remaining = cfg.freeSpinsCount;
-    let pool = 0;
+    let pool = startPool; // purchased stage 2/3: ×50/×100 pre-loaded
     while (remaining > 0 && fsSpins.length < cfg.freeSpinsCap) {
       const spin = playSpin(rand, bet, cfg, pool);
       spin.initialBoard = boardFromStops(spin.stops, cfg);
@@ -285,5 +308,5 @@ export function deriveFruitStacksRound(
     }
   }
 
-  return { base, fsTriggered, fsSpins, totalWin, capped };
+  return { base, fsTriggered, fsSpins, totalWin, capped, buyStage };
 }

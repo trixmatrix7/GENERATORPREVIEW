@@ -95,6 +95,16 @@ Betrag NUR als Bottom-HUD-Formel „LINIE n ZAHLT base × mult = total"). **Crac
   (silber ×2-5 / rot ×6-30 / gold ×31-500, Referenz-Stufen) via Display-Ids 11-13 + setSymbol.
   Verify: custom-math/verify_crate_ride.mjs (cratesAfter-Zelle muss id 0 auf boardAfter sein).
 
+- **FEEL-Regeln (Noski 2026-07-22, "Gefühl reinbringen, nichts abgehackt"):** Atempausen sind
+  Pflicht-Choreo: ~0,45s Ruhe nach Land vor dem ersten Burst, ~0,35s zwischen Kaskaden-Steps,
+  ~0,45s bevor Gifts aufwachen, ~1,0s Hold auf "win ×N", ~0,5s nach dem Resolve. Winner-Removal
+  = CHARGE (0,22s langsamer Swell) → BURST (Saft-Tropfen sprühen, Art platzt weg) — kein Slice,
+  kein Hard-Cut. Win-Beträge: Display-Font (Poppins italic), weich einblühen, LANGSAM von den
+  Symbolen WEGGLEITEN (1,5s) + clean ausfaden — nie statisch, nie snappen. Multi-Einschlag:
+  Plate-Punch (elastic-scale 1,3 + Mini-Shake + weißer Flash) bei jeder ×N-Ankunft. Normal-Drop
+  = ALLE Spalten GEMEINSAM (nur Row-Kaskade); Slow-Walzen-Tease NUR im NACHDROPPEN ab 2
+  stehenden Scattern (bleibt bei 3+ bis Spin-Ende). UI-Sounds dezent (uiSfx.ts, CC0-Picks).
+
 **Spin/Stop:**
 - Stop = **100–150ms Blur-Auflösung → harter Dead-Lock. KEIN Bounce, keine Feder.**
 - Stagger links→rechts ~400ms (WS) / bei uns 150ms-Basis + Tease-Verlängerung.

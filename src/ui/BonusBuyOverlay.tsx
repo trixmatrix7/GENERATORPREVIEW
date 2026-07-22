@@ -137,7 +137,7 @@ export function ViceBuyRail({ betDisplay, stages, anteCostMult, onBuy }: {
     <>
       {/* small round trigger, bottom-left with air to the reel frame */}
       <button onClick={() => { uiSfx.open(); setOpen(true); }} title="Bonus buy" style={{
-        position: 'absolute', left: 18, bottom: 86, zIndex: 40, width: 58, height: 58, borderRadius: '50%',
+        position: 'absolute', left: 120, bottom: 140, zIndex: 40, width: 58, height: 58, borderRadius: '50%',
         border: '2px solid #ffd75e', cursor: 'pointer',
         background: 'radial-gradient(circle at 34% 28%, #ff9ad0 0%, #ff3d9a 46%, #a3125e 100%)',
         boxShadow: '0 4px 14px rgba(0,0,0,0.55), inset 0 2px 3px rgba(255,255,255,0.5), inset 0 -4px 8px rgba(0,0,0,0.35)',

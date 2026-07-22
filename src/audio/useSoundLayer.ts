@@ -121,25 +121,11 @@ export function useSoundLayer(state: GameState | null): SoundManager {
     if (next === 'settled_win' && prev !== 'settled_win') {
       const outcome = state.lastOutcome;
       if (outcome) {
-        const wager = BigInt(state.betBaseUnits || '0');
-        const winSound = selectWinSound(outcome.winAmount, wager);
-        // When the MARQUEE celebration will play (>= minBigWin x bet), its
-        // music track owns the win audio — the stingers and coin-chime
-        // accents would double up under the song, so they stay silent.
-        const ratio = wager > 0n ? Number(outcome.winAmount) / Number(wager) : 0;
-        const marqueeOwnsAudio = ratio >= WIN_CELEBRATION_CONFIG.minBigWin;
-        if (winSound && !marqueeOwnsAudio) manager.play(winSound);
-        // Coin-chime accent on big/mega tiers — timed to celebration timeline.
-        if (!marqueeOwnsAudio && (winSound === 'win-big' || winSound === 'win-mega')) {
-          scheduleAccent(() => manager.play('coin-chime'), 200);
-          scheduleAccent(() => manager.play('coin-chime'), 600);
-          if (winSound === 'win-mega') {
-            scheduleAccent(() => manager.play('coin-chime'), 1100);
-            scheduleAccent(() => manager.play('coin-chime'), 1700);
-            scheduleAccent(() => manager.play('coin-chime'), 2300);
-          }
-        }
-        if (outcome.freeSpinsTriggered) manager.play('free-spin-trigger');
+        // Win audio is owned by the PRESENTATION layer now (single path,
+        // Noski 2026-07-22): playCoinWin fires onWinJingle for sub-marquee
+        // wins, the marquee hooks own everything above, and the FS-TRIGGER
+        // stinger fires at onTeaseEnd(hit) — the settlement-time plays here
+        // double-fired under them (the "reingerutschte" marquee accents).
       }
     }
   }, [state, manager]);

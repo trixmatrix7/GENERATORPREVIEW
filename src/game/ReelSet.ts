@@ -1792,6 +1792,26 @@ export class ReelSet {
         this.teaseAudioOn = false;
         this.audioHooks.onTeaseEnd?.(sc >= 3); // hit: FS flow; miss: thud + silence
       }
+      // MISS: re-arm the resting breathe on the reels that landed BEFORE the
+      // tease — their landing timeline gets KILLED while the tease owns the
+      // stage, so `transitionAfterLanding` never fires and the cells sit
+      // stuck in 'landing' with a dead tween, frozen next to the breathing
+      // teased reels (Noski: "die 3 Reels rechts atmen, die linken 2 nicht").
+      if (sc < 3) {
+        for (const reel of this.reels) {
+          for (let row = 0; row < this.grid.visibleRows; row++) {
+            const cell = reel.getVisibleCell(row);
+            if (!cell) continue;
+            const st = cell.currentState;
+            const tw = (cell as unknown as { tween?: { isActive?: () => boolean } }).tween;
+            const stuckLanding = st === 'landing' && !(tw?.isActive?.());
+            if (st === 'static' || stuckLanding) {
+              cell.play('static'); // resets the dead landing state cleanly
+              cell.play('idle');
+            }
+          }
+        }
+      }
     }
 
     // Hold the featured glow briefly after the last teased reel lands so

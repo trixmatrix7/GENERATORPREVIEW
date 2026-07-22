@@ -37,21 +37,10 @@ export function WinTierTestPanel({ pixiApp, snapshot, soundManager }: Props) {
 
   const trigger = (multiplier: number) => {
     const winAmount = wager * BigInt(multiplier);
+    // Sound comes from the SAME path as live play (playCoinWin -> marquee
+    // hooks / onWinJingle) — no extra panel-side stingers or accents (they
+    // were the stray sound at marquee start, Noski 2026-07-22).
     pixiApp.__testWin(winAmount, symbol, decimals, 'WIN', wager);
-    const sound = selectWinSound(winAmount, wager);
-    if (sound) soundManager.play(sound);
-    // Coin-chime accents on big+ wins — same soft ticks and timings as the
-    // live overlay in useSoundLayer.ts (melodic layers would clash with the
-    // signature win jingle).
-    if (sound === 'win-big' || sound === 'win-mega') {
-      window.setTimeout(() => soundManager.play('coin-chime'), 200);
-      window.setTimeout(() => soundManager.play('coin-chime'), 600);
-    }
-    if (sound === 'win-mega') {
-      window.setTimeout(() => soundManager.play('coin-chime'), 1100);
-      window.setTimeout(() => soundManager.play('coin-chime'), 1700);
-      window.setTimeout(() => soundManager.play('coin-chime'), 2300);
-    }
   };
 
   return (

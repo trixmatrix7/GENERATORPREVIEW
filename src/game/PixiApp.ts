@@ -2551,7 +2551,8 @@ export class PixiApp {
         if (!this.isLive) return;
       }
 
-      await this.playFreeSpinsIris(round.fsSpins.length, Math.max(4, outcome.scatterCount));
+      // Fruit FS-INTRO: darkened field + 15-badge + breathing CLICK TO START
+      await this.playFruitFsIntro();
       if (!this.isLive) return;
       const fsOverlay = this.showFreeSpinOverlay(round.fsSpins.length);
       // Purchased stage 2/3: the start pool STANDS in the multi field the
@@ -2584,6 +2585,8 @@ export class PixiApp {
         await this.playTumbleSpin(spin, decimals);
         // fresh gifts grew the pool — badge ticks up AFTER the multi beat
         if (spin.poolAfter !== spin.poolBefore) this.reelSet.setFruitPool(spin.poolAfter, true);
+        // RETRIGGER (3+ scatters in this FS spin): 5-badge slams centre
+        if (spin.scatters >= 3 && !this.turbo) await this.playFruitRetrigger();
         await new Promise<void>(r => { gsap.delayedCall(0.3, () => r()); });
       }
       this.reelSet.setFruitPool(null);
@@ -2624,6 +2627,122 @@ export class PixiApp {
     } catch (err) {
       console.warn('[PixiApp] fruit plaque art failed:', err);
     }
+  }
+
+  private fruitBadge15: Texture | null = null;
+  private fruitBadge5: Texture | null = null;
+
+  /** FS intro/retrigger badge art (15 = intro, 5 = retrigger). */
+  async setFruitFsBadges(url15: string, url5: string): Promise<void> {
+    try {
+      const [b15, b5] = await Promise.all([Assets.load<Texture>(url15), Assets.load<Texture>(url5)]);
+      if (this._aborted) return;
+      this.fruitBadge15 = b15;
+      this.fruitBadge5 = b5;
+    } catch (err) {
+      console.warn('[PixiApp] fs badges failed:', err);
+    }
+  }
+
+  /** FRUIT FS-INTRO (Noski): darkened field, the 15-badge big and centred,
+   *  "15 FREE SPINS WON" beneath, a BREATHING "CLICK TO START" — waits for
+   *  the tap, then the round rolls. Screen-space overlay (letterbox-immune). */
+  private playFruitFsIntro(): Promise<void> {
+    if (!this.isLive) return Promise.resolve();
+    return new Promise<void>(resolve => {
+      const { width, height } = this.app.screen;
+      const ov = new Container();
+      ov.eventMode = 'static';
+      const dim = new Graphics();
+      dim.rect(0, 0, width, height);
+      dim.fill({ color: 0x05030c, alpha: 0.82 });
+      ov.addChild(dim);
+      const cx = width / 2, cy = height / 2;
+      let badge: Sprite | null = null;
+      if (this.fruitBadge15) {
+        badge = new Sprite(this.fruitBadge15);
+        badge.anchor.set(0.5);
+        badge.scale.set(Math.min(260 / this.fruitBadge15.width, 260 / this.fruitBadge15.height));
+        badge.x = cx; badge.y = cy - 60;
+        ov.addChild(badge);
+      }
+      const title = new Text({
+        text: '15 FREE SPINS WON',
+        style: new TextStyle({
+          fontFamily: "'Poppins', ui-sans-serif, system-ui, sans-serif",
+          fontSize: 34, fontWeight: '900', fontStyle: 'italic', letterSpacing: 2,
+          fill: 0xffe698, stroke: { color: 0x1a1000, width: 6, join: 'round' },
+        }),
+      });
+      title.anchor.set(0.5);
+      title.x = cx; title.y = cy + 92;
+      ov.addChild(title);
+      const cta = new Text({
+        text: 'CLICK TO START',
+        style: new TextStyle({
+          fontFamily: "'Poppins', ui-sans-serif, system-ui, sans-serif",
+          fontSize: 20, fontWeight: '800', letterSpacing: 3,
+          fill: 0xffffff, stroke: { color: 0x1a1000, width: 4, join: 'round' },
+        }),
+      });
+      cta.anchor.set(0.5);
+      cta.x = cx; cta.y = cy + 150;
+      ov.addChild(cta);
+      this.app.stage.addChild(ov);
+      // entrance + BREATHING cta (reactive: swells on hover-ish pulse)
+      ov.alpha = 0;
+      gsap.to(ov, { alpha: 1, duration: 0.35, ease: 'power1.out' });
+      if (badge) gsap.fromTo(badge.scale, { x: badge.scale.x * 0.4, y: badge.scale.y * 0.4 }, { x: badge.scale.x, y: badge.scale.y, duration: 0.55, ease: 'back.out(1.8)' });
+      const breathe = gsap.timeline({ repeat: -1, yoyo: true })
+        .to(cta.scale, { x: 1.09, y: 1.09, duration: 0.75, ease: 'sine.inOut' }, 0)
+        .to(cta, { alpha: 0.72, duration: 0.75, ease: 'sine.inOut' }, 0);
+      const badgeBreathe = badge
+        ? gsap.to(badge.scale, { x: badge.scale.x * 1.035, y: badge.scale.y * 1.035, duration: 1.1, ease: 'sine.inOut', repeat: -1, yoyo: true, delay: 0.6 })
+        : null;
+      const done = () => {
+        breathe.kill(); badgeBreathe?.kill();
+        gsap.to(ov, {
+          alpha: 0, duration: 0.3, ease: 'power1.in',
+          onComplete: () => { try { ov.parent?.removeChild(ov); ov.destroy({ children: true }); } catch { /* gone */ } resolve(); },
+        });
+      };
+      ov.on('pointertap', done);
+      gsap.delayedCall(12, done); // safety auto-continue
+    });
+  }
+
+  /** RETRIGGER beat (Noski): the 5-badge slams in centred with
+   *  "+5 FREE SPINS" beneath, holds, and fades. */
+  private playFruitRetrigger(): Promise<void> {
+    if (!this.isLive || !this.fruitBadge5) return Promise.resolve();
+    return new Promise<void>(resolve => {
+      const { width, height } = this.app.screen;
+      const ov = new Container();
+      ov.eventMode = 'none';
+      const cx = width / 2, cy = height / 2;
+      const badge = new Sprite(this.fruitBadge5!);
+      badge.anchor.set(0.5);
+      badge.scale.set(Math.min(190 / this.fruitBadge5!.width, 190 / this.fruitBadge5!.height));
+      badge.x = cx; badge.y = cy - 40;
+      ov.addChild(badge);
+      const label = new Text({
+        text: '+5 FREE SPINS',
+        style: new TextStyle({
+          fontFamily: "'Poppins', ui-sans-serif, system-ui, sans-serif",
+          fontSize: 30, fontWeight: '900', fontStyle: 'italic', letterSpacing: 2,
+          fill: 0xffe698, stroke: { color: 0x1a1000, width: 6, join: 'round' },
+        }),
+      });
+      label.anchor.set(0.5);
+      label.x = cx; label.y = cy + 78;
+      ov.addChild(label);
+      this.app.stage.addChild(ov);
+      const bs = badge.scale.x;
+      gsap.timeline({ onComplete: () => { try { ov.parent?.removeChild(ov); ov.destroy({ children: true }); } catch { /* gone */ } resolve(); } })
+        .fromTo(badge.scale, { x: bs * 2.2, y: bs * 2.2 }, { x: bs, y: bs, duration: 0.32, ease: 'power3.in' })
+        .fromTo(label, { alpha: 0, y: cy + 92 }, { alpha: 1, y: cy + 78, duration: 0.25, ease: 'power2.out' }, 0.28)
+        .to(ov, { alpha: 0, duration: 0.35, ease: 'power1.in' }, '+=1.1');
+    });
   }
 
   /** FS pool badge art (gift + integrated pill, Noski). */

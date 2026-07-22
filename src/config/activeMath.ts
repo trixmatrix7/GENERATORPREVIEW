@@ -48,6 +48,14 @@ const MANIFESTS: Record<string, Record<string, unknown>> = {
   'fruit-stacks-tumble': fruitStacks as Record<string, unknown>,
 };
 
+/** Raw math-manifest JSON for a profile id (null for manifest-less profiles
+ *  like 'fantasy-extreme'). Used by the v2 preset exporter so the export
+ *  always ships the CURRENT certified manifest of the active profile — the
+ *  partner once received a hard-coded stale one. */
+export function manifestForProfile(id: string): Record<string, unknown> | null {
+  return MANIFESTS[id] ?? null;
+}
+
 const KEY_TO_ID: Record<string, number> = {
   wild: SymbolId.WILD, scatter: SymbolId.SCATTER,
   highA: SymbolId.HIGH_A, highB: SymbolId.HIGH_B,

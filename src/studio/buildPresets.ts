@@ -8,8 +8,9 @@
 import { loadAssets, replaceAssets, type SavedAssets } from './assetPersistence';
 import { loadMathProfileId, saveMathProfileId } from '@/config/mathProfiles';
 import { loadGridId, type GridId } from '@/dev/PresetDock';
-import viceMath from '@/data/math_vice_heat.json';
-import introLayers from '@/data/introLayers.json';
+import { manifestForProfile } from '@/config/activeMath';
+import { defaultSoundConfig } from '@/audio/defaultSoundConfig';
+import { buildPresetV2, type GameKey, type ResolvedAudioEvent } from './exportPresetV2Core';
 
 const BUILDS_KEY = 'vice:builds';
 const BARE_KEY = 'vice:bare';
@@ -176,75 +177,66 @@ export function applyFruitStacks(): void {
   window.location.reload();
 }
 
-/** EXPORT BUILD — the standalone GAME PRESET ("reines Game"): the complete
- *  declarative wiring (assets, sheet geometry, features, math manifest) as
- *  one JSON the generator/dev consumes. Mirrors src/App.tsx's wiring. */
+/** EXPORT BUILD — chainwtf-game-preset v2 (the STANDARDIZED format agreed
+ *  with the partner dev; see exportPresetV2Core.ts + the schema JSON). Game-
+ *  aware: ships the ACTIVE game's assets + the CURRENT certified manifest of
+ *  the active math profile (never a hard-coded one again). */
 export function buildExportPreset(name: string): Record<string, unknown> {
   const o = loadAssets();
-  const B = 'theme/vice/';
-  const bare = isBareBuild();
-  return {
-    formatVersion: 1,
-    kind: 'chainwtf-game-preset',
-    name: name || 'Vice Heat',
-    exportedAt: new Date().toISOString(),
-    gridId: loadGridId(),
-    bare,
-    math: {
-      profileId: loadMathProfileId(),
-      manifest: viceMath, // full certified manifest incl. the custom rules
-    },
-    assets: bare ? {} : {
-      title: `${B}logo.webp`,
-      background: o.bg ?? `${B}bg_motel.webp`,
-      backgroundLoop: o.bg ? null : { sheets: [`${B}bg_motel_anim_1.webp`, `${B}bg_motel_anim_2.webp`, `${B}bg_motel_anim_3.webp`], cols: 4, rows: 4, count: 45, fps: 6 },
-      fsBackgroundLoop: o.fsBg ? null : { sheets: [`${B}fsbg_beachclub_anim_1.webp`, `${B}fsbg_beachclub_anim_2.webp`, `${B}fsbg_beachclub_anim_3.webp`], cols: 4, rows: 4, count: 48, fps: 6 },
-      fsBackground: o.fsBg ?? `${B}fsbg_beachclub.webp`,
-      frame: o.frame ?? { file: `${B}frame_neon.webp`, window: { x: 197, y: 314, w: 832, h: 832 } },
-      frameWinFlash: { file: `${B}frame_win_flash_1.webp`, cols: 8, rows: 6, count: 48, fps: 12, region: { x: 1025, y: 225, w: 475, h: 1062.5 } },
-      symbols: Object.keys(o.symbols ?? {}).length ? o.symbols : 'baked: public/theme/vice/symbol_*_landing.png (see src/config/viceAssets.ts)',
-      expandingWild: o.expandingWild ?? `${B}wild_column.webp`,
-      winSheets: {
-        '1-scatter': { file: `${B}scatterwin.webp`, cols: 8, rows: 9, count: 67, fps: 15 },
-        '2-highA': { file: `${B}prem_a_win.webp`, cols: 7, rows: 7, count: 48, fps: 12 },
-        '3-highB': { file: `${B}prem_b_win.webp`, cols: 7, rows: 7, count: 48, fps: 12 },
-        '4-midC': { file: `${B}car_win.webp`, cols: 7, rows: 7, count: 48, fps: 12 },
-        '5-midD': { file: `${B}koffer_win.webp`, cols: 7, rows: 7, count: 48, fps: 12 },
-      },
-      idleSheets: { '1-scatter': { file: `${B}scatteridle.webp`, cols: 10, rows: 9, count: 90, fps: 10 } },
-      staticLookSymbols: [1],
-      noIdleSymbols: [0],
-      winTiers: { dir: 'theme/win-tiers/', layers: ['big', 'mega', 'epic', 'max', 'win', 'plate'] },
-      coinRain: { sheets: ['theme/win-tiers/coinrain3_0.webp', 'theme/win-tiers/coinrain3_1.webp', 'theme/win-tiers/coinrain3_2.webp'], cols: 10, rows: 10, count: 300, fps: 45 },
-      introLayers,
-    },
-    audio: bare ? {} : {
-      dir: 'audio/',
-      // Sound-library picks (eventId -> library OGG) — the exported game
-      // must ship EXACTLY the sounds Noski fixed into the build.
-      libraryPicks: o.sounds ?? {},
-      events: ['ambient-music', 'win-marquee', 'spin-start', 'reel-stop', 'coin-chime', 'wild-land', 'wild-expand', 'scatter-land', 'near-miss-tease', 'free-spin-trigger'],
-      oggFirst: true,
-      marqueeDucksAmbient: true,
-    },
-    features: {
-      teasePreset: 'universal-anticipation',
-      teaseCameraPovDolly: { base: 1.06, perStep: 0.05 },
-      scatterCollectOnTrigger: true,
-      frameFlashOn3rdScatter: true,
-      fsIntroHoldSec: 7,
-      outroHoldSecMax: 15,
-      hardPayoutCap: 'round stops at maxWinMultiplier x bet, MAX WIN marquee',
-    },
+  const game = loadActiveGame() as GameKey;
+  const profileId = loadMathProfileId();
+  // Fall back to the game's canonical profile when the selected one has no
+  // manifest (e.g. the legacy 'fantasy-extreme' library).
+  const FALLBACK: Record<GameKey, string> = {
+    vice: 'vice-heat-custom', crackfarm: 'crack-farm-lines', fruitstacks: 'fruit-stacks-tumble',
   };
+  const manifest = manifestForProfile(profileId) ?? manifestForProfile(FALLBACK[game]);
+  const usedProfile = manifestForProfile(profileId) ? profileId : FALLBACK[game];
+
+  // Resolve the audio events: design defaults -> library picks -> the user's
+  // per-event volume overrides (SoundParamsPanel), exactly what the build plays.
+  let volOverrides: Record<string, number> = {};
+  try { volOverrides = JSON.parse(localStorage.getItem('slot:audio-event-volumes') ?? '{}'); } catch { /* keep {} */ }
+  const picks = o.sounds ?? {};
+  const audioEvents: Record<string, ResolvedAudioEvent> = {};
+  for (const ev of defaultSoundConfig().events) {
+    const pick = picks[ev.id];
+    const volume = volOverrides[ev.id] ?? ev.volume;
+    const file = (pick ?? ev.src[0] ?? '').replace(/^\//, '');
+    if (!file) continue;
+    audioEvents[ev.id] = {
+      file,
+      volume,
+      loop: ev.loop || undefined,
+      exclusive: ev.exclusive || undefined,
+      role: ev.id === 'ambient-music' || ev.id === 'win-marquee' ? 'music' : 'sfx',
+      enabled: volume > 0,
+    };
+  }
+
+  return buildPresetV2({
+    name,
+    game,
+    gridId: loadGridId(),
+    profileId: usedProfile,
+    manifest,
+    overrides: { bg: o.bg, fsBg: o.fsBg, frame: o.frame, expandingWild: o.expandingWild },
+    audioEvents,
+    bare: isBareBuild(),
+    exportedAt: new Date().toISOString(),
+    generatorVersion: '2.0.0',
+  });
 }
 
 export function downloadExport(name: string): void {
-  const json = JSON.stringify(buildExportPreset(name), null, 1);
+  const preset = buildExportPreset(name);
+  const gameId = (preset.game as { id: string }).id;
+  const json = JSON.stringify(preset, null, 1);
   const blob = new Blob([json], { type: 'application/json' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
-  a.download = `${(name || 'game-preset').replace(/[^a-z0-9-_ ]/gi, '').trim().replace(/\s+/g, '-').toLowerCase() || 'game-preset'}.json`;
+  const slug = (name || gameId).replace(/[^a-z0-9-_ ]/gi, '').trim().replace(/\s+/g, '-').toLowerCase() || gameId;
+  a.download = `${slug}.chainwtf-preset.json`;
   a.click();
   setTimeout(() => URL.revokeObjectURL(a.href), 5000);
 }

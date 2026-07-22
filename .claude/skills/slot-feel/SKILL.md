@@ -136,6 +136,19 @@ GESAMTGEWINN wird still hinter dem Marquee verrechnet.
 
 ## 3. Crispy-HD-Regeln (Pixi, Reports 11 + 14-Lektionen)
 
+- **mp4-Bake-Sheets: ERST auf Opazität prüfen, dann graden (2026-07-22, Vice-Scatter):** Sheets aus
+  mp4-Captures können den Aufnahme-Hintergrund **voll opak** mitbringen (Vice-Scatter: dunkellila
+  RGB≈30/16/49) — das liest sich in-game als „Verdunklungseffekt", obwohl das Symbol selbst farblich
+  auf Parität ist. Plain-Mean-Gains sind dann bg-verseucht; mit der Static-Alpha maskiert messen.
+  Fix-Rezept: Alpha = `max(fp_tight, band·dkey)` — enge Static-Footprint-Maske (Feather 2, KEIN
+  Dilate: dilatierte Maske lässt einen dunklen Halo-Ring stehen) plus per-Frame Corner-gesampleter
+  Distance-Key im Dilate-Band (Glow/Burst überlebt, Bg fliegt). Win-Sheets: `max(fp_tight, dkey)`
+  frame-weit (Burst wandert). **Regrade auf f0 kalibrieren, nicht auf den Frame-Mittelwert** —
+  Flash-Frames verschmutzen den Mittelwert; der Cross-Fade zur Static passiert bei f0, also muss f0
+  auf Gain ≈1.0 landen (Vice: prem_b −27% Sättigung → sat×1.35 um Luma, koffer Blau-Lift → B×0.88).
+  Verify: f0-Gain-Zahlen + Checker-Montage (Static | Sheet-f0) + Ring-Pixel-Count.
+  [[sheet-from-mp4-grade-and-identity]]
+
 - **Renderer-Resolution FLOOR 2, nicht nur Cap (2026-07-20, DER Crispiness-Durchbruch):** DPR-1-
   Monitore (Preview-Pane meldet `devicePixelRatio===1`) samplen sonst die weiche **128²-Mip** von
   512²-Art in ~110-126px-Zellen (≈4× Minification) → matt/blurry; das Maskottchen wirkt nur scharf,

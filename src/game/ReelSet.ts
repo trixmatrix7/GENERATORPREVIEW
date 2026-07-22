@@ -3122,6 +3122,21 @@ export class ReelSet {
     for (const s of this.separators) s.visible = v;
   }
 
+  /** Downward SQUASH on a live cell's art (the ONE landing animation for
+   *  Fruit Stacks): compresses toward the floor and springs back — never
+   *  stretches taller, never leaves the cell. */
+  private squashLand(cell: AnimatedSymbol): void {
+    const inner = cell.objectLayer;
+    gsap.killTweensOf(inner.scale); gsap.killTweensOf(inner, 'y');
+    const baseY = SYMBOL_HEIGHT / 2;
+    const sink = SYMBOL_HEIGHT * 0.055;
+    gsap.timeline()
+      .to(inner.scale, { y: 0.84, x: 1.06, duration: 0.08, ease: 'power1.out' }, 0)
+      .to(inner, { y: baseY + sink, duration: 0.08, ease: 'power1.out' }, 0)
+      .to(inner.scale, { y: 1, x: 1, duration: 0.2, ease: 'back.out(2.2)' }, 0.08)
+      .to(inner, { y: baseY, duration: 0.2, ease: 'back.out(2.2)' }, 0.08);
+  }
+
   /** BONUS (scatter) renders IN FRONT of every other symbol (Noski): raise
    *  scatter cells inside their reel AND the whole reel column that carries
    *  one (cross-reel overlap — the basket art overhangs its cell). */
@@ -3578,9 +3593,9 @@ export class ReelSet {
         cell.setSymbol((crateVal !== undefined
           ? fruitGiftTierId(crateVal)
           : step.boardAfter[row][reel]) as SymbolIdType);
-        // subtle landing knick on the cells that actually moved (soft
-        // landingImpact preset — Noski: "Knick, keine Billig-Effekte")
-        if (moved && !opts.turbo) cell.playLandBounce();
+        // downward squash on the cells that actually moved — the impact
+        // bounce STRETCHED the art taller ("Vergrößern", Noski) and is gone.
+        if (moved && !opts.turbo) this.squashLand(cell);
       }
     }
     this.elevateScatterCells(); // BONUS in front of everything (Noski)

@@ -7,6 +7,7 @@ import { useRef, useState } from 'react';
 import type { SoundManager } from '@/audio/SoundManager';
 import { loadAssets, saveAssets } from '@/studio/assetPersistence';
 import library from '@/data/soundLibrary.json';
+import { SOUND_PRESETS } from '@/audio/soundPresets';
 
 const LIB = library as Record<string, { name: string; url: string }[]>;
 
@@ -48,8 +49,32 @@ export function SoundLibraryPanel({ soundManager }: { soundManager: SoundManager
     }
   };
 
+  const applyPreset = (presetId: string) => {
+    const preset = SOUND_PRESETS.find(pr => pr.id === presetId);
+    if (!preset) return;
+    const next = { ...picks };
+    for (const [eventId, def] of Object.entries(preset.events)) {
+      next[eventId] = def.url;
+      soundManager.replaceSource(eventId, [def.url], def.volume);
+      soundManager.setEventOverride(eventId, def.volume); // persists + tweakable
+    }
+    setPicks(next);
+    saveAssets({ sounds: next });
+  };
+
   return (
     <div className="flex flex-col gap-[7px]">
+      {/* one-click curated mixes */}
+      <div className="flex gap-1.5">
+        {SOUND_PRESETS.map(pr => (
+          <button
+            key={pr.id}
+            type="button"
+            onClick={() => applyPreset(pr.id)}
+            className="rounded-[var(--radius-pill)] border border-[var(--color-yellow)] px-2 py-[3px] text-[10px] font-semibold text-[var(--color-yellow)] transition-colors hover:bg-[var(--color-yellow)] hover:text-black"
+          >✨ {pr.name}</button>
+        ))}
+      </div>
       {Object.entries(LABELS).map(([eventId, label]) => {
         const options = LIB[eventId] ?? [];
         if (options.length === 0) return null;

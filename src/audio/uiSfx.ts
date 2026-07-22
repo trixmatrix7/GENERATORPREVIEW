@@ -6,7 +6,7 @@
 const L = `${import.meta.env.BASE_URL}audio/library/`;
 
 const SRC = {
-  click: `${L}reel-stop/select-click-d230e8.ogg`,             // generic soft tap
+  click: `${L}reel-stop/modern-technology-select-fa3707.ogg`, // measured: 13ms attack, -25dB
   spin: `${L}reel-stop/cool-interface-click-tone-adc015.ogg`, // spin button
   open: `${L}reel-stop/opening-software-interface-7bf9ce.ogg`,// buy page opens
 } as const;

@@ -9,6 +9,7 @@ import type { HostApiV1, HostSnapshotV1 } from '@/bridge/types';
 import { useGameState } from '@/hooks/useGameState';
 import { useSoundLayer } from '@/audio/useSoundLayer';
 import { uiSfx } from '@/audio/uiSfx';
+import { ULTRA_CLEAN } from '@/audio/soundPresets';
 import { Sidebar } from '@/ui/Sidebar';
 import { GameCanvas } from '@/ui/GameCanvas';
 import { ControlBar } from '@/ui/ControlBar';
@@ -544,23 +545,14 @@ export function App() {
     soundManager.replaceSource('reel-spin-loop', [`${C}reel-spin-loop.ogg`], 0.24, false);
   }, [soundManager]);
 
-  // FRUIT STACKS sound pack — clean, SUBTLE defaults from the CC0 library
-  // (Noski: "cleane dezente Sounds, keine harten"). Every one of these is
-  // swappable in the Sound-Bibliothek; the picks below are the defaults.
+  // FRUIT STACKS sound pack — the measured ULTRA-CLEAN preset is the
+  // default mix (Noski AAA+ pass); every event swappable in the library.
   useEffect(() => {
     if (loadActiveGame() !== 'fruitstacks') return;
-    const L = `${import.meta.env.BASE_URL}audio/library/`;
-    // tumble-pop (the "Plopp beim Aufploppen") — pitched up per cascade step
-    soundManager.replaceSource('coin-chime', [`${L}reel-stop/plastic-bubble-click-d144fe.ogg`], 0.42);
-    // board lands (one soft beat per drop-in)
-    soundManager.replaceSource('reel-stop', [`${L}reel-stop/typewriter-soft-click-bcfd23.ogg`], 0.26);
-    // spin start: a small clean sweep
-    soundManager.replaceSource('spin-start', [`${L}spin-start/fast-small-sweep-transition-a5ee99.ogg`], 0.3);
-    // plate impact (×N slams into the win amount)
-    soundManager.replaceSource('wild-land', [`${L}reel-stop/hard-typewriter-click-7dfddd.ogg`], 0.4);
-    // gift ×N takes off
-    soundManager.replaceSource('wild-expand', [`${L}spin-start/air-woosh-985287.ogg`], 0.22);
-    soundManager.replaceSource('reel-spin-loop', [`${L}spin-start/air-woosh-985287.ogg`], 0, false);
+    for (const [eventId, def] of Object.entries(ULTRA_CLEAN.events)) {
+      soundManager.replaceSource(eventId, [def.url], def.volume);
+    }
+    soundManager.replaceSource('reel-spin-loop', [`${import.meta.env.BASE_URL}audio/library/spin-start/air-woosh-985287.ogg`], 0, false);
   }, [soundManager]);
 
   // SOUND-LIBRARY picks (studio "Sound-Bibliothek"): a saved selection WINS

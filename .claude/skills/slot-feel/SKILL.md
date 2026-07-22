@@ -227,6 +227,12 @@ GESAMTGEWINN wird still hinter dem Marquee verrechnet.
   kurze, konkrete Klangbeschreibungen + harte Negative (`no music, no melody, no instruments,
   no drums`) funktionieren. Für Foley/Tierlaute sind echte Samples (Freesound) oder ein
   SFX-Modell der richtige Weg — NICHT ich.
+- **Sound-Kuration OHNE Ohren = MESSEN (2026-07-22, Ultra-Clean-Preset):** ffmpeg→f32-Decode,
+  dann pro Kandidat Attack-Zeit (bis 85% Peak), Dauer, Peak/RMS dBFS, Spektral-Centroid
+  (Helligkeit), Tail-Energie (letzte 30%) — "clean" = kurzer Attack, null Tail, moderater
+  Centroid, leiser RMS. Pro Event-Rolle eigene Ziel-Fenster (Pop hell+kurz, Thud dumpf+kurz,
+  Riser leise+lang). Script: scratchpad analyze_lib.py; Presets in src/audio/soundPresets.ts
+  (Anwendung = replaceSource + setEventOverride → persistiert + einzeln nachtweakbar).
 - **Lange Takes sind gut:** `scripts/extract-sfx.py <clip> <outdir>` findet in einem 20-30s-Take
   alle Events, bewertet sie (Peak/Attack/Abstand/Clipping) und exportiert die besten Kandidaten.
   Noski soll NICHT selbst schneiden — er liefert den Rohtake, ich extrahiere.

@@ -2466,10 +2466,11 @@ export class ReelSet {
   }
 
   /** Build the win decoration, Fruit-Fortune style: a bold gold line through
-   *  the winning symbols with node dots, plus light sparkles. The line DRAWS ON
-   *  left→right (a reveal mask grows in width) and then stays solid. It lives
-   *  in winLinesContainer (below the lifted symbol objects), so the symbols sit
-   *  on top of the line. No frames, no glow wash, no dimming. */
+   *  the winning symbols with node dots. The line DRAWS ON left→right (a
+   *  reveal mask grows in width) and then stays solid. It lives in
+   *  winLinesContainer (below the lifted symbol objects), so the symbols sit
+   *  on top of the line. No frames, no glow wash, no dimming, no sparkles
+   *  (Noski 2026-07-22: Sterne über den Win-Sprites raus). */
   private buildDecoration(combos: ReadonlyArray<WinCombination>): void {
     // Ways-immersive: NO decoration at all — no line, no dots, no sparkles,
     // no light sweep. The winners' own motion + the deep dim carry the win.
@@ -2481,12 +2482,9 @@ export class ReelSet {
     // fought the transparent symbol art; the line/dots + symbol win anims
     // carry the win on their own)
 
-    // The line/dots are revealed left→right by a growing mask; sparkles sit in
-    // a separate steady layer (not masked) so they twinkle normally.
+    // The line/dots are revealed left→right by a growing mask.
     const lineLayer = new Container();
     group.addChild(lineLayer);
-    const sparkLayer = new Container();
-    group.addChild(sparkLayer);
 
     let drew = false;
     let minX = Infinity;
@@ -2527,7 +2525,6 @@ export class ReelSet {
         lineLayer.addChild(dot);
       }
 
-      this.spawnSparkles(sparkLayer, pts);
       drew = true;
     }
 
@@ -2588,41 +2585,6 @@ export class ReelSet {
       .to(bar, { x: x1, duration: 0.7, ease: 'sine.inOut' }, 0)
       .to(bar, { alpha: 0, duration: 0.2, ease: 'power1.in' }, 0.55);
     this.winFxTweens.push(tw);
-  }
-
-  /** Twinkling 4-point sparkles scattered over the winning cells — the touch
-   *  that reads as "magic". Positions/timings are cosmetic randomness only
-   *  (never an outcome path). */
-  private spawnSparkles(
-    layer: Container,
-    pts: Array<{ x: number; y: number; w: number; h: number }>,
-  ): void {
-    for (const p of pts) {
-      for (let s = 0; s < 2; s++) {
-        const outer = 6 + Math.random() * 4;
-        const star = new Graphics();
-        star.star(0, 0, 4, outer, outer * 0.4);
-        star.fill({ color: 0xFFFFFF, alpha: 0.95 });
-        star.x = p.x + (Math.random() - 0.5) * p.w * 0.7;
-        star.y = p.y + (Math.random() - 0.5) * p.h * 0.7;
-        star.scale.set(0);
-        star.alpha = 0;
-        layer.addChild(star);
-
-        const dur = 0.5 + Math.random() * 0.4;
-        const tw = gsap.timeline({
-          repeat: -1,
-          delay: Math.random() * 0.9,
-          repeatDelay: Math.random() * 0.7,
-        });
-        tw.to(star.scale, { x: 1, y: 1, duration: dur * 0.45, ease: 'back.out(2)' }, 0)
-          .to(star, { alpha: 1, duration: dur * 0.35 }, 0)
-          .to(star, { rotation: Math.PI * 0.5, duration: dur, ease: 'none' }, 0)
-          .to(star.scale, { x: 0, y: 0, duration: dur * 0.5, ease: 'power1.in' }, dur * 0.5)
-          .to(star, { alpha: 0, duration: dur * 0.5 }, dur * 0.5);
-        this.winFxTweens.push(tw);
-      }
-    }
   }
 
   /** Float a combo's win amount up from the centre of its cells, then fade. */

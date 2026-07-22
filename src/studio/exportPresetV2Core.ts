@@ -387,6 +387,11 @@ function sizingPackage(game: GameKey, gridId: string): Record<string, unknown> {
     symbolDraw: {
       formula: 'targetSize = round(min(cell.w, cell.h) * 0.88 * objectScale * perSymbolMul)',
       objectScale: 1.3,
+      perSymbolMuls: {
+        vice: { default: 0.8, scatter: 0.96 },
+        crackfarm: { default: 1, scatter: 0.96 },
+        fruitstacks: { default: 0.9, scatter: 0.99 },
+      }[game],
       note: "objectScale 1.3 = the 'large' symbol-size preset (default); art is square-stretched to targetSize in both axes",
     },
   };

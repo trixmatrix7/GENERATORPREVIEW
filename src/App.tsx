@@ -352,6 +352,10 @@ export function App() {
     const symbols = saved.symbols && Object.keys(saved.symbols).length
       ? new Map(Object.entries(saved.symbols).map(([k, v]) => [Number(k), v]))
       : viceSymbolMap();
+    // Vice symbols 20% smaller (Noski 2026-07-22): defaults were mul 1 /
+    // scatter 1.2 — whole set scaled down, scatter keeps its relative pop.
+    for (const id of [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]) SYMBOL_SIZE_MULS.set(id, 0.8);
+    SYMBOL_SIZE_MULS.set(1, 0.96);
     track(pixiAppRef.setUserAssetTextures(symbols));
     // Custom upload wins; otherwise the Vice MOTEL-BEACH base background —
     // static art paints instantly, then the LIVING loop takes over (45-frame

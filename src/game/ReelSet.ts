@@ -3247,7 +3247,7 @@ export class ReelSet {
       if (this.fruitPlaqueTex) {
         const s = new Sprite(this.fruitPlaqueTex);
         s.anchor.set(0.5);
-        s.scale.set(250 / this.fruitPlaqueTex.width);
+        s.scale.set(268 / this.fruitPlaqueTex.width);
         c.addChild(s);
       }
       const t = new Text({
@@ -3306,7 +3306,11 @@ export class ReelSet {
     gsap.to(flash, { alpha: 0, duration: 0.34, ease: 'power1.out', onComplete: () => { try { flash.parent?.removeChild(flash); flash.destroy(); } catch { /* gone */ } } });
   }
 
-  /** FS pool badge (right of the grid): gift icon + ×pool. null hides. */
+  private fruitPoolTex: Texture | null = null;
+  setFruitPoolTexture(tex: Texture | null): void { this.fruitPoolTex = tex; }
+
+  /** FS pool badge (right of the grid, reference construct: the gift with
+   *  its ×pool INSIDE the pill under the box). null hides. */
   setFruitPool(value: number | null, pop = false): void {
     if (value === null) {
       if (this.fruitPool) this.fruitPool.visible = false;
@@ -3315,24 +3319,36 @@ export class ReelSet {
     if (!this.fruitPool) {
       const c = new Container();
       c.eventMode = 'none';
-      const giftTex = (this.config.theme as { userAssetTextures?: Map<number, Texture> }).userAssetTextures?.get(0);
-      if (giftTex) {
-        const g = new Sprite(giftTex);
+      let textY = 52;
+      if (this.fruitPoolTex) {
+        const g = new Sprite(this.fruitPoolTex);
         g.anchor.set(0.5);
-        g.scale.set(74 / giftTex.width);
+        const w = 128;
+        g.scale.set(w / this.fruitPoolTex.width);
         c.addChild(g);
+        // ×N sits INSIDE the art's pill (measured: pill centre ~78% height)
+        textY = (0.78 - 0.5) * this.fruitPoolTex.height * g.scale.y;
+      } else {
+        const giftTex = (this.config.theme as { userAssetTextures?: Map<number, Texture> }).userAssetTextures?.get(0);
+        if (giftTex) {
+          const g = new Sprite(giftTex);
+          g.anchor.set(0.5);
+          g.scale.set(74 / giftTex.width);
+          c.addChild(g);
+        }
       }
       const t = new Text({
         text: '',
         style: new TextStyle({
-          fontFamily: 'Arial, sans-serif', fontSize: 30, fontWeight: '900', fontStyle: 'italic',
-          fill: 0xffd21e, stroke: { color: 0x241300, width: 6 }, align: 'center',
+          fontFamily: "'Poppins', ui-sans-serif, system-ui, sans-serif",
+          fontSize: 24, fontWeight: '800', fontStyle: 'italic',
+          fill: 0xffe698, stroke: { color: 0x1a1000, width: 5, join: 'round' }, align: 'center',
         }),
       });
       t.anchor.set(0.5);
-      t.y = 52;
+      t.y = textY;
       c.addChild(t);
-      c.x = this.totalWidth + 64;
+      c.x = this.totalWidth + 78;
       c.y = this.totalHeight * 0.34;
       this.container.addChild(c);
       this.fruitPool = c;

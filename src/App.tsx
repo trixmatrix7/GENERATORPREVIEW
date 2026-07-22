@@ -340,7 +340,8 @@ export function App() {
       });
       // TOP WIN PLAQUE (reference construct): the price-area plate sits above
       // the grid; cascade wins tick into it and the gift ×N values fly to it.
-      void pixiAppRef.setFruitPlaqueArt(`${Fw}plate.png`);
+      void pixiAppRef.setFruitPlaqueArt(`${FRUITSTACKS.base}plate_pill.png`);
+      void pixiAppRef.setFruitPoolArt(`${FRUITSTACKS.base}pool_gift.png`);
       // Audio: NO sounds wired — none recorded for this game yet, and the
       // hard rule is silence over placeholders (skill §4).
     } else {

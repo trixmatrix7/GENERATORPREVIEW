@@ -46,7 +46,7 @@ export function FruitBuyRail({ betDisplay, onBuy }: { betDisplay: string; onBuy?
     <>
       {/* LEFT-RAIL trigger pill, docked under the canvas logo */}
       <button onClick={() => { uiSfx.open(); setOpen(true); }} title="Buy bonus" style={{
-        position: 'absolute', left: '1.6%', top: '46%', zIndex: 40, width: '15%', minWidth: 120,
+        position: 'absolute', left: '4.2%', top: '46%', zIndex: 40, width: '14%', minWidth: 118,
         padding: '10px 8px', borderRadius: 999, cursor: 'pointer',
         border: '3px solid #f7b733', background: 'linear-gradient(180deg,#1d3b24 0%, #0d2113 100%)',
         boxShadow: '0 4px 16px rgba(0,0,0,0.55), inset 0 2px 4px rgba(255,255,255,0.18)',
@@ -64,18 +64,16 @@ export function FruitBuyRail({ betDisplay, onBuy }: { betDisplay: string; onBuy?
           background: 'rgba(3,10,5,0.84)', backdropFilter: 'blur(3px)', fontFamily: FONT,
         }}>
           <div onClick={e => e.stopPropagation()} style={{ display: 'flex', gap: 12, flexWrap: 'wrap', justifyContent: 'center', maxWidth: '96%' }}>
-            {FRUIT_CARDS.map(c => (
+            {FRUIT_CARDS.map((c, i) => (
               <div key={c.id} onClick={() => { uiSfx.click(); setConfirm(c); }} style={{
-                width: CW, height: CH, cursor: 'pointer', borderRadius: 18,
-                border: '3px solid #f7b733',
-                background: 'linear-gradient(180deg,#173521 0%, #0a1b10 100%)',
-                boxShadow: '0 6px 18px rgba(0,0,0,0.5), inset 0 2px 5px rgba(255,255,255,0.12)',
-                display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'space-between',
-                padding: '18px 10px',
+                position: 'relative', width: 170, height: Math.round(170 * 2400 / 1792), cursor: 'pointer',
+                backgroundImage: `url(${import.meta.env.BASE_URL}theme/fruitstacks/buycard_${i + 1}.png)`,
+                backgroundSize: 'contain', backgroundRepeat: 'no-repeat', backgroundPosition: 'center',
               }}>
-                <span style={{ color: '#ffe9a8', fontWeight: 900, fontStyle: 'italic', fontSize: 15, lineHeight: 1.15, textAlign: 'center', whiteSpace: 'pre-line' }}>{c.title}</span>
-                <span style={{ fontSize: 34 }}>🍉</span>
-                <span style={{ color: '#0b2a06', background: 'linear-gradient(180deg,#ffd75e,#f7a733)', borderRadius: 10, padding: '6px 14px', fontWeight: 900, fontStyle: 'italic', fontSize: 15 }}>{money(bet * c.mult)}</span>
+                {/* dynamic price over the card's lower area */}
+                <div style={{ position: 'absolute', left: '12%', right: '12%', bottom: '7.5%', display: 'flex', justifyContent: 'center' }}>
+                  <span style={{ color: '#ffe9a8', textShadow: '0 2px 4px rgba(0,0,0,0.85)', fontWeight: 900, fontStyle: 'italic', fontSize: 17 }}>{money(bet * c.mult)}</span>
+                </div>
               </div>
             ))}
           </div>

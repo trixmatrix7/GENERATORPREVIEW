@@ -725,7 +725,7 @@ export class PixiApp {
       const s = Math.min(330 / tex.width, 300 / tex.height);
       this.titleSprite.anchor.set(0.5);
       this.titleSprite.scale.set(s);
-      this.titleSprite.x = -(FRAME_PAD + 44 + (tex.width * s) / 2);
+      this.titleSprite.x = -(FRAME_PAD + 6 + (tex.width * s) / 2); // shifted right (was cut off left, Noski)
       this.titleSprite.y = HEADER_H + rh * 0.24;
     } else {
       // Fit: ≤60% of grid width AND ≤150 scene-px tall (clears the box top even
@@ -2612,13 +2612,20 @@ export class PixiApp {
     try {
       const tex = await Assets.load<Texture>(url);
       if (this._aborted) return;
-      const cropped = new Texture({
-        source: tex.source,
-        frame: new Rectangle(554, 523, 811, 436),
-      });
-      this.reelSet?.setFruitPlaqueTexture(cropped);
+      this.reelSet?.setFruitPlaqueTexture(tex); // asset pre-cropped at bake
     } catch (err) {
       console.warn('[PixiApp] fruit plaque art failed:', err);
+    }
+  }
+
+  /** FS pool badge art (gift + integrated pill, Noski). */
+  async setFruitPoolArt(url: string): Promise<void> {
+    try {
+      const tex = await Assets.load<Texture>(url);
+      if (this._aborted) return;
+      this.reelSet?.setFruitPoolTexture(tex);
+    } catch (err) {
+      console.warn('[PixiApp] fruit pool art failed:', err);
     }
   }
 

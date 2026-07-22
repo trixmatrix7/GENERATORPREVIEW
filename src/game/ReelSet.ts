@@ -10,7 +10,7 @@
 import { Container, Graphics, Text, TextStyle, Rectangle, Sprite, Texture } from 'pixi.js';
 import { gsap } from 'gsap';
 import { Reel } from './Reel';
-import { AnimatedSymbol, SYMBOL_WIDTH, SYMBOL_HEIGHT, SYMBOL_WIN_SHEETS } from './AnimatedSymbol';
+import { AnimatedSymbol, SYMBOL_WIDTH, SYMBOL_HEIGHT, SYMBOL_WIN_SHEETS, SYMBOL_SIZE_MULS } from './AnimatedSymbol';
 import { CELL_HEIGHT, REEL_GAP } from './symbolMetrics';
 import { getActiveGrid, type GridConfig } from '@/config/gridConfig';
 import { resolveAnchor, cell as cellAnchor, reel as reelAnchor, grid as gridAnchor } from '@/engine/anchors';
@@ -18,6 +18,7 @@ import { CANVAS_THEME } from '@/config/canvasTheme';
 import { SymbolId, fruitGiftTierId, type SymbolIdType } from '@/config/symbols';
 import { numToHsl, hexToNum } from '@/config/color';
 import { cellBackdropConfig } from '@/config/cellBackdrop';
+import { symbolSizing } from '@/config/symbolSizing';
 import { FALLBACK_TIMINGS } from '@/config/symbolAnimations';
 import type { WinResult, WinCombination } from '@/engine/WinEvaluator';
 import { HW_START_RESPINS, type HwRound } from '@/engine/holdAndWin';
@@ -3203,61 +3204,38 @@ export class ReelSet {
         inner.alpha = 0;
       }
     }
-    // ALL TOGETHER, reel 1 lands a BREATH before reel 2 (Noski): fast smooth
-    // fall with a tiny left→right column offset; landing = one simple soft
-    // REBOUNCE (back.out dips past the cell and settles) — no hard stop.
-    // The slow scatter-tease lives in the tumble REFILLS, never here.
+    // ALL TOGETHER, reel 1 lands a BREATH before reel 2 (Noski). The REAL
+    // cell art falls (setSymbol first, inner offset above the mask, tween
+    // down) — no temp sprites, so there is NO hand-off and NO size jump
+    // ("Vergrößern beim ersten Drop" was the temps swapping to the real
+    // art at a different size). Landing = downward squash, bottom planted.
     const dur = 0.26 * speed;
     const colDelay = 0.07 * speed;
     const rowStagger = 0.035 * speed;
-    const allTemps: Sprite[] = [];
-    for (let reel = 0; reel < reels; reel++) {
-      for (let row = rows - 1; row >= 0; row--) {
-        const sym = board[row][reel];
-        const crateVal0 = crateAt.get(row * reels + reel);
-        const dispId = crateVal0 !== undefined ? fruitGiftTierId(crateVal0) : sym;
-        const tex = theme.userAssetTextures?.get(dispId);
-        if (!tex) continue;
-        const rect = resolveAnchor(cellAnchor(reel, row), this.grid);
-        const spr = new Sprite(tex);
-        spr.anchor.set(0.5);
-        const fit = Math.min((rect.w * 0.84) / spr.texture.width, (rect.h * 0.84) / spr.texture.height);
-        spr.scale.set(fit);
-        spr.x = rect.x + rect.w / 2;
-        spr.y = -CELL_HEIGHT * 0.7 - (rows - 1 - row) * 10;
-        spr.eventMode = 'none';
-        this.clipContainer.addChild(spr);
-        allTemps.push(spr);
-        // LANDING = SQUASH IM SYMBOL (Noski): on impact the art compresses
-        // DOWNWARD (bottom stays planted — y compensates the squash), then
-        // springs back. Position never leaves the cell, nothing grows.
-        const ty = rect.y + rect.h / 2;
-        const squashY = fit * 0.84, bulgeX = fit * 1.06;
-        const sink = rect.h * 0.055;
-        gsap.timeline({ delay: colDelay * reel + rowStagger * (rows - 1 - row) })
-          .to(spr, { y: ty, duration: dur, ease: 'power2.in' }, 0)
-          .to(spr.scale, { y: squashY, x: bulgeX, duration: 0.08 * speed, ease: 'power1.out' }, dur)
-          .to(spr, { y: ty + sink, duration: 0.08 * speed, ease: 'power1.out' }, dur)
-          .to(spr.scale, { y: fit, x: fit, duration: 0.2 * speed, ease: 'back.out(2.2)' }, dur + 0.08 * speed)
-          .to(spr, { y: ty, duration: 0.2 * speed, ease: 'back.out(2.2)' }, dur + 0.08 * speed);
-      }
-    }
-    await new Promise<void>(r => { gsap.delayedCall(dur + 0.3 * speed + colDelay * reels + rowStagger * rows + 0.05 * speed, () => r()); });
-    for (const t of allTemps) { try { t.parent?.removeChild(t); t.destroy(); } catch { /* gone */ } }
     for (let reel = 0; reel < reels; reel++) {
       for (let row = 0; row < rows; row++) {
         const cell = this.reels[reel]?.getVisibleCell(row);
         if (!cell) continue;
         const sym = board[row][reel];
         const crateVal = crateAt.get(row * reels + reel);
+        cell.clearState();
         cell.setSymbol((crateVal !== undefined ? fruitGiftTierId(crateVal) : sym) as SymbolIdType);
         const inner = cell.objectLayer;
-        inner.y = SYMBOL_HEIGHT / 2;
+        gsap.killTweensOf(inner); gsap.killTweensOf(inner.scale);
         inner.scale.set(1);
         inner.alpha = 1;
-        // no extra knick — the back.out rebounce IS the landing (smooth)
+        const baseY = SYMBOL_HEIGHT / 2;
+        inner.y = baseY - (row + 1.4) * CELL_HEIGHT; // above the grid mask
+        const sink = SYMBOL_HEIGHT * 0.055;
+        gsap.timeline({ delay: colDelay * reel + rowStagger * (rows - 1 - row) })
+          .to(inner, { y: baseY, duration: dur, ease: 'power2.in' }, 0)
+          .to(inner.scale, { y: 0.84, x: 1.06, duration: 0.08 * speed, ease: 'power1.out' }, dur)
+          .to(inner, { y: baseY + sink, duration: 0.08 * speed, ease: 'power1.out' }, dur)
+          .to(inner.scale, { y: 1, x: 1, duration: 0.2 * speed, ease: 'back.out(2.2)' }, dur + 0.08 * speed)
+          .to(inner, { y: baseY, duration: 0.2 * speed, ease: 'back.out(2.2)' }, dur + 0.08 * speed);
       }
     }
+    await new Promise<void>(r => { gsap.delayedCall(dur + 0.3 * speed + colDelay * reels + rowStagger * rows + 0.05 * speed, () => r()); });
     this.audioHooks.onReelStopped?.(0); // one soft land beat for the board
     this.elevateScatterCells(); // BONUS in front of everything (Noski)
   }

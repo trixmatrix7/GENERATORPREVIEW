@@ -148,8 +148,20 @@ export const MATH_PROFILES: readonly MathProfileOption[] = [
 ];
 
 const KEY = 'studio-math';
+/** Per-game default when nothing is stored — a FRESH visitor (or the
+ *  partner dev) must get the CURRENT certified math of the active game,
+ *  never the legacy fantasy library (x18 FS multiplier -> 17k+ 'wins',
+ *  the '93%' the dev saw). */
+function defaultProfileForActiveGame(): string {
+  try {
+    const g = localStorage.getItem('active-game');
+    if (g === 'crackfarm') return 'crack-farm-lines';
+    if (g === 'fruitstacks') return 'fruit-stacks-tumble';
+    return 'vice-heat-custom';
+  } catch { return 'vice-heat-custom'; }
+}
 export function loadMathProfileId(): string {
-  return localStorage.getItem(KEY) ?? 'fantasy-extreme';
+  return localStorage.getItem(KEY) ?? defaultProfileForActiveGame();
 }
 export function saveMathProfileId(id: string): void {
   localStorage.setItem(KEY, id);

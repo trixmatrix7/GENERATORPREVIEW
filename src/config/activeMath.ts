@@ -74,7 +74,13 @@ function readLS(key: string): string | null {
 
 /** The active profile's math, or null when the baked Fantasy math is active. */
 export const ACTIVE_MATH: ActiveMathOverride | null = (() => {
-  const m = MANIFESTS[readLS('studio-math') ?? 'fantasy-extreme'];
+  // Same game-aware default as mathProfiles.loadMathProfileId — the two
+  // registries MUST agree or display and decode diverge (fresh visitors
+  // used to fall back to the legacy fantasy math with its x18 FS wins).
+  const gameDefault = readLS('active-game') === 'crackfarm' ? 'crack-farm-lines'
+    : readLS('active-game') === 'fruitstacks' ? 'fruit-stacks-tumble'
+    : 'vice-heat-custom';
+  const m = MANIFESTS[readLS('studio-math') ?? gameDefault];
   if (!m) return null;
   const payTable: Partial<Record<number, Pay3>> = {};
   for (const [k, v] of Object.entries(m['payTable'] as Record<string, Pay3>)) {

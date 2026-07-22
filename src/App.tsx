@@ -8,6 +8,7 @@ import { MockHost } from '@/dev/mockHost';
 import type { HostApiV1, HostSnapshotV1 } from '@/bridge/types';
 import { useGameState } from '@/hooks/useGameState';
 import { useSoundLayer } from '@/audio/useSoundLayer';
+import { uiSfx } from '@/audio/uiSfx';
 import { Sidebar } from '@/ui/Sidebar';
 import { GameCanvas } from '@/ui/GameCanvas';
 import { ControlBar } from '@/ui/ControlBar';
@@ -309,6 +310,7 @@ export function App() {
       // Symbols 10% smaller (Noski) — glossy art breathes inside the cell;
       // applies to every fruit id incl. the out-of-union 10-13.
       for (const id of [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]) SYMBOL_SIZE_MULS.set(id, 0.9);
+      SYMBOL_SIZE_MULS.set(1, 0.99); // BONUS 10% größer als der Rest (Noski)
       // Frosted reel pane OFF: the warm forest scene would bleed through
       // transparent symbol corners as a milky veil (theme rule, skill §3).
       pixiAppRef.setReelFrosted(false);
@@ -540,6 +542,25 @@ export function App() {
     soundManager.replaceSource('reel-spin-loop', [`${C}reel-spin-loop.ogg`], 0.24, false);
   }, [soundManager]);
 
+  // FRUIT STACKS sound pack — clean, SUBTLE defaults from the CC0 library
+  // (Noski: "cleane dezente Sounds, keine harten"). Every one of these is
+  // swappable in the Sound-Bibliothek; the picks below are the defaults.
+  useEffect(() => {
+    if (loadActiveGame() !== 'fruitstacks') return;
+    const L = `${import.meta.env.BASE_URL}audio/library/`;
+    // tumble-pop (the "Plopp beim Aufploppen") — pitched up per cascade step
+    soundManager.replaceSource('coin-chime', [`${L}reel-stop/plastic-bubble-click-d144fe.ogg`], 0.42);
+    // board lands (one soft beat per drop-in)
+    soundManager.replaceSource('reel-stop', [`${L}reel-stop/typewriter-soft-click-bcfd23.ogg`], 0.26);
+    // spin start: a small clean sweep
+    soundManager.replaceSource('spin-start', [`${L}spin-start/fast-small-sweep-transition-a5ee99.ogg`], 0.3);
+    // plate impact (×N slams into the win amount)
+    soundManager.replaceSource('wild-land', [`${L}reel-stop/hard-typewriter-click-7dfddd.ogg`], 0.4);
+    // gift ×N takes off
+    soundManager.replaceSource('wild-expand', [`${L}spin-start/air-woosh-985287.ogg`], 0.22);
+    soundManager.replaceSource('reel-spin-loop', [`${L}spin-start/air-woosh-985287.ogg`], 0, false);
+  }, [soundManager]);
+
   // SOUND-LIBRARY picks (studio "Sound-Bibliothek"): a saved selection WINS
   // over the game pack's default source for that event — applied last, so a
   // build carries exactly the sounds Noski picked (and exports them). Runs
@@ -606,6 +627,11 @@ export function App() {
       onWildLanded: () => soundManager.play('wild-land'),
       onWildExpand: () => soundManager.play('wild-expand'),
       onNearMissTease: () => soundManager.play('near-miss-tease'),
+      // Fruit Stacks tumble: the burst-plopp ladders up per cascade step;
+      // gift flights whoosh softly and the ×N thuds into the plate.
+      onTumblePop: (stepIdx) => soundManager.play('coin-chime', { rate: 1 + Math.min(stepIdx, 6) * 0.08 }),
+      onGiftFly: () => soundManager.play('wild-expand'),
+      onPlateImpact: () => soundManager.play('wild-land'),
       // Rising tally: each connection's chime pitches a step higher — the
       // classic count-up ladder instead of a flat repeated tick.
       // PER-SYMBOL win voice on Crack Farm: the symbol that won speaks (goat
@@ -653,7 +679,7 @@ export function App() {
         gameState={state}
         snapshot={snapshot}
         onBetChange={handleBetChange}
-        onSpin={handleSpin}
+        onSpin={() => { uiSfx.spin(); void handleSpin(); }}
         onSkip={handleSkip}
         onAutoSpin={handleAutoSpin}
         onStopAuto={handleStopAuto}
@@ -692,7 +718,7 @@ export function App() {
               gameState={state}
               snapshot={snapshot}
               onBetChange={handleBetChange}
-              onSpin={handleSpin}
+              onSpin={() => { uiSfx.spin(); void handleSpin(); }}
               onSkip={handleSkip}
               onAutoSpin={handleAutoSpin}
               onStopAuto={handleStopAuto}

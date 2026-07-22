@@ -2638,19 +2638,32 @@ export class PixiApp {
     };
     showCrates(-1);
     let running = 0n;
+    // FEEL (Noski): a calm breath after the land before anything bursts, a
+    // beat between every cascade step — nothing hard-cuts.
+    let curBoard = spin.initialBoard;
+    const scattersOn = (b: number[][]) => b.reduce((n, row) => n + row.filter(v => v === 1).length, 0);
     for (let s = 0; s < spin.steps.length; s++) {
       if (!this.isLive) return;
       const step = spin.steps[s];
-      if (s === 0) this.reelSet.showFruitPlaque(''); // plate appears with the first win
+      if (s === 0) {
+        this.reelSet.showFruitPlaque(''); // plate appears with the first win
+        await new Promise<void>(r => { gsap.delayedCall(this.turbo ? 0.15 : 0.45, () => r()); });
+        if (!this.isLive) return;
+      }
+      this.reelSet.audioHooks.onTumblePop?.(s);
+      // SCATTER-TEASE: 2+ scatters STANDING → this step's refills crawl in
+      // column by column (and keep crawling at 3+ until the spin ends).
+      const teaseSlow = scattersOn(curBoard) >= 2 && !this.turbo;
       await this.reelSet.playTumbleStep(
         step,
         step.wins.map(w => '+' + formatWin(w.amount, decimals)),
-        { isLive: () => this.isLive, turbo: this.turbo },
+        { isLive: () => this.isLive, turbo: this.turbo, teaseSlow },
       );
       for (const w of step.wins) running += w.amount;
       this.reelSet.setFruitPlaqueText(formatWin(running, decimals), true);
       showCrates(s);
-      await new Promise<void>(r => { gsap.delayedCall(this.turbo ? 0.08 : 0.18, () => r()); });
+      curBoard = step.boardAfter;
+      await new Promise<void>(r => { gsap.delayedCall(this.turbo ? 0.12 : 0.35, () => r()); });
     }
     if (spin.scatterPay > 0n) {
       running += spin.scatterPay;
@@ -2662,6 +2675,9 @@ export class PixiApp {
     if (applied > 1 && spin.winBeforeMulti > 0n && !prefersReducedMotion()) {
       const winText = formatWin(spin.winBeforeMulti, decimals);
       this.reelSet.showFruitPlaque(winText);
+      // a breath before the gifts wake up (feel, not haste)
+      await new Promise<void>(r => { gsap.delayedCall(this.turbo ? 0.2 : 0.45, () => r()); });
+      if (!this.isLive) return;
       // pool joins the sum the moment the FIRST gift arrives (its value rides
       // along with the fresh gifts — reference "pool applies when a new
       // multiplier drops").
@@ -2670,14 +2686,17 @@ export class PixiApp {
         spin.crates.map(c => ({ cell: c.cell, value: c.value })),
         sum => {
           const shown = Math.min(sum + poolBase, 500);
-          this.reelSet.setFruitPlaqueText(`${winText} ×${shown}`, true);
+          this.reelSet.setFruitPlaqueText(`${winText} ×${shown}`);
+          this.reelSet.punchFruitPlaque(); // the ×N SLAMS in (Noski)
         },
         { isLive: () => this.isLive, turbo: this.turbo },
       );
       if (!this.isLive) return;
-      // hold the connected "win ×N", then RESOLVE to the product
-      await new Promise<void>(r => { gsap.delayedCall(this.turbo ? 0.35 : 0.8, () => r()); });
-      this.reelSet.setFruitPlaqueText(formatWin(spin.spinWin, decimals), true);
+      // hold the connected "win ×N" — let it breathe — then RESOLVE
+      await new Promise<void>(r => { gsap.delayedCall(this.turbo ? 0.45 : 1.0, () => r()); });
+      this.reelSet.setFruitPlaqueText(formatWin(spin.spinWin, decimals));
+      this.reelSet.punchFruitPlaque();
+      await new Promise<void>(r => { gsap.delayedCall(this.turbo ? 0.25 : 0.5, () => r()); });
     } else if (spin.spinWin > 0n) {
       this.reelSet.setFruitPlaqueText(formatWin(spin.spinWin, decimals), true);
     }

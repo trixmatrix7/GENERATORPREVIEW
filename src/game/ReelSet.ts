@@ -74,6 +74,12 @@ interface NearMiss {
  * PixiApp init. ReelSet itself does no audio I/O — these are pure callbacks.
  */
 export interface ReelSetAudioHooks {
+  /** Fruit Stacks tumble: winners burst open (per cascade step). */
+  onTumblePop?: (stepIdx: number) => void;
+  /** A gift's ×N slams into the win plate. */
+  onPlateImpact?: () => void;
+  /** A gift's ×N detaches and starts flying to the plate. */
+  onGiftFly?: () => void;
   onReelStopped?: (reelIdx: number) => void;
   /** Every reel of this spin has landed (all symbols dropped in) — used to
    *  stop the reel-spin rattle exactly when the spinning ends. */
@@ -3182,21 +3188,17 @@ export class ReelSet {
         inner.alpha = 0;
       }
     }
-    let scattersSoFar = 0;
-    let teasing = false;
+    // ALL COLUMNS TOGETHER (Noski: "gemeinsam auf einmal im normal spin") —
+    // rows cascade with a soft per-row offset, no column stagger, no tease
+    // here (the slow scatter-tease lives in the tumble REFILLS).
+    const dur = 0.3 * speed;
+    const rowStagger = 0.05 * speed;
+    const allTemps: Sprite[] = [];
     for (let reel = 0; reel < reels; reel++) {
-      if (!opts.isLive()) return;
-      // SLOW-DROP TEASE: 2 scatters already standing → the rest crawls in
-      if (!teasing && scattersSoFar >= 2 && !opts.turbo) teasing = true;
-      const slow = teasing ? 2.6 : 1;
-      const temps: Sprite[] = [];
-      const dur = 0.26 * speed * slow;
-      const stagger = (teasing ? 0.16 : 0.045) * speed;
       for (let row = rows - 1; row >= 0; row--) {
         const sym = board[row][reel];
-        const dispId = crateAt.get(row * reels + reel) !== undefined
-          ? fruitGiftTierId(crateAt.get(row * reels + reel)!)
-          : sym;
+        const crateVal0 = crateAt.get(row * reels + reel);
+        const dispId = crateVal0 !== undefined ? fruitGiftTierId(crateVal0) : sym;
         const tex = theme.userAssetTextures?.get(dispId);
         if (!tex) continue;
         const rect = resolveAnchor(cellAnchor(reel, row), this.grid);
@@ -3205,19 +3207,20 @@ export class ReelSet {
         const fit = Math.min((rect.w * 0.84) / spr.texture.width, (rect.h * 0.84) / spr.texture.height);
         spr.scale.set(fit);
         spr.x = rect.x + rect.w / 2;
-        spr.y = -CELL_HEIGHT * 0.7 - (rows - 1 - row) * 8;
+        spr.y = -CELL_HEIGHT * 0.7 - (rows - 1 - row) * 10;
         spr.eventMode = 'none';
         this.clipContainer.addChild(spr);
-        temps.push(spr);
+        allTemps.push(spr);
         gsap.to(spr, {
           y: rect.y + rect.h / 2,
           duration: dur, ease: 'power2.in',
-          delay: stagger * (rows - 1 - row),
+          delay: rowStagger * (rows - 1 - row) + Math.random() * 0.03,
         });
       }
-      await new Promise<void>(r => { gsap.delayedCall(dur + stagger * rows + 0.04 * speed, () => r()); });
-      // normalise this column: real cells take over, temps die
-      for (const t of temps) { try { t.parent?.removeChild(t); t.destroy(); } catch { /* gone */ } }
+    }
+    await new Promise<void>(r => { gsap.delayedCall(dur + rowStagger * rows + 0.08 * speed, () => r()); });
+    for (const t of allTemps) { try { t.parent?.removeChild(t); t.destroy(); } catch { /* gone */ } }
+    for (let reel = 0; reel < reels; reel++) {
       for (let row = 0; row < rows; row++) {
         const cell = this.reels[reel]?.getVisibleCell(row);
         if (!cell) continue;
@@ -3228,10 +3231,10 @@ export class ReelSet {
         inner.y = SYMBOL_HEIGHT / 2;
         inner.scale.set(1);
         inner.alpha = 1;
-        if (sym === SymbolId.SCATTER) scattersSoFar++;
         if (!opts.turbo) cell.playLandBounce(); // subtle knick per landing
       }
     }
+    this.audioHooks.onReelStopped?.(0); // one soft land beat for the board
     this.elevateScatterCells(); // BONUS in front of everything (Noski)
   }
 
@@ -3248,8 +3251,9 @@ export class ReelSet {
       const t = new Text({
         text: '',
         style: new TextStyle({
-          fontFamily: 'Arial, sans-serif', fontSize: 34, fontWeight: '900', fontStyle: 'italic',
-          fill: 0xffe07a, stroke: { color: 0x2a1403, width: 5 }, align: 'center',
+          fontFamily: "'Poppins', ui-sans-serif, system-ui, sans-serif",
+          fontSize: 33, fontWeight: '800', fontStyle: 'italic', letterSpacing: 0.5,
+          fill: 0xffe698, stroke: { color: 0x2a1403, width: 5, join: 'round' }, align: 'center',
         }),
       });
       t.anchor.set(0.5);
@@ -3279,6 +3283,25 @@ export class ReelSet {
 
   hideFruitPlaque(): void {
     if (this.fruitPlaque) this.fruitPlaque.visible = false;
+  }
+
+  /** IMPACT: a gift's ×N SLAMS into the plate — punch-scale, a short shake
+   *  and a white flash washing over the amount (Noski: "als ob es drauf
+   *  einschlägt"). */
+  punchFruitPlaque(): void {
+    if (!this.fruitPlaque) return;
+    const c = this.fruitPlaque;
+    gsap.killTweensOf(c.scale); gsap.killTweensOf(c);
+    gsap.timeline()
+      .fromTo(c.scale, { x: 1.3, y: 1.3 }, { x: 1, y: 1, duration: 0.42, ease: 'elastic.out(1, 0.55)' })
+      .fromTo(c, { rotation: -0.05 }, { rotation: 0, duration: 0.36, ease: 'elastic.out(1, 0.4)' }, 0)
+      .fromTo(c, { y: -52 }, { y: -58, duration: 0.3, ease: 'power2.out' }, 0);
+    const flash = new Graphics();
+    flash.roundRect(-118, -42, 236, 84, 16);
+    flash.fill({ color: 0xffffff, alpha: 0.55 });
+    flash.eventMode = 'none';
+    c.addChild(flash);
+    gsap.to(flash, { alpha: 0, duration: 0.34, ease: 'power1.out', onComplete: () => { try { flash.parent?.removeChild(flash); flash.destroy(); } catch { /* gone */ } } });
   }
 
   /** FS pool badge (right of the grid): gift icon + ×pool. null hides. */
@@ -3360,20 +3383,22 @@ export class ReelSet {
       label.eventMode = 'none';
       this.winAmountsContainer.addChild(label);
       flights.push(new Promise<void>(resolve => {
-        const midX = (label.x + target.x) / 2 + (target.x > label.x ? -40 : 40);
+        const midX = (label.x + target.x) / 2 + (target.x > label.x ? -50 : 50);
         gsap.timeline({
-          delay: 0.16 * speed * i,
+          delay: 0.28 * speed * i,
+          onStart: () => { this.audioHooks.onGiftFly?.(); },
           onComplete: () => {
             try { label.parent?.removeChild(label); label.destroy(); } catch { /* gone */ }
             sum += g.value;
+            this.audioHooks.onPlateImpact?.();
             onArrive(sum);
             resolve();
           },
         })
-          .to(label.scale, { x: 1.3, y: 1.3, duration: 0.16 * speed, ease: 'power2.out' })
-          .to(label, { x: midX, y: (label.y + target.y) / 2 - 30, duration: 0.24 * speed, ease: 'power1.in' }, '>')
-          .to(label, { x: target.x, y: target.y, duration: 0.22 * speed, ease: 'power2.in' }, '>')
-          .to(label.scale, { x: 0.55, y: 0.55, duration: 0.22 * speed, ease: 'power2.in' }, '<');
+          .to(label.scale, { x: 1.35, y: 1.35, duration: 0.24 * speed, ease: 'power1.out' })
+          .to(label, { x: midX, y: (label.y + target.y) / 2 - 46, duration: 0.34 * speed, ease: 'power1.inOut' }, '>')
+          .to(label, { x: target.x, y: target.y, duration: 0.3 * speed, ease: 'power2.in' }, '>')
+          .to(label.scale, { x: 0.5, y: 0.5, duration: 0.3 * speed, ease: 'power2.in' }, '<');
       }));
     }
     await Promise.all(flights);
@@ -3391,15 +3416,15 @@ export class ReelSet {
       cratesAfter?: { cell: [number, number]; value: number }[];
     },
     amountTexts: string[],
-    opts: { isLive: () => boolean; turbo?: boolean },
+    opts: { isLive: () => boolean; turbo?: boolean; teaseSlow?: boolean },
   ): Promise<void> {
     const speed = opts.turbo ? 0.5 : 1;
     const rows = this.grid.visibleRows;
     const reels = this.grid.reelCount;
 
-    // 1. FRUIT-NINJA CUT (Noski): a slash flashes across each winner, the
-    //    symbol SPLITS into two halves that fly apart along the cut normal.
-    //    Each win floats its +amount at the cluster centroid (bold, no box).
+    // 1. AUFPLATZEN (Noski v2, ersetzt den Ninja-Cut): winners CHARGE with a
+    //    slow swell, then BURST — juice droplets spray, the art pops away.
+    //    Each win floats its +amount, gliding away from the cluster.
     const themeTex = (this.config.theme as { userAssetTextures?: Map<number, Texture> }).userAssetTextures;
     for (let w = 0; w < step.wins.length; w++) {
       const win = step.wins[w];
@@ -3414,53 +3439,33 @@ export class ReelSet {
         const inner = cell.objectLayer;
         gsap.killTweensOf(inner); gsap.killTweensOf(inner.scale);
         const tex = themeTex?.get(win.symbolId);
-        const theta = -Math.PI / 4 + (Math.random() - 0.5) * 0.9; // slash angle
+        const theta = Math.random() * Math.PI; // burst orientation
         if (tex) {
-          // two masked halves in the (clipped) board layer, hidden real icon
-          const C = Math.max(rect.w, rect.h);
-          const fit = Math.min((rect.w * 0.92) / tex.width, (rect.h * 0.92) / tex.height);
-          const nx = -Math.sin(theta), ny = Math.cos(theta); // cut normal
-          const halves: Container[] = [];
-          for (const side of [0, 1] as const) {
-            const holder = new Container();
-            holder.x = ccx; holder.y = ccy;
-            const spr = new Sprite(tex);
-            spr.anchor.set(0.5);
-            spr.scale.set(fit);
-            const m = new Graphics();
-            m.rect(-C, side === 0 ? -C * 2 : 0, C * 2, C * 2);
-            m.fill(0xffffff);
-            m.rotation = theta;
-            holder.addChild(m);
-            holder.addChild(spr);
-            spr.mask = m;
-            holder.eventMode = 'none';
-            this.clipContainer.addChild(holder);
-            halves.push(holder);
-            const dir = side === 0 ? 1 : -1;
-            gsap.timeline({ delay: 0.09 * speed, onComplete: () => { try { holder.parent?.removeChild(holder); holder.destroy({ children: true }); } catch { /* gone */ } } })
-              .to(holder, {
-                x: ccx + dir * nx * 26, y: ccy + dir * ny * 26,
-                rotation: dir * 0.16, duration: 0.26 * speed, ease: 'power2.in',
-              })
-              .to(holder, { alpha: 0, duration: 0.18 * speed, ease: 'power2.in' }, '<0.06');
-          }
-          // swell then hide the real icon at the cut moment
+          // AUFPLATZEN (Noski): a slow CHARGE swell, then the fruit POPS —
+          // juice droplets spray out, the art bursts away. No hard cuts.
+          const inner2 = inner;
           gsap.timeline()
-            .to(inner.scale, { x: 1.12, y: 1.12, duration: 0.09 * speed, ease: 'power2.out' })
-            .set(inner, { alpha: 0 });
-          // slash flash: a bright line whips across the cell
-          const slash = new Graphics();
-          slash.rect(-C * 0.72, -2.2, C * 1.44, 4.4);
-          slash.fill({ color: 0xffffff, alpha: 0.95 });
-          slash.x = ccx; slash.y = ccy;
-          slash.rotation = theta;
-          slash.scale.set(0, 1);
-          slash.eventMode = 'none';
-          this.winAmountsContainer.addChild(slash);
-          gsap.timeline({ onComplete: () => { try { slash.parent?.removeChild(slash); slash.destroy(); } catch { /* gone */ } } })
-            .to(slash.scale, { x: 1, duration: 0.08 * speed, ease: 'power3.out' })
-            .to(slash, { alpha: 0, duration: 0.14 * speed, ease: 'power1.in' }, '>');
+            .to(inner2.scale, { x: 1.16, y: 1.16, duration: 0.22 * speed, ease: 'power1.inOut' })
+            .to(inner2.scale, { x: 1.34, y: 1.34, duration: 0.09 * speed, ease: 'power2.in' }, '>')
+            .to(inner2.scale, { x: 0.4, y: 0.4, duration: 0.16 * speed, ease: 'power2.out' }, '>')
+            .to(inner2, { alpha: 0, duration: 0.16 * speed, ease: 'power1.out' }, '<');
+          // juice droplets: warm splash ring flying out with a soft gravity arc
+          const N_DROPS = 7;
+          for (let d = 0; d < N_DROPS; d++) {
+            const a = theta + (d / N_DROPS) * Math.PI * 2;
+            const dot = new Graphics();
+            const rr = 3 + Math.random() * 3.5;
+            dot.circle(0, 0, rr);
+            dot.fill({ color: [0xffd75e, 0xfff2b0, 0xff9d4d][d % 3], alpha: 0.95 });
+            dot.x = ccx; dot.y = ccy;
+            dot.eventMode = 'none';
+            this.clipContainer.addChild(dot);
+            const dist = 34 + Math.random() * 26;
+            gsap.timeline({ delay: 0.28 * speed, onComplete: () => { try { dot.parent?.removeChild(dot); dot.destroy(); } catch { /* gone */ } } })
+              .to(dot, { x: ccx + Math.cos(a) * dist, y: ccy + Math.sin(a) * dist + 16, duration: 0.5 * speed, ease: 'power2.out' })
+              .to(dot, { alpha: 0, duration: 0.28 * speed, ease: 'power1.in' }, '>-0.2')
+              .to(dot.scale, { x: 0.4, y: 0.4, duration: 0.4 * speed }, 0);
+          }
         } else {
           // no texture (placeholder build) — the plain pop
           gsap.timeline()
@@ -3473,18 +3478,24 @@ export class ReelSet {
       const label = new Text({
         text: amountTexts[w] ?? '',
         style: new TextStyle({
-          fontFamily: 'Arial, sans-serif', fontSize: 40, fontWeight: '900', fontStyle: 'italic',
-          fill: 0xffffff, stroke: { color: 0x102010, width: 7 }, align: 'center',
+          fontFamily: "'Poppins', ui-sans-serif, system-ui, sans-serif",
+          fontSize: 38, fontWeight: '800', fontStyle: 'italic', letterSpacing: 1,
+          fill: 0xfff6d8, stroke: { color: 0x1c1206, width: 6, join: 'round' },
+          dropShadow: { color: 0x000000, blur: 8, distance: 0, alpha: 0.45, angle: 0 },
+          align: 'center',
         }),
       });
       label.anchor.set(0.5); label.x = cx; label.y = cy; label.eventMode = 'none';
       this.winAmountsContainer.addChild(label);
-      gsap.timeline({ onComplete: () => { try { label.parent?.removeChild(label); label.destroy(); } catch { /* gone */ } } })
-        .fromTo(label.scale, { x: 0.3, y: 0.3 }, { x: 1, y: 1, duration: 0.2 * speed, ease: 'back.out(2)' })
-        .to(label, { y: cy - 34, duration: 0.8 * speed, ease: 'power1.out' }, 0.1)
-        .to(label, { alpha: 0, duration: 0.3 * speed }, '>-0.25');
+      // FEEL (Noski): the amount blooms softly after the burst, GLIDES away
+      // from the symbols and fades out clean — nothing snaps.
+      gsap.timeline({ delay: 0.3 * speed, onComplete: () => { try { label.parent?.removeChild(label); label.destroy(); } catch { /* gone */ } } })
+        .fromTo(label, { alpha: 0 }, { alpha: 1, duration: 0.24 * speed, ease: 'power1.out' }, 0)
+        .fromTo(label.scale, { x: 0.6, y: 0.6 }, { x: 1, y: 1, duration: 0.34 * speed, ease: 'power2.out' }, 0)
+        .to(label, { y: cy - 58, duration: 1.5 * speed, ease: 'power1.out' }, 0.1)
+        .to(label, { alpha: 0, duration: 0.5 * speed, ease: 'power1.in' }, '>-0.55');
     }
-    await new Promise<void>(r => { gsap.delayedCall(0.34 * speed, () => r()); });
+    await new Promise<void>(r => { gsap.delayedCall(0.62 * speed, () => r()); });
     if (!opts.isLive()) return;
 
     // 2. GRAVITY-FALL + REFILL (no bounce — clean drop, subtle knick after).
@@ -3497,6 +3508,12 @@ export class ReelSet {
     const fallDur = 0.3 * speed;
     const temps: Sprite[] = [];
     const theme = this.config.theme as { userAssetTextures?: Map<number, Texture> };
+    // SCATTER-TEASE (Noski): with 2+ scatters STANDING, the refills crawl in
+    // column by column — the slow "Walzen" moment lives HERE, in the
+    // NACHDROPPEN, never in the normal spin drop.
+    const teaseCols = opts.teaseSlow ? [...removedByReel.keys()].sort((a, b) => a - b) : [];
+    const teaseDelay = (reel: number) => opts.teaseSlow ? teaseCols.indexOf(reel) * 0.5 * speed : 0;
+    const teaseMul = opts.teaseSlow ? 2.1 : 1;
     for (let reel = 0; reel < reels; reel++) {
       const removedRows = removedByReel.get(reel) ?? [];
       if (removedRows.length === 0) continue;
@@ -3509,7 +3526,7 @@ export class ReelSet {
         if (!cell) continue;
         const inner = cell.objectLayer;
         gsap.killTweensOf(inner);
-        gsap.to(inner, { y: SYMBOL_HEIGHT / 2 + below * CELL_HEIGHT, duration: fallDur, ease: 'power2.in' });
+        gsap.to(inner, { y: SYMBOL_HEIGHT / 2 + below * CELL_HEIGHT, duration: fallDur * teaseMul, ease: 'power2.in', delay: teaseDelay(reel) });
       }
       // fresh symbols fall in from above the mask (temp sprites; the real
       // cells take over at normalise)
@@ -3527,10 +3544,11 @@ export class ReelSet {
         spr.eventMode = 'none';
         this.clipContainer.addChild(spr); // masked at the grid top
         temps.push(spr);
-        gsap.to(spr, { y: rect.y + rect.h / 2, duration: fallDur, ease: 'power2.in', delay: 0.03 * speed * i });
+        gsap.to(spr, { y: rect.y + rect.h / 2, duration: fallDur * teaseMul, ease: 'power2.in', delay: teaseDelay(reel) + 0.03 * speed * i });
       }
     }
-    await new Promise<void>(r => { gsap.delayedCall(fallDur + 0.12 * speed, () => r()); });
+    const teaseTail = opts.teaseSlow ? teaseCols.length * 0.5 * speed + fallDur * (teaseMul - 1) : 0;
+    await new Promise<void>(r => { gsap.delayedCall(fallDur + 0.12 * speed + teaseTail, () => r()); });
 
     // 3. NORMALISE: every cell snaps to its canonical spot showing boardAfter
     //    (same-frame swap with the settled visuals — seamless), temps die.

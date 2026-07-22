@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { uiSfx } from '@/audio/uiSfx';
 
 /**
  * Bonus-buy / bet-multiplier page (Crack Farm) — Noski's OFFICIAL PNGs, 1:1.
@@ -44,7 +45,7 @@ export function FruitBuyRail({ betDisplay, onBuy }: { betDisplay: string; onBuy?
   return (
     <>
       {/* LEFT-RAIL trigger pill, docked under the canvas logo */}
-      <button onClick={() => setOpen(true)} title="Buy bonus" style={{
+      <button onClick={() => { uiSfx.open(); setOpen(true); }} title="Buy bonus" style={{
         position: 'absolute', left: '1.6%', top: '46%', zIndex: 40, width: '15%', minWidth: 120,
         padding: '10px 8px', borderRadius: 999, cursor: 'pointer',
         border: '3px solid #f7b733', background: 'linear-gradient(180deg,#1d3b24 0%, #0d2113 100%)',
@@ -64,7 +65,7 @@ export function FruitBuyRail({ betDisplay, onBuy }: { betDisplay: string; onBuy?
         }}>
           <div onClick={e => e.stopPropagation()} style={{ display: 'flex', gap: 12, flexWrap: 'wrap', justifyContent: 'center', maxWidth: '96%' }}>
             {FRUIT_CARDS.map(c => (
-              <div key={c.id} onClick={() => setConfirm(c)} style={{
+              <div key={c.id} onClick={() => { uiSfx.click(); setConfirm(c); }} style={{
                 width: CW, height: CH, cursor: 'pointer', borderRadius: 18,
                 border: '3px solid #f7b733',
                 background: 'linear-gradient(180deg,#173521 0%, #0a1b10 100%)',
@@ -88,8 +89,8 @@ export function FruitBuyRail({ betDisplay, onBuy }: { betDisplay: string; onBuy?
                 <div style={{ color: '#ffe9a8', fontWeight: 900, fontStyle: 'italic', fontSize: 17, whiteSpace: 'pre-line' }}>{confirm.title}</div>
                 <div style={{ color: '#fff', fontWeight: 900, fontSize: 24, margin: '12px 0' }}>{money(bet * confirm.mult)}</div>
                 <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
-                  <button onClick={() => setConfirm(null)} style={{ padding: '8px 20px', borderRadius: 10, border: '2px solid #7a8a7a', background: '#15241a', color: '#cfe3cf', fontWeight: 800, cursor: 'pointer', fontFamily: FONT }}>BACK</button>
-                  <button onClick={() => { onBuy?.(confirm.id, confirm.kind); setConfirm(null); setOpen(false); }} style={{ padding: '8px 24px', borderRadius: 10, border: '2px solid #f7b733', background: 'linear-gradient(180deg,#ffd75e,#f7a733)', color: '#0b2a06', fontWeight: 900, cursor: 'pointer', fontFamily: FONT }}>OK</button>
+                  <button onClick={() => { uiSfx.click(); setConfirm(null); }} style={{ padding: '8px 20px', borderRadius: 10, border: '2px solid #7a8a7a', background: '#15241a', color: '#cfe3cf', fontWeight: 800, cursor: 'pointer', fontFamily: FONT }}>BACK</button>
+                  <button onClick={() => { uiSfx.click(); onBuy?.(confirm.id, confirm.kind); setConfirm(null); setOpen(false); }} style={{ padding: '8px 24px', borderRadius: 10, border: '2px solid #f7b733', background: 'linear-gradient(180deg,#ffd75e,#f7a733)', color: '#0b2a06', fontWeight: 900, cursor: 'pointer', fontFamily: FONT }}>OK</button>
                 </div>
               </div>
             </div>
@@ -116,7 +117,7 @@ export function BonusBuyOverlay({ betDisplay, onBuy }: { betDisplay: string; onB
   return (
     <>
       {/* ── ROUND TRIGGER (ours; placeholder round shape) ── */}
-      <button onClick={() => setOpen(true)} title="Bonus buy" style={{
+      <button onClick={() => { uiSfx.open(); setOpen(true); }} title="Bonus buy" style={{
         position: 'absolute', left: 14, bottom: 14, zIndex: 40, width: 62, height: 62, borderRadius: '50%',
         border: 'none', cursor: 'pointer', background: 'radial-gradient(circle at 34% 28%, #8dff5a 0%, #4bbf1f 46%, #2b7d10 100%)',
         boxShadow: '0 4px 14px rgba(0,0,0,0.5), inset 0 2px 3px rgba(255,255,255,0.55), inset 0 -4px 8px rgba(0,0,0,0.35)',

@@ -308,7 +308,14 @@ export class MockHost {
     const buyFsStrips = (viceBuy as { fsReelStrips?: number[][] } | undefined)?.fsReelStrips;
     if (freeSpinsTriggered && buyFsStrips) swapStrips(buyFsStrips);
     if (freeSpinsTriggered) {
-      let remaining = this.config.freeSpinsCount;
+      // Per-stage overrides for BOUGHT rounds (tail-shape calibration —
+      // spins, caps, retrigger and the simul-expand table can all differ
+      // from the natural round; source: custom.viceBuyStages[]).
+      const buyOv = viceBuy as {
+        freeSpinsCount?: number; fsCap?: number; retriggerSpins?: number;
+        simulExpandMultipliers?: Record<string, number>;
+      } | undefined;
+      let remaining = buyOv?.freeSpinsCount ?? this.config.freeSpinsCount;
       // TIERED Vice-Heat bonus: a 4+-scatter trigger plays STICKY expanding
       // wilds — the FIRST `stickyTowerCap` wild-landing reels become permanent
       // full-wild towers (leftmost joins first) for the rest of the round;
@@ -371,12 +378,13 @@ export class MockHost {
       // Sticky rounds run LONGER (towers need spins to accumulate) — their
       // own count/cap via the custom rules; 3sc rounds use the template's.
       if (stickyFS || plantRound) {
-        remaining = (this.config as { stickyRoundSpins?: number }).stickyRoundSpins
+        remaining = buyOv?.freeSpinsCount
+          ?? (this.config as { stickyRoundSpins?: number }).stickyRoundSpins
           ?? this.config.freeSpinsCount;
       }
-      const fsCap = (stickyFS || plantRound)
+      const fsCap = buyOv?.fsCap ?? ((stickyFS || plantRound)
         ? ((this.config as { stickyRoundCap?: number }).stickyRoundCap ?? this.config.freeSpinsCap)
-        : this.config.freeSpinsCap;
+        : this.config.freeSpinsCap);
       while (remaining > 0 && freeSpinsPlayed < fsCap) {
         const seed = keccak256(
           encodeAbi(
@@ -484,7 +492,8 @@ export class MockHost {
         // expanding in the SAME spin multiply the spin's win per the custom
         // table (late ladder: 3 towers x2, 4 towers x8) — the four-tower
         // simultaneous spin is the 3sc bonus' max-win pattern.
-        const simulTable = (this.config as { simulExpandMultipliers?: Record<string, number> }).simulExpandMultipliers ?? {};
+        const simulTable = buyOv?.simulExpandMultipliers
+          ?? (this.config as { simulExpandMultipliers?: Record<string, number> }).simulExpandMultipliers ?? {};
         const simulMult = BigInt(simulTable[String(simulTowers)] ?? 1);
         // FULL HOUSE (sticky rounds): while ALL stickyTowerCap towers stand,
         // the spin pays x stickyFullBoardMultiplier — the 4-scatter route's
@@ -506,7 +515,8 @@ export class MockHost {
         if (plantRound) {
           if (fsScatter >= 1) remaining += fsScatter;
         } else if (fsScatter >= 3) {
-          remaining += (this.config as { retriggerSpins?: number }).retriggerSpins
+          remaining += buyOv?.retriggerSpins
+            ?? (this.config as { retriggerSpins?: number }).retriggerSpins
             ?? this.config.freeSpinsCount;
         }
         remaining--;

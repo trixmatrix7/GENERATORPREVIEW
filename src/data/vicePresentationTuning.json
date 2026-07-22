@@ -432,19 +432,22 @@
    "win-small": {
     "volume": 0,
     "oggFirst": true,
-    "note": "win jingles muted by design (Noski 2026-07-22)"
+    "note": "INTENTIONAL design choice (Noski): the classic win jingles ship as EXAMPLE sounds at volume 0 — the marquee music + coin-chime swish carry the win audio. Activating = pick a file in the Sound-Bibliothek or raise the volume; files exist (audio/win-small.ogg etc.). Nothing is missing or waiting on recordings."
    },
    "win-normal": {
     "volume": 0,
-    "oggFirst": true
+    "oggFirst": true,
+    "note": "see win-small — intentional volume-0 example sound, activate via library/volume"
    },
    "win-big": {
     "volume": 0,
-    "oggFirst": true
+    "oggFirst": true,
+    "note": "see win-small — intentional volume-0 example sound, activate via library/volume"
    },
    "win-mega": {
     "volume": 0,
-    "oggFirst": false
+    "oggFirst": false,
+    "note": "see win-small — intentional volume-0 example sound, activate via library/volume"
    },
    "win-marquee": {
     "volume": 0.95,
@@ -492,15 +495,18 @@
    },
    "win-tally-tick": {
     "volume": 0,
-    "oggFirst": true
+    "oggFirst": true,
+    "note": "tally/tier hooks are wired but muted: the synthesized placeholders sounded wrong; drop a real .ogg under audio/<id>.ogg and raise the volume to enable"
    },
    "win-tally-end": {
     "volume": 0,
-    "oggFirst": true
+    "oggFirst": true,
+    "note": "tally/tier hooks are wired but muted: the synthesized placeholders sounded wrong; drop a real .ogg under audio/<id>.ogg and raise the volume to enable"
    },
    "tier-up": {
     "volume": 0,
-    "oggFirst": true
+    "oggFirst": true,
+    "note": "tally/tier hooks are wired but muted: the synthesized placeholders sounded wrong; drop a real .ogg under audio/<id>.ogg and raise the volume to enable"
    },
    "tease-riser": {
     "volume": 0.4,

@@ -3213,16 +3213,21 @@ export class ReelSet {
         spr.eventMode = 'none';
         this.clipContainer.addChild(spr);
         allTemps.push(spr);
-        // fall → tiny UPWARD hop → settle. Never dips below the cell (a
-        // back.out overshoot visually crashed into the row beneath — Noski).
+        // LANDING = SQUASH IM SYMBOL (Noski): on impact the art compresses
+        // DOWNWARD (bottom stays planted — y compensates the squash), then
+        // springs back. Position never leaves the cell, nothing grows.
         const ty = rect.y + rect.h / 2;
+        const squashY = fit * 0.84, bulgeX = fit * 1.06;
+        const sink = rect.h * 0.055;
         gsap.timeline({ delay: colDelay * reel + rowStagger * (rows - 1 - row) })
-          .to(spr, { y: ty, duration: dur, ease: 'power2.in' })
-          .to(spr, { y: ty - 7, duration: 0.07 * speed, ease: 'power1.out' })
-          .to(spr, { y: ty, duration: 0.09 * speed, ease: 'power1.in' });
+          .to(spr, { y: ty, duration: dur, ease: 'power2.in' }, 0)
+          .to(spr.scale, { y: squashY, x: bulgeX, duration: 0.08 * speed, ease: 'power1.out' }, dur)
+          .to(spr, { y: ty + sink, duration: 0.08 * speed, ease: 'power1.out' }, dur)
+          .to(spr.scale, { y: fit, x: fit, duration: 0.2 * speed, ease: 'back.out(2.2)' }, dur + 0.08 * speed)
+          .to(spr, { y: ty, duration: 0.2 * speed, ease: 'back.out(2.2)' }, dur + 0.08 * speed);
       }
     }
-    await new Promise<void>(r => { gsap.delayedCall(dur + 0.16 * speed + colDelay * reels + rowStagger * rows + 0.05 * speed, () => r()); });
+    await new Promise<void>(r => { gsap.delayedCall(dur + 0.3 * speed + colDelay * reels + rowStagger * rows + 0.05 * speed, () => r()); });
     for (const t of allTemps) { try { t.parent?.removeChild(t); t.destroy(); } catch { /* gone */ } }
     for (let reel = 0; reel < reels; reel++) {
       for (let row = 0; row < rows; row++) {

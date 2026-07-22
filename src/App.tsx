@@ -441,6 +441,13 @@ export function App() {
     // Theme is IN: hold 100% for a beat, fade the boot overlay — the intro's
     // iris-from-black entrance begins underneath, so the handoff is seamless.
     void Promise.all(bootJobs).then(() => {
+      // Stored PARAMS-drawer overrides apply AFTER the theme wiring so the
+      // theme can never clobber them — Save Build / builtin snapshots carry
+      // them via slot:assets.visualParams (Noski: "parameter speichern sich
+      // nicht bei save build").
+      for (const [pid, pval] of Object.entries(loadAssets().visualParams ?? {})) {
+        pixiAppRef.applyVisualParam(pid, pval);
+      }
       if (pixiAppRef.showGameIntro(() => setIntroOpen(false))) setIntroOpen(true);
       setBootProgress(1);
       setTimeout(() => setBootFade(true), 180);

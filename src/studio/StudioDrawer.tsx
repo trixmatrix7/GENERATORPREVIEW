@@ -109,11 +109,12 @@ function FeaturesTab({ pixiApp }: { pixiApp: PixiApp | null }) {
     ...symbolFeats.map(e => e.id),
   ];
   const [selected, setSelected] = useState<Set<string>>(() => loadSelection(defaults));
-  const [subVals, setSubVals] = useState<Record<string, string>>(() =>
-    Object.fromEntries(
-      ADJUSTABLE_PARAMS.filter(p => ALL_SUB_PARAMS.includes(p.id)).map(p => [p.id, String(p.default)]),
-    ),
-  );
+  const [subVals, setSubVals] = useState<Record<string, string>>(() => {
+    const stored = loadAssets().visualParams ?? {};
+    return Object.fromEntries(
+      ADJUSTABLE_PARAMS.filter(p => ALL_SUB_PARAMS.includes(p.id)).map(p => [p.id, stored[p.id] ?? String(p.default)]),
+    );
+  });
 
   // Re-apply the current selection + sub-settings whenever the PixiApp (re)mounts.
   useEffect(() => {
@@ -136,6 +137,9 @@ function FeaturesTab({ pixiApp }: { pixiApp: PixiApp | null }) {
   const setSub = (id: string, v: string) => {
     setSubVals(s => ({ ...s, [id]: v }));
     pixiApp?.applyVisualParam(id, v);
+    const stored = loadAssets().visualParams ?? {};
+    stored[id] = v;
+    saveAssets({ visualParams: stored });
   };
 
   const labelPrefix: Record<string, string> = {
@@ -219,9 +223,10 @@ function FeaturesTab({ pixiApp }: { pixiApp: PixiApp | null }) {
 
 /* ── Params: the dev's real chat-config whitelist, applied live ── */
 function ParamsTab({ pixiApp }: { pixiApp: PixiApp | null }) {
-  const [values, setValues] = useState<Record<string, string | number | boolean>>(
-    () => Object.fromEntries(ADJUSTABLE_PARAMS.map(p => [p.id, p.default])),
-  );
+  const [values, setValues] = useState<Record<string, string | number | boolean>>(() => {
+    const stored = loadAssets().visualParams ?? {};
+    return Object.fromEntries(ADJUSTABLE_PARAMS.map(p => [p.id, stored[p.id] ?? p.default]));
+  });
 
   const apply = (id: string, value: string | number | boolean) => {
     setValues(v => {
@@ -247,6 +252,11 @@ function ParamsTab({ pixiApp }: { pixiApp: PixiApp | null }) {
       return next;
     });
     pixiApp?.applyVisualParam(id, value);
+    // PERSIST (Noski: Save Build nimmt Parameter mit; Reload behält sie) —
+    // only non-default values are stored.
+    const stored = loadAssets().visualParams ?? {};
+    stored[id] = String(value);
+    saveAssets({ visualParams: stored });
   };
 
   return (

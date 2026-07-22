@@ -17,6 +17,10 @@ export interface SavedAssets {
   /** Sound-library picks: eventId → library OGG url. Applied after the
    *  game's default sound wiring; snapshotted into builds + exports. */
   sounds?: Record<string, string>;
+  /** Params-drawer overrides (applyVisualParam id → value). Applied on
+   *  every boot; snapshotted into builds/builtins (Noski: Save Build muss
+   *  Parameter mitnehmen). */
+  visualParams?: Record<string, string>;
 }
 
 /** Full-replace variant for preset apply: overwrites every known key. */
@@ -29,6 +33,7 @@ export function replaceAssets(next: SavedAssets): void {
       fsBg: next.fsBg ?? null,
       expandingWild: next.expandingWild ?? null,
       sounds: next.sounds ?? {},
+      visualParams: next.visualParams ?? {},
     }));
   } catch { /* quota — skip */ }
 }

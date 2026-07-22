@@ -489,6 +489,34 @@ export const ADJUSTABLE_PARAMS: readonly AdjustableParam[] = [
     description: 'Thickness of the 1×1 wild frame in pixels (0 = no frame). Raise it to add a coloured border around the wild pot.',
     keywords: ['wild', '1x1', 'frame', 'border', 'width', 'thickness'],
   },
+  {
+    id: 'fsPlaqueFont', label: 'FS-Plaque — Schrift', layer: 'win-screens', type: 'enum',
+    options: ['Poppins', 'Rubik', 'Impact', 'Arial Black', 'Georgia'],
+    default: 'Poppins',
+    description: 'Font of the FREE SPINS + TOTAL WIN plaques beside the grid during free games.',
+    keywords: ['free spins', 'plaque', 'font', 'schrift', 'total win'],
+  },
+  {
+    id: 'fsPlaqueBg', label: 'FS-Plaque — Hintergrund', layer: 'win-screens', type: 'enum',
+    options: ['black', 'purple', 'navy', 'wine', 'smoke'],
+    default: 'black',
+    description: 'Background fill of the FREE SPINS / TOTAL WIN plaques.',
+    keywords: ['free spins', 'plaque', 'background', 'hintergrund'],
+  },
+  {
+    id: 'fsPlaqueBorder', label: 'FS-Plaque — Rand', layer: 'win-screens', type: 'enum',
+    options: ['pink', 'gold', 'cyan', 'green', 'white', 'purple'],
+    default: 'pink',
+    description: 'Neon border colour of the FS plaques (outer rim + inner glow line).',
+    keywords: ['free spins', 'plaque', 'border', 'rand', 'rahmen'],
+  },
+  {
+    id: 'fsPlaqueText', label: 'FS-Plaque — Zahlenfarbe', layer: 'win-screens', type: 'enum',
+    options: ['gold', 'white', 'cyan', 'pink', 'green'],
+    default: 'gold',
+    description: 'Colour of the big numbers (spin count + total win) on the FS plaques.',
+    keywords: ['free spins', 'plaque', 'text', 'zahl', 'farbe'],
+  },
 ];
 
 export function getAdjustableParam(id: string): AdjustableParam | undefined {

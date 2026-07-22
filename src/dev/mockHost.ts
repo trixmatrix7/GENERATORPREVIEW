@@ -225,7 +225,21 @@ export class MockHost {
     // Ante spins run on the 3x-scatter strips for THIS spin (the certified
     // ante model swaps the reels; FS rounds inside keep the base strips).
     const baseStrips = this.config.reelStrips;
-    if (viceAnte) (this.config as unknown as { reelStrips: readonly (readonly number[])[] }).reelStrips = anteBet!.reelStrips;
+    const baseLens = this.config.reelLengths;
+    // Swapping strips MUST swap reelLengths too — deriveStops indexes by
+    // reelLengths, and the calibrated buy strips have UNEQUAL lengths
+    // (buy3 reel4 = 41, buy4 reel2 = 150 for the wild-frequency dilution).
+    const swapStrips = (strips: readonly (readonly number[])[]): void => {
+      const c = this.config as unknown as { reelStrips: readonly (readonly number[])[]; reelLengths: readonly number[] };
+      c.reelStrips = strips;
+      c.reelLengths = strips.map(st => st.length);
+    };
+    const restoreStrips = (): void => {
+      const c = this.config as unknown as { reelStrips: readonly (readonly number[])[]; reelLengths: readonly number[] };
+      c.reelStrips = baseStrips;
+      c.reelLengths = baseLens;
+    };
+    if (viceAnte) swapStrips(anteBet!.reelStrips);
     // Session cap is the VERSION's max win — 5000x / 10000x / 15000x. Reading it
     // from config (not a hardcoded 5000) keeps settlement's clamp identical to
     // the display's capAmount (PixiApp) and the simulator's per-version cap.
@@ -251,7 +265,7 @@ export class MockHost {
       if (totalWin > maxWin) totalWin = maxWin;
       freeSpinsTriggered = scatterCount >= 3;
     }
-    if (viceAnte) (this.config as unknown as { reelStrips: readonly (readonly number[])[] }).reelStrips = baseStrips;
+    if (viceAnte) restoreStrips();
 
     // 1b. BASE-GAME PLANT FEATURE — the screen darkens, the pads light up and
     // 1..5 multiplied plants slide in; THIS spin is then re-evaluated with the
@@ -286,6 +300,13 @@ export class MockHost {
 
     // 2. Free spins loop — mirrors SlotGame.sol onRandomness exactly
     let freeSpinsPlayed = 0;
+    // BOUGHT-ROUND STRIPS (Noski: buys at HIS price points, rounds
+    // calibrated instead): a staged vice buy plays its FS spins on the
+    // stage's OWN certified strips (buy-3sc wild-buffed to ~95x, buy-4sc
+    // wild-trimmed to ~190x) — natural triggers never touch them. Source:
+    // custom.viceBuyStages[].fsReelStrips (same strip lengths as base).
+    const buyFsStrips = (viceBuy as { fsReelStrips?: number[][] } | undefined)?.fsReelStrips;
+    if (freeSpinsTriggered && buyFsStrips) swapStrips(buyFsStrips);
     if (freeSpinsTriggered) {
       let remaining = this.config.freeSpinsCount;
       // TIERED Vice-Heat bonus: a 4+-scatter trigger plays STICKY expanding
@@ -296,7 +317,10 @@ export class MockHost {
       // would have to shrink to 34% — see custom-math/simulate_vice_heat.py).
       const expandFS = !!(this.config as { expandingWildsInFS?: boolean }).expandingWildsInFS;
       const stickyFS = expandFS && !buyBonus && scatterCount >= 4;
-      const stickyCap = (this.config as { stickyTowerCap?: number }).stickyTowerCap ?? 2;
+      // Bought 4sc rounds carry their OWN tower cap (4 — opens the ceiling
+      // so the 5000x max win is reachable; natural rounds keep the cap 3).
+      const stickyCap = (viceBuy as { stickyTowerCap?: number } | undefined)?.stickyTowerCap
+        ?? (this.config as { stickyTowerCap?: number }).stickyTowerCap ?? 2;
       const stickyReels = new Set<number>();
       // ── CRACK FARM tiered bonus (paylines game) ────────────────────────
       // 3 SC: ROAMING PLANT — every FS spin exactly ONE wild-capable reel
@@ -465,8 +489,12 @@ export class MockHost {
         // FULL HOUSE (sticky rounds): while ALL stickyTowerCap towers stand,
         // the spin pays x stickyFullBoardMultiplier — the 4-scatter route's
         // max-win engine (mirrors custom-math/simulate_vice_heat.py).
+        // Bought 4sc rounds carry their OWN full-house multiplier (x2 while
+        // all 4 towers stand — makes the 5000x max win reachable; natural
+        // rounds keep the retired x1).
         const fullMult = stickyFS && stickyReels.size >= stickyCap
-          ? BigInt((this.config as { stickyFullBoardMultiplier?: number }).stickyFullBoardMultiplier ?? 1)
+          ? BigInt((viceBuy as { stickyFullBoardMultiplier?: number } | undefined)?.stickyFullBoardMultiplier
+            ?? (this.config as { stickyFullBoardMultiplier?: number }).stickyFullBoardMultiplier ?? 1)
           : 1n;
         const fsWin = rawFsWin * simulMult * fullMult * BigInt(this.config.freeSpinsMultiplier);
         totalWin += fsWin;
@@ -489,6 +517,8 @@ export class MockHost {
         if (totalWin >= maxWin) break;
       }
     }
+
+    if (buyFsStrips) restoreStrips();
 
     // 3. Hold & Win — base-game feature; NOT played on a purchased FS round.
     const cols = board[0].length;

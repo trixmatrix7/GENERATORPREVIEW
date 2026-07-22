@@ -3364,6 +3364,36 @@ export class PixiApp {
         if (preset) this.winCoinColors = preset.colors;
         break;
       }
+      case 'fsPlaqueFont': {
+        this.fsPlaqueStyle.font = `'${String(value)}', ui-sans-serif, sans-serif`;
+        break;
+      }
+      case 'fsPlaqueBg': {
+        const bg: Record<string, [number, number]> = {
+          black: [0x000000, 0.78], purple: [0x1c0b30, 0.85], navy: [0x081228, 0.85],
+          wine: [0x2a0714, 0.85], smoke: [0x14141a, 0.6],
+        };
+        const v = bg[String(value)];
+        if (v) { this.fsPlaqueStyle.bg = v[0]; this.fsPlaqueStyle.bgAlpha = v[1]; }
+        break;
+      }
+      case 'fsPlaqueBorder': {
+        const bd: Record<string, [number, number]> = {
+          pink: [0xFF64C8, 0x7DE3FF], gold: [0xFFD75E, 0xFFF3C4], cyan: [0x4FE3FF, 0xCFF6FF],
+          green: [0x6BF08C, 0xD8FFE2], white: [0xFFFFFF, 0xBBBBBB], purple: [0xB06CFF, 0xE3CDFF],
+        };
+        const v = bd[String(value)];
+        if (v) { this.fsPlaqueStyle.border = v[0]; this.fsPlaqueStyle.borderInner = v[1]; }
+        break;
+      }
+      case 'fsPlaqueText': {
+        const tx: Record<string, number> = {
+          gold: 0xFFE9A0, white: 0xFFFFFF, cyan: 0xAFF3FF, pink: 0xFFB7E2, green: 0xC8FFD4,
+        };
+        const v = tx[String(value)];
+        if (v != null) this.fsPlaqueStyle.value = v;
+        break;
+      }
       case 'ambientMotes': {
         this.setAmbientEnabled(String(value) !== 'off');
         break;
@@ -4176,6 +4206,16 @@ export class PixiApp {
 
   /** Show a free-spin visual overlay: tinted ambient glow shift + counter badge.
    *  Returns a handle so the caller can update the counter and hide it. */
+  /** FS-plaque styling (FREE SPINS + TOTAL WIN beside the grid) — driven by
+   *  the studio params fsPlaqueFont/Bg/Border/Text; applied on the NEXT
+   *  free-games round (the overlay is rebuilt per round). */
+  private fsPlaqueStyle = {
+    font: "'Poppins', ui-sans-serif, sans-serif",
+    bg: 0x000000, bgAlpha: 0.78,
+    border: 0xFF64C8, borderInner: 0x7DE3FF,
+    label: 0xFF9ED8, value: 0xFFE9A0,
+  };
+
   private showFreeSpinOverlay(totalSpins: number): { container: Container; counter: Text; total: Text; totalFit: () => void } {
     const rw = this.reelSet.totalWidth + FRAME_PAD * 2;
     const rh = this.reelSet.totalHeight + FRAME_PAD * 2;
@@ -4235,7 +4275,7 @@ export class PixiApp {
     const themed = this.fsPlaqueTex;
     // Font matches the win marquee (Noski) so every number in the game reads
     // as one family instead of two.
-    const NUM_FONT = "'Poppins', ui-sans-serif, sans-serif";
+    const NUM_FONT = this.fsPlaqueStyle.font;
     // HALF the first pass (Noski: "50% kleiner nicht 5"), then +20% back for
     // free games (Noski: "free spins und total win button 20% größer").
     const panelW = themed ? 112 : 168;
@@ -4269,9 +4309,9 @@ export class PixiApp {
       plate = spr;
     } else {
       const g = new Graphics();
-      g.roundRect(0, -panelH / 2, panelW, panelH, 14).fill({ color: 0x000000, alpha: 0.78 });
-      g.roundRect(0, -panelH / 2, panelW, panelH, 14).stroke({ color: 0xFF64C8, width: 2, alpha: 0.9 });
-      g.roundRect(3, -panelH / 2 + 3, panelW - 6, panelH - 6, 11).stroke({ color: 0x7DE3FF, width: 1, alpha: 0.35 });
+      g.roundRect(0, -panelH / 2, panelW, panelH, 14).fill({ color: this.fsPlaqueStyle.bg, alpha: this.fsPlaqueStyle.bgAlpha });
+      g.roundRect(0, -panelH / 2, panelW, panelH, 14).stroke({ color: this.fsPlaqueStyle.border, width: 2, alpha: 0.9 });
+      g.roundRect(3, -panelH / 2 + 3, panelW - 6, panelH - 6, 11).stroke({ color: this.fsPlaqueStyle.borderInner, width: 1, alpha: 0.35 });
       plate = g;
     }
     panel.addChild(plate);
@@ -4279,7 +4319,7 @@ export class PixiApp {
       text: 'FREE SPINS',
       style: new TextStyle({
         fontFamily: NUM_FONT,
-        fontSize: themed ? 11 : 13, fontWeight: '800', fill: themed ? 0xBFFFA8 : 0xFF9ED8, letterSpacing: themed ? 1 : 2,
+        fontSize: themed ? 11 : 13, fontWeight: '800', fill: themed ? 0xBFFFA8 : this.fsPlaqueStyle.label, letterSpacing: themed ? 1 : 2,
         stroke: themed ? { color: 0x0c2a10, width: 2 } : undefined,
       }),
     });
@@ -4291,7 +4331,7 @@ export class PixiApp {
       text: `1 / ${totalSpins}`,
       style: new TextStyle({
         fontFamily: NUM_FONT,
-        fontSize: themed ? 24 : 32, fontWeight: '900', fontStyle: 'italic', fill: 0xFFE9A0,
+        fontSize: themed ? 24 : 32, fontWeight: '900', fontStyle: 'italic', fill: this.fsPlaqueStyle.value,
         letterSpacing: 1,
         stroke: { color: 0x1a0e02, width: 5 },
         dropShadow: { color: 0x000000, blur: 6, distance: 0, alpha: 0.5 },
@@ -4328,9 +4368,9 @@ export class PixiApp {
       plate2 = spr;
     } else {
       const g = new Graphics();
-      g.roundRect(0, -panel2H / 2, panelW, panel2H, 14).fill({ color: 0x000000, alpha: 0.78 });
-      g.roundRect(0, -panel2H / 2, panelW, panel2H, 14).stroke({ color: 0xFF64C8, width: 2, alpha: 0.9 });
-      g.roundRect(3, -panel2H / 2 + 3, panelW - 6, panel2H - 6, 11).stroke({ color: 0x7DE3FF, width: 1, alpha: 0.35 });
+      g.roundRect(0, -panel2H / 2, panelW, panel2H, 14).fill({ color: this.fsPlaqueStyle.bg, alpha: this.fsPlaqueStyle.bgAlpha });
+      g.roundRect(0, -panel2H / 2, panelW, panel2H, 14).stroke({ color: this.fsPlaqueStyle.border, width: 2, alpha: 0.9 });
+      g.roundRect(3, -panel2H / 2 + 3, panelW - 6, panel2H - 6, 11).stroke({ color: this.fsPlaqueStyle.borderInner, width: 1, alpha: 0.35 });
       plate2 = g;
     }
     panel2.addChild(plate2);
@@ -4338,7 +4378,7 @@ export class PixiApp {
       text: 'TOTAL WIN',
       style: new TextStyle({
         fontFamily: NUM_FONT,
-        fontSize: themed ? 11 : 13, fontWeight: '800', fill: themed ? 0xBFFFA8 : 0xFF9ED8, letterSpacing: themed ? 1 : 2,
+        fontSize: themed ? 11 : 13, fontWeight: '800', fill: themed ? 0xBFFFA8 : this.fsPlaqueStyle.label, letterSpacing: themed ? 1 : 2,
         stroke: themed ? { color: 0x0c2a10, width: 2 } : undefined,
       }),
     });
@@ -4350,7 +4390,7 @@ export class PixiApp {
       text: '0.00',
       style: new TextStyle({
         fontFamily: NUM_FONT,
-        fontSize: themed ? 20 : 26, fontWeight: '900', fontStyle: 'italic', fill: 0xFFE9A0,
+        fontSize: themed ? 20 : 26, fontWeight: '900', fontStyle: 'italic', fill: this.fsPlaqueStyle.value,
         letterSpacing: 1,
         stroke: { color: 0x1a0e02, width: 5 },
         dropShadow: { color: 0x000000, blur: 6, distance: 0, alpha: 0.5 },

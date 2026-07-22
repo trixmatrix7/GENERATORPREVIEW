@@ -3188,11 +3188,13 @@ export class ReelSet {
         inner.alpha = 0;
       }
     }
-    // ALL COLUMNS TOGETHER (Noski: "gemeinsam auf einmal im normal spin") —
-    // rows cascade with a soft per-row offset, no column stagger, no tease
-    // here (the slow scatter-tease lives in the tumble REFILLS).
-    const dur = 0.3 * speed;
-    const rowStagger = 0.05 * speed;
+    // ALL TOGETHER, reel 1 lands a BREATH before reel 2 (Noski): fast smooth
+    // fall with a tiny left→right column offset; landing = one simple soft
+    // REBOUNCE (back.out dips past the cell and settles) — no hard stop.
+    // The slow scatter-tease lives in the tumble REFILLS, never here.
+    const dur = 0.26 * speed;
+    const colDelay = 0.07 * speed;
+    const rowStagger = 0.035 * speed;
     const allTemps: Sprite[] = [];
     for (let reel = 0; reel < reels; reel++) {
       for (let row = rows - 1; row >= 0; row--) {
@@ -3213,12 +3215,12 @@ export class ReelSet {
         allTemps.push(spr);
         gsap.to(spr, {
           y: rect.y + rect.h / 2,
-          duration: dur, ease: 'power2.in',
-          delay: rowStagger * (rows - 1 - row) + Math.random() * 0.03,
+          duration: dur + 0.14 * speed, ease: 'back.out(1.25)', // fall + soft rebounce settle
+          delay: colDelay * reel + rowStagger * (rows - 1 - row),
         });
       }
     }
-    await new Promise<void>(r => { gsap.delayedCall(dur + rowStagger * rows + 0.08 * speed, () => r()); });
+    await new Promise<void>(r => { gsap.delayedCall(dur + 0.14 * speed + colDelay * reels + rowStagger * rows + 0.05 * speed, () => r()); });
     for (const t of allTemps) { try { t.parent?.removeChild(t); t.destroy(); } catch { /* gone */ } }
     for (let reel = 0; reel < reels; reel++) {
       for (let row = 0; row < rows; row++) {
@@ -3231,7 +3233,7 @@ export class ReelSet {
         inner.y = SYMBOL_HEIGHT / 2;
         inner.scale.set(1);
         inner.alpha = 1;
-        if (!opts.turbo) cell.playLandBounce(); // subtle knick per landing
+        // no extra knick — the back.out rebounce IS the landing (smooth)
       }
     }
     this.audioHooks.onReelStopped?.(0); // one soft land beat for the board

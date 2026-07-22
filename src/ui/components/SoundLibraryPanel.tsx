@@ -28,12 +28,21 @@ export function SoundLibraryPanel({ soundManager }: { soundManager: SoundManager
   const [picks, setPicks] = useState<Record<string, string>>(() => loadAssets().sounds ?? {});
   const previewRef = useRef<HTMLAudioElement | null>(null);
 
-  const preview = (url: string) => {
+  const previewTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const stopPreview = () => {
     previewRef.current?.pause();
+    previewRef.current = null;
+    if (previewTimer.current) { clearTimeout(previewTimer.current); previewTimer.current = null; }
+  };
+  const preview = (url: string) => {
+    stopPreview();
     const a = new Audio(url);
     a.volume = 0.8;
     previewRef.current = a;
     void a.play().catch(() => undefined);
+    // SFX previews are short anyway; hard-stop after 4s so a long file can
+    // never keep playing under the game (the double-music bug, Noski).
+    previewTimer.current = setTimeout(stopPreview, 4000);
   };
 
   const apply = (eventId: string, url: string) => {
@@ -45,13 +54,21 @@ export function SoundLibraryPanel({ soundManager }: { soundManager: SoundManager
     if (url) {
       const design = soundManager.getEventDefault(eventId);
       soundManager.replaceSource(eventId, [url], design > 0 ? undefined : 0.5);
-      preview(url);
+      if (eventId === 'ambient-music') {
+        // MUSIC auditions through the REAL game channel (exclusive Howl) —
+        // a second HTMLAudio player would run in parallel forever.
+        stopPreview();
+        soundManager.play('ambient-music');
+      } else {
+        preview(url);
+      }
     }
   };
 
   const applyPreset = (presetId: string) => {
     const preset = SOUND_PRESETS.find(pr => pr.id === presetId);
     if (!preset) return;
+    stopPreview(); // kill any lingering audition player first
     const next = { ...picks };
     for (const [eventId, def] of Object.entries(preset.events)) {
       next[eventId] = def.url;
@@ -60,6 +77,7 @@ export function SoundLibraryPanel({ soundManager }: { soundManager: SoundManager
     }
     setPicks(next);
     saveAssets({ sounds: next });
+    soundManager.play('ambient-music'); // the new bed takes over immediately
   };
 
   return (

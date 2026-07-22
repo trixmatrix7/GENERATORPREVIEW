@@ -36,8 +36,9 @@ export function SoundLibraryPanel({ soundManager }: { soundManager: SoundManager
   };
   const preview = (url: string) => {
     stopPreview();
+    if (soundManager.muted) return; // master mute covers auditions too
     const a = new Audio(url);
-    a.volume = 0.8;
+    a.volume = Math.max(0, Math.min(1, 0.8 * soundManager.volume));
     previewRef.current = a;
     void a.play().catch(() => undefined);
     // SFX previews are short anyway; hard-stop after 4s so a long file can

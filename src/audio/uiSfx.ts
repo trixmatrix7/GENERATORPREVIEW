@@ -3,6 +3,8 @@
 // the baked Mixkit library. Deliberately tiny + independent of the
 // SoundManager registry (UI chrome, not game events); volume sits low.
 
+import { getSharedSoundManager } from './defaultSoundConfig';
+
 const L = `${import.meta.env.BASE_URL}audio/library/`;
 
 const SRC = {
@@ -15,13 +17,17 @@ const cache = new Map<string, HTMLAudioElement>();
 
 function play(url: string, volume: number): void {
   try {
+    // UI chrome follows the MASTER mute/volume (Noski: mute killed nothing
+    // here — HTMLAudio bypasses the Howler channels).
+    const sm = getSharedSoundManager();
+    if (sm.muted) return;
     let a = cache.get(url);
     if (!a) {
       a = new Audio(url);
       cache.set(url, a);
     }
     a.currentTime = 0;
-    a.volume = volume;
+    a.volume = Math.max(0, Math.min(1, volume * sm.volume));
     void a.play().catch(() => undefined);
   } catch { /* no audio context yet */ }
 }

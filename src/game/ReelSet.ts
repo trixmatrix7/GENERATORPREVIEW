@@ -3213,14 +3213,16 @@ export class ReelSet {
         spr.eventMode = 'none';
         this.clipContainer.addChild(spr);
         allTemps.push(spr);
-        gsap.to(spr, {
-          y: rect.y + rect.h / 2,
-          duration: dur + 0.14 * speed, ease: 'back.out(1.25)', // fall + soft rebounce settle
-          delay: colDelay * reel + rowStagger * (rows - 1 - row),
-        });
+        // fall → tiny UPWARD hop → settle. Never dips below the cell (a
+        // back.out overshoot visually crashed into the row beneath — Noski).
+        const ty = rect.y + rect.h / 2;
+        gsap.timeline({ delay: colDelay * reel + rowStagger * (rows - 1 - row) })
+          .to(spr, { y: ty, duration: dur, ease: 'power2.in' })
+          .to(spr, { y: ty - 7, duration: 0.07 * speed, ease: 'power1.out' })
+          .to(spr, { y: ty, duration: 0.09 * speed, ease: 'power1.in' });
       }
     }
-    await new Promise<void>(r => { gsap.delayedCall(dur + 0.14 * speed + colDelay * reels + rowStagger * rows + 0.05 * speed, () => r()); });
+    await new Promise<void>(r => { gsap.delayedCall(dur + 0.16 * speed + colDelay * reels + rowStagger * rows + 0.05 * speed, () => r()); });
     for (const t of allTemps) { try { t.parent?.removeChild(t); t.destroy(); } catch { /* gone */ } }
     for (let reel = 0; reel < reels; reel++) {
       for (let row = 0; row < rows; row++) {

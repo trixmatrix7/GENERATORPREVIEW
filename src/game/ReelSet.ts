@@ -3226,10 +3226,10 @@ export class ReelSet {
         inner.alpha = 1;
         const baseY = SYMBOL_HEIGHT / 2;
         inner.y = baseY - (row + 1.4) * CELL_HEIGHT; // above the grid mask
-        const sink = SYMBOL_HEIGHT * 0.055;
+        const sink = SYMBOL_HEIGHT * 0.069; // first drop: 25% more intensity (Noski)
         gsap.timeline({ delay: colDelay * reel + rowStagger * (rows - 1 - row) })
           .to(inner, { y: baseY, duration: dur, ease: 'power2.in' }, 0)
-          .to(inner.scale, { y: 0.84, x: 1.06, duration: 0.08 * speed, ease: 'power1.out' }, dur)
+          .to(inner.scale, { y: 0.8, x: 1.075, duration: 0.08 * speed, ease: 'power1.out' }, dur)
           .to(inner, { y: baseY + sink, duration: 0.08 * speed, ease: 'power1.out' }, dur)
           .to(inner.scale, { y: 1, x: 1, duration: 0.2 * speed, ease: 'back.out(2.2)' }, dur + 0.08 * speed)
           .to(inner, { y: baseY, duration: 0.2 * speed, ease: 'back.out(2.2)' }, dur + 0.08 * speed);

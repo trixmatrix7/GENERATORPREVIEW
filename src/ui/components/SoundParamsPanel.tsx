@@ -23,6 +23,7 @@ const CORE_ROWS: Row[] = [
   { label: 'Win-Marquee-Musik', ids: ['win-marquee'] },
   { label: 'Scatter-Land', ids: ['scatter-land'] },
   { label: 'Win-Jingles (S/M/L)', ids: ['win-small', 'win-normal', 'win-big'] },
+  { label: 'Tease (Riser/Miss)', ids: ['tease-riser', 'tease-miss'] },
   { label: 'Wild-Land', ids: ['wild-land'] },
   { label: 'Wild-Expand', ids: ['wild-expand'] },
   { label: 'FS-Trigger', ids: ['free-spin-trigger'] },

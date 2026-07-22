@@ -53,8 +53,10 @@ const DEFAULT_VOLUMES: Record<string, number> = {
   'win-tally-tick': 0,
   'win-tally-end': 0,
   'tier-up': 0,
-  'tease-riser': 0,
-  'tease-miss': 0,
+  // Tease pair (Noski 2026-07-22, real CC0 drops now): a 10s rising-tension
+  // bed that the resolve CUTS (fadeStop) + a dull negative tap on the miss.
+  'tease-riser': 0.4,
+  'tease-miss': 0.45,
 };
 
 // Per-event flags. Ambient music is loop + exclusive (only one can play).

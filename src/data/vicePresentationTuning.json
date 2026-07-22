@@ -465,7 +465,8 @@
    },
    "free-spin-trigger": {
     "volume": 1,
-    "oggFirst": false
+    "oggFirst": false,
+    "note": "fires the moment the LAST reel stops with 3+ scatters landed (onTeaseEnd hit)"
    },
    "near-miss-tease": {
     "volume": 0.4,
@@ -502,12 +503,14 @@
     "oggFirst": true
    },
    "tease-riser": {
-    "volume": 0,
-    "oggFirst": true
+    "volume": 0.4,
+    "oggFirst": true,
+    "note": "10s rising-tension bed (scanning alarm), cut by the resolve"
    },
    "tease-miss": {
-    "volume": 0,
-    "oggFirst": true
+    "volume": 0.45,
+    "oggFirst": true,
+    "note": "dull negative tap on the miss"
    }
   },
   "srcRule": "oggFirst: [/audio/<id>.ogg, /audio/<id>.mp3]; otherwise [/audio/<id>.wav, /audio/<id>.ogg, /audio/<id>.mp3]; unknown event volume fallback 0.7 (unused — all 20 registry events have explicit volumes)",
@@ -535,7 +538,8 @@
    "scatterDingLadder": "rate = 1 + min(n,3)*0.14 per scatter in one landing sequence; counter resets after 4000ms silence",
    "winStepChimeLadder": "rate = 1 + min(index,8)*0.09 per connection (vice keeps the chime ladder; no per-symbol quips)",
    "winStingerGate": "state-driven win-small/normal/big/mega thresholds 2x/10x/50x bet; ALL suppressed when ratio >= minBigWin 15 (marquee owns audio); coin-chime accents at 200/600ms (big) +1100/1700/2300ms (mega) — moot at design volume 0",
-   "ambientAutoplay": "play on mount + pointerdown/keydown unlock + first-spin fallback; exclusive flag makes double play a no-op"
+   "ambientAutoplay": "play on mount + pointerdown/keydown unlock + first-spin fallback; exclusive flag makes double play a no-op",
+   "teaseArc": "onTeaseStart: duck('ambient-music',350) + play('tease-riser'); onTeaseEnd(hit): fadeStop('tease-riser', hit?120:60) + unduck(500) + play(hit ? 'free-spin-trigger' : 'tease-miss')"
   }
  }
 }

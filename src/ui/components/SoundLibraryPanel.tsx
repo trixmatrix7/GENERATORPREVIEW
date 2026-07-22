@@ -25,6 +25,8 @@ const LABELS: Record<string, string> = {
   'win-small': 'Win-Jingle S',
   'win-normal': 'Win-Jingle M',
   'win-big': 'Win-Jingle L',
+  'tease-riser': 'Tease-Riser',
+  'tease-miss': 'Tease-Miss',
 };
 
 export function SoundLibraryPanel({ soundManager }: { soundManager: SoundManager }) {

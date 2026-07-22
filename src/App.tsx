@@ -551,7 +551,7 @@ export function App() {
     // plank landing and the symbol voices. Everything below waits for a drop.
     soundManager.replaceSource('spin-start', [`${C}spin-start.ogg`], 0);
     soundManager.replaceSource('wild-land', [`${C}wild-land.ogg`], 0);
-    for (const id of ['coin-chime', 'wild-expand', 'near-miss-tease', 'free-spin-trigger']) {
+    for (const id of ['coin-chime', 'wild-expand', 'near-miss-tease', 'free-spin-trigger', 'tease-riser', 'tease-miss']) {
       soundManager.setEventVolume(id, 0);
     }
     // Crack Farm's own background music (Noski's "Sunny Farm Groove"), at a
@@ -655,6 +655,18 @@ export function App() {
       onWildLanded: () => soundManager.play('wild-land'),
       onWildExpand: () => soundManager.play('wild-expand'),
       onNearMissTease: () => soundManager.play('near-miss-tease'),
+      // TEASE audio arc (Noski): riser bed in + music ducks while the gates
+      // arm; the resolve CUTS the riser — hit = the FS-TRIGGER stinger the
+      // moment the last reel stops with the scatters landed, miss = dull tap.
+      onTeaseStart: () => {
+        soundManager.duck('ambient-music', 350);
+        soundManager.play('tease-riser');
+      },
+      onTeaseEnd: hit => {
+        soundManager.fadeStop('tease-riser', hit ? 120 : 60);
+        soundManager.unduck('ambient-music', 500);
+        soundManager.play(hit ? 'free-spin-trigger' : 'tease-miss');
+      },
       // Fruit Stacks tumble: the burst-plopp ladders up per cascade step;
       // gift flights whoosh softly and the ×N thuds into the plate.
       onTumblePop: (stepIdx) => soundManager.play('coin-chime', { rate: 1 + Math.min(stepIdx, 6) * 0.08 }),

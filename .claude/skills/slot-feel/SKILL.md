@@ -102,7 +102,9 @@ Betrag NUR als Bottom-HUD-Formel „LINIE n ZAHLT base × mult = total"). **Crac
   kein Hard-Cut. Win-Beträge: Display-Font (Poppins italic), weich einblühen, LANGSAM von den
   Symbolen WEGGLEITEN (1,5s) + clean ausfaden — nie statisch, nie snappen. Multi-Einschlag:
   Plate-Punch (elastic-scale 1,3 + Mini-Shake + weißer Flash) bei jeder ×N-Ankunft. Normal-Drop
-  = ALLE Spalten GEMEINSAM (nur Row-Kaskade); Slow-Walzen-Tease NUR im NACHDROPPEN ab 2
+  = ALLE Spalten GEMEINSAM, Reel 1 landet ~70ms vor Reel 2 (Mikro-Stagger); Landung = Fall →
+  kleiner 7px-Hop nach OBEN → settle. NIE back.out-Overshoot beim Fallen (taucht unter die
+  Zelle, kollidiert optisch mit der Reihe drunter — Noski: "sieht arsch aus"); Slow-Walzen-Tease NUR im NACHDROPPEN ab 2
   stehenden Scattern (bleibt bei 3+ bis Spin-Ende). UI-Sounds dezent (uiSfx.ts, CC0-Picks).
 
 **Spin/Stop:**

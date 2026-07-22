@@ -271,7 +271,16 @@ export class AnimatedSymbol extends Container {
 
     if (state === 'win' && winSheetAvailable) {
       this.startWinSheet();
-      return; // no other win effect on top
+      // The sheet POPS like every other winner (Noski 2026-07-22: in FS a
+      // mixed connection read broken — lows popped, sheet premiums stood
+      // still). The pulse drives `inner` (the sheet is its child) so both
+      // run in parallel; outline stays off (it flickered over sheet art).
+      // STATIC-LOOK symbols keep their own dedicated grow instead.
+      if (!STATIC_LOOK_SYMBOLS.has(this.symbolId)) {
+        gsap.killTweensOf(this.inner.scale);
+        this.playFallbackWin(0, false);
+      }
+      return;
     }
     this.stopWinSheet();
 
@@ -984,7 +993,7 @@ export class AnimatedSymbol extends Container {
     }
   }
 
-  private playFallbackWin(delay = 0) {
+  private playFallbackWin(delay = 0, withOutline = true) {
     const t = presetTimings('win');
     this.inner.scale.set(1);
     this.inner.rotation = 0;
@@ -993,7 +1002,7 @@ export class AnimatedSymbol extends Container {
     // Clean repeating enlarge pulse (no rotation): grow big, hold, shrink back,
     // pause. The bright border highlight (outline) fades IN as the symbol grows
     // and OUT as it shrinks — so the symbol is only highlighted while bigger.
-    const o = this.outline;
+    const o = withOutline ? this.outline : null;
     if (o) o.alpha = 0;
     const tl = gsap.timeline({ delay, repeat: -1 });
     tl.to(this.inner.scale, { x: t.scalePeak, y: t.scalePeak, duration: t.pulseUp, ease: 'back.out(2)' }, 0);

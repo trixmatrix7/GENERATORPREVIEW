@@ -19,13 +19,14 @@ const DEFAULT_VOLUMES: Record<string, number> = {
   // Fires 5x per spin — sits slightly under the one-shot clicks (Noski:
   // "etwas leiser") so the stop stagger doesn't hammer the mix.
   'reel-stop': 0.58,
-  // Classic win jingles (Noski 2026-07-22: "win sounds die man so kennt") —
-  // real CC0 library drops now (coin dings, no synthesis). Fire ONCE per
-  // winning spin below the marquee threshold; the marquee music owns
-  // everything above it, so win-mega stays silent.
-  'win-small': 0.4,
-  'win-normal': 0.45,
-  'win-big': 0.5,
+  // Win jingles ship as EXAMPLE sounds only (Noski 2026-07-22: kein
+  // Auto-Jingle — "den win sound wieder entfernen überall"): default volume
+  // 0 = silent in every game. The onWinJingle hook + example OGGs stay
+  // wired, so picking a sound in the Sound-Bibliothek (or raising the
+  // volume slider) turns them on per build.
+  'win-small': 0,
+  'win-normal': 0,
+  'win-big': 0,
   'win-mega': 0,
   'win-marquee': 0.95,
   'scatter-land': 0.55,

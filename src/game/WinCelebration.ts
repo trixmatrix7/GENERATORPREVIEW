@@ -105,8 +105,10 @@ let GEO: WinTierGeometry = VICE_GEO;
 
 /** Swap the marquee-art geometry for a different theme's layer set (pass
  *  nothing to restore the Vice defaults). Call before the next celebration. */
-export function setWinTierGeometry(geo?: WinTierGeometry & { sizeMul?: number; dimAlpha?: number }): void {
-  GEO = geo ?? VICE_GEO;
+export function setWinTierGeometry(geo?: Partial<WinTierGeometry> & { sizeMul?: number; dimAlpha?: number }): void {
+  // A call with ONLY presentation overrides (sizeMul/dimAlpha) keeps the
+  // Vice default geometry — geometry is present iff contentFrac is set.
+  GEO = geo && geo.contentFrac != null ? geo as WinTierGeometry : VICE_GEO;
   // Per-theme presentation overrides (fall back to the Vice defaults).
   WIN_CELEBRATION_CONFIG.sizeMul = geo?.sizeMul ?? 0.48;
   WIN_CELEBRATION_CONFIG.dimAlpha = geo?.dimAlpha ?? 0;

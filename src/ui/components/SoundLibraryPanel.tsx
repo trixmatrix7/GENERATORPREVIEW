@@ -22,6 +22,9 @@ const LABELS: Record<string, string> = {
   'wild-land': 'Wild-Land',
   'free-spin-trigger': 'FS-Trigger',
   'near-miss-tease': 'Near-Miss-Riser',
+  'win-small': 'Win-Jingle S',
+  'win-normal': 'Win-Jingle M',
+  'win-big': 'Win-Jingle L',
 };
 
 export function SoundLibraryPanel({ soundManager }: { soundManager: SoundManager }) {

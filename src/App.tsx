@@ -360,6 +360,9 @@ export function App() {
     // Vice tease: NO landed-cell FX (burst/brackets/dim on the 1:1 field) —
     // only the pending-reel gold gate + rising embers stay (Noski 2026-07-22).
     teaseTuning.scatterLandedFx = false;
+    // Win marquee +30% (Noski: "big win und feld runter 30% größer") — the
+    // whole layer stack (tier art, WIN, number plate) scales together.
+    setWinTierGeometry({ sizeMul: 0.48 * 1.3 });
     track(pixiAppRef.setUserAssetTextures(symbols));
     // Custom upload wins; otherwise the Vice MOTEL-BEACH base background —
     // static art paints instantly, then the LIVING loop takes over (45-frame

@@ -31,6 +31,11 @@ export function setActiveTeasePreset(id: string): TeasePreset {
   active = TEASE_PRESETS.find(p => p.id === id) ?? TEASE_PRESETS[0];
   return active;
 }
+/** Per-game tease tuning. Vice Heat turns the landed-cell FX off (Noski
+ *  2026-07-22: "auf dem 1:1 Feld der Effekt raus, die Reels-Energie bleibt")
+ *  — the pending-reel gold gate + rising embers stay untouched. */
+export const teaseTuning = { scatterLandedFx: true };
+
 export function getActiveTeasePreset(): TeasePreset {
   return active;
 }

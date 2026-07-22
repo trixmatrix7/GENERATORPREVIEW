@@ -3256,7 +3256,11 @@ export class PixiApp {
     const C = WIN_CELEBRATION_CONFIG;
     const capX = this.config.maxWinMultiplier;
     const isMax = capX > 0 && r >= capX * 0.999;
-    if (!isMax && r < C.minBigWin) return Promise.resolve();
+    if (!isMax && r < C.minBigWin) {
+      // On-board win: the classic jingle carries it (marquee music above).
+      if (r > 0) this.reelSet.audioHooks?.onWinJingle?.(r < 2 ? 'small' : r < 8 ? 'normal' : 'big');
+      return Promise.resolve();
+    }
     const tier = isMax ? 3 : r >= C.bands.epic ? 2 : r >= C.bands.mega ? 1 : 0;
 
     // Screen-space centre + coin origins (real winning cells → global coords),

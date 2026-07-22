@@ -30,6 +30,7 @@ import { STATIC_LOOK_SYMBOLS, NO_IDLE_SYMBOLS, SYMBOL_SIZE_MULS, SYMBOL_WIN_SHEE
 import { setActiveStatePreset } from '@/config/statePresets';
 import { landingImpactConfig } from '@/game/effects/LandingImpact';
 import { waysImmersiveConfig } from '@/game/effects/WaysImmersive';
+import { teaseTuning } from '@/game/effects/teaseRegistry';
 import { setWinTierGeometry } from '@/game/WinCelebration';
 import { BuildTopBar, BuildSlots } from '@/studio/BuildDock';
 import { isBareBuild, loadActiveGame } from '@/studio/buildPresets';
@@ -356,6 +357,9 @@ export function App() {
     // scatter 1.2 — whole set scaled down, scatter keeps its relative pop.
     for (const id of [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]) SYMBOL_SIZE_MULS.set(id, 0.8);
     SYMBOL_SIZE_MULS.set(1, 0.96);
+    // Vice tease: NO landed-cell FX (burst/brackets/dim on the 1:1 field) —
+    // only the pending-reel gold gate + rising embers stay (Noski 2026-07-22).
+    teaseTuning.scatterLandedFx = false;
     track(pixiAppRef.setUserAssetTextures(symbols));
     // Custom upload wins; otherwise the Vice MOTEL-BEACH base background —
     // static art paints instantly, then the LIVING loop takes over (45-frame
@@ -543,7 +547,6 @@ export function App() {
     // plank landing and the symbol voices. Everything below waits for a drop.
     soundManager.replaceSource('spin-start', [`${C}spin-start.ogg`], 0);
     soundManager.replaceSource('wild-land', [`${C}wild-land.ogg`], 0);
-    soundManager.replaceSource('scatter-land', [`${C}scatter-land.ogg`], 0);
     for (const id of ['coin-chime', 'wild-expand', 'near-miss-tease', 'free-spin-trigger']) {
       soundManager.setEventVolume(id, 0);
     }
@@ -632,7 +635,19 @@ export function App() {
       // Safety net: if reel 0 never reported, kill the rattle once every reel
       // has landed.
       onAllReelsStopped: () => soundManager.fadeStop('reel-spin-loop', 90),
-      onScatterLanded: () => soundManager.play('scatter-land'),
+      // Classic scatter DING ladder: each scatter of one landing sequence
+      // rings a step higher (time-based reset — works across spin + tumble).
+      onScatterLanded: (() => {
+        let n = 0; let last = 0;
+        return () => {
+          const now = performance.now();
+          if (now - last > 4000) n = 0;
+          last = now;
+          soundManager.play('scatter-land', { rate: 1 + Math.min(n, 3) * 0.14 });
+          n++;
+        };
+      })(),
+      onWinJingle: tier => soundManager.play(`win-${tier}`),
       onWildLanded: () => soundManager.play('wild-land'),
       onWildExpand: () => soundManager.play('wild-expand'),
       onNearMissTease: () => soundManager.play('near-miss-tease'),

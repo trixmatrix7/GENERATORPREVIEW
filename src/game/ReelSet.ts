@@ -29,7 +29,7 @@ import { waysImmersiveConfig, danceWinningObject, prefersReducedMotion } from '.
 import { landingImpactConfig } from './effects/LandingImpact';
 import { applyStickyWild, clearAllStickyWild, stickyWildConfig, type StickyHandle } from './effects/StickyWildShine';
 import type { MechEntry, MechContext } from './effects/mechTypes';
-import { getActiveTeasePreset } from './effects/teaseRegistry';
+import { getActiveTeasePreset, teaseTuning } from './effects/teaseRegistry';
 import type { TeaseContext } from './effects/teaseTypes';
 
 /** Cap on the number of reels we apply the near-miss tease to. Each teased
@@ -86,6 +86,9 @@ export interface ReelSetAudioHooks {
    *  stop the reel-spin rattle exactly when the spinning ends. */
   onAllReelsStopped?: () => void;
   onScatterLanded?: (reelIdx: number) => void;
+  /** Classic win jingle, ONCE per winning spin below the marquee threshold —
+   *  tier by win/bet multiple. Marquee wins keep their own music instead. */
+  onWinJingle?: (tier: 'small' | 'normal' | 'big') => void;
   /** The TEASE engages (2nd visible scatter, gates arming) — start the riser
    *  + duck the music. */
   onTeaseStart?: () => void;
@@ -2437,6 +2440,7 @@ export class ReelSet {
   }
 
   private addTeaseGlow(reel: number, row: number): void {
+    if (!teaseTuning.scatterLandedFx) return;
     try { getActiveTeasePreset().onScatterLanded(this.buildTeaseCtx(), reel, row); }
     catch (err) { console.warn('[ReelSet] tease preset failed:', err); }
   }

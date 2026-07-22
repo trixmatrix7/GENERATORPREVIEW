@@ -218,6 +218,21 @@ GESAMTGEWINN wird still hinter dem Marquee verrechnet.
   id 9 (COIN) ist als Pay-Symbol nutzbar solange der Pay-Model-Branch die Engine-COIN-Pfade
   (Hold&Win) umgeht.
 
+## 3b. Buy-/Ante-Math-Regeln (2026-07-22, Vice-Zertifizierung)
+
+- **Buy-Preise folgen dem EV, nie dem Industriestandard:** „100× für 3sc" passt nur, wenn die
+  3sc-Runde Ø ~96× zahlt. Vice: 3sc häufig+klein (1-in-67, Ø22×) → fairer Preis 24×; 4sc
+  selten+riesig (1-in-922, Ø281×) → 295×. IMMER forced Rounds simulieren (200k+), nie schätzen.
+- **Forced-Board-EV gehört in den Buy-Preis:** Wenn der Kauf echte Scatter aufs Board zwingt und
+  Display==Payout gilt, wird das Board voll ausgewertet (Scatter-Pay + zufällige Linien-Wins ≈
+  0.95×/1.38× bei 3/4 Scattern) — separat messen (Fenster konditioniert!) und addieren.
+- **Scatter-Dichte wirkt ~KUBISCH auf die Trigger-Chance** (3-aus-5): Strips-Scatter ×3 ⇒ Trigger
+  ×17, nicht ×3. Für „3× FS-Chance": +1 Scatter auf 3 von 5 Strips ⇒ ×3.47 bei 1-in-18; Ante-Kosten
+  aus Voll-Sim (Base-Pays sinken leicht durch ersetzte Lows, FS-Retrigger steigen mit).
+- **Buy-Präsentation = natürlicher Trigger:** Stops deterministisch zwingen (Scatter-Reel: nächstes
+  Fenster mit EXAKT 1 Scatter; Rest: scatter-frei), Settlement kodiert finale Stops → die normale
+  Landing-Choreo (2 landen → Tease → Rest) läuft von selbst, kein Sonder-Pfad.
+
 ## 4. Audio-Regeln (hart, zweimal gelernt)
 
 - **DAS KRACKEN = CLIPPING durch 0-dBFS-Assets** (2026-07-18 diagnostiziert): jede Roh-

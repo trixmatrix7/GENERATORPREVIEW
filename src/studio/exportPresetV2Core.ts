@@ -42,6 +42,10 @@ export interface PresetInputs {
   bare: boolean;
   exportedAt: string;
   generatorVersion: string;
+  /** Full live presentation/tuning inventory (src/data/*PresentationTuning.json)
+   *  — the 1:1 block the partner replays: symbol muls, tease, marquee,
+   *  landing, layout rules, audio design volumes + mixing rules. */
+  presentationTuning?: Record<string, unknown>;
 }
 
 // ── Layout constants (drift-asserted against the runtime in buildPresets) ──
@@ -132,6 +136,12 @@ const MECHANICS: Record<GameKey, Record<string, unknown>[]> = {
       params: { trigger: '3rd-scatter-land', oneShot: true } },
     { id: 'scatter-trigger-beat', kind: 'win-presentation', enabled: true, affectsMath: false,
       params: { scatterWinSheetOnTrigger: true, growScale: 1.28, note: 'no fly-to-center collect; win anim + zoom only' } },
+    { id: 'buy-stages', kind: 'base-feature', enabled: true, affectsMath: true,
+      mathBinding: ['custom.viceBuyStages'],
+      params: { presentation: 'forced stops carry the bought scatter count — 2 land, tease arms, rest drop like a natural trigger; board evaluated in full (display == payout)' } },
+    { id: 'ante-bet', kind: 'base-feature', enabled: true, affectsMath: true,
+      mathBinding: ['custom.anteBet'],
+      params: { label: '3x FREE SPINS CHANCE', note: 'toggle: every spin costs bet x anteBet.costMult and runs on anteBet.reelStrips (certified ~3x natural trigger chance)' } },
   ],
   crackfarm: [
     { id: 'paylines', kind: 'win-presentation', enabled: true, affectsMath: true,
@@ -433,6 +443,7 @@ export function buildPresetV2(i: PresetInputs): Record<string, unknown> {
     extras: {
       profileId: i.profileId,
       sizing: sizingPackage(i.game, i.gridId),
+      ...(i.presentationTuning ? { presentationTuning: i.presentationTuning } : {}),
       schemaNotes,
       rtpNote: 'rtpBps is the operative certified RTP; targetRtpPct is display metadata only',
     },

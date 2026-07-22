@@ -55,6 +55,42 @@ export class MockHost {
     return stops;
   }
 
+  /** FORCE a board with exactly `want` scatters for a staged vice buy:
+   *  reels are picked from the randomness (variety), each scatter reel's
+   *  stop slides forward to the nearest window with EXACTLY one scatter,
+   *  every other reel to the nearest scatter-free window. Deterministic —
+   *  settlement encodes the final stops, the display just renders them. */
+  private forceScatterStops(stops: number[], randomness: `0x${string}`, want: number): number[] {
+    const reels = this.config.reelStrips.length;
+    const rows = this.config.gridConfig.visibleRows;
+    const scatterId = 1;
+    const windowScatters = (reel: number, stop: number): number => {
+      const strip = this.config.reelStrips[reel];
+      let n = 0;
+      for (let row = 0; row < rows; row++) if (strip[(stop + row) % strip.length] === scatterId) n++;
+      return n;
+    };
+    // Reel pick: seeded shuffle from the tail of the randomness.
+    let seed = BigInt(randomness) >> 128n;
+    const order = Array.from({ length: reels }, (_, i) => i);
+    for (let i = reels - 1; i > 0; i--) {
+      const j = Number(seed % BigInt(i + 1));
+      seed >>= 8n;
+      [order[i], order[j]] = [order[j], order[i]];
+    }
+    const scatterReels = new Set(order.slice(0, want));
+    const out = [...stops];
+    for (let reel = 0; reel < reels; reel++) {
+      const target = scatterReels.has(reel) ? 1 : 0;
+      const len = this.config.reelStrips[reel].length;
+      for (let off = 0; off < len; off++) {
+        const pos = (stops[reel] + off) % len;
+        if (windowScatters(reel, pos) === target) { out[reel] = pos; break; }
+      }
+    }
+    return out;
+  }
+
   /** Visible board from stops against THIS config's strips + grid. */
   private buildBoardCfg(stops: number[]): number[][] {
     const rows = this.config.gridConfig.visibleRows;
@@ -170,17 +206,39 @@ export class MockHost {
     // free-spins round plays at the BASE bet derived from the configured cost.
     // Mirrors SlotGame.sol onRandomness exactly.
     const bonusBuyCost = (this.config as { bonusBuyCost?: number }).bonusBuyCost;
-    const buyBonus = !!bonusBuyCost
-      && typeof gameData === 'string' && gameData.length >= 66
-      && decodeAbiParameters([{ type: 'bool' }], gameData as `0x${string}`)[0] === true;
-    const bet = buyBonus ? (wager * 100n) / BigInt(Math.round(bonusBuyCost! * 100)) : wager;
+    // VICE staged buys + ante (gameData = abi.encode(uint8)): 1 = buy 3sc,
+    // 2 = buy 4sc, 3 = ante spin (3x-FS-chance strips). bool(true) from the
+    // legacy path decodes as 1 too — games WITHOUT viceBuyStages keep the
+    // old jump-to-FS behaviour below.
+    const viceStages = (this.config as { viceBuyStages?: Array<{ stage: number; scatters: number; costMult: number }> }).viceBuyStages;
+    const anteBet = (this.config as { anteBet?: { costMult: number; reelStrips: number[][] } }).anteBet;
+    let stageCode = 0;
+    if (typeof gameData === 'string' && gameData.length >= 66) {
+      try { stageCode = Number(decodeAbiParameters([{ type: 'uint8' }], gameData as `0x${string}`)[0]); } catch { stageCode = 0; }
+    }
+    const viceBuy = viceStages?.find(st => st.stage === stageCode);
+    const viceAnte = stageCode === 3 && !!anteBet;
+    const buyBonus = !viceBuy && !viceAnte && !!bonusBuyCost && stageCode === 1;
+    const bet = viceBuy ? wager / BigInt(viceBuy.costMult)
+      : viceAnte ? (wager * 100n) / BigInt(Math.round(anteBet!.costMult * 100))
+      : buyBonus ? (wager * 100n) / BigInt(Math.round(bonusBuyCost! * 100)) : wager;
+    // Ante spins run on the 3x-scatter strips for THIS spin (the certified
+    // ante model swaps the reels; FS rounds inside keep the base strips).
+    const baseStrips = this.config.reelStrips;
+    if (viceAnte) (this.config as unknown as { reelStrips: readonly (readonly number[])[] }).reelStrips = anteBet!.reelStrips;
     // Session cap is the VERSION's max win — 5000x / 10000x / 15000x. Reading it
     // from config (not a hardcoded 5000) keeps settlement's clamp identical to
     // the display's capAmount (PixiApp) and the simulator's per-version cap.
     const maxWin = bet * BigInt((this.config as { maxWinMultiplier?: number }).maxWinMultiplier ?? 5000);
 
     // 1. Base spin (evaluated at the base bet; a purchased round skips its win)
-    const stops = this.deriveStops(randomness);
+    let stops = this.deriveStops(randomness);
+    // Staged VICE buy: the stops are FORCED so the visible board carries
+    // EXACTLY the bought scatter count — the presentation then lands 2,
+    // arms the tease and drops the rest like a natural trigger, and the
+    // board is evaluated in full (scatter pay + incidental line wins are
+    // part of the certified buy price; display == payout).
+    if (viceBuy) stops = this.forceScatterStops(stops, randomness, viceBuy.scatters);
     const board = this.buildBoardCfg(stops);
     const baseEval = evalWins(board, bet, this.config);
     const scatterCount = baseEval.scatterCount;
@@ -193,6 +251,7 @@ export class MockHost {
       if (totalWin > maxWin) totalWin = maxWin;
       freeSpinsTriggered = scatterCount >= 3;
     }
+    if (viceAnte) (this.config as unknown as { reelStrips: readonly (readonly number[])[] }).reelStrips = baseStrips;
 
     // 1b. BASE-GAME PLANT FEATURE — the screen darkens, the pads light up and
     // 1..5 multiplied plants slide in; THIS spin is then re-evaluated with the

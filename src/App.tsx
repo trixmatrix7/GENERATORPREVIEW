@@ -13,7 +13,7 @@ import { ULTRA_CLEAN } from '@/audio/soundPresets';
 import { Sidebar } from '@/ui/Sidebar';
 import { GameCanvas } from '@/ui/GameCanvas';
 import { ControlBar } from '@/ui/ControlBar';
-import { BonusBuyOverlay, FruitBuyRail } from '@/ui/BonusBuyOverlay';
+import { BonusBuyOverlay, FruitBuyRail, ViceBuyRail, type ViceBuyStageDef } from '@/ui/BonusBuyOverlay';
 import { StudioDrawer } from '@/studio/StudioDrawer';
 import { DEFAULT_GAME_CONFIG, type GameConfig } from '@/engine/GameConfig';
 import { GRID_5x3, GRID_5x5, GRID_6x5 } from '@/config/gridConfig';
@@ -510,6 +510,7 @@ export function App() {
     handleSpin,
     handleBuyBonus,
     handleBuyFruit,
+    handleBuyVice,
     handleSkip,
     handleAutoSpin,
     handleStopAuto,
@@ -735,7 +736,14 @@ export function App() {
                 }} />
               : loadActiveGame() === 'fruitstacks'
                 ? <FruitBuyRail betDisplay={state.betDisplay} bonusActive={fsRoundOn} onBuy={stage => { void handleBuyFruit(stage); }} />
-                : null)
+                : (gameConfig as { viceBuyStages?: ViceBuyStageDef[] }).viceBuyStages
+                  ? <ViceBuyRail
+                      betDisplay={state.betDisplay}
+                      stages={(gameConfig as { viceBuyStages?: ViceBuyStageDef[] }).viceBuyStages!}
+                      anteCostMult={(gameConfig as { anteBet?: { costMult: number } }).anteBet?.costMult}
+                      onBuy={stage => { void handleBuyVice(stage); }}
+                    />
+                  : null)
           : null}
         controls={
           <div style={{ opacity: introOpen || fsIntroOpen ? 0 : 1, pointerEvents: introOpen || fsIntroOpen ? 'none' : 'auto', transition: 'opacity 0.6s ease' }}>

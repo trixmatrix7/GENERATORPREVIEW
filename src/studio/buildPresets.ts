@@ -11,6 +11,7 @@ import { loadGridId, type GridId } from '@/dev/PresetDock';
 import { manifestForProfile } from '@/config/activeMath';
 import { defaultSoundConfig } from '@/audio/defaultSoundConfig';
 import { buildPresetV2, type GameKey, type ResolvedAudioEvent } from './exportPresetV2Core';
+import viceTuning from '@/data/vicePresentationTuning.json';
 
 const BUILDS_KEY = 'vice:builds';
 const BARE_KEY = 'vice:bare';
@@ -224,7 +225,8 @@ export function buildExportPreset(name: string): Record<string, unknown> {
     audioEvents,
     bare: isBareBuild(),
     exportedAt: new Date().toISOString(),
-    generatorVersion: '2.0.0',
+    generatorVersion: '2.1.0',
+    presentationTuning: game === 'vice' ? (viceTuning as Record<string, unknown>) : undefined,
   });
 }
 

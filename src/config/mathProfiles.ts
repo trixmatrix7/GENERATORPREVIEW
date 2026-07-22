@@ -57,6 +57,10 @@ function fromManifest(m: Record<string, unknown>): GameConfig {
     // 4+-scatter trigger plays STICKY towers capped at stickyTowerCap (the
     // mock settles with both so display and payout match).
     expandingWildsInFS: !!(m['custom'] as { expandingWildsInFreeSpins?: boolean } | undefined)?.expandingWildsInFreeSpins,
+    // Vice-Heat bonus buys (3sc/4sc at fixed prices) + the 3x-FS-chance ante
+    // (certified strips + cost live in the manifest custom block).
+    viceBuyStages: (m['custom'] as { viceBuyStages?: Array<{ stage: number; scatters: number; costMult: number }> } | undefined)?.viceBuyStages,
+    anteBet: (m['custom'] as { anteBet?: { costMult: number; reelStrips: number[][] } } | undefined)?.anteBet,
     stickyTowerCap: (m['custom'] as { stickyTowerCap?: number } | undefined)?.stickyTowerCap ?? 2,
     // Small fixed retrigger award (custom rule) — undefined keeps the
     // template's re-award-freeSpinsCount behaviour.

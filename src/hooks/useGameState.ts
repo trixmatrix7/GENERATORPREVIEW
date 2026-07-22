@@ -11,6 +11,7 @@ import { activePayModel } from '@/game/winEval';
 import { encodeAbiParameters } from 'viem';
 import type { PixiApp } from '@/game/PixiApp';
 import { EMPTY_HEX, GAME_CONFIG } from '@/config/gameConfig';
+import { mathProfileById, loadMathProfileId } from '@/config/mathProfiles';
 
 const SPIN_TIMEOUT_MS = 60_000;
 
@@ -142,9 +143,56 @@ export function useGameState(
     }, SPIN_TIMEOUT_MS);
 
     try {
+      // VICE ANTE ("3x FS chance"): while toggled, every spin costs
+      // bet x anteMult and runs on the certified 3x-scatter strips —
+      // gameData uint8(3) tells settlement to swap them for this spin.
+      const anteBet = (mathProfileById(loadMathProfileId()).build?.() as { anteBet?: { costMult: number } } | undefined)?.anteBet;
+      const anteOn = !!anteBet && localStorage.getItem('vice:ante') === '1';
+      const anteWager = anteOn
+        ? (wager * BigInt(Math.round(anteBet!.costMult * 100))) / 100n
+        : wager;
       const { sessionKey } = await hostApi.openSession({
-        wager: current.betBaseUnits,
-        gameData: encodeGameData(),
+        wager: anteWager.toString(),
+        gameData: anteOn ? encodeAbiParameters([{ type: 'uint8' }], [3]) : encodeGameData(),
+        randomnessRequestData: EMPTY_HEX,
+      });
+      dispatch({ type: 'SESSION_OPENED', payload: { sessionKey } });
+    } catch (err: unknown) {
+      if (spinTimerRef.current) { clearTimeout(spinTimerRef.current); spinTimerRef.current = null; }
+      const msg = err instanceof Error ? err.message : 'Transaction failed.';
+      dispatch({ type: 'ERROR', payload: mapTxError(msg) });
+    }
+  }, [hostApi, snapshot, pixiApp]);
+
+  // VICE staged bonus buy: stage 1 = 3-scatter round (100x), stage 2 =
+  // 4-scatter sticky round — wager = bet x costMult, gameData carries the
+  // stage; settlement forces the scatters onto the board so the spin
+  // presents like a natural trigger (2 land, tease, rest drop in).
+  const handleBuyVice = useCallback(async (stage: number) => {
+    if (!hostApi || !snapshot) return;
+    const current = stateRef.current;
+    if (current.phase !== 'idle') return;
+    const stages = (mathProfileById(loadMathProfileId()).build?.() as { viceBuyStages?: Array<{ stage: number; costMult: number }> } | undefined)?.viceBuyStages;
+    const st = stages?.find(x => x.stage === stage);
+    if (!st) return;
+    const baseBet = BigInt(current.betBaseUnits || '0');
+    const cost = baseBet * BigInt(st.costMult);
+    const balance = BigInt(snapshot.balances.smartVaultBalance ?? '0');
+    if (cost <= 0n || cost > balance) return;
+
+    dispatch({ type: 'SPIN_REQUESTED' });
+    pixiApp?.spin();
+    if (spinTimerRef.current) clearTimeout(spinTimerRef.current);
+    spinTimerRef.current = setTimeout(() => {
+      const ph = stateRef.current.phase;
+      if (ph === 'spinning' || ph === 'awaiting_tx' || ph === 'resolving') {
+        dispatch({ type: 'ERROR', payload: 'Spin timed out — please try again.' });
+      }
+    }, SPIN_TIMEOUT_MS);
+    try {
+      const { sessionKey } = await hostApi.openSession({
+        wager: cost.toString(),
+        gameData: encodeAbiParameters([{ type: 'uint8' }], [stage]),
         randomnessRequestData: EMPTY_HEX,
       });
       dispatch({ type: 'SESSION_OPENED', payload: { sessionKey } });
@@ -264,6 +312,7 @@ export function useGameState(
     handleSpin,
     handleBuyBonus,
     handleBuyFruit,
+    handleBuyVice,
     handleSkip,
     handleAutoSpin,
     handleStopAuto,

@@ -103,6 +103,99 @@ export function FruitBuyRail({ betDisplay, onBuy, bonusActive = false }: { betDi
   );
 }
 
+// ── VICE HEAT: staged buys (3sc/4sc) + 3x-FS-chance ante. PLACEHOLDER cards
+// (styled frames, no PNGs yet) — the dev re-links the real card art; wiring,
+// prices and the ante toggle are final. Round trigger sits bottom-left with a
+// little air to the reel frame (Noski).
+export interface ViceBuyStageDef { stage: number; scatters: number; costMult: number }
+
+export function ViceBuyRail({ betDisplay, stages, anteCostMult, onBuy }: {
+  betDisplay: string;
+  stages: ViceBuyStageDef[];
+  anteCostMult?: number;
+  onBuy?: (stage: number) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [confirm, setConfirm] = useState<ViceBuyStageDef | null>(null);
+  const [ante, setAnte] = useState(() => localStorage.getItem('vice:ante') === '1');
+  const bet = Math.max(0.01, Number(betDisplay || '0'));
+  const toggleAnte = () => {
+    const next = !ante;
+    setAnte(next);
+    localStorage.setItem('vice:ante', next ? '1' : '0');
+    uiSfx.click();
+  };
+  const V_FONT = "'Rubik', ui-sans-serif, system-ui, sans-serif";
+  const cardBase = {
+    position: 'relative' as const, width: 168, height: 236, cursor: 'pointer', borderRadius: 18,
+    border: '3px solid #ff4fa3', background: 'linear-gradient(180deg,#2a1140 0%, #14082a 100%)',
+    boxShadow: '0 6px 22px rgba(0,0,0,0.55), inset 0 2px 5px rgba(255,255,255,0.12)',
+    display: 'flex', flexDirection: 'column' as const, alignItems: 'center', justifyContent: 'center',
+    gap: 10, textAlign: 'center' as const, padding: 12, fontFamily: V_FONT,
+  };
+  return (
+    <>
+      {/* small round trigger, bottom-left with air to the reel frame */}
+      <button onClick={() => { uiSfx.open(); setOpen(true); }} title="Bonus buy" style={{
+        position: 'absolute', left: 18, bottom: 86, zIndex: 40, width: 58, height: 58, borderRadius: '50%',
+        border: '2px solid #ffd75e', cursor: 'pointer',
+        background: 'radial-gradient(circle at 34% 28%, #ff9ad0 0%, #ff3d9a 46%, #a3125e 100%)',
+        boxShadow: '0 4px 14px rgba(0,0,0,0.55), inset 0 2px 3px rgba(255,255,255,0.5), inset 0 -4px 8px rgba(0,0,0,0.35)',
+        color: '#fff', fontWeight: 900, fontStyle: 'italic', fontSize: 10.5, lineHeight: 1.05,
+        display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center', fontFamily: V_FONT,
+      }}>BONUS<br />BUY{ante ? <span style={{ position: 'absolute', bottom: -6, right: -8, background: '#ffd75e', color: '#3a0f24', borderRadius: 8, fontSize: 8.5, fontStyle: 'normal', padding: '1px 5px' }}>3xFS</span> : null}</button>
+
+      {!open ? null : (
+        <div onClick={() => setOpen(false)} style={{
+          position: 'absolute', inset: 0, zIndex: 60, display: 'flex', flexDirection: 'column',
+          alignItems: 'center', justifyContent: 'center', gap: 14, overflow: 'auto', padding: 14,
+          background: 'rgba(10,4,18,0.85)', backdropFilter: 'blur(3px)', fontFamily: V_FONT,
+        }}>
+          <div onClick={e => e.stopPropagation()} style={{ display: 'flex', gap: 14, flexWrap: 'wrap', justifyContent: 'center', maxWidth: '96%' }}>
+            {/* ANTE toggle card */}
+            {anteCostMult ? (
+              <div onClick={toggleAnte} style={{ ...cardBase, border: ante ? '3px solid #ffd75e' : cardBase.border }}>
+                <div style={{ color: '#ff9ad0', fontWeight: 900, fontStyle: 'italic', fontSize: 17, lineHeight: 1.1 }}>3x FREE SPINS<br />CHANCE</div>
+                <div style={{ color: 'rgba(255,255,255,0.75)', fontSize: 11 }}>Jeder Spin kostet x{anteCostMult} — Scatter erscheinen 3x so oft</div>
+                <div style={{ color: '#ffd75e', fontWeight: 900, fontSize: 16 }}>{money(bet * anteCostMult)} / Spin</div>
+                <div style={{
+                  padding: '4px 16px', borderRadius: 999, fontWeight: 900, fontSize: 12,
+                  background: ante ? 'linear-gradient(180deg,#ffd75e,#f7a733)' : '#3c1f57', color: ante ? '#3a0f24' : '#cbb3e6',
+                }}>{ante ? 'AKTIV' : 'AUS'}</div>
+              </div>
+            ) : null}
+            {/* BUY cards */}
+            {stages.map(st => (
+              <div key={st.stage} onClick={() => { uiSfx.click(); setConfirm(st); }} style={cardBase}>
+                <div style={{ color: '#7ff3ff', fontWeight: 900, fontStyle: 'italic', fontSize: 17, lineHeight: 1.1 }}>BUY<br />{st.scatters} SCATTER</div>
+                <div style={{ color: 'rgba(255,255,255,0.75)', fontSize: 11 }}>{st.scatters >= 4 ? '10 Sticky-Tower-Spins' : '7 Expanding-Wild-Spins'}</div>
+                <div style={{ color: '#ffd75e', fontWeight: 900, fontSize: 18 }}>{money(bet * st.costMult)}</div>
+                <div style={{ color: 'rgba(255,255,255,0.45)', fontSize: 10 }}>{st.costMult}x Einsatz</div>
+              </div>
+            ))}
+          </div>
+          <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: 11 }}>tap outside to close</div>
+          {confirm && (
+            <div onClick={e => e.stopPropagation()} style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(10,4,18,0.6)' }}>
+              <div style={{
+                width: 300, borderRadius: 20, border: '3px solid #ff4fa3', padding: '22px 18px',
+                background: 'linear-gradient(180deg,#2a1140 0%, #14082a 100%)', textAlign: 'center',
+              }}>
+                <div style={{ color: '#7ff3ff', fontWeight: 900, fontStyle: 'italic', fontSize: 17 }}>BUY {confirm.scatters} SCATTER</div>
+                <div style={{ color: '#fff', fontWeight: 900, fontSize: 24, margin: '12px 0' }}>{money(bet * confirm.costMult)}</div>
+                <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
+                  <button onClick={() => { uiSfx.click(); setConfirm(null); }} style={{ padding: '8px 20px', borderRadius: 10, border: '2px solid #8a7a92', background: '#241533', color: '#e0cfec', fontWeight: 800, cursor: 'pointer', fontFamily: V_FONT }}>BACK</button>
+                  <button onClick={() => { uiSfx.click(); onBuy?.(confirm.stage); setConfirm(null); setOpen(false); }} style={{ padding: '8px 24px', borderRadius: 10, border: '2px solid #ffd75e', background: 'linear-gradient(180deg,#ffd75e,#f7a733)', color: '#3a0f24', fontWeight: 900, cursor: 'pointer', fontFamily: V_FONT }}>OK</button>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </>
+  );
+}
+
 export function BonusBuyOverlay({ betDisplay, onBuy }: { betDisplay: string; onBuy?: (id: string, kind: Card['kind']) => void }) {
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState<Set<string>>(new Set());

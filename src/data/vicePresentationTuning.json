@@ -1,0 +1,541 @@
+{
+ "symbols": {
+  "sizeMuls": {
+   "comment": "SYMBOL_SIZE_MULS overrides set in the vice branch (src/App.tsx:358-359). Base rule without an override (src/game/AnimatedSymbol.ts:842): scatter 1.2, all others 1.0.",
+   "perId": {
+    "0": 0.8,
+    "1": 0.96,
+    "2": 0.8,
+    "3": 0.8,
+    "4": 0.8,
+    "5": 0.8,
+    "6": 0.8,
+    "7": 0.8,
+    "8": 0.8,
+    "9": 0.8
+   },
+   "note": "ids 0-9 all set to 0.8 first, then scatter id 1 overwritten to 0.96",
+   "globalObjectScale": {
+    "param": "symbolSize",
+    "default": "large",
+    "value": 1.3,
+    "presets": {
+     "normal": 1,
+     "large": 1.3,
+     "xl": 1.6
+    },
+    "source": "src/config/symbolSizing.ts"
+   }
+  },
+  "staticLook": {
+   "STATIC_LOOK_SYMBOLS": [
+    1
+   ],
+   "comment": "scatter keeps clean static look — no landing squash, no idle/featured warping (App.tsx:399)"
+  },
+  "noIdle": {
+   "NO_IDLE_SYMBOLS": [
+    0
+   ],
+   "comment": "wild keeps hard landing slam but no fallback idle breathing (App.tsx:402)"
+  },
+  "winSheetFramed": {
+   "SYMBOL_WIN_SHEET_FRAMED": [],
+   "comment": "EMPTY for vice — only Crack Farm adds ids 1-8; vice win sheets render with the default soft-mask vignette treatment"
+  },
+  "spritesheets": {
+   "winSheets": [
+    {
+     "symbolId": 2,
+     "file": "theme/vice/prem_a_win.webp",
+     "cols": 7,
+     "rows": 7,
+     "frames": 48,
+     "fps": 12
+    },
+    {
+     "symbolId": 3,
+     "file": "theme/vice/prem_b_win.webp",
+     "cols": 7,
+     "rows": 7,
+     "frames": 48,
+     "fps": 12
+    },
+    {
+     "symbolId": 4,
+     "file": "theme/vice/car_win.webp",
+     "cols": 7,
+     "rows": 7,
+     "frames": 48,
+     "fps": 12
+    },
+    {
+     "symbolId": 5,
+     "file": "theme/vice/koffer_win.webp",
+     "cols": 7,
+     "rows": 7,
+     "frames": 48,
+     "fps": 12
+    },
+    {
+     "symbolId": 1,
+     "file": "theme/vice/scatterwin.webp",
+     "cols": 8,
+     "rows": 9,
+     "frames": 67,
+     "fps": 15
+    }
+   ],
+   "idleSheets": [
+    {
+     "symbolId": 1,
+     "file": "theme/vice/scatteridle.webp",
+     "cols": 10,
+     "rows": 9,
+     "frames": 90,
+     "fps": 10,
+     "comment": "9s seamless loop replaces static scatter art on the board"
+    }
+   ],
+   "landSheets": [],
+   "wildNote": "WILD(0) has no win sheet"
+  },
+  "staticArt": {
+   "source": "src/config/viceAssets.ts — public/theme/vice/",
+   "map": {
+    "0": "symbol_wild_landing.png",
+    "1": "symbol_scatter_landing.png",
+    "2": "symbol_high_a_landing.png",
+    "3": "symbol_high_b_landing.png",
+    "4": "symbol_mid_c_landing.png",
+    "5": "symbol_mid_d_landing.png",
+    "6": "symbol_low_e_landing.png",
+    "7": "symbol_low_f_landing.png",
+    "8": "symbol_low_g_landing.png"
+   },
+   "coinNote": "COIN(9) has no baked art — falls back to theme"
+  }
+ },
+ "tease": {
+  "preset": "universal-anticipation (TEASE_PRESETS[0] is the default active; vice never switches it — src/game/effects/teaseRegistry.ts:25-29)",
+  "scatterLandedFx": false,
+  "scatterLandedFxNote": "teaseTuning.scatterLandedFx = false set in vice branch (App.tsx:362) — no burst/brackets/dim on landed cells; pending-reel gold gate + rising embers stay",
+  "cameraPovDolly": {
+   "base": 1.06,
+   "perStep": 0.05,
+   "formula": "scale = 1.06 + 0.05 * step (step 0 = 2nd scatter landed, +1 per landed teased reel) — PixiApp.ts:4519",
+   "zoomIn": {
+    "duration": 0.65,
+    "ease": "power2.out"
+   },
+   "releaseOnMiss": {
+    "duration": 0.9,
+    "ease": "back.out(1.4)"
+   },
+   "pinned": "machine centre; on HIT the lock is kept until the FS iris black beat"
+  }
+ },
+ "winPresentation": {
+  "waysImmersive": {
+   "enabled": true,
+   "comment": "vice does NOT disable it (only crackfarm/fruitstacks do) — the leap/dance IS vice's win presentation and it suppresses the ways-light comet + line/dot decoration (ReelSet.ts:1918)",
+   "dimAlpha": 1,
+   "stagger": 0.07,
+   "danceValues": {
+    "jumpPx": {
+     "intense": 18,
+     "resting": 10
+    },
+    "tiltRad": {
+     "intense": 0.08,
+     "resting": 0.04
+    },
+    "slamPx": {
+     "intense": 5,
+     "resting": 2.5
+    },
+    "timeline": "up 0.15s power3.out; wiggle rot 0.08/0.12/0.12s sine; slam down 0.11s power3.in @0.22; return 0.3s back.out(3.5) @0.33"
+   }
+  },
+  "waysLightConfig": {
+   "enabled": true,
+   "color": "0xffffff (white, default — vice never sets waysLightColor)",
+   "width": 2.4,
+   "stepMs": 130,
+   "cellSize": "120 (set by ReelSet from grid cell width)",
+   "speedPresets": {
+    "slow": 210,
+    "normal": 130,
+    "fast": 80
+   },
+   "widthPresets": {
+    "thin": 1.6,
+    "medium": 2.4,
+    "bold": 3.6
+   },
+   "colorPresets": {
+    "white": "0xffffff",
+    "ice": "0x9fe8ff",
+    "gold": "0xffe08a",
+    "purple": "0xc9a3ff",
+    "green": "0x9dffc2",
+    "pink": "0xff9fd6"
+   },
+   "effectiveInVice": "suppressed at runtime because waysImmersiveConfig.enabled=true"
+  },
+  "winLineColor": {
+   "default": "0xFFC53D (WIN_LINE_COLOR, warm-gold line underlay + dot ring — ReelSet.ts:47)",
+   "strokeWidth": 11,
+   "strokeAlpha": 0.9,
+   "dotStrokeWidth": 3
+  },
+  "marquee": {
+   "sizeMul": 0.624,
+   "sizeMulExpr": "setWinTierGeometry({ sizeMul: 0.48 * 1.3 }) — vice call, App.tsx:365; base default 0.48, +30% Noski",
+   "dimAlpha": 0,
+   "geometry": "VICE_GEO (default, kept because vice passes only sizeMul): tierCy { big: 0.2273, mega: 0.2463, epic: 0.2495, max: 0.2269 }, winCy 0.4875, plateCy 0.7681, plateH 0.374, contentFrac 0.911, contentCy (0.0444+0.9546)/2 = 0.4995",
+   "config": {
+    "minBigWin": 15,
+    "bands": {
+     "mega": 25,
+     "epic": 100
+    },
+    "countDur": [
+     2.6,
+     3.6,
+     4.6,
+     5.6
+    ],
+    "holdDur": [
+     1,
+     1.2,
+     1.4,
+     1.8
+    ],
+    "shake": [
+     0,
+     5,
+     8,
+     12
+    ],
+    "shakeRot": [
+     0,
+     0.006,
+     0.01,
+     0.016
+    ],
+    "tierScale": [
+     1,
+     1.16,
+     1.34,
+     1.6
+    ],
+    "pulseAmp": 0.03,
+    "maxNote": "MAX tier only when the max-win cap is hit, not a band"
+   },
+   "tierArt": {
+    "big": "theme/win-tiers/big.png",
+    "mega": "theme/win-tiers/mega.png",
+    "epic": "theme/win-tiers/epic.png",
+    "max": "theme/win-tiers/max.png",
+    "win": "theme/win-tiers/win.png",
+    "plate": "theme/win-tiers/plate.png"
+   },
+   "coinRain": {
+    "sheets": [
+     "theme/win-tiers/coinrain3_0.webp",
+     "theme/win-tiers/coinrain3_1.webp",
+     "theme/win-tiers/coinrain3_2.webp"
+    ],
+    "cols": 10,
+    "rows": 10,
+    "frames": 300,
+    "fps": 45
+   }
+  },
+  "tallyHooks": {
+   "scaleSteps": [
+    1,
+    1.125,
+    1.25,
+    1.3333333333333333,
+    1.5
+   ],
+   "scaleStepsExpr": "[1, 9/8, 5/4, 4/3, 3/2] — major scale steps, App.tsx:617",
+   "tickRate": "SCALE[min(len-1, floor(progress*len))] * (0.99 + random*0.02)",
+   "terminator": "play('win-tally-end') when the number lands or on skip",
+   "tierSlamRate": "2^((2*tier)/12) — tier-up pitched +2 semitones per tier",
+   "mutedNote": "win-tally-tick / win-tally-end / tier-up all at design volume 0 (audio rollback, Noski 'audio fatal') — hooks stay wired, re-enable by dropping real .ogg + raising volume"
+  }
+ },
+ "landing": {
+  "statePreset": {
+   "id": "dev-default",
+   "comment": "vice never calls setActiveStatePreset — active stays STATE_PRESETS[0] = untouched FALLBACK_TIMINGS (src/config/symbolAnimations.ts)",
+   "timings": {
+    "landing": {
+     "downDuration": 0.06,
+     "upDuration": 0.18,
+     "settleDuration": 0.14,
+     "scaleCompress": 0.78,
+     "scaleOvershoot": 1.18,
+     "rotationKick": 3
+    },
+    "landBounce": {
+     "squashDuration": 0.07,
+     "overshootDuration": 0.1,
+     "settleDuration": 0.16,
+     "scaleSquashY": 0.9,
+     "scaleStretchY": 1.06
+    },
+    "win": {
+     "scalePeak": 1.34,
+     "pulseUp": 0.3,
+     "pulseHold": 0.3,
+     "pulseDown": 0.32,
+     "pulsePause": 0.45
+    },
+    "idle": {
+     "breatheDuration": 2,
+     "scalePeak": 1.05,
+     "floatAmplitude": 2
+    },
+    "featured": {
+     "glowDuration": 0.4,
+     "alphaMin": 0.4,
+     "scalePeak": 1.25,
+     "rotationSwing": 5
+    },
+    "nearMiss": {
+     "extraDuration": 1.1,
+     "teasePause": 0.35
+    }
+   }
+  },
+  "landingImpactConfig": {
+   "comment": "module defaults from src/game/effects/LandingImpact.ts — vice branch does not touch them (only crackfarm/fruitstacks override)",
+   "enabled": true,
+   "squashMul": 1.7,
+   "stretchMul": 1.6,
+   "rotationMul": 1.8,
+   "snapMul": 0.75,
+   "thud": true,
+   "thudAmp": 2.2,
+   "thudLastAmp": 4,
+   "clamps": "impactSquash floor 0.6, impactStretch cap 1.45"
+  }
+ },
+ "layout": {
+  "logo": {
+   "file": "theme/vice/logo.webp",
+   "placement": "top (setTitleImage default layout — vice passes no layout arg)",
+   "sizeRule": "scale = min((gridWidth*0.6)/texW, 150/texH) — max 60% of grid width AND max 150 scene-px tall; anchor (0.5, 1); x = rw/2; y = HEADER_H - 2 (bottom edge just above frame) — PixiApp.ts:730-738"
+  },
+  "frame": {
+   "file": "theme/vice/frame_neon.webp",
+   "window": {
+    "x": 197,
+    "y": 314,
+    "w": 832,
+    "h": 832
+   },
+   "windowNote": "true transparent hole measured from the 1500x1500 art's alpha, passed explicitly (App.tsx:412)",
+   "winFlash": {
+    "file": "theme/vice/frame_win_flash_1.webp",
+    "cols": 8,
+    "rows": 6,
+    "frames": 48,
+    "fps": 12,
+    "region": {
+     "x": 1025,
+     "y": 225,
+     "w": 475,
+     "h": 1062.5
+    },
+    "trigger": "fires when the 3rd scatter lands"
+   }
+  },
+  "background": {
+   "baseStatic": "theme/vice/bg_motel.webp",
+   "baseLoop": {
+    "sheets": [
+     "theme/vice/bg_motel_anim_1.webp",
+     "theme/vice/bg_motel_anim_2.webp",
+     "theme/vice/bg_motel_anim_3.webp"
+    ],
+    "cols": 4,
+    "rows": 4,
+    "frames": 45,
+    "fps": 6,
+    "note": "cross-faded seamless loop over the static art"
+   },
+   "fsLoop": {
+    "sheets": [
+     "theme/vice/fsbg_beachclub_anim_1.webp",
+     "theme/vice/fsbg_beachclub_anim_2.webp",
+     "theme/vice/fsbg_beachclub_anim_3.webp"
+    ],
+    "cols": 4,
+    "rows": 4,
+    "frames": 48,
+    "fps": 6,
+    "note": "beach-club lounge v3, full 8s take"
+   },
+   "fsIntroImage": "theme/vice/bonus_intro.png (VICE_INTRO_URL)"
+  },
+  "expandingWild": {
+   "file": "theme/vice/wild_column.webp",
+   "expectedArt": "512x2560 px (5x5) / 512x1484 px (5x3) — height-fit to active grid"
+  },
+  "gameFactor": {
+   "desktop": 0.85,
+   "compact": 0.98,
+   "scatterpays": 0.97,
+   "rule": "scale = min(scaleX, scaleY, 1.3) * factor — PixiApp.ts:610; extra clamp keeps grid out of the HUD band"
+  },
+  "renderer": {
+   "resolution": "max(2, min(devicePixelRatio, 2)) = always exactly 2 (sharpness floor/cap — PixiApp.ts:328)",
+   "filterResolution": "'inherit' (Filter.defaultOptions.resolution — PixiApp.ts:344)"
+  },
+  "introScreens": {
+   "source": "src/data/introLayers.json (all cx/cy on a 1920x1080 canvas)",
+   "game": "18 layers — bg background_intro_screen_vice.webp; 3 cards tw300 @(532,545)/(963,655)/(1385,540); logos: bonus tw250@(963,472), expanding tw265@(534,345), max tw175@(1385,298), sticky tw210@(532,295), vice_heat tw440@(963,200), vice tw180@(963,425), win tw205@(1385,352); symbols: max_win tw275@(1385,535), scatter_landing tw211@(963,604), wild tw112@(532,514); texts: max_win tw205@(1385,664), scatter tw222@(963,774), wild tw245@(532,672); press tw360@(960,985)",
+   "fs3": "6 layers — bg, card@(960,544), logo@(960,232), press@(960,972), scatter symbol tw296@(960,472), text@(960,711)",
+   "fs4": "6 layers — bg, card@(960,544), logo@(959,233), press@(960,826), scatter symbol tw296@(960,472), text@(960,704)",
+   "outro": "3 layers — fsbg_beachclub.webp bg, totalwin.webp tw640@(960,355), press.webp tw360@(960,962)"
+  },
+  "bootScreen": {
+   "title": "VICE HEAT",
+   "gradient": "#ff64c8 -> #ffd23f",
+   "barGradient": "#ff64c8 -> #7de3ff",
+   "bg": "#07070c",
+   "fadeMs": {
+    "hold": 180,
+    "fade": 650
+   }
+  }
+ },
+ "audio": {
+  "master": {
+   "initialVolume": 0.85,
+   "initialMuted": false
+  },
+  "events": {
+   "spin-start": {
+    "volume": 0.78,
+    "oggFirst": true
+   },
+   "reel-stop": {
+    "volume": 0.58,
+    "oggFirst": true
+   },
+   "win-small": {
+    "volume": 0,
+    "oggFirst": true,
+    "note": "win jingles muted by design (Noski 2026-07-22)"
+   },
+   "win-normal": {
+    "volume": 0,
+    "oggFirst": true
+   },
+   "win-big": {
+    "volume": 0,
+    "oggFirst": true
+   },
+   "win-mega": {
+    "volume": 0,
+    "oggFirst": false
+   },
+   "win-marquee": {
+    "volume": 0.95,
+    "oggFirst": true,
+    "exclusive": true
+   },
+   "scatter-land": {
+    "volume": 0.55,
+    "oggFirst": true
+   },
+   "wild-land": {
+    "volume": 0.8,
+    "oggFirst": true
+   },
+   "wild-expand": {
+    "volume": 0.85,
+    "oggFirst": true
+   },
+   "free-spin-trigger": {
+    "volume": 1,
+    "oggFirst": false
+   },
+   "near-miss-tease": {
+    "volume": 0.4,
+    "oggFirst": false
+   },
+   "reel-spin-loop": {
+    "volume": 0,
+    "oggFirst": false,
+    "loop": true,
+    "note": "OFF for vice — no bed under the spin"
+   },
+   "coin-chime": {
+    "volume": 0.3,
+    "oggFirst": true,
+    "note": "connection swish, was 0.5 then -40%"
+   },
+   "ambient-music": {
+    "volume": 0.35,
+    "oggFirst": true,
+    "loop": true,
+    "exclusive": true,
+    "note": "vice keeps default synthwave /audio/ambient-music.ogg"
+   },
+   "win-tally-tick": {
+    "volume": 0,
+    "oggFirst": true
+   },
+   "win-tally-end": {
+    "volume": 0,
+    "oggFirst": true
+   },
+   "tier-up": {
+    "volume": 0,
+    "oggFirst": true
+   },
+   "tease-riser": {
+    "volume": 0,
+    "oggFirst": true
+   },
+   "tease-miss": {
+    "volume": 0,
+    "oggFirst": true
+   }
+  },
+  "srcRule": "oggFirst: [/audio/<id>.ogg, /audio/<id>.mp3]; otherwise [/audio/<id>.wav, /audio/<id>.ogg, /audio/<id>.mp3]; unknown event volume fallback 0.7 (unused — all 20 registry events have explicit volumes)",
+  "viceNote": "vice makes ZERO replaceSource calls — the defaultSoundConfig map above IS the vice mix verbatim",
+  "uiSfx": {
+   "click": {
+    "file": "audio/library/reel-stop/modern-technology-select-fa3707.ogg",
+    "volume": 0.22
+   },
+   "spin": {
+    "file": "audio/library/reel-stop/cool-interface-click-tone-adc015.ogg",
+    "volume": 0.3
+   },
+   "open": {
+    "file": "audio/library/reel-stop/opening-software-interface-7bf9ce.ogg",
+    "volume": 0.28
+   },
+   "rule": "HTMLAudio, follows master mute + volume (effective = vol * sm.volume)"
+  },
+  "mixingRules": {
+   "marqueeStart": "duck('ambient-music', 300ms fade to 0, keeps looping muted) + play('win-marquee')",
+   "marqueeEnd": "fadeStop('win-marquee', smooth ? 900 : 260 ms) + unduck('ambient-music', smooth ? 700 : 400 ms)",
+   "duckDefaults": "SoundManager duck default 350ms, unduck default 450ms (overridden by the explicit values above)",
+   "reelSpinLoopFade": "fadeStop 450ms the moment reel 0 stops; safety fadeStop 90ms when all reels stopped",
+   "scatterDingLadder": "rate = 1 + min(n,3)*0.14 per scatter in one landing sequence; counter resets after 4000ms silence",
+   "winStepChimeLadder": "rate = 1 + min(index,8)*0.09 per connection (vice keeps the chime ladder; no per-symbol quips)",
+   "winStingerGate": "state-driven win-small/normal/big/mega thresholds 2x/10x/50x bet; ALL suppressed when ratio >= minBigWin 15 (marquee owns audio); coin-chime accents at 200/600ms (big) +1100/1700/2300ms (mega) — moot at design volume 0",
+   "ambientAutoplay": "play on mount + pointerdown/keydown unlock + first-spin fallback; exclusive flag makes double play a no-op"
+  }
+ }
+}

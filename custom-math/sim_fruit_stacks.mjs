@@ -3,7 +3,7 @@
 //   node --experimental-strip-types custom-math/sim_fruit_stacks.mjs [rounds] [--write]
 // --write bakes src/data/math_fruit_stacks.json (strips + pays + custom rules).
 
-import { deriveFruitStacksRound } from '../src/game/fruitStacksSpin.ts';
+import { deriveFruitStacksRound, BUY_STAGE_EXTRA_GIFTS } from '../src/game/fruitStacksSpin.ts';
 import { writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
@@ -11,6 +11,8 @@ import { dirname, join } from 'node:path';
 const ROUNDS = Number(process.argv[2]) || 200_000;
 const WRITE = process.argv.includes('--write');
 const BUY = process.argv.includes('--buy') ? Number(process.argv[process.argv.indexOf('--buy') + 1]) : 0;
+const GIFTS = process.argv.includes('--gifts') ? Number(process.argv[process.argv.indexOf('--gifts') + 1]) : -1;
+if (BUY > 0 && GIFTS >= 0) BUY_STAGE_EXTRA_GIFTS[BUY] = GIFTS;
 
 // ── strip generation (deterministic) ───────────────────────────────────────
 // Lows carry the hit rate (dense), mids/highs are genuinely premium (sparse

@@ -262,6 +262,34 @@ export function boardFromStops(stops: number[], cfg: FruitStacksMathConfig): num
  *  drops). Stage 1 is the plain FS round. */
 export const BUY_STAGE_START_POOL = [0, 0, 50, 100] as const;
 
+/** Bought rounds play with ENHANCED gift density (invisible standard
+ *  practice — the fixed reference prices 100/300/500× must return ~95%).
+ *  Value = extra gifts spliced into each FS strip; tuned by sim. */
+export const BUY_STAGE_EXTRA_GIFTS = [0, 0.67, 1.17, 1.5]; // sim-tuned 2026-07-22 (100k cert below)
+
+/** Deterministically splice extra gifts into the FS strips (replacing
+ *  spread-out low fruits) — bought rounds only. `extra` is the AVERAGE
+ *  per strip and may be fractional: 0.67 → +1 gift on 4 of 6 strips. */
+export function buyEnhancedStrips(strips: number[][], extra: number): number[][] {
+  if (extra <= 0) return strips;
+  const LOWS = new Set([6, 7, 8, 9, 10]);
+  const n = strips.length;
+  const totalExtra = Math.round(extra * n);
+  const perStrip = strips.map(() => 0);
+  for (let i = 0; i < totalExtra; i++) perStrip[Math.floor((i * n) / totalExtra) % n]++;
+  return strips.map((strip, si) => {
+    const out = [...strip];
+    for (let k = 0; k < perStrip[si]; k++) {
+      const anchor = Math.floor(((k + 0.5) * out.length) / Math.max(1, perStrip[si]));
+      for (let d = 0; d < out.length; d++) {
+        const i = (anchor + d) % out.length;
+        if (LOWS.has(out[i])) { out[i] = 0; break; }
+      }
+    }
+    return out;
+  });
+}
+
 /** THE round derivation — settlement and presentation both call this.
  *  `buyStage` 1-3 = purchased free spins: the base spin is only the trigger
  *  (no pays) and the stage's start pool is pre-loaded. */
@@ -274,6 +302,17 @@ export function deriveFruitStacksRound(
   const rand = rngFromHex(randomness);
   const maxWin = bet * BigInt(cfg.maxWinMultiplier);
   const startPool: number = BUY_STAGE_START_POOL[buyStage] ?? 0;
+  // bought rounds: FS spins draw from gift-enhanced strips (display renders
+  // the derived records, so the enhanced boards show 1:1)
+  const fsCfg: FruitStacksMathConfig = buyStage > 0 && BUY_STAGE_EXTRA_GIFTS[buyStage] > 0
+    ? {
+        ...cfg,
+        reelStrips: buyEnhancedStrips(cfg.reelStrips, BUY_STAGE_EXTRA_GIFTS[buyStage]),
+        // stage-1 fine trim: the x500 tail leaves the gift draws (gift
+        // granularity alone jumps 86->97; retrigger-trim overshot to 90)
+        multiWeights: buyStage === 1 ? cfg.multiWeights.filter(([v]) => v < 500) : cfg.multiWeights,
+      }
+    : cfg;
 
   let base: FruitSpin;
   if (buyStage > 0) {
@@ -297,13 +336,13 @@ export function deriveFruitStacksRound(
     let remaining = cfg.freeSpinsCount;
     let pool = startPool; // purchased stage 2/3: ×50/×100 pre-loaded
     while (remaining > 0 && fsSpins.length < cfg.freeSpinsCap) {
-      const spin = playSpin(rand, bet, cfg, pool);
-      spin.initialBoard = boardFromStops(spin.stops, cfg);
+      const spin = playSpin(rand, bet, fsCfg, pool);
+      spin.initialBoard = boardFromStops(spin.stops, fsCfg);
       pool = spin.poolAfter;
       fsSpins.push(spin);
       totalWin += spin.spinWin;
       remaining--;
-      if (spin.scatters >= 3) remaining += cfg.retriggerSpins;
+      if (spin.scatters >= 3) remaining += fsCfg.retriggerSpins;
       if (totalWin >= maxWin) { totalWin = maxWin; capped = true; break; }
     }
   }

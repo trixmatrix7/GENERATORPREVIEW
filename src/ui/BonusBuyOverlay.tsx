@@ -32,13 +32,20 @@ const FONT = "'Rubik', ui-sans-serif, system-ui, sans-serif";
 // ── FRUIT STACKS: purchased FS stages (sim-calibrated costs, min-gift
 // tiers matching the card ribbons: silver ×2+ / red ×6+ / gold ×31+). ──
 
-export function FruitBuyRail({ betDisplay, onBuy }: { betDisplay: string; onBuy?: (stage: number) => void }) {
+export function FruitBuyRail({ betDisplay, onBuy, bonusActive = false }: { betDisplay: string; onBuy?: (stage: number) => void; bonusActive?: boolean }) {
   const [open, setOpen] = useState(false);
   const [confirm, setConfirm] = useState<number | null>(null); // stage 1-3
   const bet = Math.max(0.01, Number(betDisplay || '0'));
   return (
     <>
-      {/* LEFT-RAIL trigger pill, docked under the canvas logo */}
+      {/* LEFT-RAIL: during a FS round the pill is replaced by BONUS ACTIVE */}
+      {bonusActive ? (
+        <img
+          src={`${import.meta.env.BASE_URL}theme/fruitstacks/bonus_active.png`}
+          alt="Bonus active"
+          style={{ position: 'absolute', left: '3.4%', top: '45%', zIndex: 40, width: '16%', minWidth: 130, pointerEvents: 'none' }}
+        />
+      ) : (
       <button onClick={() => { uiSfx.open(); setOpen(true); }} title="Buy bonus" style={{
         position: 'absolute', left: '4.2%', top: '46%', zIndex: 40, width: '14%', minWidth: 118,
         padding: '10px 8px', borderRadius: 999, cursor: 'pointer',
@@ -50,6 +57,7 @@ export function FruitBuyRail({ betDisplay, onBuy }: { betDisplay: string; onBuy?
         <span style={{ display: 'block', fontSize: 15, letterSpacing: 0.5 }}>BUY BONUS</span>
         <span style={{ display: 'block', fontSize: 12, color: '#d9f7c9', marginTop: 2 }}>{money(bet * FRUIT_BUY_STAGES[0].costMult)}</span>
       </button>
+      )}
 
       {!open ? null : (
         <div onClick={() => setOpen(false)} style={{

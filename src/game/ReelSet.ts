@@ -3367,6 +3367,119 @@ export class ReelSet {
   /** THE reference multi beat: every gift pulses, its ×value detaches and
    *  flies to the plate; `onArrive(runningSum)` fires per arrival so the
    *  caller appends "×sum" to the plate text. */
+  /** FS flow (Noski): gift values fly RIGHT into the POOL FIELD. */
+  async flyGiftMultisToPool(
+    gifts: { cell: [number, number]; value: number }[],
+    onArrive: (runningSum: number) => void,
+    opts: { isLive: () => boolean; turbo?: boolean },
+  ): Promise<void> {
+    if (!this.fruitPool || gifts.length === 0) return;
+    const speed = opts.turbo ? 0.55 : 1;
+    const target = { x: this.fruitPool.x, y: this.fruitPool.y };
+    let sum = 0;
+    const flights: Promise<void>[] = [];
+    for (let i = 0; i < gifts.length; i++) {
+      const g = gifts[i];
+      const [row, reel] = g.cell;
+      const rect = resolveAnchor(cellAnchor(reel, row), this.grid);
+      const cell = this.reels[reel]?.getVisibleCell(row);
+      if (cell) {
+        const inner = cell.objectLayer;
+        gsap.killTweensOf(inner.scale);
+        gsap.timeline({ delay: 0.22 * speed * i })
+          .to(inner.scale, { x: 1.16, y: 1.16, duration: 0.14 * speed, ease: 'power2.out' })
+          .to(inner.scale, { x: 1, y: 1, duration: 0.2 * speed, ease: 'back.out(2)' });
+      }
+      const label = new Text({
+        text: `×${g.value}`,
+        style: new TextStyle({
+          fontFamily: "'Poppins', ui-sans-serif, system-ui, sans-serif",
+          fontSize: 34, fontWeight: '800', fontStyle: 'italic',
+          fill: 0xffd21e, stroke: { color: 0x241300, width: 7, join: 'round' }, align: 'center',
+        }),
+      });
+      label.anchor.set(0.5);
+      label.x = rect.x + rect.w / 2;
+      label.y = rect.y + rect.h * 0.95;
+      label.eventMode = 'none';
+      this.winAmountsContainer.addChild(label);
+      flights.push(new Promise<void>(resolve => {
+        gsap.timeline({
+          delay: 0.22 * speed * i,
+          onStart: () => { this.audioHooks.onGiftFly?.(); },
+          onComplete: () => {
+            try { label.parent?.removeChild(label); label.destroy(); } catch { /* gone */ }
+            sum += g.value;
+            this.audioHooks.onPlateImpact?.();
+            if (this.fruitPool) {
+              gsap.killTweensOf(this.fruitPool.scale);
+              gsap.fromTo(this.fruitPool.scale, { x: 1.22, y: 1.22 }, { x: 1, y: 1, duration: 0.35, ease: 'back.out(2.4)' });
+            }
+            onArrive(sum);
+            resolve();
+          },
+        })
+          .to(label.scale, { x: 1.3, y: 1.3, duration: 0.2 * speed, ease: 'power1.out' })
+          .to(label, { x: (label.x + target.x) / 2, y: (label.y + target.y) / 2 - 36, duration: 0.3 * speed, ease: 'power1.inOut' }, '>')
+          .to(label, { x: target.x, y: target.y, duration: 0.28 * speed, ease: 'power2.in' }, '>')
+          .to(label.scale, { x: 0.5, y: 0.5, duration: 0.28 * speed, ease: 'power2.in' }, '<');
+      }));
+    }
+    await Promise.all(flights);
+  }
+
+  /** ROUND-END flourish: the total pool flies from its field ONTO the win
+   *  plate — then the win resolves and the marquee takes over. */
+  async flyPoolToPlaque(poolValue: number, opts: { isLive: () => boolean; turbo?: boolean }): Promise<void> {
+    if (!this.fruitPool || !this.fruitPlaque || poolValue <= 0) return;
+    const speed = opts.turbo ? 0.55 : 1;
+    const label = new Text({
+      text: `×${poolValue}`,
+      style: new TextStyle({
+        fontFamily: "'Poppins', ui-sans-serif, system-ui, sans-serif",
+        fontSize: 40, fontWeight: '900', fontStyle: 'italic',
+        fill: 0xffd21e, stroke: { color: 0x241300, width: 8, join: 'round' }, align: 'center',
+      }),
+    });
+    label.anchor.set(0.5);
+    label.x = this.fruitPool.x;
+    label.y = this.fruitPool.y;
+    label.eventMode = 'none';
+    this.container.addChild(label);
+    const tx = this.fruitPlaque.x, ty = this.fruitPlaque.y;
+    await new Promise<void>(resolve => {
+      gsap.timeline({
+        onStart: () => { this.audioHooks.onGiftFly?.(); },
+        onComplete: () => {
+          try { label.parent?.removeChild(label); label.destroy(); } catch { /* gone */ }
+          this.audioHooks.onPlateImpact?.();
+          this.punchFruitPlaque();
+          resolve();
+        },
+      })
+        .to(label.scale, { x: 1.4, y: 1.4, duration: 0.24 * speed, ease: 'power1.out' })
+        .to(label, { x: (label.x + tx) / 2, y: Math.min(label.y, ty) - 60, duration: 0.34 * speed, ease: 'power1.inOut' }, '>')
+        .to(label, { x: tx, y: ty, duration: 0.3 * speed, ease: 'power2.in' }, '>')
+        .to(label.scale, { x: 0.55, y: 0.55, duration: 0.3 * speed, ease: 'power2.in' }, '<');
+    });
+  }
+
+  /** SCATTER breathing choreo (Noski): 3/4/5 standing scatters breathe IN
+   *  SYNC — stronger per bonus tier. Killed by the next drop-out. */
+  breatheScatters(count: number): void {
+    const level = count >= 5 ? 1.13 : count >= 4 ? 1.09 : count >= 3 ? 1.055 : 0;
+    if (!level) return;
+    for (const reel of this.reels) {
+      for (let row = 0; row < this.grid.visibleRows; row++) {
+        const cell = reel.getVisibleCell(row);
+        if (!cell || cell.symbol !== SymbolId.SCATTER) continue;
+        const inner = cell.objectLayer;
+        gsap.killTweensOf(inner.scale);
+        gsap.to(inner.scale, { x: level, y: level, duration: 0.7, ease: 'sine.inOut', repeat: -1, yoyo: true });
+      }
+    }
+  }
+
   async flyGiftMultisToPlaque(
     gifts: { cell: [number, number]; value: number }[],
     onArrive: (runningSum: number) => void,

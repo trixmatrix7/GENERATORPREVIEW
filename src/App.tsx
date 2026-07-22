@@ -46,6 +46,8 @@ export function App() {
   // fades in smoothly once the player taps through.
   const [introOpen, setIntroOpen] = useState(false);
   const [fsIntroOpen, setFsIntroOpen] = useState(false);
+  // Fruit Stacks: a FS round is running — the left pill shows BONUS ACTIVE.
+  const [fsRoundOn, setFsRoundOn] = useState(false);
   // Boot loading screen INSIDE the game area (the generator shows it in the
   // game iframe, never over the studio UI): real asset progress, then fade.
   const [bootProgress, setBootProgress] = useState(0.06);
@@ -318,9 +320,9 @@ export function App() {
       // Cluster look: no reel separators — symbols read as the frontmost
       // layer on the open board (Noski).
       pixiAppRef.setSeparatorsVisible(false);
-      const Tf = `${import.meta.env.BASE_URL}theme/win-tiers/`;
+      // Fruit Stacks' OWN coin rain (green-screen mp4 baked, behind marquee)
       void pixiAppRef.setWinCoinRain(
-        [`${Tf}coinrain3_0.webp`, `${Tf}coinrain3_1.webp`, `${Tf}coinrain3_2.webp`], 10, 10, 300, 45,
+        [`${FRUITSTACKS.base}coinrain_fs_0.webp`, `${FRUITSTACKS.base}coinrain_fs_1.webp`, `${FRUITSTACKS.base}coinrain_fs_2.webp`], 10, 10, 300, 45,
       );
       // Win marquee: Noski's Fruit-Stacks layer set ("win screen" pack,
       // alpha-bbox measured fractions of the 1080p canvas — as authored).
@@ -576,6 +578,7 @@ export function App() {
     if (!pixiApp) return;
     // FS intro/iris covers the screen — hide the control bar like the game intro.
     pixiApp.onFsIntroVisible = setFsIntroOpen;
+    pixiApp.onFsRoundActive = setFsRoundOn;
     // Marquee music rides the celebration exactly: starts with the slam-in,
     // fades out WITH the staggered exit (0.9s) or fast on a skip (0.26s) —
     // the track never outlasts the marquee. The ambient music DUCKS to
@@ -702,7 +705,7 @@ export function App() {
                   if (kind === 'buy') handleBuyBonus();
                 }} />
               : loadActiveGame() === 'fruitstacks'
-                ? <FruitBuyRail betDisplay={state.betDisplay} onBuy={stage => { void handleBuyFruit(stage); }} />
+                ? <FruitBuyRail betDisplay={state.betDisplay} bonusActive={fsRoundOn} onBuy={stage => { void handleBuyFruit(stage); }} />
                 : null)
           : null}
         controls={

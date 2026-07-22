@@ -2528,6 +2528,10 @@ export class PixiApp {
     );
     if (!this.isLive) return;
 
+    // SCATTER BREATHING (Noski): 3/4/5 standing scatters breathe in sync,
+    // stronger per bonus tier.
+    if (outcome.scatterCount >= 3) this.reelSet.breatheScatters(outcome.scatterCount);
+
     // BASE spin cascade (crate badges appear as soon as the board rests).
     await this.playTumbleSpin(round.base, decimals);
     if (!this.isLive) return;
@@ -2554,20 +2558,20 @@ export class PixiApp {
       // Fruit FS-INTRO: darkened field + 15-badge + breathing CLICK TO START
       await this.playFruitFsIntro();
       if (!this.isLive) return;
-      const fsOverlay = this.showFreeSpinOverlay(round.fsSpins.length);
+      this.onFsRoundActive?.(true);
+      // Fruit Stacks: NO generic FREE SPINS/TOTAL WIN plaques (Noski) — the
+      // plate + pool field + badges carry the round. Empty stand-in object.
+      const fsOverlay = { container: new Container(), counter: null as unknown as Text, total: null as unknown as Text };
       // Purchased stage 2/3: the start pool STANDS in the multi field the
       // moment the round opens (Noski) — before the first spin rolls.
       if (round.fsSpins[0] && round.fsSpins[0].poolBefore > 0) {
         this.reelSet.setFruitPool(round.fsSpins[0].poolBefore, true);
       }
 
+      let roundWin = 0n;
       for (let i = 0; i < round.fsSpins.length; i++) {
         if (!this.isLive) break;
         const spin = round.fsSpins[i];
-        if (fsOverlay.counter) {
-          fsOverlay.counter.text = `${i + 1} / ${round.fsSpins.length}`;
-          gsap.fromTo(fsOverlay.counter.scale, { x: 1.22, y: 1.22 }, { x: 1, y: 1, duration: 0.35, ease: 'back.out(2.5)' });
-        }
         this._winRevealId++;
         this.reelSet.clearCrateBadges();
         this.reelSet.hideFruitPlaque();
@@ -2582,14 +2586,24 @@ export class PixiApp {
           { isLive: () => this.isLive, turbo: this.turbo },
         );
         if (!this.isLive) break;
-        await this.playTumbleSpin(spin, decimals);
-        // fresh gifts grew the pool — badge ticks up AFTER the multi beat
+        await this.playTumbleSpin(spin, decimals, { fs: true, roundWinBefore: roundWin });
+        roundWin += spin.spinWin;
+        // fresh gifts grew the pool — field ticks AFTER the fly-in beat
         if (spin.poolAfter !== spin.poolBefore) this.reelSet.setFruitPool(spin.poolAfter, true);
         // RETRIGGER (3+ scatters in this FS spin): 5-badge slams centre
         if (spin.scatters >= 3 && !this.turbo) await this.playFruitRetrigger();
         await new Promise<void>(r => { gsap.delayedCall(0.3, () => r()); });
       }
+      // ROUND END (Noski flow): the TOTAL pool flies onto the collected
+      // round win, the win resolves — then the marquee/outro plays.
+      const lastPool = round.fsSpins.length ? round.fsSpins[round.fsSpins.length - 1].poolAfter : 0;
+      if (this.isLive && lastPool > 0 && !this.turbo) {
+        await this.reelSet.flyPoolToPlaque(lastPool, { isLive: () => this.isLive, turbo: this.turbo });
+        this.reelSet.setFruitPlaqueText(formatWin(outcome.winAmount, decimals));
+        await new Promise<void>(r => { gsap.delayedCall(0.6, () => r()); });
+      }
       this.reelSet.setFruitPool(null);
+      this.onFsRoundActive?.(false);
       fsOverlayToClose = fsOverlay;
       this.fsOverlayOpen = fsOverlay;
     }
@@ -2745,6 +2759,9 @@ export class PixiApp {
     });
   }
 
+  /** DOM callback: a FS round is running (BONUS ACTIVE pill swaps in). */
+  onFsRoundActive: ((on: boolean) => void) | null = null;
+
   /** FS pool badge art (gift + integrated pill, Noski). */
   async setFruitPoolArt(url: string): Promise<void> {
     try {
@@ -2759,7 +2776,7 @@ export class PixiApp {
   /** One spin's cascade — the FULL reference choreography:
    *  wins tick into the top plate → gifts pulse, their ×N flies to the
    *  plate → plate reads "«win» ×«sum»" → holds → resolves to the product. */
-  private async playTumbleSpin(spin: FruitSpin, decimals: number): Promise<void> {
+  private async playTumbleSpin(spin: FruitSpin, decimals: number, fsCtx?: { fs: boolean; roundWinBefore: bigint }): Promise<void> {
     // Badges are PINNED to their gifts: step -1 uses the landing cells, each
     // later step uses the core's cratesAfter (gifts RIDE the gravity slide).
     const showCrates = (stepIdx: number) => {
@@ -2785,16 +2802,17 @@ export class PixiApp {
         if (!this.isLive) return;
       }
       this.reelSet.audioHooks.onTumblePop?.(s);
-      // SCATTER-TEASE: 2+ scatters STANDING → this step's refills crawl in
-      // column by column (and keep crawling at 3+ until the spin ends).
-      const teaseSlow = scattersOn(curBoard) >= 2 && !this.turbo;
+      // Slow-drop tease REMOVED (Noski: refills always at normal speed).
+      const teaseSlow = false;
+      void scattersOn;
       await this.reelSet.playTumbleStep(
         step,
         step.wins.map(w => '+' + formatWin(w.amount, decimals)),
         { isLive: () => this.isLive, turbo: this.turbo, teaseSlow },
       );
       for (const w of step.wins) running += w.amount;
-      this.reelSet.setFruitPlaqueText(formatWin(running, decimals), true);
+      // FS: the plate COLLECTS the round win; base game shows the spin's run
+      this.reelSet.setFruitPlaqueText(formatWin((fsCtx?.roundWinBefore ?? 0n) + running, decimals), true);
       showCrates(s);
       curBoard = step.boardAfter;
       await new Promise<void>(r => { gsap.delayedCall(this.turbo ? 0.12 : 0.35, () => r()); });
@@ -2804,7 +2822,25 @@ export class PixiApp {
       this.reelSet.showFruitPlaque(formatWin(running, decimals));
     }
 
-    // MULTI BEAT (reference): only when a gift is on board AND the spin won.
+    // MULTI BEAT. FS (Noski flow): gift values fly RIGHT into the POOL
+    // FIELD; the spin's multiplied win then ticks into the plate. BASE
+    // game keeps the plate-connect ("win ×N" slams on the amount).
+    if (fsCtx?.fs && spin.crates.length > 0 && !prefersReducedMotion()) {
+      await new Promise<void>(r => { gsap.delayedCall(this.turbo ? 0.15 : 0.35, () => r()); });
+      if (!this.isLive) return;
+      await this.reelSet.flyGiftMultisToPool(
+        spin.crates.map(c => ({ cell: c.cell, value: c.value })),
+        sum => { this.reelSet.setFruitPool(Math.min(spin.poolBefore + sum, 500), true); },
+        { isLive: () => this.isLive, turbo: this.turbo },
+      );
+      if (!this.isLive) return;
+      if (spin.spinWin > 0n) {
+        this.reelSet.setFruitPlaqueText(formatWin((fsCtx.roundWinBefore) + spin.spinWin, decimals));
+        this.reelSet.punchFruitPlaque();
+        await new Promise<void>(r => { gsap.delayedCall(this.turbo ? 0.25 : 0.5, () => r()); });
+      }
+      return;
+    }
     const applied = spin.multiSum > 0 ? Math.min(spin.multiSum + spin.poolBefore, 500) : 0;
     if (applied > 1 && spin.winBeforeMulti > 0n && !prefersReducedMotion()) {
       const winText = formatWin(spin.winBeforeMulti, decimals);

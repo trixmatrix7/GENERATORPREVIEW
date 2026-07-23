@@ -358,10 +358,12 @@ export function App() {
         tierCy: { big: 0.1819, mega: 0.1606, epic: 0.1796, max: 0.187 },
         winCy: 0.5,
         plateCy: 0.7431,
-        plateH: 0.30,
+        // Betrag PASST in die Gold-Plakette (h 0.09 → Font 86 < 97px) statt
+        // drüber zu hängen; dafür das ganze Stand-Marquee größer (Noski).
+        plateH: 0.20,
         contentFrac: 0.836, // y[15..918] Lettern-Top bis Stand-Boden
         contentCy: 0.4319,
-        sizeMul: 0.78,
+        sizeMul: 0.95,
         dimAlpha: 0.55,
       });
       const Fw = `${FRUITSTACKS.base}win-tiers/`;

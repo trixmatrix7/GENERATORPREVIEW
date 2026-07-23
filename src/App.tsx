@@ -327,7 +327,9 @@ export function App() {
       // Symbole, ragt ueber die Zelle hinaus wie das Winna-W 1.05x1.26).
       for (const id of [2, 3, 4, 5, 6, 7, 8, 9, 10]) SYMBOL_SIZE_MULS.set(id, 0.9);
       for (const id of [0, 11, 12, 13]) SYMBOL_SIZE_MULS.set(id, 1.0);
-      SYMBOL_SIZE_MULS.set(1, 1.35);
+      // Scatter klar groesser als alles, aber die quadratischen FS-Lettern
+      // wirkten bei 1.35 zu massig (Noski) — 1.18 haelt den Ueber-Zelle-Look.
+      SYMBOL_SIZE_MULS.set(1, 1.18);
       // Frosted reel pane OFF: the warm forest scene would bleed through
       // transparent symbol corners as a milky veil (theme rule, skill §3).
       pixiAppRef.setReelFrosted(false);

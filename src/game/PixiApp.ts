@@ -2700,6 +2700,11 @@ export class PixiApp {
     this.reelSet.setSeparatorsVisible(v);
   }
 
+  /** Widen the reel clip for oversized symbols (Fruit-Stacks scatter). */
+  setReelClipMargin(m: { left: number; top: number; right: number; bottom: number }): void {
+    this.reelSet?.setClipMargin(m);
+  }
+
   /** Fruit Stacks plate art for the top win plaque (cropped to the plate's
    *  alpha bbox on the 1080p canvas — measured at bake time). */
   async setFruitPlaqueArt(url: string): Promise<void> {

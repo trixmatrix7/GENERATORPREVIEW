@@ -336,6 +336,10 @@ export function App() {
       // Cluster look: no reel separators — symbols read as the frontmost
       // layer on the open board (Noski).
       pixiAppRef.setSeparatorsVisible(false);
+      // Scatter (1.18×) ragt über die Zelle hinaus — Clip weit genug öffnen,
+      // damit der Rahmen ihn NIE beschneidet (oben klein: Refill fällt
+      // verdeckt über dem Grid rein).
+      pixiAppRef.setReelClipMargin({ left: 46, top: 12, right: 46, bottom: 28 });
       // Fruit Stacks' OWN win rain: Noskis symbol-burst alpha-mov (2026-07-23).
       // HD-Bake: 120 native 30fps-Frames in ECHTEM 16:9 (800×450 pro Frame,
       // 5×4 pro Sheet) — die alte 320×320-Quetschung las sich als Pixelbrei.
@@ -343,23 +347,35 @@ export function App() {
       void pixiAppRef.setWinCoinRain(
         [0, 1, 2, 3, 4, 5].map(i => `${FRUITSTACKS.base}coinrain_fs_${i}.webp`), 5, 4, 120, 45,
       );
-      // Win marquee: Noski's Fruit-Stacks layer set ("win screen" pack,
-      // alpha-bbox measured fractions of the 1080p canvas — as authored).
+      // Win marquee: Noskis NEUES "BONUS (29)"-Pack (2026-07-24) — der
+      // Marktstand (fruit box) ist die PLATE, die Tier-Lettern sind aus den
+      // Komposits positionsvermessen auf den Canvas gebaked (die "only"-
+      // Exporte kamen zentriert), win-Layer ist transparent (Lettern sind
+      // komplett). Betrag sitzt auf der GOLD-PLAKETTE unten (cy 0.7431);
+      // plateH bewusst größer als die physische Plakette, sonst ist die
+      // Zahl auf Screen-Größe unlesbar (~11px).
       setWinTierGeometry({
-        tierCy: { big: 0.1921, mega: 0.1995, epic: 0.1940, max: 0.1944 },
-        winCy: 0.4458,
-        plateCy: 0.6861,
-        plateH: 0.4037,
-        contentFrac: 0.8278, // y[65..959] across tiers
-        contentCy: 0.4741,
-        sizeMul: 0.74,
+        tierCy: { big: 0.1819, mega: 0.1606, epic: 0.1796, max: 0.187 },
+        winCy: 0.5,
+        plateCy: 0.7431,
+        plateH: 0.30,
+        contentFrac: 0.836, // y[15..918] Lettern-Top bis Stand-Boden
+        contentCy: 0.4319,
+        sizeMul: 0.78,
         dimAlpha: 0.55,
       });
       const Fw = `${FRUITSTACKS.base}win-tiers/`;
       void pixiAppRef.setWinTierImages({
-        big: `${Fw}big.png`, mega: `${Fw}mega.png`, epic: `${Fw}epic.png`,
-        max: `${Fw}max.png`, win: `${Fw}win.png`, plate: `${Fw}plate.png`,
+        big: `${Fw}big.webp`, mega: `${Fw}mega.webp`, epic: `${Fw}epic.webp`,
+        max: `${Fw}max.webp`, win: `${Fw}win.webp`, plate: `${Fw}plate.webp`,
       });
+      // FS-OUTRO: Marktstand + TOTAL-WIN-Lettern als ruhige Karten, der
+      // Rundengewinn zählt auf der Gold-Plakette hoch (vermessen 959/802).
+      void pixiAppRef.setLayeredIntro('outro', [
+        { file: `${Fw}plate.webp`, role: 'card', cx: 960, cy: 540 },
+        { file: `${Fw}total.webp`, role: 'card', cx: 960, cy: 540 },
+      ]);
+      pixiAppRef.setOutroAmountStyle(959, 802, 64);
       // TOP WIN PLAQUE (reference construct): the price-area plate sits above
       // the grid; cascade wins tick into it and the gift ×N values fly to it.
       void pixiAppRef.setFruitPlaqueArt(`${FRUITSTACKS.base}plate_pill.png`);

@@ -306,6 +306,8 @@ export class ReelSet {
     mask.fill(0xffffff);
     this.clipContainer.addChild(mask);
     this.clipContainer.mask = mask;
+    this.clipMask = mask;
+    this.clipRect = { w: gridRect.w, h: gridRect.h };
 
     this.container.addChild(this.clipContainer);
     this.container.addChild(this.teaseGlowContainer);  // tease halos — above reels, below line
@@ -3247,6 +3249,20 @@ export class ReelSet {
     for (const s of this.separators) s.visible = v;
   }
 
+  private clipMask: Graphics | null = null;
+  private clipRect: { w: number; h: number } | null = null;
+
+  /** Widen the reel clip so OVERSIZED symbols (Fruit-Stacks scatter, 1.18×
+   *  the cell) never get shaved at the grid edge (Noski: "Rahmen überdeckt
+   *  es"). Top stays small — the tumble refill temps drop in hidden above
+   *  the grid and would otherwise peek early. */
+  setClipMargin(m: { left: number; top: number; right: number; bottom: number }): void {
+    if (!this.clipMask || !this.clipRect) return;
+    this.clipMask.clear();
+    this.clipMask.rect(-m.left, -m.top, this.clipRect.w + m.left + m.right, this.clipRect.h + m.top + m.bottom);
+    this.clipMask.fill(0xffffff);
+  }
+
   /** Downward SQUASH on a live cell's art (the ONE landing animation for
    *  Fruit Stacks): compresses toward the floor and springs back — never
    *  stretches taller, never leaves the cell. */
@@ -3544,7 +3560,9 @@ export class ReelSet {
     if (tex) {
       const spr = new Sprite(tex);
       spr.anchor.set(0.5);
-      spr.scale.set(frameScale * 1.919);
+      // Kette der Bake-Faktoren (Komposit-„10" 0.8634 der Quell-px, Frame
+      // 480/1569 gebaked, Zahlen 0.45 gebaked) → 0.8634/0.45×480/1569 = 0.587
+      spr.scale.set(frameScale * 0.587);
       wrap.addChild(spr);
     } else {
       const t = new Text({ text: String(value), style: this.fruitMultiStyle(4) });
@@ -3562,7 +3580,7 @@ export class ReelSet {
       this.fsCounterShown = -1;
       return;
     }
-    const FRAME_W = 200;
+    const FRAME_W = 240; // "kann ruhig etwas größer" (Noski)
     const frameTex = this.fsCounterTex.get('frame');
     const frameScale = frameTex ? FRAME_W / frameTex.width : FRAME_W / 480;
     const frameH = (frameTex ? frameTex.height : 198) * frameScale;

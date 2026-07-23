@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { uiSfx } from '@/audio/uiSfx';
 import { FRUIT_BUY_STAGES } from '@/game/fruitStacksMath';
 
@@ -41,7 +41,15 @@ const FRUIT_BUY_TIER = [
 
 export function FruitBuyRail({ betDisplay, onBuy, bonusActive = false }: { betDisplay: string; onBuy?: (stage: number) => void; bonusActive?: boolean }) {
   const [open, setOpen] = useState(false);
-  const [confirm, setConfirm] = useState<number | null>(null); // stage 1-3
+  // Rail-left alignment: PixiApp broadcasts the logo's left edge (percent of
+  // canvas width) so the buy button moves WITH the logo (Noski: same margin
+  // left as the grid has right).
+  const [railLeftPct, setRailLeftPct] = useState(4.2);
+  useEffect(() => {
+    const on = (e: Event) => setRailLeftPct(Number((e as CustomEvent).detail) || 4.2);
+    window.addEventListener('slot:leftrail', on);
+    return () => window.removeEventListener('slot:leftrail', on);
+  }, []);
   const bet = Math.max(0.01, Number(betDisplay || '0'));
   return (
     <>
@@ -50,11 +58,11 @@ export function FruitBuyRail({ betDisplay, onBuy, bonusActive = false }: { betDi
         <img
           src={`${import.meta.env.BASE_URL}theme/fruitstacks/bonus_active.png`}
           alt="Bonus active"
-          style={{ position: 'absolute', left: '3.4%', top: '45%', zIndex: 40, width: '16%', minWidth: 130, pointerEvents: 'none' }}
+          style={{ position: 'absolute', left: `${railLeftPct}%`, top: '45%', zIndex: 40, width: '16%', minWidth: 130, pointerEvents: 'none' }}
         />
       ) : (
       <button onClick={() => { uiSfx.open(); setOpen(true); }} title="Buy bonus" style={{
-        position: 'absolute', left: '4.2%', top: '46%', zIndex: 40, width: '15%', minWidth: 124,
+        position: 'absolute', left: `${railLeftPct}%`, top: '46%', zIndex: 40, width: '15%', minWidth: 124,
         padding: 0, border: 'none', background: 'transparent', cursor: 'pointer',
         filter: 'drop-shadow(0 4px 12px rgba(0,0,0,0.5))',
       }}>
@@ -70,8 +78,10 @@ export function FruitBuyRail({ betDisplay, onBuy, bonusActive = false }: { betDi
           background: 'rgba(3,10,5,0.84)', backdropFilter: 'blur(3px)', fontFamily: FONT,
         }}>
           <div onClick={e => e.stopPropagation()} style={{ display: 'flex', gap: 12, flexWrap: 'wrap', justifyContent: 'center', maxWidth: '96%' }}>
+            {/* DIRECT buy on card tap — no confirm dialog (Noski: it looked
+                off-theme; the card IS the confirmation) */}
             {FRUIT_BUY_STAGES.map(st => (
-              <div key={st.stage} onClick={() => { uiSfx.click(); setConfirm(st.stage); }} style={{
+              <div key={st.stage} onClick={() => { uiSfx.click(); onBuy?.(st.stage); setOpen(false); }} style={{
                 position: 'relative', width: 244, height: Math.round(244 * 2400 / 1792), cursor: 'pointer',
                 backgroundImage: `url(${import.meta.env.BASE_URL}theme/fruitstacks/buycard_${st.stage}.png)`,
                 backgroundSize: 'contain', backgroundRepeat: 'no-repeat', backgroundPosition: 'center',
@@ -87,9 +97,13 @@ export function FruitBuyRail({ betDisplay, onBuy, bonusActive = false }: { betDi
                     alt="" draggable={false}
                     style={{ width: '30%', display: 'block', filter: 'drop-shadow(0 4px 8px rgba(0,0,0,0.45))' }}
                   />
+                  {/* intro-art balloon look: Baloo 2 upright, gold gradient, choc stroke */}
                   <div style={{
-                    marginTop: -16, color: '#ffd21e', fontWeight: 900, fontStyle: 'italic', fontSize: 24,
-                    WebkitTextStroke: '1.5px #241300', textShadow: '0 3px 6px rgba(0,0,0,0.8)',
+                    marginTop: -16, fontWeight: 800, fontSize: 24,
+                    fontFamily: "'Baloo 2', 'Rubik', ui-sans-serif, system-ui, sans-serif",
+                    background: 'linear-gradient(180deg, #ffe89a 0%, #ffd21e 48%, #e8880f 100%)',
+                    WebkitBackgroundClip: 'text', backgroundClip: 'text', color: 'transparent',
+                    WebkitTextStroke: '1.2px #241300', filter: 'drop-shadow(0 3px 3px rgba(0,0,0,0.5))',
                   }}>×{FRUIT_BUY_TIER[st.stage - 1].min}</div>
                 </div>
                 <div style={{ position: 'absolute', bottom: '8.5%', left: '12%', right: '12%', textAlign: 'center', color: '#ffe9a8', fontWeight: 900, fontStyle: 'italic', fontSize: 24, textShadow: '0 2px 5px rgba(0,0,0,0.85)' }}>{money(bet * st.costMult)}</div>
@@ -97,21 +111,6 @@ export function FruitBuyRail({ betDisplay, onBuy, bonusActive = false }: { betDi
             ))}
           </div>
           <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: 11 }}>tap outside to close</div>
-          {confirm && (
-            <div onClick={e => e.stopPropagation()} style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(3,10,5,0.6)' }}>
-              <div style={{
-                width: 300, borderRadius: 20, border: '3px solid #f7b733', padding: '22px 18px',
-                background: 'linear-gradient(180deg,#1d3b24 0%, #0d2113 100%)', textAlign: 'center',
-              }}>
-                <div style={{ color: '#ffe9a8', fontWeight: 900, fontStyle: 'italic', fontSize: 17 }}>FREE SPINS — {FRUIT_BUY_STAGES[confirm - 1].label}</div>
-                <div style={{ color: '#fff', fontWeight: 900, fontSize: 24, margin: '12px 0' }}>{money(bet * FRUIT_BUY_STAGES[confirm - 1].costMult)}</div>
-                <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
-                  <button onClick={() => { uiSfx.click(); setConfirm(null); }} style={{ padding: '8px 20px', borderRadius: 10, border: '2px solid #7a8a7a', background: '#15241a', color: '#cfe3cf', fontWeight: 800, cursor: 'pointer', fontFamily: FONT }}>BACK</button>
-                  <button onClick={() => { uiSfx.click(); onBuy?.(confirm); setConfirm(null); setOpen(false); }} style={{ padding: '8px 24px', borderRadius: 10, border: '2px solid #f7b733', background: 'linear-gradient(180deg,#ffd75e,#f7a733)', color: '#0b2a06', fontWeight: 900, cursor: 'pointer', fontFamily: FONT }}>OK</button>
-                </div>
-              </div>
-            </div>
-          )}
         </div>
       )}
     </>

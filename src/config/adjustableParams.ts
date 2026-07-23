@@ -467,8 +467,8 @@ export const ADJUSTABLE_PARAMS: readonly AdjustableParam[] = [
   // ── FRUIT STACKS gift ×N label (one config, all five draw sites) ──
   {
     id: 'fruitMultiFont', label: 'Gift-Multi — Schrift', layer: 'symbols', type: 'enum',
-    options: ['Rubik', 'Poppins', 'Impact', 'Arial Black', 'Georgia'], default: 'Rubik',
-    description: 'Font of the ×N value on the fruit gift symbols (grid, refill, flights).',
+    options: ['Baloo 2', 'Luckiest Guy', 'Rubik', 'Poppins', 'Impact', 'Arial Black', 'Georgia'], default: 'Baloo 2',
+    description: 'Font of the ×N value on the fruit gift symbols (grid, refill, flights). Baloo 2 = the intro-art balloon look.',
     keywords: ['fruit', 'gift', 'multi', 'font', 'schrift', 'typeface'],
   },
   {

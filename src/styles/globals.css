@@ -1,6 +1,6 @@
 /* chain.wtf brand fonts (spec §3.3): Poppins (display/headers/buttons, italic),
    Rubik (body/values/captions). Mandatory per the V1 spec. */
-@import url('https://fonts.googleapis.com/css2?family=Poppins:ital,wght@0,400;0,500;0,600;0,700;0,800;1,600;1,700;1,800&family=Rubik:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Poppins:ital,wght@0,400;0,500;0,600;0,700;0,800;1,600;1,700;1,800&family=Rubik:wght@400;500;600;700&family=Baloo+2:wght@700;800&family=Luckiest+Guy&display=swap');
 @import "tailwindcss";
 
 /* ─── Tailwind theme tokens (reference the CSS vars below for theming support) ─── */

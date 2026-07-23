@@ -7,7 +7,7 @@
 //     outcome itself is never altered.
 //   - Win-cell highlighting and per-cell state triggers after the reels land.
 
-import { Container, Graphics, Text, TextStyle, Rectangle, Sprite, Texture } from 'pixi.js';
+import { Container, Graphics, Text, TextStyle, Rectangle, Sprite, Texture, FillGradient } from 'pixi.js';
 import { gsap } from 'gsap';
 import { Reel } from './Reel';
 import { AnimatedSymbol, SYMBOL_WIDTH, SYMBOL_HEIGHT, SYMBOL_WIN_SHEETS, SYMBOL_SIZE_MULS } from './AnimatedSymbol';
@@ -134,14 +134,33 @@ export const oneWildConfig = {
 /** Live-adjustable ×N label on the FRUIT GIFT symbols (Noski: font felt off —
  *  it was a mix of Arial and Poppins across the five draw sites; now ONE
  *  config drives them all). Position = anchor on the symbol cell, angle =
- *  diagonal tilt in degrees. Studio params fruitMulti* feed this. */
+ *  diagonal tilt in degrees. Studio params fruitMulti* feed this.
+ *  LOOK = the intro-art ×500 (baked gold balloon numerals): chunky rounded
+ *  UPRIGHT font + vertical gold gradient + chocolate outline — rebuilt
+ *  procedurally so any value works without baking 500 art variants. */
 export const fruitMultiConfig = {
-  fontFamily: "'Rubik', ui-sans-serif, system-ui, sans-serif",
+  fontFamily: "'Baloo 2', 'Rubik', ui-sans-serif, system-ui, sans-serif",
   color: 0xffd21e,
   size: 34,        // px on the grid (flight labels add small offsets)
   pos: 'unten',    // anchor on the symbol, see FRUIT_MULTI_POS
   angleDeg: 0,     // diagonal tilt
 };
+
+/** Vertical 3-stop gradient derived from the base colour (intro-art recipe:
+ *  creamy top → base → deeper/warmer bottom). Works for any param colour. */
+function fruitMultiGradientFill(base: number): FillGradient {
+  const r = (base >> 16) & 255, g = (base >> 8) & 255, b = base & 255;
+  const mix = (c: number, t: number, w: number) => Math.round(c + (t - c) * w);
+  const toHex = (rr: number, gg: number, bb: number) => (rr << 16) | (gg << 8) | bb;
+  const top = toHex(mix(r, 255, 0.55), mix(g, 255, 0.55), mix(b, 255, 0.45));
+  // bottom: darken + push warm (red keeps, green drops harder → gold turns orange)
+  const bot = toHex(Math.round(r * 0.93), Math.round(g * 0.62), Math.round(b * 0.55));
+  const grad = new FillGradient(0, 0, 0, 1);
+  grad.addColorStop(0, top);
+  grad.addColorStop(0.48, base);
+  grad.addColorStop(1, bot);
+  return grad;
+}
 
 /** Anchor → [x,y] fraction inside the cell. 'unten' = the reference look
  *  (value hangs at the gift's bottom edge, Winna construct). */
@@ -2241,13 +2260,16 @@ export class ReelSet {
     }
   }
 
-  /** Shared TextStyle for every gift ×N label (stroke scales with the size). */
+  /** Shared TextStyle for every gift ×N label — the intro-×500 look:
+   *  upright balloon numerals, gold gradient, chocolate outline, soft drop. */
   private fruitMultiStyle(sizeOffset = 0): TextStyle {
     const c = fruitMultiConfig;
     const size = Math.max(10, c.size + sizeOffset);
     return new TextStyle({
-      fontFamily: c.fontFamily, fontSize: size, fontWeight: '900', fontStyle: 'italic',
-      fill: c.color, stroke: { color: 0x241300, width: Math.max(3, Math.round(size * 0.2)), join: 'round' },
+      fontFamily: c.fontFamily, fontSize: size, fontWeight: '800',
+      fill: fruitMultiGradientFill(c.color),
+      stroke: { color: 0x241300, width: Math.max(3, Math.round(size * 0.18)), join: 'round' },
+      dropShadow: { color: 0x1a0d00, alpha: 0.4, blur: 1, distance: Math.max(2, size * 0.07), angle: Math.PI / 2 },
       align: 'center',
     });
   }
@@ -3353,9 +3375,9 @@ export class ReelSet {
     if (this.fruitPlaque) this.fruitPlaque.visible = false;
   }
 
-  /** IMPACT: a gift's ×N SLAMS into the plate — punch-scale, a short shake
-   *  and a white flash washing over the amount (Noski: "als ob es drauf
-   *  einschlägt"). */
+  /** IMPACT: a gift's ×N SLAMS into the plate — punch-scale + a short shake.
+   *  NO rectangle flash: the old white roundRect washed over the plate as a
+   *  visible semi-opaque BOX around the number (Noski: "komischer Kasten"). */
   punchFruitPlaque(): void {
     if (!this.fruitPlaque) return;
     const c = this.fruitPlaque;
@@ -3364,12 +3386,6 @@ export class ReelSet {
       .fromTo(c.scale, { x: 1.3, y: 1.3 }, { x: 1, y: 1, duration: 0.42, ease: 'elastic.out(1, 0.55)' })
       .fromTo(c, { rotation: -0.05 }, { rotation: 0, duration: 0.36, ease: 'elastic.out(1, 0.4)' }, 0)
       .fromTo(c, { y: -52 }, { y: -58, duration: 0.3, ease: 'power2.out' }, 0);
-    const flash = new Graphics();
-    flash.roundRect(-118, -42, 236, 84, 16);
-    flash.fill({ color: 0xffffff, alpha: 0.55 });
-    flash.eventMode = 'none';
-    c.addChild(flash);
-    gsap.to(flash, { alpha: 0, duration: 0.34, ease: 'power1.out', onComplete: () => { try { flash.parent?.removeChild(flash); flash.destroy(); } catch { /* gone */ } } });
   }
 
   private fruitPoolTex: Texture | null = null;
@@ -3404,14 +3420,8 @@ export class ReelSet {
           c.addChild(g);
         }
       }
-      const t = new Text({
-        text: '',
-        style: new TextStyle({
-          fontFamily: "'Poppins', ui-sans-serif, system-ui, sans-serif",
-          fontSize: 24, fontWeight: '800', fontStyle: 'italic',
-          fill: 0xffe698, stroke: { color: 0x1a1000, width: 5, join: 'round' }, align: 'center',
-        }),
-      });
+      // same balloon-gold style as the on-gift labels (intro-art match)
+      const t = new Text({ text: '', style: this.fruitMultiStyle(-10) });
       t.anchor.set(0.5);
       t.y = textY;
       c.addChild(t);
@@ -3562,7 +3572,6 @@ export class ReelSet {
       label.eventMode = 'none';
       this.winAmountsContainer.addChild(label);
       flights.push(new Promise<void>(resolve => {
-        const midX = (label.x + target.x) / 2 + (target.x > label.x ? -50 : 50);
         gsap.timeline({
           delay: 0.28 * speed * i,
           onStart: () => { this.audioHooks.onGiftFly?.(); },
@@ -3574,10 +3583,12 @@ export class ReelSet {
             resolve();
           },
         })
-          .to(label.scale, { x: 1.35, y: 1.35, duration: 0.24 * speed, ease: 'power1.out' })
-          .to(label, { x: midX, y: (label.y + target.y) / 2 - 46, duration: 0.34 * speed, ease: 'power1.inOut' }, '>')
-          .to(label, { x: target.x, y: target.y, duration: 0.3 * speed, ease: 'power2.in' }, '>')
-          .to(label.scale, { x: 0.5, y: 0.5, duration: 0.3 * speed, ease: 'power2.in' }, '<');
+          // WINNA base game (Noski): the value rises STRAIGHT UP off its gift
+          // first (no diagonal drift), THEN shoots to the plaque.
+          .to(label.scale, { x: 1.35, y: 1.35, duration: 0.22 * speed, ease: 'power1.out' })
+          .to(label, { y: label.y - 64, duration: 0.26 * speed, ease: 'power2.out' }, '<0.06')
+          .to(label, { x: target.x, y: target.y, duration: 0.32 * speed, ease: 'power2.in' }, '>')
+          .to(label.scale, { x: 0.5, y: 0.5, duration: 0.32 * speed, ease: 'power2.in' }, '<');
       }));
     }
     await Promise.all(flights);

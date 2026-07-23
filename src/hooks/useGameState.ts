@@ -15,6 +15,12 @@ import { mathProfileById, loadMathProfileId } from '@/config/mathProfiles';
 
 const SPIN_TIMEOUT_MS = 60_000;
 
+/** Studio-wide user notice: fired when an action costs more than the linked
+ *  funds — App listens on 'slot:notice' and shows the toast (all games). */
+function notifyInsufficientFunds(): void {
+  window.dispatchEvent(new CustomEvent('slot:notice', { detail: 'NOT ENOUGH FUNDS TO DO THAT' }));
+}
+
 export function useGameState(
   hostApi: HostApiV1 | null,
   snapshot: HostSnapshotV1 | null,
@@ -124,11 +130,12 @@ export function useGameState(
     const current = stateRef.current;
     if (current.phase !== 'idle') return;
 
-    // Silently guard — the Sidebar already prevents the button being clickable
-    // when balance is insufficient, so we only reach here in valid state.
     const wager = BigInt(current.betBaseUnits || '0');
     const balance = BigInt(snapshot.balances.smartVaultBalance ?? '0');
-    if (wager <= 0n || wager > balance) return;
+    if (wager <= 0n || wager > balance) {
+      if (wager > balance) notifyInsufficientFunds();
+      return;
+    }
 
     dispatch({ type: 'SPIN_REQUESTED' });
     pixiApp?.spin();
@@ -178,7 +185,10 @@ export function useGameState(
     const baseBet = BigInt(current.betBaseUnits || '0');
     const cost = baseBet * BigInt(st.costMult);
     const balance = BigInt(snapshot.balances.smartVaultBalance ?? '0');
-    if (cost <= 0n || cost > balance) return;
+    if (cost <= 0n || cost > balance) {
+      if (cost > balance) notifyInsufficientFunds();
+      return;
+    }
 
     dispatch({ type: 'SPIN_REQUESTED' });
     pixiApp?.spin();
@@ -216,7 +226,10 @@ export function useGameState(
     const baseBet = BigInt(current.betBaseUnits || '0');
     const cost = (baseBet * BigInt(Math.round(bonusBuyCost * 100))) / 100n;
     const balance = BigInt(snapshot.balances.smartVaultBalance ?? '0');
-    if (cost <= 0n || cost > balance) return;
+    if (cost <= 0n || cost > balance) {
+      if (cost > balance) notifyInsufficientFunds();
+      return;
+    }
 
     dispatch({ type: 'SPIN_REQUESTED' });
     pixiApp?.spin();
@@ -254,7 +267,10 @@ export function useGameState(
     const baseBet = BigInt(current.betBaseUnits || '0');
     const cost = baseBet * BigInt(def.costMult);
     const balance = BigInt(snapshot.balances.smartVaultBalance ?? '0');
-    if (cost <= 0n || cost > balance) return;
+    if (cost <= 0n || cost > balance) {
+      if (cost > balance) notifyInsufficientFunds();
+      return;
+    }
 
     dispatch({ type: 'SPIN_REQUESTED' });
     pixiApp?.spin();

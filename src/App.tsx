@@ -722,6 +722,30 @@ export function App() {
 
   const handleTurboToggle = useCallback(() => setTurbo(prev => !prev), []);
 
+  // Studio-wide notice toast (all games): fired via CustomEvent 'slot:notice',
+  // e.g. NOT ENOUGH FUNDS from the useGameState wager/cost guards.
+  const [notice, setNotice] = useState<string | null>(null);
+  useEffect(() => {
+    let t: ReturnType<typeof setTimeout> | null = null;
+    const on = (e: Event) => {
+      setNotice(String((e as CustomEvent).detail || ''));
+      if (t) clearTimeout(t);
+      t = setTimeout(() => setNotice(null), 2200);
+    };
+    window.addEventListener('slot:notice', on);
+    return () => { window.removeEventListener('slot:notice', on); if (t) clearTimeout(t); };
+  }, []);
+  const noticeToast = notice ? (
+    <div style={{
+      position: 'absolute', top: '13%', left: '50%', transform: 'translateX(-50%)', zIndex: 90,
+      padding: '10px 24px', borderRadius: 14, border: '2px solid #f7b733',
+      background: 'linear-gradient(180deg, #3a0d12 0%, #22060a 100%)', color: '#ffe9a8',
+      fontWeight: 900, fontStyle: 'italic', letterSpacing: 1.2, fontSize: 16,
+      fontFamily: "'Poppins', ui-sans-serif, system-ui, sans-serif",
+      boxShadow: '0 6px 24px rgba(0,0,0,0.6)', pointerEvents: 'none', whiteSpace: 'nowrap',
+    }}>{notice}</div>
+  ) : null;
+
   if (!hostApi || !snapshot) {
     return (
       <div className="flex items-center justify-center h-full w-full font-[var(--font-body)] text-[14px] text-[var(--color-text-secondary)] gap-2">
@@ -755,7 +779,9 @@ export function App() {
         device={device}
         topBar={<BuildTopBar device={device} onDevice={setDevice} />}
         bottomDock={<BuildSlots />}
-        gameOverlay={!introOpen && !fsIntroOpen
+        gameOverlay={<>
+          {noticeToast}
+          {!introOpen && !fsIntroOpen
           ? (loadActiveGame() === 'crackfarm'
               ? <BonusBuyOverlay betDisplay={state.betDisplay} onBuy={(id, kind) => {
                   // BUY tiers → trigger the bonus session (FS). ACTIVATE tiers are
@@ -774,6 +800,7 @@ export function App() {
                     />
                   : null)
           : null}
+        </>}
         controls={
           <div style={{ opacity: introOpen || fsIntroOpen ? 0 : 1, pointerEvents: introOpen || fsIntroOpen ? 'none' : 'auto', transition: 'opacity 0.6s ease' }}>
             <ControlBar

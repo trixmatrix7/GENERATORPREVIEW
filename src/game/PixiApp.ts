@@ -725,9 +725,12 @@ export class PixiApp {
       const s = Math.min(330 / tex.width, 300 / tex.height);
       this.titleSprite.anchor.set(0.5);
       this.titleSprite.scale.set(s);
-      this.titleSprite.x = -(FRAME_PAD + 6 + (tex.width * s) / 2); // shifted right (was cut off left, Noski)
+      this.titleSprite.x = -(FRAME_PAD + 6 + (tex.width * s) / 2); // provisional — aligned below
       this.titleSprite.y = HEADER_H + rh * 0.24;
+      this.titleLeftLayout = true;
+      this.alignLeftRailLogo();
     } else {
+      this.titleLeftLayout = false;
       // Fit: ≤60% of grid width AND ≤150 scene-px tall (clears the box top even
       // after the 60vh height cap), preserving the logo's aspect ratio.
       const s = Math.min((rw * 0.6) / tex.width, 150 / tex.height);
@@ -737,6 +740,32 @@ export class PixiApp {
       this.titleSprite.y = HEADER_H - 2; // bottom edge sits just above the frame
     }
     this.sceneRoot.addChild(this.titleSprite);
+  }
+
+  /** True while the title is the Fruit-Stacks LEFT-RAIL logo (drives the
+   *  symmetry alignment below). */
+  private titleLeftLayout = false;
+
+  /** LEFT-RAIL logo symmetry (Noski): the logo's LEFT gap to the screen edge
+   *  equals the frame art's RIGHT gap — measured on LIVE bounds (the gold
+   *  frame art overhangs the reel box), clamped to ≥10px air to the frame.
+   *  Re-run after the frame art loads (it changes the right gap). Broadcasts
+   *  the rail's left percent so the DOM buy button moves WITH the logo. */
+  private alignLeftRailLogo(): void {
+    const spr = this.titleSprite;
+    if (!spr || !this.titleLeftLayout) return;
+    const sc = this.sceneRoot.scale.x || 1;
+    const scX = this.sceneRoot.x;
+    const wScene = spr.width; // texture width × sprite scale (scene units)
+    const frameRight = this.frameImageSprite
+      ? this.frameImageSprite.getBounds().maxX
+      : scX + (this.reelSet.totalWidth + FRAME_PAD * 2) * sc;
+    const gapRight = Math.max(0, this.app.screen.width - frameRight);
+    let xc = (gapRight - scX) / sc + wScene / 2;
+    xc = Math.min(xc, -10 - wScene / 2);
+    spr.x = xc;
+    const leftPct = Math.max(0, ((scX + (xc - wScene / 2) * sc) / this.app.screen.width) * 100);
+    window.dispatchEvent(new CustomEvent('slot:leftrail', { detail: leftPct }));
   }
 
   /** Logo-style title: warm foil fill, dark outline for legibility on any
@@ -968,6 +997,7 @@ export class PixiApp {
     // stay on top of both.
     if (this.overFrameObjects) this.gameContainer.addChild(this.overFrameObjects);
     this.onResize(); // overhang changed — re-fit so the marquee side stays on-canvas
+    this.alignLeftRailLogo(); // right gap changed with the frame art
   }
 
   private clearFrameImage(): void {

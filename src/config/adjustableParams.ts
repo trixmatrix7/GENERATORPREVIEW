@@ -479,7 +479,7 @@ export const ADJUSTABLE_PARAMS: readonly AdjustableParam[] = [
   },
   {
     id: 'fruitMultiSize', label: 'Gift-Multi — Größe', layer: 'symbols', type: 'number',
-    min: 18, max: 60, step: 1, default: 34,
+    min: 18, max: 60, step: 1, default: 38,
     description: 'Size of the ×N value in pixels on the grid.',
     keywords: ['fruit', 'gift', 'multi', 'size', 'größe', 'bigger', 'smaller'],
   },

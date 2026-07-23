@@ -312,10 +312,13 @@ export function App() {
       // no fallback pulse/squash warping the illustrated art.
       STATIC_LOOK_SYMBOLS.add(1);
       NO_IDLE_SYMBOLS.add(0);
-      // Symbols 10% smaller (Noski) — glossy art breathes inside the cell;
-      // applies to every fruit id incl. the out-of-union 10-13.
-      for (const id of [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]) SYMBOL_SIZE_MULS.set(id, 0.9);
-      SYMBOL_SIZE_MULS.set(1, 0.99); // BONUS 10% größer als der Rest (Noski)
+      // Winna-vermessene Groessen-Hierarchie (2026-07-23): normale Symbole
+      // fuellen ~0.65-0.80 der Zelle (deutliche Luft), GIFTS premium-gross
+      // (~1.12x der Symbole), der SCATTER klar GROESSER als alles (~1.5x der
+      // Symbole, ragt ueber die Zelle hinaus wie das Winna-W 1.05x1.26).
+      for (const id of [2, 3, 4, 5, 6, 7, 8, 9, 10]) SYMBOL_SIZE_MULS.set(id, 0.9);
+      for (const id of [0, 11, 12, 13]) SYMBOL_SIZE_MULS.set(id, 1.0);
+      SYMBOL_SIZE_MULS.set(1, 1.35);
       // Frosted reel pane OFF: the warm forest scene would bleed through
       // transparent symbol corners as a milky veil (theme rule, skill §3).
       pixiAppRef.setReelFrosted(false);

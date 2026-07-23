@@ -141,7 +141,7 @@ export const oneWildConfig = {
 export const fruitMultiConfig = {
   fontFamily: "'Baloo 2', 'Rubik', ui-sans-serif, system-ui, sans-serif",
   color: 0xffd21e,
-  size: 34,        // px on the grid (flight labels add small offsets)
+  size: 38,        // px on the grid — Winna-vermessen: Ziffern-Cap ~0.35 der Zellhoehe
   pos: 'unten',    // anchor on the symbol, see FRUIT_MULTI_POS
   angleDeg: 0,     // diagonal tilt
 };
@@ -3391,6 +3391,24 @@ export class ReelSet {
   private fruitPoolTex: Texture | null = null;
   setFruitPoolTexture(tex: Texture | null): void { this.fruitPoolTex = tex; }
 
+  /** WINNA arrival juice: a small gold STAR-DUST burst (no white flash — the
+   *  perceived flash in the reference is just particles + the bigger text). */
+  private starDustAt(x: number, y: number, n = 8, radius = 30): void {
+    for (let d = 0; d < n; d++) {
+      const a = (d / n) * Math.PI * 2 + Math.random() * 0.5;
+      const dot = new Graphics();
+      dot.circle(0, 0, 2.5 + Math.random() * 3);
+      dot.fill({ color: [0xffe27a, 0xfff6c0, 0xffb347][d % 3], alpha: 0.95 });
+      dot.x = x; dot.y = y; dot.eventMode = 'none';
+      this.container.addChild(dot);
+      const dist = radius + Math.random() * radius;
+      gsap.timeline({ onComplete: () => { try { dot.parent?.removeChild(dot); dot.destroy(); } catch { /* gone */ } } })
+        .to(dot, { x: x + Math.cos(a) * dist, y: y + Math.sin(a) * dist + 10, duration: 0.4, ease: 'power2.out' })
+        .to(dot, { alpha: 0, duration: 0.25, ease: 'power1.in' }, '>-0.18')
+        .to(dot.scale, { x: 0.4, y: 0.4, duration: 0.38 }, 0);
+    }
+  }
+
   /** FS pool badge (right of the grid, reference construct: the gift with
    *  its ×pool INSIDE the pill under the box). null hides. */
   setFruitPool(value: number | null, pop = false): void {
@@ -3405,7 +3423,9 @@ export class ReelSet {
       if (this.fruitPoolTex) {
         const g = new Sprite(this.fruitPoolTex);
         g.anchor.set(0.5);
-        const w = 128;
+        // WINNA-vermessen: Badge-Gesamt 193x185 bei Grid 675x560 -> ~1/3 der
+        // Grid-Hoehe; unsere Art 380x409 -> Breite 176 trifft das Verhaeltnis.
+        const w = 176;
         g.scale.set(w / this.fruitPoolTex.width);
         c.addChild(g);
         // ×N sits INSIDE the art's pill (pool_gift.png measured: blue pill
@@ -3421,21 +3441,26 @@ export class ReelSet {
         }
       }
       // same balloon-gold style as the on-gift labels (intro-art match)
-      const t = new Text({ text: '', style: this.fruitMultiStyle(-10) });
+      const t = new Text({ text: '', style: this.fruitMultiStyle(-6) });
       t.anchor.set(0.5);
       t.y = textY;
       c.addChild(t);
-      c.x = this.totalWidth + 78;
-      c.y = this.totalHeight * 0.62; // below the FS overlay plaques (no overlap)
+      // WINNA: Badge-Zentrum ~123px rechts der Grid-Kante (Zelle 107 -> hier
+      // ~138), Zentrum-y bei 0.55 der Grid-Hoehe (knapp unter Mitte).
+      c.x = this.totalWidth + 138;
+      c.y = this.totalHeight * 0.55;
       this.container.addChild(c);
       this.fruitPool = c;
       this.fruitPoolText = t;
     }
     this.fruitPool.visible = true;
     if (this.fruitPoolText) this.fruitPoolText.text = `×${value}`;
-    if (pop) {
-      gsap.killTweensOf(this.fruitPool.scale);
-      gsap.fromTo(this.fruitPool.scale, { x: 1.25, y: 1.25 }, { x: 1, y: 1, duration: 0.35, ease: 'back.out(2.4)' });
+    if (pop && this.fruitPoolText) {
+      // WINNA-vermessen: harter Zahl-Swap, dann skaliert NUR DER TEXT von
+      // ~1.4x in ~350ms weich zurueck — Pill-Ring und Box bleiben statisch,
+      // KEIN Weiss-Flash (der wahrgenommene Flash = Sterne + hellerer Text).
+      gsap.killTweensOf(this.fruitPoolText.scale);
+      gsap.fromTo(this.fruitPoolText.scale, { x: 1.4, y: 1.4 }, { x: 1, y: 1, duration: 0.35, ease: 'power2.out' });
     }
   }
 
@@ -3479,18 +3504,18 @@ export class ReelSet {
             try { label.parent?.removeChild(label); label.destroy(); } catch { /* gone */ }
             sum += g.value;
             this.audioHooks.onPlateImpact?.();
-            if (this.fruitPool) {
-              gsap.killTweensOf(this.fruitPool.scale);
-              gsap.fromTo(this.fruitPool.scale, { x: 1.22, y: 1.22 }, { x: 1, y: 1, duration: 0.35, ease: 'back.out(2.4)' });
-            }
+            // WINNA: Stern-Burst auf der Pill kaschiert den harten Summen-Swap
+            if (this.fruitPool) this.starDustAt(this.fruitPool.x, this.fruitPool.y + 18, 9, 26);
             onArrive(sum);
             resolve();
           },
         })
-          .to(label.scale, { x: 1.3, y: 1.3, duration: 0.2 * speed, ease: 'power1.out' })
-          .to(label, { x: (label.x + target.x) / 2, y: (label.y + target.y) / 2 - 36, duration: 0.3 * speed, ease: 'power1.inOut' }, '>')
-          .to(label, { x: target.x, y: target.y, duration: 0.28 * speed, ease: 'power2.in' }, '>')
-          .to(label.scale, { x: 0.5, y: 0.5, duration: 0.28 * speed, ease: 'power2.in' }, '<');
+          // WINNA FS (frame-vermessen): DIREKT diagonal zum Pool-Badge (~300ms,
+          // KEIN Hochsteigen), waechst unterwegs riesig (~2.2x), schrumpft in
+          // die Pill.
+          .to(label.scale, { x: 2.2, y: 2.2, duration: 0.16 * speed, ease: 'power1.out' })
+          .to(label, { x: target.x, y: target.y, duration: 0.3 * speed, ease: 'power1.in' }, '<0.02')
+          .to(label.scale, { x: 0.45, y: 0.45, duration: 0.14 * speed, ease: 'power2.in' }, '>-0.14');
       }));
     }
     await Promise.all(flights);
@@ -3515,14 +3540,17 @@ export class ReelSet {
         onComplete: () => {
           try { label.parent?.removeChild(label); label.destroy(); } catch { /* gone */ }
           this.audioHooks.onPlateImpact?.();
+          this.starDustAt(tx, ty, 10, 30);
           this.punchFruitPlaque();
           resolve();
         },
       })
-        .to(label.scale, { x: 1.4, y: 1.4, duration: 0.24 * speed, ease: 'power1.out' })
-        .to(label, { x: (label.x + tx) / 2, y: Math.min(label.y, ty) - 60, duration: 0.34 * speed, ease: 'power1.inOut' }, '>')
-        .to(label, { x: tx, y: ty, duration: 0.3 * speed, ease: 'power2.in' }, '>')
-        .to(label.scale, { x: 0.55, y: 0.55, duration: 0.3 * speed, ease: 'power2.in' }, '<');
+        // WINNA Pool-Apply: CHARGE (~200ms, steigt ~24px ueber die Pill) und
+        // dann KOMET-DASH zur Plaque in ~130ms; Impact = Instant-Produkt-Swap.
+        .to(label.scale, { x: 1.35, y: 1.35, duration: 0.2 * speed, ease: 'power1.out' })
+        .to(label, { y: label.y - 24, duration: 0.2 * speed, ease: 'power1.out' }, '<')
+        .to(label, { x: tx, y: ty, duration: 0.13 * speed, ease: 'power2.in' }, '>')
+        .to(label.scale, { x: 0.5, y: 0.5, duration: 0.13 * speed, ease: 'power2.in' }, '<');
     });
   }
 
@@ -3579,16 +3607,19 @@ export class ReelSet {
             try { label.parent?.removeChild(label); label.destroy(); } catch { /* gone */ }
             sum += g.value;
             this.audioHooks.onPlateImpact?.();
+            // WINNA: Gold-Stern-Splash am Dockpunkt (kein Weiss-Flash)
+            this.starDustAt(target.x, target.y, 8, 24);
             onArrive(sum);
             resolve();
           },
         })
-          // WINNA base game (Noski): the value rises STRAIGHT UP off its gift
-          // first (no diagonal drift), THEN shoots to the plaque.
-          .to(label.scale, { x: 1.35, y: 1.35, duration: 0.22 * speed, ease: 'power1.out' })
-          .to(label, { y: label.y - 64, duration: 0.26 * speed, ease: 'power2.out' }, '<0.06')
-          .to(label, { x: target.x, y: target.y, duration: 0.32 * speed, ease: 'power2.in' }, '>')
-          .to(label.scale, { x: 0.5, y: 0.5, duration: 0.32 * speed, ease: 'power2.in' }, '<');
+          // WINNA base game (frame-vermessen): Anstieg SENKRECHT ~2 Zellen in
+          // ~300ms (beschleunigend), dann in ~200ms zur Plaque einbiegen;
+          // Peak-Groesse ~1.6x in Flugmitte, Dauer distanzunabhaengig ~0.5s.
+          .fromTo(label.scale, { x: 0.7, y: 0.7 }, { x: 1.6, y: 1.6, duration: 0.3 * speed, ease: 'power1.out' })
+          .to(label, { y: label.y - 180, duration: 0.3 * speed, ease: 'power1.in' }, '<')
+          .to(label, { x: target.x, y: target.y, duration: 0.2 * speed, ease: 'power2.in' }, '>')
+          .to(label.scale, { x: 0.55, y: 0.55, duration: 0.2 * speed, ease: 'power2.in' }, '<');
       }));
     }
     await Promise.all(flights);
@@ -3679,13 +3710,13 @@ export class ReelSet {
       });
       label.anchor.set(0.5); label.x = cx; label.y = cy; label.eventMode = 'none';
       this.winAmountsContainer.addChild(label);
-      // FEEL (Noski): the amount blooms softly after the burst, GLIDES away
-      // from the symbols and fades out clean — nothing snaps.
-      gsap.timeline({ delay: 0.3 * speed, onComplete: () => { try { label.parent?.removeChild(label); label.destroy(); } catch { /* gone */ } } })
-        .fromTo(label, { alpha: 0 }, { alpha: 1, duration: 0.24 * speed, ease: 'power1.out' }, 0)
-        .fromTo(label.scale, { x: 0.6, y: 0.6 }, { x: 1, y: 1, duration: 0.34 * speed, ease: 'power2.out' }, 0)
-        .to(label, { y: cy - 58, duration: 1.5 * speed, ease: 'power1.out' }, 0.1)
-        .to(label, { alpha: 0, duration: 0.5 * speed, ease: 'power1.in' }, '>-0.55');
+      // WINNA (frame-vermessen): der Betrag erscheint quasi INSTANT in voller
+      // Groesse (~100ms nach Pop-Start), steht FIX am Cluster-Schwerpunkt
+      // (kein Gleiten — er ueberlebt Collapse+Refill drunter) und fadet dann
+      // in ~270ms an Ort und Stelle aus.
+      gsap.timeline({ delay: 0.1 * speed, onComplete: () => { try { label.parent?.removeChild(label); label.destroy(); } catch { /* gone */ } } })
+        .fromTo(label, { alpha: 0 }, { alpha: 1, duration: 0.1 * speed, ease: 'power1.out' }, 0)
+        .to(label, { alpha: 0, duration: 0.27 * speed, ease: 'power1.in' }, 0.1 + 1.13 * speed);
     }
     await new Promise<void>(r => { gsap.delayedCall(0.5 * speed, () => r()); });
     if (!opts.isLive()) return;

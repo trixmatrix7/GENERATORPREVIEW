@@ -146,6 +146,29 @@ pro Spalte; Rohdaten scratchpad/winna_analysis/timings.json). DIE Referenz für 
   Strips) → Hysterese-Segmentierung → Phasen über Brightness-Dip (Leere-Signal). Scripts in
   scratchpad/winna_analysis/. **Bei jedem neuen Referenz-Video zuerst DIESE Messung, dann bauen.**
 
+**Nachmessung 2026-07-23 (3-Agent-Sweep: Sizing / Pool-Feld / Flüge — alles eingebaut):**
+
+- **Größen-Hierarchie:** normale Symbole füllen nur **0.65–0.80 der Zelle** (deutliche Luft,
+  berühren sich nie); GIFT premium-groß (**1.12×** der Symbole); **SCATTER klar größer als
+  ALLES: ~1.5×** der Symbole (W = 1.05×1.26 der ZELLE, ragt oben+unten raus). Scatter ≈
+  symbol-groß liest sich als „nichts Besonderes".
+- **Gift-×N:** Ziffern-Cap **~0.35 der Zellhöhe**, unten mittig ÜBER die Box-Unterkante gelegt
+  (~60 % des Texts unter der Box). Font: fett-rundliche Ballon-Numerals AUFRECHT (Baloo 2
+  ExtraBold = Match; NICHT italic, nicht Luckiest Guy), vertikaler Gold-Gradient hell→amber,
+  rotbraune Outline + Drop-Shadow.
+- **FS-Pool-Badge (rechte Rail):** Gesamt ~**⅓ der Grid-Höhe**, Zentrum ~123px (≈1.15 Zellen)
+  rechts der Grid-Kante, Zentrum-y **0.55** der Grid-Höhe; Wert in Gold-Ring-Pill unterm Gift.
+  **Tick: Zahl swappt HART** (nie Count-up), **nur der TEXT** poppt 1.4×→1.0 in ~350ms weich,
+  Pill+Box statisch, **KEIN Weiß-Flash** — der „Flash" ist Stern-Burst + größerer Text.
+- **Flüge:** BASE = 2 Phasen, erst **senkrecht hoch** (~2 Zellen, 300ms, beschleunigend), dann
+  in ~200ms zur Plaque einbiegen; Peak-Scale ~1.6× in Flugmitte; Dauer distanzUNabhängig ~0.5s.
+  FS = **direkt diagonal** zum Badge in ~300ms, wächst riesig (~2.4×), schrumpft in die Pill.
+  Pool-APPLY am Spin-Ende: Charge ~200ms über der Pill → **Komet-Dash ~130ms** zur Plaque.
+- **Beträge poppen, fliegen NIE:** Cluster-Betrag erscheint quasi instant in voller Größe,
+  steht FIX (überlebt Collapse+Refill!), fadet ~270ms wenn der ×N-Flug startet. Plaque zeigt
+  nur den BETRAG; Count-up nur beim Sammel-Tick (~700ms ease-out) und im Big-Win-Overlay —
+  **Multiplikation ist IMMER Instant-Swap**, von Gold-Sternen kaschiert.
+
 ## 2. Architektur-Grenzen (verbindlich)
 
 - **NIE anfassen:** src/engine/*, src/config/symbolAnimations.ts, src/game/Reel.ts (byte-identisch zum Dev-Repo).

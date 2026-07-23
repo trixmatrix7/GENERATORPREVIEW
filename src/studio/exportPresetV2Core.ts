@@ -27,6 +27,9 @@ export interface ResolvedAudioEvent {
   exclusive?: boolean;
   role?: string;
   enabled?: boolean;
+  /** Clean-Sounds trim window (Audio Studio): apply at play time via
+   *  seek(offsetMs) + gain(gainDb) + fade-out ending at durMs. */
+  trim?: { offsetMs: number; durMs: number; fadeOutMs: number; gainDb: number };
 }
 
 export interface PresetInputs {

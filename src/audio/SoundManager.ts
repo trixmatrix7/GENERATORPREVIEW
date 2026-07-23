@@ -43,6 +43,31 @@ const STORAGE_KEY = 'slot:audio-prefs';
 // WINS over the game wiring's design volume (setEventVolume/replaceSource)
 // so Noski's tweaks survive theme boots + reloads.
 const EVENT_VOL_KEY = 'slot:audio-event-volumes';
+// CLEAN-SOUNDS playback params (Audio Studio "Clean Sounds"): per event a
+// computed trim window + gain so a too-long / late-onset pick still hits the
+// event's timing budget. Applied at PLAY time (seek + per-id volume + timed
+// fade-stop) — no re-encoding. Written by src/audio/soundCleaner.ts.
+const CLEAN_KEY = 'slot:audio-clean';
+
+interface CleanPlayback {
+  offsetMs: number;
+  durMs: number;
+  fadeOutMs: number;
+  gainDb: number;
+}
+
+let cleanCache: Record<string, CleanPlayback> | null = null;
+function getCleanParams(eventId: string): CleanPlayback | null {
+  if (cleanCache === null) {
+    try { cleanCache = JSON.parse(window.localStorage.getItem(CLEAN_KEY) ?? '{}') as Record<string, CleanPlayback>; }
+    catch { cleanCache = {}; }
+  }
+  const cp = cleanCache[eventId];
+  return cp && Number.isFinite(cp.durMs) && cp.durMs > 0 ? cp : null;
+}
+/** Re-read the clean map (Audio Studio just re-ran Clean Sounds — also fired
+ *  cross-frame via the storage event into the embed preview). */
+export function reloadCleanParams(): void { cleanCache = null; }
 
 function loadEventOverrides(): Map<string, number> {
   const out = new Map<string, number>();
@@ -144,7 +169,41 @@ export class SoundManager {
     } else {
       const id = howl.play();
       if (opts?.rate) howl.rate(opts.rate, id);
+      this.applyClean(eventId, howl, id);
     }
+  }
+
+  /** Apply the Clean-Sounds trim window to ONE playing instance: seek to the
+   *  onset, gain-correct, and fade-stop at the budget end. Loops/exclusive
+   *  music never get clean params (the cleaner skips them), so this only
+   *  ever touches one-shot SFX instances. */
+  private applyClean(eventId: string, howl: Howl, id: number): void {
+    const cp = getCleanParams(eventId);
+    if (!cp) return;
+    try {
+      if (cp.offsetMs > 5) howl.seek(cp.offsetMs / 1000, id);
+      const gainMul = Math.min(4, Math.max(0.2, Math.pow(10, cp.gainDb / 20)));
+      howl.volume(this.effVolume(eventId) * gainMul, id);
+      const fadeAt = Math.max(0, cp.durMs - cp.fadeOutMs);
+      window.setTimeout(() => {
+        try {
+          if (!howl.playing(id)) return;
+          howl.fade(howl.volume(id) as number, 0, Math.max(20, cp.fadeOutMs), id);
+          window.setTimeout(() => { try { howl.stop(id); } catch { /* gone */ } }, cp.fadeOutMs + 40);
+        } catch { /* torn down */ }
+      }, fadeAt);
+    } catch { /* seek unsupported mid-load — play uncleaned */ }
+  }
+
+  /** Re-read the per-event volume overrides from localStorage and apply them
+   *  live — used by the EMBED preview when the Audio Studio (parent page)
+   *  changes volumes and the storage event fires into this frame. */
+  reloadEventOverrides(): void {
+    this.overrides = loadEventOverrides();
+    for (const [id, howl] of this.howls) {
+      try { howl.volume(this.effVolume(id)); } catch { /* torn down */ }
+    }
+    this.notify();
   }
 
   /** EFFECTIVE per-event volume: user override (SOUND panel) wins over the

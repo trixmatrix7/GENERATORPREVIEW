@@ -34,7 +34,16 @@ import { waysImmersiveConfig } from '@/game/effects/WaysImmersive';
 import { teaseTuning } from '@/game/effects/teaseRegistry';
 import { setWinTierGeometry } from '@/game/WinCelebration';
 import { BuildTopBar, BuildSlots } from '@/studio/BuildDock';
-import { isBareBuild, loadActiveGame } from '@/studio/buildPresets';
+import { isBareBuild, loadActiveGame, downloadExport } from '@/studio/buildPresets';
+import { AudioStudioPage } from '@/ui/audioStudio/AudioStudioPage';
+import { getSharedSoundManager } from '@/audio/defaultSoundConfig';
+import { reloadCleanParams } from '@/audio/SoundManager';
+
+/** EMBED mode (?embed=1): the slot alone, no studio chrome — used as the
+ *  live preview iframe inside the Audio Studio page. Same origin, same
+ *  localStorage: sound picks / volumes / clean params sync in live via the
+ *  cross-frame 'storage' event (listener below). */
+const EMBED = typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('embed');
 
 export function App() {
   const [hostApi, setHostApi] = useState<HostApiV1 | null>(null);
@@ -752,6 +761,50 @@ export function App() {
     }}>{notice}</div>
   ) : null;
 
+  // ── AUDIO-STUDIO-Seite (#audio) — die 2. Page. Navigation macht einen
+  // FULL RELOAD (BuildDock-Button + onBack), damit nie Studio-Pixi und
+  // iframe-Pixi gleichzeitig leben; bei #audio bootet das Studio gar nicht
+  // erst (GameCanvas wird nie gemountet, die Slot läuft NUR im iframe). ──
+  const [audioPage, setAudioPage] = useState(() => window.location.hash === '#audio');
+  useEffect(() => {
+    const on = () => {
+      const want = window.location.hash === '#audio';
+      if (want !== audioPage) window.location.reload();
+    };
+    window.addEventListener('hashchange', on);
+    return () => window.removeEventListener('hashchange', on);
+  }, [audioPage]);
+  void setAudioPage; // state nur beim Boot gelesen; Wechsel = reload
+
+  // EMBED-Sync: Änderungen aus dem Audio Studio (Parent-Frame) kommen als
+  // storage-Events an — Picks live umbinden, Volumes + Clean-Params neu laden.
+  useEffect(() => {
+    if (!EMBED) return;
+    const sm = getSharedSoundManager();
+    const on = (e: StorageEvent) => {
+      if (e.key === 'slot:assets') {
+        const sounds = (loadAssets().sounds ?? {}) as Record<string, string>;
+        for (const [ev, url] of Object.entries(sounds)) sm.replaceSource(ev, [url]);
+      } else if (e.key === 'slot:audio-event-volumes') {
+        sm.reloadEventOverrides();
+      } else if (e.key === 'slot:audio-clean') {
+        reloadCleanParams();
+      }
+    };
+    window.addEventListener('storage', on);
+    return () => window.removeEventListener('storage', on);
+  }, []);
+
+  if (audioPage && !EMBED) {
+    return (
+      <AudioStudioPage
+        onBack={() => { window.location.hash = ''; window.location.reload(); }}
+        iframeSrc={`${window.location.pathname}?embed=1`}
+        onExport={() => downloadExport('audio-build')}
+      />
+    );
+  }
+
   if (!hostApi || !snapshot) {
     return (
       <div className="flex items-center justify-center h-full w-full font-[var(--font-body)] text-[14px] text-[var(--color-text-secondary)] gap-2">
@@ -783,8 +836,8 @@ export function App() {
         config={gameConfig}
         bootScreen={bootScreen}
         device={device}
-        topBar={<BuildTopBar device={device} onDevice={setDevice} />}
-        bottomDock={<BuildSlots />}
+        topBar={EMBED ? undefined : <BuildTopBar device={device} onDevice={setDevice} />}
+        bottomDock={EMBED ? undefined : <BuildSlots />}
         gameOverlay={<>
           {noticeToast}
           {!introOpen && !fsIntroOpen
@@ -826,8 +879,8 @@ export function App() {
         }
       />
 
-      <StudioDrawer pixiApp={pixiAppRef} />
-      <PresetDock grid={gameConfig.gridConfig.visibleRows === 3 ? '5x3' : '5x5'} onGrid={handleGridChange} />
+      {!EMBED && <StudioDrawer pixiApp={pixiAppRef} />}
+      {!EMBED && <PresetDock grid={gameConfig.gridConfig.visibleRows === 3 ? '5x3' : '5x5'} onGrid={handleGridChange} />}
     </div>
   );
 }

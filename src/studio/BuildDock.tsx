@@ -60,6 +60,11 @@ export function BuildTopBar({ device, onDevice }: {
         style={{ ...chip, background: '#1f6f43', borderColor: '#1f6f43' }}
         onClick={() => downloadExport(name.trim() || 'vice-heat')}
       >⬇ Export Build</button>
+      <button
+        style={{ ...chip, background: '#6d28d9', borderColor: '#6d28d9' }}
+        title="Audio Studio öffnen — der letzte Audio-Schliff vor dem Export"
+        onClick={() => { window.location.hash = '#audio'; }}
+      >🎧 Push to Audio Manager</button>
     </div>
   );
 }

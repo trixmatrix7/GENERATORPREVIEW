@@ -219,6 +219,11 @@ export function buildExportPreset(name: string): Record<string, unknown> {
   // per-event volume overrides (SoundParamsPanel), exactly what the build plays.
   let volOverrides: Record<string, number> = {};
   try { volOverrides = JSON.parse(localStorage.getItem('slot:audio-event-volumes') ?? '{}'); } catch { /* keep {} */ }
+  // Clean-Sounds trim windows (Audio Studio): per event {offsetMs,durMs,
+  // fadeOutMs,gainDb} — the dev applies them at play time (seek+fade+gain),
+  // so a too-long pick still hits the event's timing budget without re-baking.
+  let cleanMap: Record<string, { offsetMs: number; durMs: number; fadeOutMs: number; gainDb: number }> = {};
+  try { cleanMap = JSON.parse(localStorage.getItem('slot:audio-clean') ?? '{}'); } catch { /* keep {} */ }
   const picks = o.sounds ?? {};
   const audioEvents: Record<string, ResolvedAudioEvent> = {};
   for (const ev of defaultSoundConfig().events) {
@@ -233,6 +238,7 @@ export function buildExportPreset(name: string): Record<string, unknown> {
       exclusive: ev.exclusive || undefined,
       role: ev.id === 'ambient-music' || ev.id === 'win-marquee' ? 'music' : 'sfx',
       enabled: volume > 0,
+      trim: cleanMap[ev.id] ?? undefined,
     };
   }
 

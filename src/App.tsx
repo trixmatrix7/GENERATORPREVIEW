@@ -363,6 +363,10 @@ export function App() {
       void pixiAppRef.setFruitPlaqueArt(`${FRUITSTACKS.base}plate_pill.png`);
       void pixiAppRef.setFruitPoolArt(`${FRUITSTACKS.base}pool_gift.png`);
       void pixiAppRef.setFruitFsBadges(`${FRUITSTACKS.base}fs_badge_15.png`, `${FRUITSTACKS.base}fs_badge_5.png`);
+      // Noskis gebakte ×N-Art (x2..x500) auf den Geschenken; die häufigen
+      // Gewichtswerte werden sofort vorgewärmt, Rest lädt beim Runden-Decode.
+      pixiAppRef.setFruitMultiArtBase(`${FRUITSTACKS.base}multis/`);
+      pixiAppRef.prefetchFruitMultiArt([2, 3, 4, 5, 6, 8, 10, 15, 20, 25, 50, 100, 250, 500]);
       // Layered breathing GAME intro (Noski's "intro screen" pack, 2026-07-23).
       track(pixiAppRef.setLayeredIntro('game', fruitStacksGameIntro()));
       // Audio: NO sounds wired — none recorded for this game yet, and the

@@ -2553,6 +2553,19 @@ export class PixiApp {
   // construction.
   private async resolveTumble(outcome: FruitStacksOutcome, tokenSymbol: string, decimals: number): Promise<void> {
     const round = outcome.fruitRound;
+    // Warm the baked ×N art for EVERY value this round will show (crate
+    // values, running pool sums during the fly-ins, applied pools) — the
+    // textures are tiny webps, so they're ready long before the first badge.
+    {
+      const vals = new Set<number>();
+      for (const sp of [round.base, ...round.fsSpins]) {
+        let running = sp.poolBefore;
+        for (const c of sp.crates) { vals.add(c.value); running = Math.min(running + c.value, 500); vals.add(running); }
+        vals.add(sp.poolAfter);
+        if (sp.multiSum > 0) vals.add(Math.min(sp.multiSum + sp.poolBefore, 500));
+      }
+      this.reelSet.prefetchMultiArt([...vals]);
+    }
     if (this.fsOverlayOpen) {
       this.hideFreeSpinOverlay(this.fsOverlayOpen);
       this.fsOverlayOpen = null;
@@ -2801,6 +2814,16 @@ export class PixiApp {
 
   /** DOM callback: a FS round is running (BONUS ACTIVE pill swaps in). */
   onFsRoundActive: ((on: boolean) => void) | null = null;
+
+  /** Baked ×N art (x2..x500 webp dir) for the gift multis — Noskis Zip. */
+  setFruitMultiArtBase(base: string | null): void {
+    this.reelSet?.setMultiArtBase(base);
+  }
+
+  /** Warm multi-art textures for a set of values (fire-and-forget). */
+  prefetchFruitMultiArt(values: number[]): void {
+    this.reelSet?.prefetchMultiArt(values);
+  }
 
   /** FS pool badge art (gift + integrated pill, Noski). */
   async setFruitPoolArt(url: string): Promise<void> {

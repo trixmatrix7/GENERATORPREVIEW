@@ -7,7 +7,7 @@
 //     outcome itself is never altered.
 //   - Win-cell highlighting and per-cell state triggers after the reels land.
 
-import { Container, Graphics, Text, TextStyle, Rectangle, Sprite, Texture, FillGradient } from 'pixi.js';
+import { Container, Graphics, Text, TextStyle, Rectangle, Sprite, Texture, FillGradient, Assets } from 'pixi.js';
 import { gsap } from 'gsap';
 import { Reel } from './Reel';
 import { AnimatedSymbol, SYMBOL_WIDTH, SYMBOL_HEIGHT, SYMBOL_WIN_SHEETS, SYMBOL_SIZE_MULS } from './AnimatedSymbol';
@@ -2281,6 +2281,51 @@ export class ReelSet {
     return { x: rect.x + rect.w * fx, y: rect.y + rect.h * fy, rot: (c.angleDeg * Math.PI) / 180 };
   }
 
+  // ── BAKED MULTI ART (Noski: "genau die will ich haben auf den geschenken")
+  // — one gold PNG per value ×2..×500 (public/theme/fruitstacks/multis/).
+  // Loaded lazily per value; the procedural balloon text stays as fallback
+  // while a texture is in flight (rare — values are prefetched at decode). ──
+  private multiArtBase: string | null = null;
+  private multiArtTex = new Map<number, Texture>();
+  private multiArtLoading = new Set<number>();
+
+  setMultiArtBase(base: string | null): void { this.multiArtBase = base; }
+
+  /** Fire-and-forget: warm the textures for every value this round shows. */
+  prefetchMultiArt(values: number[]): void {
+    if (!this.multiArtBase) return;
+    for (const v of values) {
+      const n = Math.round(v);
+      if (n < 2 || n > 500 || this.multiArtTex.has(n) || this.multiArtLoading.has(n)) continue;
+      this.multiArtLoading.add(n);
+      Assets.load<Texture>(`${this.multiArtBase}x${n}.webp`)
+        .then(t => { this.multiArtTex.set(n, t); })
+        .catch(() => { /* keep text fallback */ })
+        .finally(() => { this.multiArtLoading.delete(n); });
+    }
+  }
+
+  /** ×N display node: the baked art when loaded, else balloon text. Returned
+   *  WRAPPER is scale-1-normalised (grid size), so every flight tween can
+   *  keep using absolute scale targets. Size follows the fruitMultiSize param. */
+  private makeMultiValue(value: number, sizeOffset = 0): Container {
+    const wrap = new Container();
+    wrap.eventMode = 'none';
+    const tex = this.multiArtTex.get(Math.round(value));
+    if (tex) {
+      const spr = new Sprite(tex);
+      spr.anchor.set(0.5);
+      const h = Math.max(10, fruitMultiConfig.size + sizeOffset) * 1.12;
+      spr.scale.set(h / tex.height);
+      wrap.addChild(spr);
+    } else {
+      const t = new Text({ text: `×${value}`, style: this.fruitMultiStyle(sizeOffset) });
+      t.anchor.set(0.5);
+      wrap.addChild(t);
+    }
+    return wrap;
+  }
+
   /** Live-adjustable 1×1 wild lock backing (frame colour/width + backdrop
    *  colour/opacity). Read when the next wild pops. */
   setOneWildParam(id: string, value: string | number): void {
@@ -3150,7 +3195,7 @@ export class ReelSet {
 
   /** ×N value badges on the multiplier crates currently on the board.
    *  Cleared on startSpin (winAmountsContainer children are per-spin). */
-  private crateBadges: Text[] = [];
+  private crateBadges: Container[] = [];
 
   setCrateBadges(crates: { cell: [number, number]; value: number }[]): void {
     this.clearCrateBadges();
@@ -3161,8 +3206,7 @@ export class ReelSet {
       // value is known. Math keeps id 0; this is display-only.
       this.reels[reel]?.getVisibleCell(row)?.setSymbol(fruitGiftTierId(c.value));
       const rect = resolveAnchor(cellAnchor(reel, row), this.grid);
-      const label = new Text({ text: `×${c.value}`, style: this.fruitMultiStyle() });
-      label.anchor.set(0.5);
+      const label = this.makeMultiValue(c.value);
       // Default 'unten' = reference construct (Winna): the value hangs AT THE
       // GIFT'S BOTTOM EDGE; anchor/tilt are studio params (fruitMulti*).
       const pl = this.fruitMultiPlace(rect);
@@ -3190,7 +3234,9 @@ export class ReelSet {
   private fruitPlaqueText: Text | null = null;
   private fruitPlaqueTex: Texture | null = null;
   private fruitPool: Container | null = null;
-  private fruitPoolText: Text | null = null;
+  private fruitPoolValue: Container | null = null;
+  private fruitPoolValueY = 0;
+  private fruitPoolShown = -1;
 
   setFruitPlaqueTexture(tex: Texture | null): void {
     this.fruitPlaqueTex = tex;
@@ -3440,27 +3486,30 @@ export class ReelSet {
           c.addChild(g);
         }
       }
-      // same balloon-gold style as the on-gift labels (intro-art match)
-      const t = new Text({ text: '', style: this.fruitMultiStyle(-6) });
-      t.anchor.set(0.5);
-      t.y = textY;
-      c.addChild(t);
+      this.fruitPoolValueY = textY; // Pillen-Zentrum — der Wert-Node haengt hier
       // WINNA: Badge-Zentrum ~123px rechts der Grid-Kante (Zelle 107 -> hier
       // ~138), Zentrum-y bei 0.55 der Grid-Hoehe (knapp unter Mitte).
       c.x = this.totalWidth + 138;
       c.y = this.totalHeight * 0.55;
       this.container.addChild(c);
       this.fruitPool = c;
-      this.fruitPoolText = t;
     }
     this.fruitPool.visible = true;
-    if (this.fruitPoolText) this.fruitPoolText.text = `×${value}`;
-    if (pop && this.fruitPoolText) {
-      // WINNA-vermessen: harter Zahl-Swap, dann skaliert NUR DER TEXT von
-      // ~1.4x in ~350ms weich zurueck — Pill-Ring und Box bleiben statisch,
-      // KEIN Weiss-Flash (der wahrgenommene Flash = Sterne + hellerer Text).
-      gsap.killTweensOf(this.fruitPoolText.scale);
-      gsap.fromTo(this.fruitPoolText.scale, { x: 1.4, y: 1.4 }, { x: 1, y: 1, duration: 0.35, ease: 'power2.out' });
+    // Harter Zahl-Swap (WINNA): der Wert-Node wird bei Wertwechsel neu gebaut
+    // — jetzt mit Noskis gebakter Gold-Art (x2..x500), Text nur als Fallback.
+    if (this.fruitPoolShown !== value || !this.fruitPoolValue) {
+      if (this.fruitPoolValue) { try { this.fruitPoolValue.destroy({ children: true }); } catch { /* gone */ } }
+      const node = this.makeMultiValue(value, -6);
+      node.y = this.fruitPoolValueY;
+      this.fruitPool.addChild(node);
+      this.fruitPoolValue = node;
+      this.fruitPoolShown = value;
+    }
+    if (pop && this.fruitPoolValue) {
+      // WINNA-vermessen: NUR DER WERT skaliert von ~1.4x in ~350ms weich
+      // zurueck — Pill-Ring und Box bleiben statisch, KEIN Weiss-Flash.
+      gsap.killTweensOf(this.fruitPoolValue.scale);
+      gsap.fromTo(this.fruitPoolValue.scale, { x: 1.4, y: 1.4 }, { x: 1, y: 1, duration: 0.35, ease: 'power2.out' });
     }
   }
 
@@ -3490,8 +3539,7 @@ export class ReelSet {
           .to(inner.scale, { x: 1.16, y: 1.16, duration: 0.14 * speed, ease: 'power2.out' })
           .to(inner.scale, { x: 1, y: 1, duration: 0.2 * speed, ease: 'back.out(2)' });
       }
-      const label = new Text({ text: `×${g.value}`, style: this.fruitMultiStyle() });
-      label.anchor.set(0.5);
+      const label = this.makeMultiValue(g.value);
       const pl = this.fruitMultiPlace(rect);
       label.x = pl.x; label.y = pl.y; label.rotation = pl.rot;
       label.eventMode = 'none';
@@ -3526,9 +3574,8 @@ export class ReelSet {
   async flyPoolToPlaque(poolValue: number, opts: { isLive: () => boolean; turbo?: boolean }): Promise<void> {
     if (!this.fruitPool || !this.fruitPlaque || poolValue <= 0) return;
     const speed = opts.turbo ? 0.55 : 1;
-    // pool → plaque flight: not on a symbol, so only font/colour/size apply
-    const label = new Text({ text: `×${poolValue}`, style: this.fruitMultiStyle(6) });
-    label.anchor.set(0.5);
+    // pool → plaque flight: not on a symbol — baked art (or text fallback)
+    const label = this.makeMultiValue(poolValue, 6);
     label.x = this.fruitPool.x;
     label.y = this.fruitPool.y;
     label.eventMode = 'none';
@@ -3593,8 +3640,7 @@ export class ReelSet {
           .to(inner.scale, { x: 1.18, y: 1.18, duration: 0.14 * speed, ease: 'power2.out' })
           .to(inner.scale, { x: 1, y: 1, duration: 0.22 * speed, ease: 'back.out(2)' });
       }
-      const label = new Text({ text: `×${g.value}`, style: this.fruitMultiStyle(2) });
-      label.anchor.set(0.5);
+      const label = this.makeMultiValue(g.value, 2);
       const pl = this.fruitMultiPlace(rect);
       label.x = pl.x; label.y = pl.y; label.rotation = pl.rot;
       label.eventMode = 'none';
@@ -3777,8 +3823,7 @@ export class ReelSet {
         // by 1/s so it renders exactly like the settled grid badges (the old
         // target-px values shrank with the sprite → mini badge).
         if (freshCrate !== undefined) {
-          const badge = new Text({ text: `×${freshCrate}`, style: this.fruitMultiStyle() });
-          badge.anchor.set(0.5);
+          const badge = this.makeMultiValue(freshCrate);
           const s = target / tex.height;
           badge.scale.set(1 / s);
           const [fx, fy] = FRUIT_MULTI_POS[fruitMultiConfig.pos] ?? FRUIT_MULTI_POS['unten'];

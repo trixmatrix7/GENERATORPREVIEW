@@ -214,6 +214,10 @@ export class AnimatedSymbol extends Container {
     this.hasRendered = true;
     this.resetVisuals();
     this.applyMode(id);
+    // SCATTER rides the FRONTMOST layer (Noski): it renders bigger than the
+    // cell (Winna-W construct) and must never be covered by neighbour cells.
+    this.zIndex = id === 1 ? 10 : 0;
+    if (this.parent && !this.parent.sortableChildren) this.parent.sortableChildren = true;
   }
 
   /** Pick atlas vs static mode for this symbol, with user-asset uploads

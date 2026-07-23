@@ -43,7 +43,10 @@ export function fruitStacksGameIntro(): Array<{ file: string; role: string; cx: 
 export function fruitStacksSymbolMap(): Map<number, string> {
   return new Map<number, string>([
     [SymbolId.WILD, `${F}gift_tier1.png`],        // GIFT base = silver tier (no gold base in this construct)
-    [SymbolId.SCATTER, `${F}symbol_scatter.png`], // BONUS basket
+    // FS-Lettern FREISTEHEND (Noski 2026-07-23, "nimm was besser passt"):
+    // wie das Winna-W wirkt der Scatter als zellsprengendes Letterform-Objekt;
+    // die gerahmte Kachel-Variante hätte den Free-Floating-Look gebrochen.
+    [SymbolId.SCATTER, `${F}symbol_scatter_fs.png`],
     [SymbolId.HIGH_A, `${F}symbol_high_a.png`],   // heart
     [SymbolId.HIGH_B, `${F}symbol_high_b.png`],   // gold star
     [SymbolId.MID_C, `${F}symbol_mid_c.png`],     // blue star

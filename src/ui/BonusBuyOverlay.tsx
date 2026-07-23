@@ -41,6 +41,9 @@ const FRUIT_BUY_TIER = [
 
 export function FruitBuyRail({ betDisplay, onBuy, bonusActive = false }: { betDisplay: string; onBuy?: (stage: number) => void; bonusActive?: boolean }) {
   const [open, setOpen] = useState(false);
+  // Bestätigung NACH Karten-Klick — wieder drin (Noski lieferte das Theme-Art:
+  // Holzrahmen-Dialog mit gebakten ✗/✓-Kugeln; Hotspots sitzen AUF den Kugeln).
+  const [confirm, setConfirm] = useState<number | null>(null);
   // Rail-left alignment: PixiApp broadcasts the logo's left edge (percent of
   // canvas width) so the buy button moves WITH the logo (Noski: same margin
   // left as the grid has right).
@@ -66,8 +69,9 @@ export function FruitBuyRail({ betDisplay, onBuy, bonusActive = false }: { betDi
         padding: 0, border: 'none', background: 'transparent', cursor: 'pointer',
         filter: 'drop-shadow(0 4px 12px rgba(0,0,0,0.5))',
       }}>
-        {/* Noski's button art — deliberately NO price on it */}
-        <img src={`${import.meta.env.BASE_URL}theme/fruitstacks/bonusbuy_btn.png`} alt="Buy bonus" style={{ width: '100%', display: 'block' }} />
+        {/* Noski's button art (Holz-Plakette "BUY FREE SPINS", 2026-07-23) —
+            deliberately NO price on it */}
+        <img src={`${import.meta.env.BASE_URL}theme/fruitstacks/bonusbuy_btn2.webp`} alt="Buy bonus" style={{ width: '100%', display: 'block' }} />
       </button>
       )}
 
@@ -78,10 +82,8 @@ export function FruitBuyRail({ betDisplay, onBuy, bonusActive = false }: { betDi
           background: 'rgba(3,10,5,0.84)', backdropFilter: 'blur(3px)', fontFamily: FONT,
         }}>
           <div onClick={e => e.stopPropagation()} style={{ display: 'flex', gap: 12, flexWrap: 'wrap', justifyContent: 'center', maxWidth: '96%' }}>
-            {/* DIRECT buy on card tap — no confirm dialog (Noski: it looked
-                off-theme; the card IS the confirmation) */}
             {FRUIT_BUY_STAGES.map(st => (
-              <div key={st.stage} onClick={() => { uiSfx.click(); onBuy?.(st.stage); setOpen(false); }} style={{
+              <div key={st.stage} onClick={() => { uiSfx.click(); setConfirm(st.stage); }} style={{
                 position: 'relative', width: 244, height: Math.round(244 * 2400 / 1792), cursor: 'pointer',
                 backgroundImage: `url(${import.meta.env.BASE_URL}theme/fruitstacks/buycard_${st.stage}.png)`,
                 backgroundSize: 'contain', backgroundRepeat: 'no-repeat', backgroundPosition: 'center',
@@ -97,20 +99,49 @@ export function FruitBuyRail({ betDisplay, onBuy, bonusActive = false }: { betDi
                     alt="" draggable={false}
                     style={{ width: '30%', display: 'block', filter: 'drop-shadow(0 4px 8px rgba(0,0,0,0.45))' }}
                   />
-                  {/* intro-art balloon look: Baloo 2 upright, gold gradient, choc stroke */}
-                  <div style={{
-                    marginTop: -16, fontWeight: 800, fontSize: 24,
-                    fontFamily: "'Baloo 2', 'Rubik', ui-sans-serif, system-ui, sans-serif",
-                    background: 'linear-gradient(180deg, #ffe89a 0%, #ffd21e 48%, #e8880f 100%)',
-                    WebkitBackgroundClip: 'text', backgroundClip: 'text', color: 'transparent',
-                    WebkitTextStroke: '1.2px #241300', filter: 'drop-shadow(0 3px 3px rgba(0,0,0,0.5))',
-                  }}>×{FRUIT_BUY_TIER[st.stage - 1].min}</div>
+                  {/* das ECHTE Multi-Art (Noskis x2..x500-Pack) statt Text */}
+                  <img
+                    src={`${import.meta.env.BASE_URL}theme/fruitstacks/multis/x${FRUIT_BUY_TIER[st.stage - 1].min}.webp`}
+                    alt={`×${FRUIT_BUY_TIER[st.stage - 1].min}`} draggable={false}
+                    style={{ marginTop: -14, height: 30, filter: 'drop-shadow(0 3px 3px rgba(0,0,0,0.5))' }}
+                  />
                 </div>
                 <div style={{ position: 'absolute', bottom: '8.5%', left: '12%', right: '12%', textAlign: 'center', color: '#ffe9a8', fontWeight: 900, fontStyle: 'italic', fontSize: 24, textShadow: '0 2px 5px rgba(0,0,0,0.85)' }}>{money(bet * st.costMult)}</div>
               </div>
             ))}
           </div>
           <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: 11 }}>tap outside to close</div>
+          {confirm && (
+            <div onClick={e => e.stopPropagation()} style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(3,6,12,0.66)', zIndex: 5 }}>
+              {/* Noskis Dialog-Art: Holzrahmen + Tafel + gebakte ✗/✓-Kugeln.
+                  Art-Aspekt 1558×1015; Hotspots exakt auf den Kugeln vermessen:
+                  ✗ Zentrum (37.3%, 82.9%), ✓ Zentrum (62.7%, 82.7%), r≈11% W. */}
+              <div style={{ position: 'relative', width: 'min(520px, 88%)', aspectRatio: '1558 / 1015', fontFamily: FONT }}>
+                <img
+                  src={`${import.meta.env.BASE_URL}theme/fruitstacks/buy_confirm_frame.webp`}
+                  alt="" draggable={false}
+                  style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }}
+                />
+                {/* Tafel-Pille: NUR der Kaufpreis (Noski) */}
+                <div style={{ position: 'absolute', left: '18%', right: '18%', top: '38%', height: '26%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <div style={{ color: '#fff', fontWeight: 900, fontSize: 32, textShadow: '0 2px 6px rgba(0,0,0,0.8)' }}>
+                    {money(bet * FRUIT_BUY_STAGES[confirm - 1].costMult)}
+                  </div>
+                </div>
+                {/* unsichtbare Hotspots AUF den gebakten Kugeln */}
+                <button
+                  aria-label="Abbrechen"
+                  onClick={() => { uiSfx.click(); setConfirm(null); }}
+                  style={{ position: 'absolute', left: '25.3%', top: '65%', width: '24%', height: '34%', background: 'transparent', border: 'none', cursor: 'pointer' }}
+                />
+                <button
+                  aria-label="Kaufen"
+                  onClick={() => { uiSfx.click(); onBuy?.(confirm); setConfirm(null); setOpen(false); }}
+                  style={{ position: 'absolute', left: '50.7%', top: '65%', width: '24%', height: '34%', background: 'transparent', border: 'none', cursor: 'pointer' }}
+                />
+              </div>
+            </div>
+          )}
         </div>
       )}
     </>

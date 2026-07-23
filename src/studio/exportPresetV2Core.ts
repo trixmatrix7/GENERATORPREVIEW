@@ -311,7 +311,7 @@ function fruitstacksAssets(o: AssetOverrides): Record<string, unknown> {
       gift: sym('multi'),
     },
     spritesheets: {
-      coinRain: sheet([`${F}coinrain_fs_0.webp`, `${F}coinrain_fs_1.webp`, `${F}coinrain_fs_2.webp`], 10, 10, 300, 45, { loop: true, placement: 'cover, behind the marquee layer' }),
+      coinRain: sheet([`${F}coinrain_fs_0.webp`, `${F}coinrain_fs_1.webp`], 10, 10, 180, 45, { loop: true, placement: 'cover, behind the marquee layer' }),
     },
     winTiers: { dir: `${F}win-tiers/`, layers: ['big', 'mega', 'epic', 'max', 'win', 'plate', 'total'] },
     introLayers: { dir: `${F}intro/` },

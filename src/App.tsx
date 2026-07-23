@@ -325,9 +325,10 @@ export function App() {
       // Cluster look: no reel separators — symbols read as the frontmost
       // layer on the open board (Noski).
       pixiAppRef.setSeparatorsVisible(false);
-      // Fruit Stacks' OWN coin rain (green-screen mp4 baked, behind marquee)
+      // Fruit Stacks' OWN win rain: Noskis symbol-burst alpha-mov (2026-07-23),
+      // 4.0s ProRes 4444 → 180 frames @45fps = echtes 1:1-Tempo, 2 Sheets.
       void pixiAppRef.setWinCoinRain(
-        [`${FRUITSTACKS.base}coinrain_fs_0.webp`, `${FRUITSTACKS.base}coinrain_fs_1.webp`, `${FRUITSTACKS.base}coinrain_fs_2.webp`], 10, 10, 300, 45,
+        [`${FRUITSTACKS.base}coinrain_fs_0.webp`, `${FRUITSTACKS.base}coinrain_fs_1.webp`], 10, 10, 180, 45,
       );
       // Win marquee: Noski's Fruit-Stacks layer set ("win screen" pack,
       // alpha-bbox measured fractions of the 1080p canvas — as authored).

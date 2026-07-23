@@ -2801,8 +2801,8 @@ export class PixiApp {
     });
   }
 
-  /** RETRIGGER beat (Noski): the 5-badge slams in centred with
-   *  "+5 FREE SPINS" beneath, holds, and fades. */
+  /** RETRIGGER beat (Noski 2026-07-24): the "+5 FREE SPINS" banner art
+   *  slams in centred (text is baked into the art), holds, and fades. */
   private playFruitRetrigger(): Promise<void> {
     if (!this.isLive || !this.fruitBadge5) return Promise.resolve();
     return new Promise<void>(resolve => {
@@ -2812,25 +2812,17 @@ export class PixiApp {
       const cx = width / 2, cy = height / 2;
       const badge = new Sprite(this.fruitBadge5!);
       badge.anchor.set(0.5);
-      badge.scale.set(Math.min(190 / this.fruitBadge5!.width, 190 / this.fruitBadge5!.height));
-      badge.x = cx; badge.y = cy - 40;
+      badge.scale.set(Math.min(
+        (width * 0.42) / this.fruitBadge5!.width,
+        (height * 0.4) / this.fruitBadge5!.height,
+      ));
+      badge.x = cx; badge.y = cy;
       ov.addChild(badge);
-      const label = new Text({
-        text: '+5 FREE SPINS',
-        style: new TextStyle({
-          fontFamily: "'Poppins', ui-sans-serif, system-ui, sans-serif",
-          fontSize: 30, fontWeight: '900', fontStyle: 'italic', letterSpacing: 2,
-          fill: 0xffe698, stroke: { color: 0x1a1000, width: 6, join: 'round' },
-        }),
-      });
-      label.anchor.set(0.5);
-      label.x = cx; label.y = cy + 78;
-      ov.addChild(label);
       this.app.stage.addChild(ov);
       const bs = badge.scale.x;
       gsap.timeline({ onComplete: () => { try { ov.parent?.removeChild(ov); ov.destroy({ children: true }); } catch { /* gone */ } resolve(); } })
         .fromTo(badge.scale, { x: bs * 2.2, y: bs * 2.2 }, { x: bs, y: bs, duration: 0.32, ease: 'power3.in' })
-        .fromTo(label, { alpha: 0, y: cy + 92 }, { alpha: 1, y: cy + 78, duration: 0.25, ease: 'power2.out' }, 0.28)
+        .fromTo(badge, { rotation: -0.04 }, { rotation: 0, duration: 0.3, ease: 'elastic.out(1, 0.5)' }, 0.3)
         .to(ov, { alpha: 0, duration: 0.35, ease: 'power1.in' }, '+=1.1');
     });
   }

@@ -385,7 +385,9 @@ export function App() {
       // the grid; cascade wins tick into it and the gift ×N values fly to it.
       void pixiAppRef.setFruitPlaqueArt(`${FRUITSTACKS.base}plate_pill.png`);
       void pixiAppRef.setFruitPoolArt(`${FRUITSTACKS.base}pool_gift.png`);
-      void pixiAppRef.setFruitFsBadges(`${FRUITSTACKS.base}fs_badge_15.png`, `${FRUITSTACKS.base}fs_badge_5.png`);
+      // 15er-Badge fürs FS-Intro; Retrigger = Noskis "+5 FREE SPINS"-Banner
+      // (2026-07-24), Text ist im Art gebaked.
+      void pixiAppRef.setFruitFsBadges(`${FRUITSTACKS.base}fs_badge_15.png`, `${FRUITSTACKS.base}retrigger_plus5.webp`);
       // Noskis gebakte ×N-Art (x2..x500) auf den Geschenken; die häufigen
       // Gewichtswerte werden sofort vorgewärmt, Rest lädt beim Runden-Decode.
       pixiAppRef.setFruitMultiArtBase(`${FRUITSTACKS.base}multis/`);

@@ -27,16 +27,18 @@ export const FRUITSTACKS = {
  *  'coverbg' so it drift-zooms behind everything. The left grid has no solo
  *  export — it is diff-extracted from the composite (composite − background). */
 export function fruitStacksGameIntro(): Array<{ file: string; role: string; cx: number; cy: number; tw?: number }> {
+  // v2-Pack "BONUS (30)" (2026-07-24): Grids kamen VOR-positioniert, die
+  // Mitte-Elemente zentriert → Positionen aus dem Komposit diff-vermessen.
   const I = `${F}intro/game/`;
   return [
-    { file: `${I}bg_intro.webp`, role: 'coverbg', cx: 960, cy: 540 },
-    { file: `${I}left_grid.webp`, role: 'card', cx: 490.5, cy: 558.5, tw: 627 },
-    { file: `${I}grid_text.webp`, role: 'card', cx: 1433.5, cy: 620.5, tw: 621 },
-    { file: `${I}logo.webp`, role: 'logo', cx: 964, cy: 178.5, tw: 358 },
-    { file: `${I}gift_500x.webp`, role: 'symbol', cx: 959.5, cy: 451.5, tw: 227 },
-    { file: `${I}max_win.webp`, role: 'symbol', cx: 962, cy: 698.5, tw: 224 },
-    { file: `${I}x5000.webp`, role: 'symbol', cx: 960.5, cy: 822, tw: 223 },
-    { file: `${I}press.webp`, role: 'press', cx: 960, cy: 947.5, tw: 200 },
+    { file: `${I}bg_intro2.webp`, role: 'coverbg', cx: 960, cy: 540 },
+    { file: `${I}left_grid2.webp`, role: 'card', cx: 484.5, cy: 590.5, tw: 607 },
+    { file: `${I}right_grid2.webp`, role: 'card', cx: 1433.5, cy: 620.5, tw: 619 },
+    { file: `${I}logo2.webp`, role: 'logo', cx: 960, cy: 179, tw: 354 },
+    { file: `${I}gift2.webp`, role: 'symbol', cx: 961.5, cy: 469.5, tw: 231 },
+    { file: `${I}maxwin2.webp`, role: 'symbol', cx: 960, cy: 702.5, tw: 288 },
+    { file: `${I}x50002.webp`, role: 'symbol', cx: 961.5, cy: 832.5, tw: 225 },
+    { file: `${I}press2.webp`, role: 'press', cx: 957, cy: 991, tw: 330 },
   ];
 }
 

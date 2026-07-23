@@ -3261,6 +3261,28 @@ export class ReelSet {
     this.clipMask.clear();
     this.clipMask.rect(-m.left, -m.top, this.clipRect.w + m.left + m.right, this.clipRect.h + m.top + m.bottom);
     this.clipMask.fill(0xffffff);
+    // Vertikal geöffnete Maske legt die BUFFER-Zellen der Reels frei (Noski:
+    // "oben und unten schauen reels raus") — bei offener Maske verstecken.
+    this.buffersHidden = m.top > 4 || m.bottom > 4;
+    this.applyBufferCellVisibility();
+  }
+
+  private buffersHidden = false;
+
+  /** Hide every reel cell that is NOT part of the visible window. Re-applied
+   *  after each drop-in in case the window ever remaps. */
+  private applyBufferCellVisibility(): void {
+    if (!this.buffersHidden) return;
+    for (const reel of this.reels) {
+      const vis = new Set<AnimatedSymbol>();
+      for (let row = 0; row < this.grid.visibleRows; row++) {
+        const c = reel.getVisibleCell(row);
+        if (c) vis.add(c);
+      }
+      for (const ch of reel.container.children) {
+        if (ch instanceof AnimatedSymbol) ch.visible = vis.has(ch);
+      }
+    }
   }
 
   /** Downward SQUASH on a live cell's art (the ONE landing animation for
@@ -3388,6 +3410,7 @@ export class ReelSet {
     await new Promise<void>(r => { gsap.delayedCall(dur + 0.3 * speed + rowStagger * rows + 0.05 * speed, () => r()); });
     this.audioHooks.onReelStopped?.(0); // one soft land beat for the board
     this.elevateScatterCells(); // BONUS in front of everything (Noski)
+    this.applyBufferCellVisibility(); // buffers stay hidden with the open clip
   }
 
   showFruitPlaque(initial = ''): void {

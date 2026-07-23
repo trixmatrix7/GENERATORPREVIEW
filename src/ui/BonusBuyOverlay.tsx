@@ -59,7 +59,7 @@ export function FruitBuyRail({ betDisplay, onBuy, bonusActive = false }: { betDi
       {/* LEFT-RAIL: during a FS round the pill is replaced by BONUS ACTIVE */}
       {bonusActive ? (
         <img
-          src={`${import.meta.env.BASE_URL}theme/fruitstacks/bonus_active.png`}
+          src={`${import.meta.env.BASE_URL}theme/fruitstacks/bonus_active2.webp`}
           alt="Bonus active"
           style={{ position: 'absolute', left: `${railLeftPct}%`, top: '45%', zIndex: 40, width: '16%', minWidth: 130, pointerEvents: 'none' }}
         />

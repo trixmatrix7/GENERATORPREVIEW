@@ -47,15 +47,12 @@ export function FruitBuyRail({ betDisplay, onBuy, bonusActive = false }: { betDi
         />
       ) : (
       <button onClick={() => { uiSfx.open(); setOpen(true); }} title="Buy bonus" style={{
-        position: 'absolute', left: '4.2%', top: '46%', zIndex: 40, width: '14%', minWidth: 118,
-        padding: '10px 8px', borderRadius: 999, cursor: 'pointer',
-        border: '3px solid #f7b733', background: 'linear-gradient(180deg,#1d3b24 0%, #0d2113 100%)',
-        boxShadow: '0 4px 16px rgba(0,0,0,0.55), inset 0 2px 4px rgba(255,255,255,0.18)',
-        color: '#ffe9a8', fontWeight: 900, fontStyle: 'italic', lineHeight: 1.15,
-        textAlign: 'center', fontFamily: FONT,
+        position: 'absolute', left: '4.2%', top: '46%', zIndex: 40, width: '15%', minWidth: 124,
+        padding: 0, border: 'none', background: 'transparent', cursor: 'pointer',
+        filter: 'drop-shadow(0 4px 12px rgba(0,0,0,0.5))',
       }}>
-        <span style={{ display: 'block', fontSize: 15, letterSpacing: 0.5 }}>BUY BONUS</span>
-        <span style={{ display: 'block', fontSize: 12, color: '#d9f7c9', marginTop: 2 }}>{money(bet * FRUIT_BUY_STAGES[0].costMult)}</span>
+        {/* Noski's button art — deliberately NO price on it */}
+        <img src={`${import.meta.env.BASE_URL}theme/fruitstacks/bonusbuy_btn.png`} alt="Buy bonus" style={{ width: '100%', display: 'block' }} />
       </button>
       )}
 

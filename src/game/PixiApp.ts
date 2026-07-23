@@ -2235,6 +2235,8 @@ export class PixiApp {
       const stickyMode = outcome.scatterCount >= 4;
       // Covered-scatter rule for the whole round (see ReelSet.fsExpandMode).
       this.reelSet.fsExpandMode = stickyMode ? 'sticky' : 'perSpin';
+      // Left rail swaps BUY -> BONUS ACTIVE for the whole round (Noski).
+      this.onFsRoundActive?.(true);
       // CRACK FARM (paylines): 3sc = ROAMING PLANT (one reel sprouts per
       // spin), 4sc = sticky plant towers + the shared +1×-per-connection
       // multiplier. displayPlantMulti mirrors the mock's settlement rule.
@@ -2504,6 +2506,7 @@ export class PixiApp {
       // Capped rounds already locked fsRoundDisplayTotal to the cap = winAmount.
       const authoritativeTotal = outcome.winAmount > 0n ? outcome.winAmount : fsRoundDisplayTotal;
       this.reelSet.fsExpandMode = null;
+      this.onFsRoundActive?.(false);
       await this.playFreeSpinsOutro(authoritativeTotal, decimals, () => {
         this.hideFreeSpinOverlay(overlay);
         if (this.fsOverlayOpen === overlay) this.fsOverlayOpen = null;

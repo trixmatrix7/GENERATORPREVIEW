@@ -2633,13 +2633,12 @@ export class PixiApp {
         if (spin.scatters >= 3 && !this.turbo) await this.playFruitRetrigger();
         await new Promise<void>(r => { gsap.delayedCall(0.3, () => r()); });
       }
-      // ROUND END (Noski flow): the TOTAL pool flies onto the collected
-      // round win, the win resolves — then the marquee/outro plays.
-      const lastPool = round.fsSpins.length ? round.fsSpins[round.fsSpins.length - 1].poolAfter : 0;
-      if (this.isLive && lastPool > 0 && !this.turbo) {
-        await this.reelSet.flyPoolToPlaque(lastPool, { isLive: () => this.isLive, turbo: this.turbo });
+      // ROUND END: the pool now applies VISIBLY per spin (comet + product
+      // swap in playTumbleSpin) — no duplicate round-end fly; just settle the
+      // final total on the plaque and retire the badge.
+      if (this.isLive) {
         this.reelSet.setFruitPlaqueText(formatWin(outcome.winAmount, decimals));
-        await new Promise<void>(r => { gsap.delayedCall(0.6, () => r()); });
+        await new Promise<void>(r => { gsap.delayedCall(this.turbo ? 0.3 : 0.6, () => r()); });
       }
       this.reelSet.setFruitPool(null);
       this.onFsRoundActive?.(false);
@@ -2875,7 +2874,17 @@ export class PixiApp {
         { isLive: () => this.isLive, turbo: this.turbo },
       );
       if (!this.isLive) return;
-      if (spin.spinWin > 0n) {
+      // WINNA Pool-Apply am SPIN-ENDE (Noski: "man sieht den Multi nie drauf
+      // fliegen"): wenn dieser Spin gewonnen hat, fliegt der ANGEWENDETE Pool
+      // als Komet vom Badge auf die Plaque und die Zahl swappt aufs PRODUKT.
+      // Läuft auch in Turbo (schneller), sonst fehlt der Multiplikations-Beat.
+      const appliedFs = spin.multiSum > 0 ? Math.min(spin.multiSum + spin.poolBefore, 500) : 0;
+      if (spin.spinWin > 0n && appliedFs > 0) {
+        await this.reelSet.flyPoolToPlaque(appliedFs, { isLive: () => this.isLive, turbo: this.turbo });
+        if (!this.isLive) return;
+        this.reelSet.setFruitPlaqueText(formatWin((fsCtx.roundWinBefore) + spin.spinWin, decimals));
+        await new Promise<void>(r => { gsap.delayedCall(this.turbo ? 0.25 : 0.5, () => r()); });
+      } else if (spin.spinWin > 0n) {
         this.reelSet.setFruitPlaqueText(formatWin((fsCtx.roundWinBefore) + spin.spinWin, decimals));
         this.reelSet.punchFruitPlaque();
         await new Promise<void>(r => { gsap.delayedCall(this.turbo ? 0.25 : 0.5, () => r()); });

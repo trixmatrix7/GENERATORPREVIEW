@@ -3513,6 +3513,109 @@ export class ReelSet {
     }
   }
 
+  // ── FS-COUNTER (Noski-Art 2026-07-24): Holz-Plakette "FREE SPINS" mit
+  // Zahl-Fenster rechts; die verbleibenden Spins ROLLEN wie ein Rad runter
+  // (Spin-Start) bzw. hoch (Retrigger). Sitzt OBEN an der rechten Rail —
+  // Pool-Badge steht auf 0.55 der Grid-Höhe, hier 0.14 → keine Kollision. ──
+  private fsCounter: Container | null = null;
+  private fsCounterWin: Container | null = null;
+  private fsCounterNum: Container | null = null;
+  private fsCounterShown = -1;
+  private fsCounterTex = new Map<string, Texture>();
+
+  setFsCounterBase(base: string | null): void {
+    if (!base) return;
+    const want = ['frame', ...Array.from({ length: 16 }, (_, i) => `n${i}`)];
+    for (const k of want) {
+      if (this.fsCounterTex.has(k)) continue;
+      Assets.load<Texture>(`${base}${k}.webp`)
+        .then(t => { this.fsCounterTex.set(k, t); })
+        .catch(() => { /* Text-Fallback */ });
+    }
+  }
+
+  /** Zahl-Node im Zaehler-Fenster: gebakte Gold-Zahl 0..15, sonst Ballon-Text
+   *  (Retrigger kann über 15 treiben). Scale-Relation frame↔Zahl vermessen:
+   *  Komposit-„10" = 0.863 der Quell-px, Bake-Faktor 0.45 → ×1.919. */
+  private makeFsCounterNumber(value: number, frameScale: number): Container {
+    const wrap = new Container();
+    wrap.eventMode = 'none';
+    const tex = value >= 0 && value <= 15 ? this.fsCounterTex.get(`n${value}`) : undefined;
+    if (tex) {
+      const spr = new Sprite(tex);
+      spr.anchor.set(0.5);
+      spr.scale.set(frameScale * 1.919);
+      wrap.addChild(spr);
+    } else {
+      const t = new Text({ text: String(value), style: this.fruitMultiStyle(4) });
+      t.anchor.set(0.5);
+      wrap.addChild(t);
+    }
+    return wrap;
+  }
+
+  /** Verbleibende Free Spins anzeigen. roll 'down' = Spin-Start (Rad dreht
+   *  runter), 'up' = Retrigger (+Spins), 'none' = hart setzen. null = weg. */
+  setFsCounter(value: number | null, roll: 'down' | 'up' | 'none' = 'none'): void {
+    if (value === null) {
+      if (this.fsCounter) this.fsCounter.visible = false;
+      this.fsCounterShown = -1;
+      return;
+    }
+    const FRAME_W = 200;
+    const frameTex = this.fsCounterTex.get('frame');
+    const frameScale = frameTex ? FRAME_W / frameTex.width : FRAME_W / 480;
+    const frameH = (frameTex ? frameTex.height : 198) * frameScale;
+    if (!this.fsCounter) {
+      const c = new Container();
+      c.eventMode = 'none';
+      if (frameTex) {
+        const f = new Sprite(frameTex);
+        f.anchor.set(0.5);
+        f.scale.set(frameScale);
+        c.addChild(f);
+      }
+      // Masken-Fenster um das vermessene Zahl-Zentrum (cx 0.752, cy 0.50)
+      const win = new Container();
+      win.x = FRAME_W * (0.752 - 0.5);
+      const m = new Graphics();
+      m.rect(-FRAME_W * 0.19, -frameH * 0.38, FRAME_W * 0.38, frameH * 0.76);
+      m.fill({ color: 0xffffff });
+      win.addChild(m);
+      win.mask = m;
+      c.addChild(win);
+      c.x = this.totalWidth + 138;
+      c.y = this.totalHeight * 0.14;
+      this.container.addChild(c);
+      this.fsCounter = c;
+      this.fsCounterWin = win;
+    }
+    this.fsCounter.visible = true;
+    const prevShown = this.fsCounterShown;
+    const old = this.fsCounterNum;
+    if (roll === 'none' || !old || prevShown === value) {
+      if (old) { try { old.destroy({ children: true }); } catch { /* gone */ } }
+      const node = this.makeFsCounterNumber(value, frameScale);
+      this.fsCounterWin!.addChild(node);
+      this.fsCounterNum = node;
+      this.fsCounterShown = value;
+      return;
+    }
+    // RAD-ROLL: down = alte Zahl fällt unten raus, neue kommt von oben rein
+    const next = this.makeFsCounterNumber(value, frameScale);
+    const dist = frameH * 0.72;
+    const dir = roll === 'down' ? 1 : -1;
+    next.y = -dir * dist;
+    this.fsCounterWin!.addChild(next);
+    this.fsCounterNum = next;
+    this.fsCounterShown = value;
+    gsap.to(next, { y: 0, duration: 0.38, ease: 'back.out(1.15)' });
+    gsap.to(old, {
+      y: dir * dist, duration: 0.38, ease: 'power2.in',
+      onComplete: () => { try { old.destroy({ children: true }); } catch { /* gone */ } },
+    });
+  }
+
   /** THE reference multi beat: every gift pulses, its ×value detaches and
    *  flies to the plate; `onArrive(runningSum)` fires per arrival so the
    *  caller appends "×sum" to the plate text. */

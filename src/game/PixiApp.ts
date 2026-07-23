@@ -2619,6 +2619,13 @@ export class PixiApp {
       if (round.fsSpins[0] && round.fsSpins[0].poolBefore > 0) {
         this.reelSet.setFruitPool(round.fsSpins[0].poolBefore, true);
       }
+      // FS-COUNTER (Noski): remaining spins on the top-right plaque. The
+      // initial count is derived from the settled spin list (each retrigger
+      // spin added retriggerSpins=5, math_fruit_stacks.json), so the wheel
+      // always lands on exactly 0 with the last spin.
+      const retrigCount = round.fsSpins.filter(s => s.scatters >= 3).length;
+      let fsRemaining = Math.max(1, round.fsSpins.length - 5 * retrigCount);
+      this.reelSet.setFsCounter(fsRemaining, 'none');
 
       let roundWin = 0n;
       for (let i = 0; i < round.fsSpins.length; i++) {
@@ -2627,6 +2634,9 @@ export class PixiApp {
         this._winRevealId++;
         this.reelSet.clearCrateBadges();
         this.reelSet.hideFruitPlaque();
+        // Spin-Start: das Rad rollt eins runter (10 → 9 → … → 0)
+        fsRemaining--;
+        this.reelSet.setFsCounter(fsRemaining, 'down');
         // POOL BADGE (reference): the accumulated multiplier pool stands at
         // the grid's right through the whole round.
         this.reelSet.setFruitPool(spin.poolBefore);
@@ -2642,10 +2652,17 @@ export class PixiApp {
         roundWin += spin.spinWin;
         // fresh gifts grew the pool — field ticks AFTER the fly-in beat
         if (spin.poolAfter !== spin.poolBefore) this.reelSet.setFruitPool(spin.poolAfter, true);
-        // RETRIGGER (3+ scatters in this FS spin): 5-badge slams centre
-        if (spin.scatters >= 3 && !this.turbo) await this.playFruitRetrigger();
+        // RETRIGGER (3+ scatters in this FS spin): 5-badge slams centre,
+        // the counter wheel rolls UP (+5) — also in turbo.
+        if (spin.scatters >= 3) {
+          if (!this.turbo) await this.playFruitRetrigger();
+          fsRemaining += 5;
+          this.reelSet.setFsCounter(fsRemaining, 'up');
+        }
         await new Promise<void>(r => { gsap.delayedCall(0.3, () => r()); });
       }
+      // Sicherheitsnetz (fsCap-Clipping): das Rad landet immer auf 0.
+      if (this.isLive && fsRemaining > 0) this.reelSet.setFsCounter(0, 'down');
       // ROUND END: the pool now applies VISIBLY per spin (comet + product
       // swap in playTumbleSpin) — no duplicate round-end fly; just settle the
       // final total on the plaque and retire the badge.
@@ -2654,6 +2671,7 @@ export class PixiApp {
         await new Promise<void>(r => { gsap.delayedCall(this.turbo ? 0.3 : 0.6, () => r()); });
       }
       this.reelSet.setFruitPool(null);
+      this.reelSet.setFsCounter(null);
       this.onFsRoundActive?.(false);
       fsOverlayToClose = fsOverlay;
       this.fsOverlayOpen = fsOverlay;
@@ -2818,6 +2836,11 @@ export class PixiApp {
   /** Baked ×N art (x2..x500 webp dir) for the gift multis — Noskis Zip. */
   setFruitMultiArtBase(base: string | null): void {
     this.reelSet?.setMultiArtBase(base);
+  }
+
+  /** FS-counter art dir (frame.webp + n0..n15.webp) — Noskis Plakette. */
+  setFsCounterArtBase(base: string | null): void {
+    this.reelSet?.setFsCounterBase(base);
   }
 
   /** Warm multi-art textures for a set of values (fire-and-forget). */

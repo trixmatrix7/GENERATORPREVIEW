@@ -369,6 +369,9 @@ export function App() {
       // Gewichtswerte werden sofort vorgewärmt, Rest lädt beim Runden-Decode.
       pixiAppRef.setFruitMultiArtBase(`${FRUITSTACKS.base}multis/`);
       pixiAppRef.prefetchFruitMultiArt([2, 3, 4, 5, 6, 8, 10, 15, 20, 25, 50, 100, 250, 500]);
+      // FS-Counter (Noskis Plakette): zählt die remaining Spins wie ein Rad
+      // runter, Retrigger rollt hoch; oben an der rechten Rail.
+      pixiAppRef.setFsCounterArtBase(`${FRUITSTACKS.base}fscounter/`);
       // Layered breathing GAME intro (Noski's "intro screen" pack, 2026-07-23).
       track(pixiAppRef.setLayeredIntro('game', fruitStacksGameIntro()));
       // Audio: NO sounds wired — none recorded for this game yet, and the

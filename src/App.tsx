@@ -358,13 +358,16 @@ export function App() {
         tierCy: { big: 0.1819, mega: 0.1606, epic: 0.1796, max: 0.187 },
         winCy: 0.5,
         plateCy: 0.7431,
-        // Betrag PASST in die Gold-Plakette (h 0.09 → Font 86 < 97px) statt
-        // drüber zu hängen; dafür das ganze Stand-Marquee größer (Noski).
-        plateH: 0.20,
+        // Betrag PASST in die Gold-Plakette; Font = aufrechte Ballon-Schrift
+        // (Baloo 2, wie Gift-Multis + Karten) statt kursivem Poppins (Noski:
+        // "sieht komisch aus"), und nochmal einen Tick kleiner.
+        plateH: 0.17,
         contentFrac: 0.836, // y[15..918] Lettern-Top bis Stand-Boden
         contentCy: 0.4319,
         sizeMul: 0.95,
         dimAlpha: 0.55,
+        amountFont: "'Baloo 2', 'Rubik', ui-sans-serif, sans-serif",
+        amountItalic: false,
       });
       const Fw = `${FRUITSTACKS.base}win-tiers/`;
       void pixiAppRef.setWinTierImages({

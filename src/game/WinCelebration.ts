@@ -46,6 +46,10 @@ export const WIN_CELEBRATION_CONFIG = {
   sizeMul: 0.48,
   /** Darkness laid over the game board behind the celebration (0 = off). */
   dimAlpha: 0,
+  /** Per-theme AMOUNT font on the plate (null = the manager's default font,
+   *  Poppins italic). Fruit Stacks sets the upright balloon font here. */
+  amountFont: null as string | null,
+  amountItalic: true,
   /** Per-tier marquee scale step — each promotion GROWS the whole marquee
    *  (this is the visible difference between the stages). */
   tierScale: [1.0, 1.16, 1.34, 1.6],
@@ -105,13 +109,15 @@ let GEO: WinTierGeometry = VICE_GEO;
 
 /** Swap the marquee-art geometry for a different theme's layer set (pass
  *  nothing to restore the Vice defaults). Call before the next celebration. */
-export function setWinTierGeometry(geo?: Partial<WinTierGeometry> & { sizeMul?: number; dimAlpha?: number }): void {
+export function setWinTierGeometry(geo?: Partial<WinTierGeometry> & { sizeMul?: number; dimAlpha?: number; amountFont?: string; amountItalic?: boolean }): void {
   // A call with ONLY presentation overrides (sizeMul/dimAlpha) keeps the
   // Vice default geometry — geometry is present iff contentFrac is set.
   GEO = geo && geo.contentFrac != null ? geo as WinTierGeometry : VICE_GEO;
   // Per-theme presentation overrides (fall back to the Vice defaults).
   WIN_CELEBRATION_CONFIG.sizeMul = geo?.sizeMul ?? 0.48;
   WIN_CELEBRATION_CONFIG.dimAlpha = geo?.dimAlpha ?? 0;
+  WIN_CELEBRATION_CONFIG.amountFont = geo?.amountFont ?? null;
+  WIN_CELEBRATION_CONFIG.amountItalic = geo?.amountItalic ?? true;
 }
 
 function formatAmount(amount: bigint, decimals: number): string {
@@ -382,8 +388,8 @@ export class WinCelebration {
       // Count-up text INSIDE the plate (marquee-local canvas units).
       amount = new Text({
         text: '', style: new TextStyle({
-          fontFamily: this.font, fontSize: Math.round(GEO.plateH * ART_H * 0.40), fontWeight: '800',
-          fontStyle: 'italic', letterSpacing: 2, fill: 0xffe9a0,
+          fontFamily: C.amountFont ?? this.font, fontSize: Math.round(GEO.plateH * ART_H * 0.40), fontWeight: '800',
+          fontStyle: C.amountItalic ? 'italic' : 'normal', letterSpacing: 2, fill: 0xffe9a0,
           stroke: { color: 0x1a0e02, width: 10 },
           dropShadow: { color: 0x000000, blur: 8, distance: 0, alpha: 0.55 },
         }),

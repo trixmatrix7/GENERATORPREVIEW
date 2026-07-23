@@ -169,6 +169,16 @@ pro Spalte; Rohdaten scratchpad/winna_analysis/timings.json). DIE Referenz für 
   Verify: f0-Gain-Zahlen + Checker-Montage (Static | Sheet-f0) + Ring-Pixel-Count.
   [[sheet-from-mp4-grade-and-identity]]
 
+- **Layered-Intro-Packs: Positionen IMMER aus dem Komposit messen (2026-07-23, Fruit-Stacks-Intro):**
+  Künstler-Exporte einzelner Elemente kommen oft ZENTRIERT und übergroß (alle cx≈960) — die echten
+  cx/cy/tw liefert nur das Komposit, per Diff gegen den Background (`|comp−bg|.sum(rgb)`). Fallen:
+  (a) das Messband darf Nachbar-Elemente nicht überlappen (Grids links/rechts → tw clippt an die
+  Bandkanten und wird ~2× zu breit); harter Threshold (>140) gegen Glow-Ausfransen. (b) Fehlt ein
+  Layer als Solo-Export (linkes Grid), lässt er sich als Diff-Alpha aus dem Komposit freistellen.
+  (c) Rollen nach Inhalt: Grids/Text-Tafeln = 'card' (STATISCH, Text darf nie warpen), Objekte =
+  'symbol' (nur Y-Float, kein In-Place-Scale = bleibt scharf), Logo = 'logo' (Hero), CTA = 'press',
+  Bokeh-Vollbild = 'coverbg'. Verify: Aspekt Quell-Crop ≈ Komposit-Box (±2%), dann 2×-Sample der
+  Live-Sprites (dy/dsx/drot/da) — Cards müssen 0-Diff zeigen. Script: scratchpad/bake_fruit_intro.py.
 - **Renderer-Resolution FLOOR 2, nicht nur Cap (2026-07-20, DER Crispiness-Durchbruch):** DPR-1-
   Monitore (Preview-Pane meldet `devicePixelRatio===1`) samplen sonst die weiche **128²-Mip** von
   512²-Art in ~110-126px-Zellen (≈4× Minification) → matt/blurry; das Maskottchen wirkt nur scharf,

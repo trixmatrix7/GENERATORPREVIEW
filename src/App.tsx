@@ -23,7 +23,7 @@ import { mathProfileById, loadMathProfileId, saveMathProfileId } from '@/config/
 import { getThemeByName } from '@/config/themes';
 import { viceSymbolMap, VICE_INTRO_URL } from '@/config/viceAssets';
 import { CRACKFARM, crackFarmSymbolMap, crackFarmGameIntro } from '@/config/crackFarmTheme';
-import { FRUITSTACKS, fruitStacksSymbolMap } from '@/config/fruitStacksTheme';
+import { FRUITSTACKS, fruitStacksSymbolMap, fruitStacksGameIntro } from '@/config/fruitStacksTheme';
 import introLayers from '@/data/introLayers.json';
 import { loadAssets } from '@/studio/assetPersistence';
 import type { PixiApp } from '@/game/PixiApp';
@@ -348,6 +348,8 @@ export function App() {
       void pixiAppRef.setFruitPlaqueArt(`${FRUITSTACKS.base}plate_pill.png`);
       void pixiAppRef.setFruitPoolArt(`${FRUITSTACKS.base}pool_gift.png`);
       void pixiAppRef.setFruitFsBadges(`${FRUITSTACKS.base}fs_badge_15.png`, `${FRUITSTACKS.base}fs_badge_5.png`);
+      // Layered breathing GAME intro (Noski's "intro screen" pack, 2026-07-23).
+      track(pixiAppRef.setLayeredIntro('game', fruitStacksGameIntro()));
       // Audio: NO sounds wired — none recorded for this game yet, and the
       // hard rule is silence over placeholders (skill §4).
     } else {

@@ -3698,6 +3698,21 @@ export class ReelSet {
         const mul = SYMBOL_SIZE_MULS.get(dispId) ?? (dispId === SymbolId.SCATTER ? 1.2 : 1);
         const target = Math.round(Math.min(SYMBOL_WIDTH, SYMBOL_HEIGHT) * 0.88 * symbolSizing.objectScale * mul);
         spr.width = target;
+        // A refill GIFT lands WITH its ×N attached (Winna: the value never
+        // leaves the crate — Noski saw naked crates until the step ended).
+        if (freshCrate !== undefined) {
+          const badge = new Text({
+            text: `×${freshCrate}`,
+            style: new TextStyle({
+              fontFamily: 'Arial, sans-serif', fontSize: 34, fontWeight: '900', fontStyle: 'italic',
+              fill: 0xffd21e, stroke: { color: 0x241300, width: 7 }, align: 'center',
+            }),
+          });
+          badge.anchor.set(0.5);
+          badge.y = target * 0.45;
+          badge.eventMode = 'none';
+          spr.addChild(badge);
+        }
         spr.height = target;
         spr.x = rect.x + rect.w / 2;
         spr.y = rect.y + rect.h / 2 - fresh.length * CELL_HEIGHT;

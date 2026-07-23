@@ -19,6 +19,27 @@ export const FRUITSTACKS = {
  *  (multiplier) — no board wild in this construct (wild_w.png reserved);
  *  the ×N value renders as an engine badge hanging at the gift's bottom,
  *  never baked into the art. Id 9 doubles as lemon, id 10 = watermelon. */
+/** Layered GAME intro ("intro screen (1).zip", 1920×1080 design space).
+ *  Every element re-measured against the composite: the grids are 'card'
+ *  (static — they carry pay-text that must not warp), the centre pieces are
+ *  'symbol' (whole-object y-float, no in-place scaling → stays sharp), the
+ *  logo breathes+sways as hero, CLICK TO START pulses. The bokeh bg is
+ *  'coverbg' so it drift-zooms behind everything. The left grid has no solo
+ *  export — it is diff-extracted from the composite (composite − background). */
+export function fruitStacksGameIntro(): Array<{ file: string; role: string; cx: number; cy: number; tw?: number }> {
+  const I = `${F}intro/game/`;
+  return [
+    { file: `${I}bg_intro.webp`, role: 'coverbg', cx: 960, cy: 540 },
+    { file: `${I}left_grid.webp`, role: 'card', cx: 490.5, cy: 558.5, tw: 627 },
+    { file: `${I}grid_text.webp`, role: 'card', cx: 1433.5, cy: 620.5, tw: 621 },
+    { file: `${I}logo.webp`, role: 'logo', cx: 964, cy: 178.5, tw: 358 },
+    { file: `${I}gift_500x.webp`, role: 'symbol', cx: 959.5, cy: 451.5, tw: 227 },
+    { file: `${I}max_win.webp`, role: 'symbol', cx: 962, cy: 698.5, tw: 224 },
+    { file: `${I}x5000.webp`, role: 'symbol', cx: 960.5, cy: 822, tw: 223 },
+    { file: `${I}press.webp`, role: 'press', cx: 960, cy: 947.5, tw: 200 },
+  ];
+}
+
 export function fruitStacksSymbolMap(): Map<number, string> {
   return new Map<number, string>([
     [SymbolId.WILD, `${F}gift_tier1.png`],        // GIFT base = silver tier (no gold base in this construct)

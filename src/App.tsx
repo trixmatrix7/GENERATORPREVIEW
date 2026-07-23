@@ -326,10 +326,11 @@ export function App() {
       // layer on the open board (Noski).
       pixiAppRef.setSeparatorsVisible(false);
       // Fruit Stacks' OWN win rain: Noskis symbol-burst alpha-mov (2026-07-23).
-      // HD-Bake: 120 native Frames @30fps in ECHTEM 16:9 (800×450 pro Frame,
+      // HD-Bake: 120 native 30fps-Frames in ECHTEM 16:9 (800×450 pro Frame,
       // 5×4 pro Sheet) — die alte 320×320-Quetschung las sich als Pixelbrei.
+      // Playback 45fps = 1,5× Tempo (Noski: "muss noch schneller sein").
       void pixiAppRef.setWinCoinRain(
-        [0, 1, 2, 3, 4, 5].map(i => `${FRUITSTACKS.base}coinrain_fs_${i}.webp`), 5, 4, 120, 30,
+        [0, 1, 2, 3, 4, 5].map(i => `${FRUITSTACKS.base}coinrain_fs_${i}.webp`), 5, 4, 120, 45,
       );
       // Win marquee: Noski's Fruit-Stacks layer set ("win screen" pack,
       // alpha-bbox measured fractions of the 1080p canvas — as authored).

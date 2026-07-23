@@ -872,8 +872,12 @@ export function App() {
         bottomDock={EMBED ? undefined : <BuildSlots />}
         gameOverlay={<>
           {noticeToast}
-          {!introOpen && !fsIntroOpen
-          ? (loadActiveGame() === 'crackfarm'
+          {/* BUY-Rails erst MIT der Slot sichtbar (Noski: der Button stand
+              schon über dem Loading + Intro): erst ab bootGone gerendert und
+              wie die Controls weich eingeblendet statt hart gemountet. */}
+          {bootGone && (
+          <div style={{ opacity: introOpen || fsIntroOpen ? 0 : 1, pointerEvents: introOpen || fsIntroOpen ? 'none' : 'auto', transition: 'opacity 0.6s ease' }}>
+          {loadActiveGame() === 'crackfarm'
               ? <BonusBuyOverlay betDisplay={state.betDisplay} onBuy={(id, kind) => {
                   // BUY tiers → trigger the bonus session (FS). ACTIVATE tiers are
                   // persistent bet-enhancer modes (toggled in the overlay); the
@@ -889,8 +893,9 @@ export function App() {
                       anteCostMult={(gameConfig as { anteBet?: { costMult: number } }).anteBet?.costMult}
                       onBuy={stage => { void handleBuyVice(stage); }}
                     />
-                  : null)
-          : null}
+                  : null}
+          </div>
+          )}
         </>}
         controls={
           <div style={{ opacity: introOpen || fsIntroOpen ? 0 : 1, pointerEvents: introOpen || fsIntroOpen ? 'none' : 'auto', transition: 'opacity 0.6s ease' }}>

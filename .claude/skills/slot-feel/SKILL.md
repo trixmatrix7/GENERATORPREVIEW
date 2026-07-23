@@ -216,6 +216,12 @@ pro Spalte; Rohdaten scratchpad/winna_analysis/timings.json). DIE Referenz für 
   Textur-Logik-Space normieren — sonst kommt das Fenster 2× zu breit raus, sx halbiert, Rahmen
   schrumpft auf halbe Größe ("Rahmen verschoben"). No-op bei Resolution 1.
 - **nie über Author-Größe skalieren** (Art in 2× Displaygröße authoren).
+- **Vollbild-Overlay-Bakes (Coin-/Symbol-Regen): NIE quadratisch quetschen (2026-07-23):** ein
+  1920×1080-Alpha-Mov auf 320×320 gebaked + Cover-Render = Aspekt zerstört UND ~5×-Upscale =
+  „sieht verpixelt aus". Regel: Quell-Aspekt BEHALTEN, Frame ≥800×450, native fps (ffprobe
+  `r_frame_rate` — 45fps aus einer 30fps-Quelle dupliziert nur), Sheet-Kante < 4096 (GPU-Limit,
+  z.B. 5×4 Frames à 800×450 = 4000×1800). Verify: `coinFrames[0].width` im Pane + Screenshot
+  während MAX WIN (lange Zeremonie — Big Win ist nach 3s vorbei, schneller als der Screenshot).
 - Heavy-Downscale-Einzeltexturen: mipmaps + maxAnisotropy 8 + source.update().
 - **Atlas-Frames können NICHT mipmappen (Bleed)** → Symbol-Sheets beim Laden in EINZELNE
   Canvas-Texturen slicen (`PixiApp.sliceSheetHD`), dann mipmaps+aniso pro Frame. Downscale

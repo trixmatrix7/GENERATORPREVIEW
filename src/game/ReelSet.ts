@@ -3526,9 +3526,9 @@ export class ReelSet {
         }
       }
       this.fruitPoolValueY = textY; // Pillen-Zentrum — der Wert-Node haengt hier
-      // WINNA: Badge-Zentrum ~123px rechts der Grid-Kante (Zelle 107 -> hier
-      // ~138), Zentrum-y bei 0.55 der Grid-Hoehe (knapp unter Mitte).
-      c.x = this.totalWidth + 138;
+      // Rail-Achse: Counter + Pool-Badge ZENTRIERT untereinander, etwas
+      // weiter rechts (Noski 2026-07-24).
+      c.x = this.totalWidth + 168;
       c.y = this.totalHeight * 0.55;
       this.container.addChild(c);
       this.fruitPool = c;
@@ -3625,7 +3625,7 @@ export class ReelSet {
       win.addChild(m);
       win.mask = m;
       c.addChild(win);
-      c.x = this.totalWidth + 138;
+      c.x = this.totalWidth + 168; // gleiche Achse wie das Pool-Badge
       c.y = this.totalHeight * 0.14;
       this.container.addChild(c);
       this.fsCounter = c;

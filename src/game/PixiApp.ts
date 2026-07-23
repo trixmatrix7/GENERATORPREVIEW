@@ -2688,19 +2688,8 @@ export class PixiApp {
         badge.scale.set(Math.min(260 / this.fruitBadge15.width, 260 / this.fruitBadge15.height));
         badge.x = cx; badge.y = cy - 60;
         ov.addChild(badge);
-        // the "15" sits IN the badge's pill (78% height, pool-field metric)
-        const n15 = new Text({
-          text: '15',
-          style: new TextStyle({
-            fontFamily: "'Poppins', ui-sans-serif, system-ui, sans-serif",
-            fontSize: 44, fontWeight: '900', fontStyle: 'italic',
-            fill: 0xffe698, stroke: { color: 0x1a1000, width: 7, join: 'round' },
-          }),
-        });
-        n15.anchor.set(0.5);
-        n15.x = cx;
-        n15.y = badge.y + (0.78 - 0.5) * this.fruitBadge15.height * badge.scale.y;
-        ov.addChild(n15);
+        // the "15" is BAKED into the badge art (like the retrigger 5-badge) —
+        // no text overlay, or the number doubles.
       }
       const title = new Text({
         text: '15 FREE SPINS WON',

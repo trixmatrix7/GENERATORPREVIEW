@@ -3344,8 +3344,9 @@ export class ReelSet {
         const w = 128;
         g.scale.set(w / this.fruitPoolTex.width);
         c.addChild(g);
-        // ×N sits INSIDE the art's pill (measured: pill centre ~78% height)
-        textY = (0.78 - 0.5) * this.fruitPoolTex.height * g.scale.y;
+        // ×N sits INSIDE the art's pill (pool_gift.png measured: blue pill
+        // interior y 318..395 of 409 → centre 0.872 height)
+        textY = (0.872 - 0.5) * this.fruitPoolTex.height * g.scale.y;
       } else {
         const giftTex = (this.config.theme as { userAssetTextures?: Map<number, Texture> }).userAssetTextures?.get(0);
         if (giftTex) {

@@ -2129,6 +2129,9 @@ export class PixiApp {
     // Silent no-op is the safe answer — the React state machine handles
     // these edges via the disabled-while-!ready button + unmount cleanup.
     if (!this.isLive) return;
+    // Safety: the FS covered-scatter mode must never leak into base spins
+    // (base-game wilds don't expand — scatters beside them DO count).
+    this.reelSet.fsExpandMode = null;
     this._winRevealId++; // cancel any in-flight win reveal from the prior spin
     gsap.killTweensOf(this.winBanner);
     gsap.killTweensOf(this.winBanner.scale);
@@ -2230,6 +2233,8 @@ export class PixiApp {
       // spin); 4+ scatters = STICKY expansion — towers stay for the rest of
       // the round and new ones accumulate wherever a sack naturally lands.
       const stickyMode = outcome.scatterCount >= 4;
+      // Covered-scatter rule for the whole round (see ReelSet.fsExpandMode).
+      this.reelSet.fsExpandMode = stickyMode ? 'sticky' : 'perSpin';
       // CRACK FARM (paylines): 3sc = ROAMING PLANT (one reel sprouts per
       // spin), 4sc = sticky plant towers + the shared +1×-per-connection
       // multiplier. displayPlantMulti mirrors the mock's settlement rule.
@@ -2498,6 +2503,7 @@ export class PixiApp {
       // credited — the final total the player reads must equal their balance.
       // Capped rounds already locked fsRoundDisplayTotal to the cap = winAmount.
       const authoritativeTotal = outcome.winAmount > 0n ? outcome.winAmount : fsRoundDisplayTotal;
+      this.reelSet.fsExpandMode = null;
       await this.playFreeSpinsOutro(authoritativeTotal, decimals, () => {
         this.hideFreeSpinOverlay(overlay);
         if (this.fsOverlayOpen === overlay) this.fsOverlayOpen = null;

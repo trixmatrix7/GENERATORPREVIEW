@@ -170,6 +170,12 @@ export class ReelSet {
    *  must skip them — ONLY the tower may show; it pulses as the wild instead.
    *  Cleared with the sticky-reveal lifecycle (next spin / clear). */
   private readonly expandedReels = new Set<number>();
+  /** Active FS wild-expansion mode (set by PixiApp for the round): in
+   *  'perSpin' EVERY reel with a visible wild becomes fully wild for the
+   *  evaluation; in 'sticky' only while the tower cap is not yet reached.
+   *  A scatter behind such a reel is COVERED and must not count for the
+   *  tease/trigger (Noski: "das verdeckte Scatter zählt nicht"). */
+  public fsExpandMode: 'perSpin' | 'sticky' | null = null;
   /** Each expanded reel's tower sprite + rest pose — the win presentation
    *  THUMPS the column (physical motion, no overlay flash) when it pays. */
   private readonly expandedTowerSprites = new Map<number, { spr: Sprite; baseY: number; baseScale: number }>();
@@ -3027,6 +3033,22 @@ export class ReelSet {
     if (this.expandedReels.has(reelIdx)) return false;
     const len = this.config.reelLengths[reelIdx];
     const strip = this.config.reelStrips[reelIdx];
+    // FS expanding rounds: a reel whose window carries a WILD is (about to
+    // be) fully wild — everything behind the tower is void, so its scatter
+    // must not arm the tease. Sticky rounds only expand while the tower cap
+    // has room (beyond it the wild plays 1:1 and the scatter DOES count) —
+    // mirrors the settlement's evaluation rule exactly.
+    if (this.fsExpandMode) {
+      let hasWild = false;
+      for (let row = 0; row < this.grid.visibleRows; row++) {
+        if (strip[(stop + row) % len] === SymbolId.WILD) { hasWild = true; break; }
+      }
+      if (hasWild) {
+        const cap = (this.config as unknown as { stickyTowerCap?: number }).stickyTowerCap ?? 2;
+        const expandsNow = this.fsExpandMode === 'perSpin' || this.expandedReels.size < cap;
+        if (expandsNow) return false;
+      }
+    }
     for (let row = 0; row < this.grid.visibleRows; row++) {
       if (strip[(stop + row) % len] === SymbolId.SCATTER) return true;
     }

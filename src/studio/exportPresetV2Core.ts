@@ -136,6 +136,11 @@ const MECHANICS: Record<GameKey, Record<string, unknown>[]> = {
       params: { trigger: '3rd-scatter-land', oneShot: true } },
     { id: 'scatter-trigger-beat', kind: 'win-presentation', enabled: true, affectsMath: false,
       params: { scatterWinSheetOnTrigger: true, growScale: 1.28, note: 'no fly-to-center collect; win anim + zoom only' } },
+    { id: 'sound-volume-parameters', kind: 'presentation', enabled: true, affectsMath: false,
+      params: {
+        note: 'GENERATOR FEATURE (Noski): expose a per-event VOLUME parameter for EVERY audio event in the real generator UI. audio.events[<id>].volume in this preset is the operative loudness of the shipped build (design default merged with the volume sliders) — reproduce it 1:1 and make each one adjustable. The sound LIBRARY picker is studio-only and NOT part of this feature.',
+        source: 'audio.events (complete: every registry event with file + volume + loop/exclusive flags)',
+      } },
     { id: 'buy-stages', kind: 'base-feature', enabled: true, affectsMath: true,
       mathBinding: ['custom.viceBuyStages'],
       params: { presentation: 'forced stops carry the bought scatter count — 2 land, tease arms, rest drop like a natural trigger; board evaluated in full (display == payout)' } },
@@ -163,6 +168,11 @@ const MECHANICS: Record<GameKey, Record<string, unknown>[]> = {
     { id: 'win-marquees', kind: 'win-presentation', enabled: true, affectsMath: false,
       params: { tiers: ['win', 'big', 'mega', 'epic', 'max'], coinRain: true, marqueeDucksAmbient: true } },
     { id: 'universal-anticipation', kind: 'presentation', enabled: true, affectsMath: false },
+    { id: 'sound-volume-parameters', kind: 'presentation', enabled: true, affectsMath: false,
+      params: {
+        note: 'GENERATOR FEATURE (Noski): expose a per-event VOLUME parameter for EVERY audio event in the real generator UI. audio.events[<id>].volume in this preset is the operative loudness of the shipped build (design default merged with the volume sliders) — reproduce it 1:1 and make each one adjustable. The sound LIBRARY picker is studio-only and NOT part of this feature.',
+        source: 'audio.events (complete: every registry event with file + volume + loop/exclusive flags)',
+      } },
   ],
   fruitstacks: [
     { id: 'scatter-pays', kind: 'grid-effect', enabled: true, affectsMath: true,

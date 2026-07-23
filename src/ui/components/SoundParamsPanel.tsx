@@ -28,6 +28,9 @@ const CORE_ROWS: Row[] = [
   { label: 'Wild-Expand', ids: ['wild-expand'] },
   { label: 'FS-Trigger', ids: ['free-spin-trigger'] },
   { label: 'Near-Miss-Tease', ids: ['near-miss-tease'] },
+  { label: 'Win-Jingle XL (Mega)', ids: ['win-mega'] },
+  { label: 'Tally-Ticks (Count-Up)', ids: ['win-tally-tick', 'win-tally-end'] },
+  { label: 'Tier-Up-Slam', ids: ['tier-up'] },
 ];
 
 export function SoundParamsPanel({ soundManager }: { soundManager: SoundManager }) {

@@ -3182,12 +3182,16 @@ export class ReelSet {
         gsap.killTweensOf(inner); gsap.killTweensOf(inner.scale);
         gsap.to(inner, {
           y: SYMBOL_HEIGHT / 2 + drop, alpha: 0,
-          duration: 0.3 * speed, ease: 'power2.in',
-          delay: 0.05 * speed * reel + 0.015 * speed * (rows - row),
+          // WINNA-MESSUNG (frame-diff 2026-07-22): der Drop-Out ist EIN
+          // Board-Ereignis — alle Spalten kollabieren SIMULTAN (Stagger ~0ms,
+          // p75 33ms), Dauer ~400ms im Base-Modus. Der alte 50ms-Spaltenversatz
+          // las sich mechanisch.
+          duration: 0.4 * speed, ease: 'power2.in',
+          delay: 0.015 * speed * (rows - row),
         });
       }
     }
-    await new Promise<void>(r => { gsap.delayedCall((0.3 + 0.05 * this.grid.reelCount + 0.1) * speed, () => r()); });
+    await new Promise<void>(r => { gsap.delayedCall((0.4 + 0.015 * this.grid.visibleRows + 0.08) * speed, () => r()); });
   }
 
   /** DROP-IN (cluster construct): fresh symbols rain in from above the mask,
@@ -3219,8 +3223,12 @@ export class ReelSet {
     // down) — no temp sprites, so there is NO hand-off and NO size jump
     // ("Vergrößern beim ersten Drop" was the temps swapping to the real
     // art at a different size). Landing = downward squash, bottom planted.
-    const dur = 0.26 * speed;
-    const colDelay = 0.07 * speed;
+    // WINNA-MESSUNG (frame-diff 2026-07-22): Refill-Fall 442ms (unsere 260ms
+    // lasen sich als Teleport — Fallzeit = Gewicht). Ankunft NICHT uniform:
+    // Spalten 1-3 fast zusammen, nach rechts aufweitend (Gesamt-Spread
+    // 200-400ms) — der gleichmäßige 70ms-Versatz wirkte roboterhaft.
+    const dur = 0.44 * speed;
+    const COL_DELAYS = [0, 0.01, 0.03, 0.1, 0.19, 0.3];
     const rowStagger = 0.035 * speed;
     for (let reel = 0; reel < reels; reel++) {
       for (let row = 0; row < rows; row++) {
@@ -3237,7 +3245,7 @@ export class ReelSet {
         const baseY = SYMBOL_HEIGHT / 2;
         inner.y = baseY - (row + 1.4) * CELL_HEIGHT; // above the grid mask
         const sink = SYMBOL_HEIGHT * 0.069; // first drop: 25% more intensity (Noski)
-        gsap.timeline({ delay: colDelay * reel + rowStagger * (rows - 1 - row) })
+        gsap.timeline({ delay: (COL_DELAYS[reel] ?? 0.3) * speed + rowStagger * (rows - 1 - row) })
           .to(inner, { y: baseY, duration: dur, ease: 'power2.in' }, 0)
           .to(inner.scale, { y: 0.8, x: 1.075, duration: 0.08 * speed, ease: 'power1.out' }, dur)
           .to(inner, { y: baseY + sink, duration: 0.08 * speed, ease: 'power1.out' }, dur)
@@ -3245,7 +3253,7 @@ export class ReelSet {
           .to(inner, { y: baseY, duration: 0.2 * speed, ease: 'back.out(2.2)' }, dur + 0.08 * speed);
       }
     }
-    await new Promise<void>(r => { gsap.delayedCall(dur + 0.3 * speed + colDelay * reels + rowStagger * rows + 0.05 * speed, () => r()); });
+    await new Promise<void>(r => { gsap.delayedCall(dur + 0.3 * speed + rowStagger * rows + 0.05 * speed, () => r()); });
     this.audioHooks.onReelStopped?.(0); // one soft land beat for the board
     this.elevateScatterCells(); // BONUS in front of everything (Noski)
   }
@@ -3586,7 +3594,9 @@ export class ReelSet {
           // juice droplets spray out, the art bursts away. No hard cuts.
           const inner2 = inner;
           gsap.timeline()
-            .to(inner2.scale, { x: 1.16, y: 1.16, duration: 0.22 * speed, ease: 'power1.inOut' })
+            // WINNA: Collapse gesamt ~333ms (Pop -> leer) — der alte 220ms-
+            // Charge-Swell streckte den Rhythmus zäh. Kurzer 100ms-Swell.
+            .to(inner2.scale, { x: 1.16, y: 1.16, duration: 0.1 * speed, ease: 'power1.inOut' })
             .to(inner2.scale, { x: 1.34, y: 1.34, duration: 0.09 * speed, ease: 'power2.in' }, '>')
             .to(inner2.scale, { x: 0.4, y: 0.4, duration: 0.16 * speed, ease: 'power2.out' }, '>')
             .to(inner2, { alpha: 0, duration: 0.16 * speed, ease: 'power1.out' }, '<');
@@ -3636,7 +3646,7 @@ export class ReelSet {
         .to(label, { y: cy - 58, duration: 1.5 * speed, ease: 'power1.out' }, 0.1)
         .to(label, { alpha: 0, duration: 0.5 * speed, ease: 'power1.in' }, '>-0.55');
     }
-    await new Promise<void>(r => { gsap.delayedCall(0.62 * speed, () => r()); });
+    await new Promise<void>(r => { gsap.delayedCall(0.5 * speed, () => r()); });
     if (!opts.isLive()) return;
 
     // 2. GRAVITY-FALL + REFILL (no bounce — clean drop, subtle knick after).
@@ -3646,7 +3656,8 @@ export class ReelSet {
       if (!arr) removedByReel.set(reel, arr = []);
       arr.push(row);
     }
-    const fallDur = 0.3 * speed;
+    // WINNA: Tumble-Refill 500ms (unsere 300ms zu hastig).
+    const fallDur = 0.44 * speed;
     const temps: Sprite[] = [];
     const theme = this.config.theme as { userAssetTextures?: Map<number, Texture> };
     // gift tier art by CURRENT position (cratesAfter rode the gravity)

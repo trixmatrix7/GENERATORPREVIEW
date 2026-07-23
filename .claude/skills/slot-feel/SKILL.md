@@ -126,6 +126,26 @@ GESAMTGEWINN wird still hinter dem Marquee verrechnet.
 - Vice = Familie A (Immersive-Dance + Dim + sequentielle Kinds) — Basis stimmt; offene
   Deltas W1–W5 in Report 15 §6 (Center-Count-up, Rim-Glow, Stretch-Smear-Stop).
 
+## 1b. Tumbler-Timing = Winna-Ground-Truth (frame-vermessen 2026-07-22, 30fps, ±33ms)
+
+Gemessen aus Noskis Winna-Trillion-Recording (12 saubere Spins, 56 Tumbles, Motion-Energy
+pro Spalte; Rohdaten scratchpad/winna_analysis/timings.json). DIE Referenz für Fruit Stacks:
+
+- **Drop-Out = EIN Board-Ereignis:** alle Spalten kollabieren SIMULTAN (Stagger-Median 0ms,
+  p75 33ms!), Dauer ~400ms (Base) / ~733ms (tief im Bonus mit Stacks — bimodal). Spalten-
+  Stagger beim Drop-Out ist FALSCH.
+- **Refill-Fall 442ms** (p25 408 / p75 471) — 260ms liest sich als Teleport. Fallzeit = Gewicht.
+- **Refill-Ankunft nicht uniform:** Spalten 1-3 fast zeitgleich (±1 Frame), nach rechts
+  aufweitend; Gesamt-Spread col1→col6 200-400ms. Gleichmäßiger Spaltenversatz = Roboter.
+  Implementiert als COL_DELAYS [0, .01, .03, .10, .19, .30]s.
+- **Tumble-Collapse 333ms** (Win-Pop → Board-Minimum) — ein langer Charge-Swell (220ms) davor
+  macht den Rhythmus zäh; Swell max ~100ms.
+- **Tumble-Refill 500ms**, **Pause zwischen Tumbles 367ms**, **Pause Settle→erster Tumble 400ms**,
+  **Autoplay-Kadenz ~3.6s** (inkl. Tally-Dwell).
+- Methode wiederverwendbar: ffmpeg-Graustufen-Pipe → numpy Motion-Energy (Board + 6 Spalten-
+  Strips) → Hysterese-Segmentierung → Phasen über Brightness-Dip (Leere-Signal). Scripts in
+  scratchpad/winna_analysis/. **Bei jedem neuen Referenz-Video zuerst DIESE Messung, dann bauen.**
+
 ## 2. Architektur-Grenzen (verbindlich)
 
 - **NIE anfassen:** src/engine/*, src/config/symbolAnimations.ts, src/game/Reel.ts (byte-identisch zum Dev-Repo).

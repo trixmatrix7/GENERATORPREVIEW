@@ -131,6 +131,27 @@ export const oneWildConfig = {
   frameColor: 0x7ef23e, frameWidth: 0,
 };
 
+/** Live-adjustable ×N label on the FRUIT GIFT symbols (Noski: font felt off —
+ *  it was a mix of Arial and Poppins across the five draw sites; now ONE
+ *  config drives them all). Position = anchor on the symbol cell, angle =
+ *  diagonal tilt in degrees. Studio params fruitMulti* feed this. */
+export const fruitMultiConfig = {
+  fontFamily: "'Rubik', ui-sans-serif, system-ui, sans-serif",
+  color: 0xffd21e,
+  size: 34,        // px on the grid (flight labels add small offsets)
+  pos: 'unten',    // anchor on the symbol, see FRUIT_MULTI_POS
+  angleDeg: 0,     // diagonal tilt
+};
+
+/** Anchor → [x,y] fraction inside the cell. 'unten' = the reference look
+ *  (value hangs at the gift's bottom edge, Winna construct). */
+export const FRUIT_MULTI_POS: Record<string, [number, number]> = {
+  'mitte': [0.5, 0.5], 'oben': [0.5, 0.16], 'unten': [0.5, 0.95],
+  'links': [0.2, 0.5], 'rechts': [0.8, 0.5],
+  'oben-links': [0.2, 0.16], 'oben-rechts': [0.8, 0.16],
+  'unten-links': [0.2, 0.95], 'unten-rechts': [0.8, 0.95],
+};
+
 export class ReelSet {
   readonly container: Container;
   private readonly reels: Reel[] = [];
@@ -2205,6 +2226,39 @@ export class ReelSet {
     }
   }
 
+  /** Live-adjustable fruit gift ×N label (font / colour / size / anchor
+   *  position on the symbol / diagonal angle). Read when the next label is
+   *  drawn — all five draw sites share this config. */
+  setFruitMultiParam(id: string, value: string | number): void {
+    const c = fruitMultiConfig;
+    switch (id) {
+      case 'fruitMultiFont': c.fontFamily = `'${String(value)}', ui-sans-serif, system-ui, sans-serif`; break;
+      case 'fruitMultiColor': c.color = hexToNum(String(value)); break;
+      case 'fruitMultiSize': c.size = Number(value); break;
+      case 'fruitMultiPos': c.pos = String(value); break;
+      case 'fruitMultiAngle': c.angleDeg = Number(value); break;
+      default: return;
+    }
+  }
+
+  /** Shared TextStyle for every gift ×N label (stroke scales with the size). */
+  private fruitMultiStyle(sizeOffset = 0): TextStyle {
+    const c = fruitMultiConfig;
+    const size = Math.max(10, c.size + sizeOffset);
+    return new TextStyle({
+      fontFamily: c.fontFamily, fontSize: size, fontWeight: '900', fontStyle: 'italic',
+      fill: c.color, stroke: { color: 0x241300, width: Math.max(3, Math.round(size * 0.2)), join: 'round' },
+      align: 'center',
+    });
+  }
+
+  /** Param-anchored position + tilt of a gift label inside its cell rect. */
+  private fruitMultiPlace(rect: { x: number; y: number; w: number; h: number }): { x: number; y: number; rot: number } {
+    const c = fruitMultiConfig;
+    const [fx, fy] = FRUIT_MULTI_POS[c.pos] ?? FRUIT_MULTI_POS['unten'];
+    return { x: rect.x + rect.w * fx, y: rect.y + rect.h * fy, rot: (c.angleDeg * Math.PI) / 180 };
+  }
+
   /** Live-adjustable 1×1 wild lock backing (frame colour/width + backdrop
    *  colour/opacity). Read when the next wild pops. */
   setOneWildParam(id: string, value: string | number): void {
@@ -3085,18 +3139,12 @@ export class ReelSet {
       // value is known. Math keeps id 0; this is display-only.
       this.reels[reel]?.getVisibleCell(row)?.setSymbol(fruitGiftTierId(c.value));
       const rect = resolveAnchor(cellAnchor(reel, row), this.grid);
-      const label = new Text({
-        text: `×${c.value}`,
-        style: new TextStyle({
-          fontFamily: 'Arial, sans-serif', fontSize: 34, fontWeight: '900', fontStyle: 'italic',
-          fill: 0xffd21e, stroke: { color: 0x241300, width: 7 }, align: 'center',
-        }),
-      });
+      const label = new Text({ text: `×${c.value}`, style: this.fruitMultiStyle() });
       label.anchor.set(0.5);
-      label.x = rect.x + rect.w / 2;
-      // Reference construct (Winna): the value hangs AT THE GIFT'S BOTTOM
-      // EDGE, centered — same spot on every gift.
-      label.y = rect.y + rect.h * 0.95;
+      // Default 'unten' = reference construct (Winna): the value hangs AT THE
+      // GIFT'S BOTTOM EDGE; anchor/tilt are studio params (fruitMulti*).
+      const pl = this.fruitMultiPlace(rect);
+      label.x = pl.x; label.y = pl.y; label.rotation = pl.rot;
       label.eventMode = 'none';
       this.winAmountsContainer.addChild(label);
       this.crateBadges.push(label);
@@ -3407,17 +3455,10 @@ export class ReelSet {
           .to(inner.scale, { x: 1.16, y: 1.16, duration: 0.14 * speed, ease: 'power2.out' })
           .to(inner.scale, { x: 1, y: 1, duration: 0.2 * speed, ease: 'back.out(2)' });
       }
-      const label = new Text({
-        text: `×${g.value}`,
-        style: new TextStyle({
-          fontFamily: "'Poppins', ui-sans-serif, system-ui, sans-serif",
-          fontSize: 34, fontWeight: '800', fontStyle: 'italic',
-          fill: 0xffd21e, stroke: { color: 0x241300, width: 7, join: 'round' }, align: 'center',
-        }),
-      });
+      const label = new Text({ text: `×${g.value}`, style: this.fruitMultiStyle() });
       label.anchor.set(0.5);
-      label.x = rect.x + rect.w / 2;
-      label.y = rect.y + rect.h * 0.95;
+      const pl = this.fruitMultiPlace(rect);
+      label.x = pl.x; label.y = pl.y; label.rotation = pl.rot;
       label.eventMode = 'none';
       this.winAmountsContainer.addChild(label);
       flights.push(new Promise<void>(resolve => {
@@ -3450,14 +3491,8 @@ export class ReelSet {
   async flyPoolToPlaque(poolValue: number, opts: { isLive: () => boolean; turbo?: boolean }): Promise<void> {
     if (!this.fruitPool || !this.fruitPlaque || poolValue <= 0) return;
     const speed = opts.turbo ? 0.55 : 1;
-    const label = new Text({
-      text: `×${poolValue}`,
-      style: new TextStyle({
-        fontFamily: "'Poppins', ui-sans-serif, system-ui, sans-serif",
-        fontSize: 40, fontWeight: '900', fontStyle: 'italic',
-        fill: 0xffd21e, stroke: { color: 0x241300, width: 8, join: 'round' }, align: 'center',
-      }),
-    });
+    // pool → plaque flight: not on a symbol, so only font/colour/size apply
+    const label = new Text({ text: `×${poolValue}`, style: this.fruitMultiStyle(6) });
     label.anchor.set(0.5);
     label.x = this.fruitPool.x;
     label.y = this.fruitPool.y;
@@ -3520,16 +3555,10 @@ export class ReelSet {
           .to(inner.scale, { x: 1.18, y: 1.18, duration: 0.14 * speed, ease: 'power2.out' })
           .to(inner.scale, { x: 1, y: 1, duration: 0.22 * speed, ease: 'back.out(2)' });
       }
-      const label = new Text({
-        text: `×${g.value}`,
-        style: new TextStyle({
-          fontFamily: 'Arial, sans-serif', fontSize: 36, fontWeight: '900', fontStyle: 'italic',
-          fill: 0xffd21e, stroke: { color: 0x241300, width: 7 }, align: 'center',
-        }),
-      });
+      const label = new Text({ text: `×${g.value}`, style: this.fruitMultiStyle(2) });
       label.anchor.set(0.5);
-      label.x = rect.x + rect.w / 2;
-      label.y = rect.y + rect.h * 0.95;
+      const pl = this.fruitMultiPlace(rect);
+      label.x = pl.x; label.y = pl.y; label.rotation = pl.rot;
       label.eventMode = 'none';
       this.winAmountsContainer.addChild(label);
       flights.push(new Promise<void>(resolve => {
@@ -3701,16 +3730,19 @@ export class ReelSet {
         spr.width = target;
         // A refill GIFT lands WITH its ×N attached (Winna: the value never
         // leaves the crate — Noski saw naked crates until the step ended).
+        // The badge is a CHILD of the scaled sprite, so it lives in TEXTURE
+        // space: position/size are expressed in texture px and counter-scaled
+        // by 1/s so it renders exactly like the settled grid badges (the old
+        // target-px values shrank with the sprite → mini badge).
         if (freshCrate !== undefined) {
-          const badge = new Text({
-            text: `×${freshCrate}`,
-            style: new TextStyle({
-              fontFamily: 'Arial, sans-serif', fontSize: 34, fontWeight: '900', fontStyle: 'italic',
-              fill: 0xffd21e, stroke: { color: 0x241300, width: 7 }, align: 'center',
-            }),
-          });
+          const badge = new Text({ text: `×${freshCrate}`, style: this.fruitMultiStyle() });
           badge.anchor.set(0.5);
-          badge.y = target * 0.45;
+          const s = target / tex.height;
+          badge.scale.set(1 / s);
+          const [fx, fy] = FRUIT_MULTI_POS[fruitMultiConfig.pos] ?? FRUIT_MULTI_POS['unten'];
+          badge.x = (fx - 0.5) * tex.width;
+          badge.y = (fy - 0.5) * tex.height;
+          badge.rotation = (fruitMultiConfig.angleDeg * Math.PI) / 180;
           badge.eventMode = 'none';
           spr.addChild(badge);
         }

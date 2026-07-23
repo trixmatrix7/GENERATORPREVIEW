@@ -81,7 +81,8 @@ export interface FruitRound {
   fsSpins: FruitSpin[];
   totalWin: bigint;            // capped, authoritative
   capped: boolean;
-  /** 0 = natural round; 1/2/3 = purchased FS stage (min gift ×2/×6/×31). */
+  /** 0 = natural round; 1/2/3 = purchased FS stage (start pool ×0/×50/×100,
+   *  gift-enhanced strips; stage 1 additionally drops the ×500 tail). */
   buyStage: number;
 }
 

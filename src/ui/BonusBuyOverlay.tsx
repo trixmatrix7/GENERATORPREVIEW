@@ -29,8 +29,15 @@ const CH = Math.round(CW * 598 / 360);
 // swap). Change this string (or per-slot below) to restyle the cards / bet.
 const FONT = "'Rubik', ui-sans-serif, system-ui, sans-serif";
 
-// ── FRUIT STACKS: purchased FS stages (sim-calibrated costs, min-gift
-// tiers matching the card ribbons: silver ×2+ / red ×6+ / gold ×31+). ──
+// ── FRUIT STACKS: purchased FS stages (sim-calibrated costs; stage 2/3
+// pre-load the pool at ×50/×100). Each card shows its tier's gift box with
+// the tier's REAL minimum gift multi from the certified multiWeights:
+// silver ×2–5, red ×6–25, gold ×50–500 (checked 2026-07-23). ──
+const FRUIT_BUY_TIER = [
+  { img: 'gift_tier1.png', min: 2 },
+  { img: 'gift_tier2.png', min: 6 },
+  { img: 'gift_tier3.png', min: 50 },
+] as const;
 
 export function FruitBuyRail({ betDisplay, onBuy, bonusActive = false }: { betDisplay: string; onBuy?: (stage: number) => void; bonusActive?: boolean }) {
   const [open, setOpen] = useState(false);
@@ -65,16 +72,27 @@ export function FruitBuyRail({ betDisplay, onBuy, bonusActive = false }: { betDi
           <div onClick={e => e.stopPropagation()} style={{ display: 'flex', gap: 12, flexWrap: 'wrap', justifyContent: 'center', maxWidth: '96%' }}>
             {FRUIT_BUY_STAGES.map(st => (
               <div key={st.stage} onClick={() => { uiSfx.click(); setConfirm(st.stage); }} style={{
-                position: 'relative', width: 180, height: Math.round(180 * 2400 / 1792), cursor: 'pointer',
+                position: 'relative', width: 244, height: Math.round(244 * 2400 / 1792), cursor: 'pointer',
                 backgroundImage: `url(${import.meta.env.BASE_URL}theme/fruitstacks/buycard_${st.stage}.png)`,
                 backgroundSize: 'contain', backgroundRepeat: 'no-repeat', backgroundPosition: 'center',
                 fontFamily: FONT,
               }}>
-                {/* the cards are EMPTY frames — title / stage / price overlay */}
-                <div style={{ position: 'absolute', top: '27%', left: '10%', right: '10%', textAlign: 'center', color: '#fff', fontWeight: 900, fontStyle: 'italic', fontSize: 19, textShadow: '0 2px 6px rgba(0,0,0,0.6)' }}>FREE SPINS</div>
-                <div style={{ position: 'absolute', top: '44%', left: '10%', right: '10%', textAlign: 'center', color: '#ffe9a8', fontWeight: 900, fontStyle: 'italic', fontSize: 24, textShadow: '0 2px 6px rgba(0,0,0,0.7)' }}>{st.stage === 1 ? '15 SPINS' : st.label}</div>
-                <div style={{ position: 'absolute', top: '58%', left: '12%', right: '12%', textAlign: 'center', color: 'rgba(255,255,255,0.78)', fontWeight: 700, fontSize: 11 }}>{st.startPool > 0 ? `Multi-Pool startet bei ×${st.startPool}` : '15 Free Spins, Pool ab ×0'}</div>
-                <div style={{ position: 'absolute', bottom: '9%', left: '12%', right: '12%', textAlign: 'center', color: '#ffe9a8', fontWeight: 900, fontStyle: 'italic', fontSize: 18, textShadow: '0 2px 5px rgba(0,0,0,0.85)' }}>{money(bet * st.costMult)}</div>
+                {/* the cards are EMPTY frames — title / stage / gift / price overlay */}
+                <div style={{ position: 'absolute', top: '27%', left: '10%', right: '10%', textAlign: 'center', color: '#fff', fontWeight: 900, fontStyle: 'italic', fontSize: 25, textShadow: '0 2px 6px rgba(0,0,0,0.6)' }}>FREE SPINS</div>
+                <div style={{ position: 'absolute', top: '42.5%', left: '10%', right: '10%', textAlign: 'center', color: '#ffe9a8', fontWeight: 900, fontStyle: 'italic', fontSize: 30, textShadow: '0 2px 6px rgba(0,0,0,0.7)' }}>{st.stage === 1 ? '15 SPINS' : st.label}</div>
+                {/* tier gift box + its REAL minimum multi (replaces the old text line) */}
+                <div style={{ position: 'absolute', top: '52%', left: 0, right: 0, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                  <img
+                    src={`${import.meta.env.BASE_URL}theme/fruitstacks/${FRUIT_BUY_TIER[st.stage - 1].img}`}
+                    alt="" draggable={false}
+                    style={{ width: '30%', display: 'block', filter: 'drop-shadow(0 4px 8px rgba(0,0,0,0.45))' }}
+                  />
+                  <div style={{
+                    marginTop: -16, color: '#ffd21e', fontWeight: 900, fontStyle: 'italic', fontSize: 24,
+                    WebkitTextStroke: '1.5px #241300', textShadow: '0 3px 6px rgba(0,0,0,0.8)',
+                  }}>×{FRUIT_BUY_TIER[st.stage - 1].min}</div>
+                </div>
+                <div style={{ position: 'absolute', bottom: '8.5%', left: '12%', right: '12%', textAlign: 'center', color: '#ffe9a8', fontWeight: 900, fontStyle: 'italic', fontSize: 24, textShadow: '0 2px 5px rgba(0,0,0,0.85)' }}>{money(bet * st.costMult)}</div>
               </div>
             ))}
           </div>

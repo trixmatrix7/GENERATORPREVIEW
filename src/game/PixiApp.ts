@@ -3448,6 +3448,14 @@ export class PixiApp {
         this.reelSet.setOneWildParam(id, value as string | number);
         break;
       }
+      case 'fruitMultiFont':
+      case 'fruitMultiColor':
+      case 'fruitMultiSize':
+      case 'fruitMultiPos':
+      case 'fruitMultiAngle': {
+        this.reelSet.setFruitMultiParam(id, value as string | number);
+        break;
+      }
       case 'reelSpeed': {
         const v = String(value);
         const mul = v === 'snappy' ? 1.7 : v === 'relaxed' ? 0.6 : 1.0;

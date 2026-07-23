@@ -464,6 +464,38 @@ export const ADJUSTABLE_PARAMS: readonly AdjustableParam[] = [
     description: 'Corner rounding of the square multiplier badge (0 = sharp square, high = pill).',
     keywords: ['multi', 'badge', 'corner', 'radius', 'round', 'square'],
   },
+  // ── FRUIT STACKS gift ×N label (one config, all five draw sites) ──
+  {
+    id: 'fruitMultiFont', label: 'Gift-Multi — Schrift', layer: 'symbols', type: 'enum',
+    options: ['Rubik', 'Poppins', 'Impact', 'Arial Black', 'Georgia'], default: 'Rubik',
+    description: 'Font of the ×N value on the fruit gift symbols (grid, refill, flights).',
+    keywords: ['fruit', 'gift', 'multi', 'font', 'schrift', 'typeface'],
+  },
+  {
+    id: 'fruitMultiColor', label: 'Gift-Multi — Farbe', layer: 'symbols', type: 'color',
+    default: '#ffd21e',
+    description: 'Colour of the ×N value on the fruit gift symbols.',
+    keywords: ['fruit', 'gift', 'multi', 'colour', 'color', 'farbe'],
+  },
+  {
+    id: 'fruitMultiSize', label: 'Gift-Multi — Größe', layer: 'symbols', type: 'number',
+    min: 18, max: 60, step: 1, default: 34,
+    description: 'Size of the ×N value in pixels on the grid.',
+    keywords: ['fruit', 'gift', 'multi', 'size', 'größe', 'bigger', 'smaller'],
+  },
+  {
+    id: 'fruitMultiPos', label: 'Gift-Multi — Position', layer: 'symbols', type: 'enum',
+    options: ['unten', 'mitte', 'oben', 'links', 'rechts', 'oben-links', 'oben-rechts', 'unten-links', 'unten-rechts'],
+    default: 'unten',
+    description: 'Where the ×N sits on the gift symbol (unten = reference: hangs at the bottom edge).',
+    keywords: ['fruit', 'gift', 'multi', 'position', 'anchor', 'mittig', 'rechts', 'oben', 'unten'],
+  },
+  {
+    id: 'fruitMultiAngle', label: 'Gift-Multi — Diagonale', layer: 'symbols', type: 'number',
+    min: -45, max: 45, step: 1, default: 0,
+    description: 'Diagonal tilt of the ×N value in degrees (0 = straight).',
+    keywords: ['fruit', 'gift', 'multi', 'angle', 'diagonal', 'diagonale', 'tilt', 'rotation'],
+  },
   // ── 1×1 WILD lock backing (Crack Farm) — the panel behind the pot ──
   {
     id: 'oneWildBackdrop', label: '1×1 wild — backdrop colour', layer: 'symbols', type: 'color',

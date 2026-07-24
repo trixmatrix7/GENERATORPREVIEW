@@ -73,6 +73,19 @@ function migrateMultiSoundSettings(): void {
         if (dirty) localStorage.setItem('slot:assets', JSON.stringify(assets));
       }
     }
+    // Der 'adone'-Musik-Pick stammte vom alten Ultra-Clean-Apply, nicht von
+    // einer bewussten Wahl — exakt die "andere Background-Musik, die nicht
+    // weggeht" (Noski): gespeicherte Picks GEWINNEN ueber Game-Defaults und
+    // legten sie ueber jedes Wiring. Nur DIESEN Pick entfernen (idempotent,
+    // auch nach Build-Applies); bewusste andere Zuweisungen bleiben.
+    const assetsRaw2 = localStorage.getItem('slot:assets');
+    if (assetsRaw2) {
+      const a = JSON.parse(assetsRaw2) as { sounds?: Record<string, string> };
+      if (a.sounds?.['ambient-music']?.includes('adone-6fddec')) {
+        delete a.sounds['ambient-music'];
+        localStorage.setItem('slot:assets', JSON.stringify(a));
+      }
+    }
   } catch { /* Storage kaputt — Defaults greifen */ }
 }
 if (typeof window !== 'undefined') migrateMultiSoundSettings();
@@ -693,8 +706,10 @@ export function App() {
       if (eventId === 'ambient-music') continue;
       soundManager.replaceSource(eventId, [def.url], def.volume);
     }
-    // Stoppt auch eine BEREITS laufende Musik (replaceSource stoppt + laedt
-    // neu) und stellt das Bed auf stumm.
+    // Musik-Bed stumm — Noskis Fruit-Sounds (Mango Market Loop / Island
+    // Victory Fanfare) liegen in der BIBLIOTHEK ("Bewaehrt") und werden dort
+    // bewusst zugewiesen: so traegt der Export nur SEIN Preset, kein
+    // Hardcode (Noski). Kein play()-Aufruf hier — der stackte die Musik.
     soundManager.replaceSource('ambient-music', [`${import.meta.env.BASE_URL}audio/ambient-music.ogg`], 0);
     soundManager.replaceSource('reel-spin-loop', [`${import.meta.env.BASE_URL}audio/library/spin-start/air-woosh-985287.ogg`], 0, false);
   }, [soundManager]);

@@ -407,6 +407,16 @@ export class AnimatedSymbol extends Container {
       // once (FS-Trigger-Bend): einmal durch, letzte Pose steht — kein Loop.
       repeat: sheet.once ? 0 : -1,
       onUpdate: () => { spr.texture = sheet.frames[Math.round(proxy.f) % sheet.frames.length]; },
+      // Ende-SETTLE (Noski: "muss minimal zurück skalieren"): bei hohem
+      // Playback-Tempo rauschen die Rückkehr-Frames durch — ein kurzer
+      // 5%-Absetzer macht das Ankommen lesbar.
+      onComplete: sheet.once
+        ? () => {
+            gsap.fromTo(spr.scale,
+              { x: spr.scale.x * 1.05, y: spr.scale.y * 1.05 },
+              { x: spr.scale.x, y: spr.scale.y, duration: 0.18, ease: 'power2.out' });
+          }
+        : undefined,
     });
   }
 

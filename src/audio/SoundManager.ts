@@ -13,7 +13,7 @@
 // Sound paths are configured per-game via SoundManagerConfig so generated
 // games (with their own asset packs) can swap them without code changes.
 
-import { Howl } from 'howler';
+import { Howl, Howler } from 'howler';
 import { ensureMasterBus } from './masterBus';
 
 export interface SoundEventBinding {
@@ -163,11 +163,37 @@ export class SoundManager {
         // Already playing — leave it alone.
         return;
       }
-      // HART alle Ids dieses Howls stoppen, bevor eine neue startet: vor dem
-      // Audio-Unlock meldet Howler gequeute Sounds als "not playing" — jeder
-      // Boot-Aufruf passierte so den Guard und queuete eine WEITERE Instanz;
-      // beim Unlock starteten alle zusammen und drifteten hoerbar auseinander
-      // (Noski: "Musik ueberlappt sich irgendwann und spielt doppelt").
+      // Eine bereits BEANSPRUCHTE Instanz nie neu starten. Zwei Faelle:
+      //  (1) pre-unlock meldet Howler gequeute Sounds als not-playing — der
+      //      obige playing()-Check greift dann nicht, jeder Boot-Aufruf
+      //      queuete sonst eine WEITERE Instanz (Drift-Doppel beim Unlock).
+      //  (2) mid-duck: die Musik laeuft stumm (auf 0 gefadet) unter der
+      //      Marquee weiter; ein play() waehrend dieser Zeit darf sie NICHT
+      //      neu auf volle Lautstaerke starten (Noski: "2 parallel").
+      // Nur wenn wir POST-unlock sind und die beanspruchte Instanz echt fertig
+      // ist, raeumen wir auf und starten frisch.
+      if (prev !== undefined) {
+        const unlocked = Howler.ctx?.state === 'running';
+        if (!unlocked || howl.playing(prev)) return;
+        this.exclusivePlaying.delete(eventId);
+      }
+      // HARTER SWEEP fuer LOOP-Musik (Noski: "hoere multiple background
+      // loops"): bevor ein exklusiver LOOP startet, JEDEN anderen noch
+      // laufenden Loop-Howl killen. Verwaiste Loops aus fruehreren Sessions /
+      // Game-Wechseln / replaceSource-Races koennen so nie parallel weiter-
+      // dudeln. One-shot-SFX (loop=false) bleiben unangetastet.
+      if (binding.loop) {
+        const all = (Howler as unknown as { _howls?: Howl[] })._howls ?? [];
+        for (const h of all) {
+          if (h !== howl && (h as unknown as { _loop?: boolean })._loop && h.playing()) {
+            try { h.stop(); } catch { /* torn down */ }
+          }
+        }
+      }
+      // Hierher kommen wir NUR, wenn der Guard oben KEINE lebende Instanz
+      // gefunden hat — ein stop() raeumt jetzt verwaiste/beendete Instanzen
+      // dieses Howls ab (pre-unlock-Queue-Reste), ohne je eine geduckte,
+      // legitim laufende Musik zu treffen (die haette returnt).
       try { howl.stop(); } catch { /* fresh howl */ }
       const id = howl.play();
       if (opts?.rate) howl.rate(opts.rate, id);

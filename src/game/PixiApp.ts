@@ -2603,9 +2603,9 @@ export class PixiApp {
         };
         walkSc(this.reelSet.container);
         for (const c of scatterCells) c.play('win');
-        // Bend EINMAL @75fps (53f ≈ 0.71s — Noski: "nochmal 50% schneller")
+        // Bend EINMAL @94fps (53f ≈ 0.56s — Noski: "+25% nochmal")
         // → direkt die FS-Transition.
-        await new Promise<void>(r => { gsap.delayedCall(this.turbo ? 0.45 : 0.85, () => r()); });
+        await new Promise<void>(r => { gsap.delayedCall(this.turbo ? 0.4 : 0.7, () => r()); });
         if (!this.isLive) return;
       }
 

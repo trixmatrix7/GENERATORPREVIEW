@@ -7,8 +7,8 @@ import type { PixiApp } from '@/game/PixiApp';
 import type { SoundManager } from '@/audio/SoundManager';
 import type { HostSnapshotV1 } from '@/bridge/types';
 import { selectWinSound } from '@/audio/useSoundLayer';
-import { FX_REGISTRY } from '@/game/effects/fxRegistry';
-import { MECH_REGISTRY } from '@/game/effects/mechRegistry';
+import { waysLightConfig } from '@/game/effects/WaysLightComet';
+import { waysImmersiveConfig } from '@/game/effects/WaysImmersive';
 import { STATE_PRESETS, setActiveStatePreset, getActiveStatePreset } from '@/config/statePresets';
 import { TEASE_PRESETS, setActiveTeasePreset, getActiveTeasePreset } from '@/game/effects/teaseRegistry';
 
@@ -237,7 +237,10 @@ export function WinTierTestPanel({ pixiApp, snapshot, soundManager }: Props) {
           // Preview the ways-light win-line: ensure it's on, then spin into a
           // win where several symbols connect (1→3→3→2→1 fan) so you can see the
           // comet branch through multiple connections.
-          pixiApp.applyVisualParam('waysLight', 'on');
+          // Direkt-Toggle (das Studio-Param-System fuer Effekte ist entfernt):
+          // Comet an, Immersive fuer die Session aus — nur fuer diese Preview.
+          waysLightConfig.enabled = true;
+          waysImmersiveConfig.enabled = false;
           pixiApp.__testWaysWin(symbol, decimals, wager);
         }}
         style={{
@@ -263,21 +266,6 @@ export function WinTierTestPanel({ pixiApp, snapshot, soundManager }: Props) {
       {/* ── State-animation presets (10 AAA flavours, generator-replicable) ── */}
       <StatePresetPicker pixiApp={pixiApp} />
 
-      {/* ── Mechanics — sticky-wild-class feature showcases ── */}
-      <div style={{ marginTop: 6, borderTop: '1px solid #2a2a2e', paddingTop: 6 }}>
-        <div style={{ color: '#F8FA5E', fontWeight: 700, letterSpacing: 0.5, marginBottom: 4 }}>MECHANICS ({MECH_REGISTRY.length})</div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 3 }}>
-          {MECH_REGISTRY.map(m => (
-            <button key={m.id} type="button" onClick={() => pixiApp.runMechanic(m.id)} title={m.description}
-              style={{ background: '#1c1410', color: '#ffd9a0', border: '1px solid #6b4a1d', borderRadius: 4, padding: '3px 5px', fontSize: 10, fontFamily: 'monospace', cursor: 'pointer', textAlign: 'left', overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>
-              {m.name}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* ── FX library — one button per showcase effect ── */}
-      <FxLibrary pixiApp={pixiApp} />
       </>)}
     </div>
   );
@@ -311,55 +299,6 @@ function StatePresetPicker({ pixiApp }: { pixiApp: PixiApp }) {
     </div>
   );
 }
-
-const FX_GROUP_LABEL: Record<string, string> = {
-  win: 'WIN FX', anticipation: 'ANTICIPATION FX', ambient: 'AMBIENT FX',
-  transition: 'TRANSITION FX', symbol: 'SYMBOL FX',
-};
-
-function FxLibrary({ pixiApp }: { pixiApp: PixiApp }) {
-  const [open, setOpen] = useState(false);
-  const groups = [...new Set(FX_REGISTRY.map(e => e.group))];
-  return (
-    <div style={{ marginTop: 6, borderTop: '1px solid #2a2a2e', paddingTop: 6 }}>
-      <button
-        type="button"
-        onClick={() => setOpen(o => !o)}
-        style={{
-          background: 'transparent', border: 'none', color: '#F8FA5E', fontFamily: 'monospace',
-          fontSize: 11, fontWeight: 700, letterSpacing: 0.5, cursor: 'pointer', textAlign: 'left',
-          padding: 0, width: '100%', display: 'flex', justifyContent: 'space-between',
-        }}
-      >
-        <span>FX LIBRARY ({FX_REGISTRY.length})</span><span>{open ? '▾' : '▸'}</span>
-      </button>
-      {open && groups.map(g => (
-        <div key={g}>
-          <div style={{ color: '#9aa', fontSize: 10, letterSpacing: 1, margin: '6px 0 3px' }}>{FX_GROUP_LABEL[g] ?? g}</div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 3 }}>
-            {FX_REGISTRY.filter(e => e.group === g).map(e => (
-              <button
-                key={e.id}
-                type="button"
-                onClick={() => pixiApp.runFx(e.id)}
-                title={e.description}
-                style={{
-                  background: '#1b1b22', color: '#cfd3ff', border: '1px solid #3a3a4a',
-                  borderRadius: 4, padding: '3px 5px', fontSize: 10, fontFamily: 'monospace',
-                  cursor: 'pointer', textAlign: 'left', overflow: 'hidden',
-                  whiteSpace: 'nowrap', textOverflow: 'ellipsis',
-                }}
-              >
-                {e.name}
-              </button>
-            ))}
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
 
 function TeasePresetPicker({ pixiApp, symbol, decimals, wager }: { pixiApp: PixiApp; symbol: string; decimals: number; wager: bigint }) {
   const [active, setActive] = useState(getActiveTeasePreset().id);

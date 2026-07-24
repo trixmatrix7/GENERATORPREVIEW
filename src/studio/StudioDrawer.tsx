@@ -18,9 +18,8 @@ interface Props {
   pixiApp: PixiApp | null;
 }
 
-type Tab = 'features' | 'params' | 'assets' | 'add' | 'export';
+type Tab = 'params' | 'assets' | 'add' | 'export';
 const TAB_LABELS: Record<Tab, string> = {
-  features: 'Features',
   params: 'Params',
   assets: 'Assets',
   add: 'Add (code)',
@@ -29,7 +28,7 @@ const TAB_LABELS: Record<Tab, string> = {
 
 export function StudioDrawer({ pixiApp }: Props) {
   const [open, setOpen] = useState(false);
-  const [tab, setTab] = useState<Tab>('features');
+  const [tab, setTab] = useState<Tab>('params');
 
   return (
     <>
@@ -45,7 +44,7 @@ export function StudioDrawer({ pixiApp }: Props) {
       {open && (
         <div className="fixed top-0 right-0 h-full w-[340px] z-[290] bg-[#141417] border-l border-[#2a2a2e] flex flex-col text-[#f4f4f5] font-[var(--font-body)]">
           <div className="flex items-center gap-1 p-2 border-b border-[#2a2a2e] flex-wrap">
-            {(['features', 'params', 'assets', 'add', 'export'] as const).map(t => (
+            {(['params', 'assets', 'add', 'export'] as const).map(t => (
               <button
                 key={t}
                 type="button"
@@ -57,7 +56,6 @@ export function StudioDrawer({ pixiApp }: Props) {
             ))}
           </div>
           <div className="flex-1 overflow-y-auto p-3">
-            {tab === 'features' && <FeaturesTab pixiApp={pixiApp} />}
             {tab === 'params' && <ParamsTab pixiApp={pixiApp} />}
             {tab === 'assets' && <AssetsTab pixiApp={pixiApp} />}
             {tab === 'add' && <AddTab />}
@@ -69,155 +67,6 @@ export function StudioDrawer({ pixiApp }: Props) {
         </div>
       )}
     </>
-  );
-}
-
-/* ── Features: pick features → added to the slot. Mirrors the generator's
- *  FeatureSelection (lists of registry ids per layer). Ticking a runtime-live
- *  feature (ways-light-comet, sticky-wild-shine) applies it to the slot
- *  immediately via the dev's applyVisualParam; each carries its own inline
- *  sub-settings (colour / speed / …). ── */
-const WINLINE_RUNTIME: Record<string, string> = { 'ways-light-comet': 'waysLight' };
-const SYMBOL_RUNTIME: Record<string, string> = { 'sticky-wild-shine': 'stickyWild' };
-const RUNTIME: Record<string, string> = { ...WINLINE_RUNTIME, ...SYMBOL_RUNTIME };
-// Which adjustable-param ids appear as inline sub-settings under each feature.
-const SUB_PARAMS_BY_FEATURE: Record<string, string[]> = {
-  'ways-light-comet': ['waysLightColor', 'waysLightSpeed', 'waysLightWidth'],
-  'sticky-wild-shine': ['stickyWildColor', 'stickyWildSpeed'],
-};
-const ALL_SUB_PARAMS = Object.values(SUB_PARAMS_BY_FEATURE).flat();
-const FEATURE_STORAGE = 'slot:feature-selection';
-
-function loadSelection(defaults: string[]): Set<string> {
-  try {
-    const raw = localStorage.getItem(FEATURE_STORAGE);
-    if (raw) return new Set(JSON.parse(raw) as string[]);
-  } catch { /* ignore */ }
-  return new Set(defaults);
-}
-function saveSelection(s: Set<string>): void {
-  try { localStorage.setItem(FEATURE_STORAGE, JSON.stringify([...s])); } catch { /* ignore */ }
-}
-
-function FeaturesTab({ pixiApp }: { pixiApp: PixiApp | null }) {
-  const winline = REGISTRIES.winPresentation.list();
-  // Symbol features we drive at runtime (sticky-wild-shine); other baseFeatures
-  // are engine/math and not live-toggleable from the preview.
-  const symbolFeats = REGISTRIES.baseFeatures.list().filter(e => e.id in SYMBOL_RUNTIME);
-  const defaults = [
-    ...winline.filter(e => e.implemented).map(e => e.id),
-    ...symbolFeats.map(e => e.id),
-  ];
-  const [selected, setSelected] = useState<Set<string>>(() => loadSelection(defaults));
-  const [subVals, setSubVals] = useState<Record<string, string>>(() => {
-    const stored = loadAssets().visualParams ?? {};
-    return Object.fromEntries(
-      ADJUSTABLE_PARAMS.filter(p => ALL_SUB_PARAMS.includes(p.id)).map(p => [p.id, stored[p.id] ?? String(p.default)]),
-    );
-  });
-
-  // Re-apply the current selection + sub-settings whenever the PixiApp (re)mounts.
-  useEffect(() => {
-    if (!pixiApp) return;
-    for (const [id, param] of Object.entries(RUNTIME)) {
-      pixiApp.applyVisualParam(param, selected.has(id) ? 'on' : 'off');
-    }
-    for (const id of ALL_SUB_PARAMS) pixiApp.applyVisualParam(id, subVals[id]);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pixiApp]);
-
-  const toggle = (id: string) => {
-    const next = new Set(selected);
-    if (next.has(id)) next.delete(id); else next.add(id);
-    setSelected(next);
-    saveSelection(next);
-    const param = RUNTIME[id];
-    if (param) pixiApp?.applyVisualParam(param, next.has(id) ? 'on' : 'off');
-  };
-  const setSub = (id: string, v: string) => {
-    setSubVals(s => ({ ...s, [id]: v }));
-    pixiApp?.applyVisualParam(id, v);
-    const stored = loadAssets().visualParams ?? {};
-    stored[id] = v;
-    saveAssets({ visualParams: stored });
-  };
-
-  const labelPrefix: Record<string, string> = {
-    'ways-light-comet': 'Ways-light ',
-    'sticky-wild-shine': 'Sticky-wild ',
-  };
-  const renderCard = (e: { id: string; name: string; description: string }) => {
-    const live = e.id in RUNTIME;
-    const on = selected.has(e.id);
-    const subIds = SUB_PARAMS_BY_FEATURE[e.id] ?? [];
-    const subParams = ADJUSTABLE_PARAMS.filter(p => subIds.includes(p.id));
-    return (
-      <div key={e.id} className={`rounded-md border p-2 ${on ? 'border-[#3a3a20] bg-[#1a1a12]' : 'border-[#232327] bg-[#0e0e10]'}`}>
-        <label className="flex items-start gap-2 cursor-pointer">
-          <input type="checkbox" checked={on} onChange={() => toggle(e.id)} className="mt-0.5 accent-[#FFE168]" />
-          <span className="flex flex-col">
-            <span className="flex items-center gap-2">
-              <span className="font-medium">{e.name}</span>
-              {live ? <span className="text-[9px] text-[#FFE168]">● live</span> : <span className="text-[9px] text-[#6b6b73] uppercase">baseline</span>}
-            </span>
-            <span className="text-[10px] text-[#6b6b73] leading-snug">{e.description}</span>
-          </span>
-        </label>
-
-        {/* inline sub-settings when the feature is selected */}
-        {on && subParams.length > 0 && (
-          <div className="mt-2 ml-6 flex flex-col gap-1.5">
-            {subParams.map(p => (
-              <label key={p.id} className="flex items-center justify-between gap-2 text-[11px]">
-                <span className="text-[#a1a1aa]">{p.label.replace(labelPrefix[e.id] ?? '', '')}</span>
-                <select
-                  value={subVals[p.id]}
-                  onChange={ev => setSub(p.id, ev.target.value)}
-                  className="bg-[#0e0e10] border border-[#2a2a2e] rounded px-2 py-1 text-[11px]"
-                >
-                  {(p.options ?? []).map(o => <option key={o} value={o}>{o}</option>)}
-                </select>
-              </label>
-            ))}
-          </div>
-        )}
-      </div>
-    );
-  };
-
-  const featureSelection = JSON.stringify(
-    {
-      winPresentation: winline.filter(e => selected.has(e.id)).map(e => e.id),
-      baseFeatures: symbolFeats.filter(e => selected.has(e.id)).map(e => e.id),
-    },
-    null,
-    2,
-  );
-
-  return (
-    <div className="flex flex-col gap-3 text-[12px]">
-      <p className="text-[11px] text-[#6b6b73] leading-relaxed">
-        Tick a feature to add it to the slot — a <span className="text-[#FFE168]">● live</span> feature applies
-        instantly with its own settings; <em className="not-italic">baseline</em> features are the runtime default.
-        This is your <code className="text-[#FFE168]">FeatureSelection</code>.
-      </p>
-
-      <span className="text-[10px] uppercase tracking-wider text-[#6b6b73]">Win-line features</span>
-      {winline.map(renderCard)}
-
-      <span className="mt-1 text-[10px] uppercase tracking-wider text-[#6b6b73]">Symbol features</span>
-      {symbolFeats.map(renderCard)}
-
-      <div className="mt-1">
-        <div className="flex items-center justify-between">
-          <span className="text-[10px] uppercase tracking-wider text-[#6b6b73]">FeatureSelection (for the dev)</span>
-          <button type="button" className="text-[11px] text-[#FFE168] cursor-pointer" onClick={() => void navigator.clipboard?.writeText(featureSelection)}>
-            copy
-          </button>
-        </div>
-        <pre className="mt-1 bg-[#0e0e10] border border-[#232327] rounded-md p-2 font-mono text-[10px] text-[#d8e0c8] whitespace-pre-wrap">{featureSelection}</pre>
-      </div>
-    </div>
   );
 }
 

@@ -6,13 +6,10 @@ import { gsap } from 'gsap';
 import { ReelSet, type ReelSetAudioHooks } from './ReelSet';
 import { setActiveGrid, type GridConfig } from '@/config/gridConfig';
 import { WIN_LINE_PRESETS, WIN_COIN_PRESETS, ACCENT_PRESETS } from '@/config/adjustableParams';
-import { waysLightConfig, WAYS_LIGHT_PRESETS, WAYS_LIGHT_SPEED_MS, WAYS_LIGHT_WIDTH_PX } from './effects/WaysLightComet';
+import { waysLightConfig } from './effects/WaysLightComet';
 import { waysImmersiveConfig } from './effects/WaysImmersive';
-import { stickyWildConfig, STICKY_WILD_PRESETS, STICKY_WILD_SPEED_MS } from './effects/StickyWildShine';
+import { stickyWildConfig } from './effects/StickyWildShine';
 import { SYMBOL_WIN_SHEETS, SYMBOL_IDLE_SHEETS, SYMBOL_LAND_SHEETS, AnimatedSymbol } from './AnimatedSymbol';
-import { fxById } from './effects/fxRegistry';
-import { mechById } from './effects/mechRegistry';
-import type { FxContext } from './effects/fxTypes';
 import { resolveAnchor, cell as cellAnchor, reel as reelAnchor, grid as gridAnchor } from '@/engine/anchors';
 import { symbolSizing, SYMBOL_SIZE_PRESETS } from '@/config/symbolSizing';
 import { hslToNum, numToHsl, hexToNum } from '@/config/color';
@@ -3596,45 +3593,6 @@ export class PixiApp {
         if (preset) this.winBannerColorOverride = preset.color; // applied on the next win
         break;
       }
-      case 'waysLight': {
-        // Explicitly turning the comet ON is an opt-out of the (default)
-        // ways-immersive presentation — otherwise the studio's live comet
-        // controls would appear dead while immersive owns the win. Turning
-        // it 'off' returns to the immersive default.
-        const on = String(value) !== 'off';
-        waysLightConfig.enabled = on;
-        waysImmersiveConfig.enabled = !on;
-        break;
-      }
-      case 'waysLightColor': {
-        const preset = WAYS_LIGHT_PRESETS[String(value)];
-        if (preset) waysLightConfig.color = preset.color;
-        break;
-      }
-      case 'waysLightSpeed': {
-        waysLightConfig.stepMs = WAYS_LIGHT_SPEED_MS[String(value)] ?? waysLightConfig.stepMs;
-        break;
-      }
-      case 'waysLightWidth': {
-        waysLightConfig.width = WAYS_LIGHT_WIDTH_PX[String(value)] ?? waysLightConfig.width;
-        break;
-      }
-      case 'stickyWild': {
-        stickyWildConfig.enabled = String(value) !== 'off';
-        if (stickyWildConfig.enabled) this.reelSet.refreshStickyWilds();
-        else this.reelSet.clearStickyWilds();
-        break;
-      }
-      case 'stickyWildColor': {
-        const preset = STICKY_WILD_PRESETS[String(value)];
-        if (preset) { stickyWildConfig.borderColor = preset.color; this.reelSet.refreshStickyWilds(); }
-        break;
-      }
-      case 'stickyWildSpeed': {
-        stickyWildConfig.speedMs = STICKY_WILD_SPEED_MS[String(value)] ?? stickyWildConfig.speedMs;
-        this.reelSet.refreshStickyWilds();
-        break;
-      }
       case 'symbolSize': {
         // Preview preset: scale every symbol's object bigger/smaller in its
         // cell. Re-draws all tiles so the new size takes effect immediately.
@@ -3972,63 +3930,6 @@ export class PixiApp {
       this.reelSet.clearHighlights();
       this.reelSet.endBaseFeatureReveal();
     })();
-  }
-
-  /** Run a MECHANIC showcase by id (see mechRegistry.ts). */
-  public runMechanic(id: string): void {
-    if (!this.isLive) return;
-    const entry = mechById(id);
-    if (!entry) { console.warn('[PixiApp] unknown mechanic:', id); return; }
-    // Abort a previous win's presentation and clear its remains — mechanics
-    // may roll via startSpinKeepShowcase, which deliberately keeps overlays
-    // and would leave the old win's state underneath.
-    this._winRevealId++;
-    this.reelSet.clearHighlights();
-    void this.reelSet.runMechanic(entry);
-  }
-
-  // ── FX showcase runner ─────────────────────────────────────────────────
-  private fxLayer: Container | null = null;
-  private fxTweens: Array<{ kill(): void }> = [];
-  private fxCleanupTimer: number | null = null;
-
-  /** Run a showcase effect from the FX registry by id (see fxRegistry.ts).
-   *  Grid-relative + theme-accent driven → replicable in the generator. */
-  public runFx(id: string): void {
-    if (!this.isLive) return;
-    const entry = fxById(id);
-    if (!entry) { console.warn('[PixiApp] unknown fx:', id); return; }
-    this.clearFx();
-    const layer = new Container();
-    layer.eventMode = 'none';
-    this.reelSet.container.addChild(layer); // grid-local coords, above reels
-    this.fxLayer = layer;
-    const ctx: FxContext = {
-      layer,
-      grid: { reels: this.grid.reelCount, rows: this.grid.visibleRows },
-      cellRect: (reel, row) => resolveAnchor(cellAnchor(reel, row), this.grid),
-      reelRect: (reel) => resolveAnchor(reelAnchor(reel), this.grid),
-      gridRect: () => resolveAnchor(gridAnchor, this.grid),
-      accent: this.config.theme.accent,
-      gold: 0xFFC53D,
-      gsap,
-      track: <T extends { kill(): void }>(t: T): T => { this.fxTweens.push(t); return t; },
-      rand: (min, max) => min + Math.random() * (max - min),
-      pick: (arr) => arr[Math.floor(Math.random() * arr.length)],
-    };
-    try { entry.run(ctx); } catch (err) { console.warn('[PixiApp] fx failed:', id, err); }
-    this.fxCleanupTimer = window.setTimeout(() => this.clearFx(), 4500);
-  }
-
-  private clearFx(): void {
-    if (this.fxCleanupTimer !== null) { window.clearTimeout(this.fxCleanupTimer); this.fxCleanupTimer = null; }
-    for (const t of this.fxTweens) { try { t.kill(); } catch { /* torn down */ } }
-    this.fxTweens = [];
-    if (this.fxLayer) {
-      this.fxLayer.parent?.removeChild(this.fxLayer);
-      try { this.fxLayer.destroy({ children: true }); } catch { /* torn down */ }
-      this.fxLayer = null;
-    }
   }
 
   /** Test-only: play a symbol's WIN animation on the board. Every cell showing

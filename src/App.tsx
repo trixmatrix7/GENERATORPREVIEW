@@ -30,6 +30,7 @@ import type { PixiApp } from '@/game/PixiApp';
 import { STATIC_LOOK_SYMBOLS, NO_IDLE_SYMBOLS, SYMBOL_SIZE_MULS, SYMBOL_WIN_SHEET_FRAMED } from '@/game/AnimatedSymbol';
 import { setActiveStatePreset } from '@/config/statePresets';
 import { landingImpactConfig } from '@/game/effects/LandingImpact';
+import { waysLightConfig, WAYS_LIGHT_PRESETS } from '@/game/effects/WaysLightComet';
 import { waysImmersiveConfig } from '@/game/effects/WaysImmersive';
 import { teaseTuning } from '@/game/effects/teaseRegistry';
 import { setWinTierGeometry } from '@/game/WinCelebration';
@@ -227,7 +228,7 @@ export function App() {
       // Payline beam colour = per-theme (research 16 §1: Wild Storm cyan,
       // Savage Santa gold). Toxic-slime GREEN fits the barn; the inherited
       // white beam read generic.
-      pixiAppRef.applyVisualParam('waysLightColor', 'green');
+      waysLightConfig.color = WAYS_LIGHT_PRESETS.green.color;
       void pixiAppRef.setExpandingWildImage(saved.expandingWild ?? CRACKFARM.expandingWild);
       // Frame-by-frame plant GROW clip (sprout → full flytrap) plays on the
       // first wild landing; freezes on wild_column.png (its last frame).
@@ -530,6 +531,9 @@ export function App() {
       // theme can never clobber them — Save Build / builtin snapshots carry
       // them via slot:assets.visualParams (Noski: "parameter speichern sich
       // nicht bei save build").
+      // Das Features-Tab/Effekt-System ist ENTFERNT — sein Store verschwindet
+      // mit (loadAssets filtert die alten Effekt-Ids zusaetzlich beim Lesen).
+      try { localStorage.removeItem('slot:feature-selection'); } catch { /* egal */ }
       for (const [pid, pval] of Object.entries(loadAssets().visualParams ?? {})) {
         pixiAppRef.applyVisualParam(pid, pval);
       }

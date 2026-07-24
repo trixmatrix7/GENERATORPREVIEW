@@ -28,7 +28,6 @@ import { playWaysLight, clearAllWaysLight, waysLightConfig } from './effects/Way
 import { waysImmersiveConfig, danceWinningObject, prefersReducedMotion } from './effects/WaysImmersive';
 import { landingImpactConfig } from './effects/LandingImpact';
 import { applyStickyWild, clearAllStickyWild, stickyWildConfig, type StickyHandle } from './effects/StickyWildShine';
-import type { MechEntry, MechContext } from './effects/mechTypes';
 import { getActiveTeasePreset, teaseTuning } from './effects/teaseRegistry';
 import type { TeaseContext } from './effects/teaseTypes';
 
@@ -650,96 +649,6 @@ export class ReelSet {
   setExpandGrowSheet(frames: Texture[] | null, fps = 40): void {
     this.growSheet = frames && frames.length ? frames : null;
     if (fps) this.growSheetFps = fps;
-  }
-
-  /** Run a mechanic showcase (see mechTypes.ts). Overlays/tweens ride the
-   *  sticky-reveal lifecycle → the next spin clears everything. */
-  async runMechanic(entry: MechEntry): Promise<void> {
-    this.startSpin(); // clears prior showcases + bumps the generation
-    const gen = this.stickyRevealGen;
-    // settle immediately so mechanics start from a fresh visible board
-    const stops = this.config.reelLengths.map(len => Math.floor(Math.random() * len));
-    await new Promise(res => setTimeout(res, 350));
-    if (this.stickyRevealGen !== gen) return;
-    await this.stopOnStops(stops, true);
-    if (this.stickyRevealGen !== gen) return;
-
-    const overlay = new Container();
-    overlay.eventMode = 'none';
-    this.stickyContainer.addChild(overlay);
-    this.stickyRevealObjects.push(overlay);
-    let veil: Graphics | null = null;
-
-    const ctx: MechContext = {
-      overlay,
-      grid: { reels: this.grid.reelCount, rows: this.grid.visibleRows },
-      cellRect: (reel, row) => resolveAnchor(cellAnchor(reel, row), this.grid),
-      reelRect: (reel) => resolveAnchor(reelAnchor(reel), this.grid),
-      gridRect: () => resolveAnchor(gridAnchor, this.grid),
-      spawnTile: (symbolId, reel, row, withShine = false) => {
-        const rect = resolveAnchor(cellAnchor(reel, row), this.grid);
-        const tileWrap = new Container();
-        tileWrap.position.set(rect.x + rect.w / 2, rect.y + rect.h / 2);
-        const back = new Graphics();
-        back.roundRect(-rect.w / 2, -rect.h / 2, rect.w, rect.h, Math.min(rect.w, rect.h) * 0.16)
-          .fill({ color: 0x0b0d14, alpha: 1 });
-        tileWrap.addChild(back);
-        const tile = new AnimatedSymbol(this.atlases, this.config.theme);
-        tile.setSymbol(symbolId as SymbolIdType);
-        tile.eventMode = 'none';
-        tile.pivot.set(SYMBOL_WIDTH / 2, SYMBOL_HEIGHT / 2);
-        tile.scale.set(rect.w / SYMBOL_WIDTH, rect.h / SYMBOL_HEIGHT);
-        tileWrap.addChild(tile);
-        tileWrap.scale.set(0);
-        overlay.addChild(tileWrap);
-        this.stickyRevealTweens.push(
-          gsap.timeline()
-            .to(tileWrap.scale, { x: 1.16, y: 1.16, duration: 0.16, ease: 'back.out(3)' })
-            .to(tileWrap.scale, { x: 1, y: 1, duration: 0.16, ease: 'power2.out' }),
-        );
-        if (withShine) this.stickyHandles.push(applyStickyWild(overlay, rect));
-        return tileWrap;
-      },
-      setCellSymbol: (reel, row, symbolId) => {
-        this.reels[reel]?.getVisibleCell(row)?.setSymbol(symbolId as SymbolIdType);
-      },
-      getCellSymbol: (reel, row) => this.reels[reel]?.getVisibleCell(row)?.symbol ?? 0,
-      playCellState: (reel, row, state) => {
-        this.reels[reel]?.getVisibleCell(row)?.play(state);
-      },
-      rollAndSettle: async () => {
-        if (this.stickyRevealGen !== gen) return;
-        const s = this.config.reelLengths.map(len => Math.floor(Math.random() * len));
-        this.startSpinKeepShowcase();
-        await new Promise(res => setTimeout(res, 420));
-        if (this.stickyRevealGen !== gen) return;
-        await this.stopOnStops(s, true);
-      },
-      dimBoard: (alpha = 0.5) => {
-        if (veil) return;
-        const gr = resolveAnchor(gridAnchor, this.grid);
-        veil = new Graphics();
-        veil.rect(gr.x - 10, gr.y - 10, gr.w + 20, gr.h + 20).fill({ color: 0x05070d, alpha: 1 });
-        veil.alpha = 0;
-        veil.eventMode = 'none';
-        this.stickyContainer.addChildAt(veil, 0);
-        this.stickyRevealObjects.push(veil);
-        this.stickyRevealTweens.push(gsap.to(veil, { alpha, duration: 0.25, ease: 'power2.out' }));
-      },
-      undimBoard: () => {
-        if (!veil) return;
-        const v = veil; veil = null;
-        this.stickyRevealTweens.push(gsap.to(v, { alpha: 0, duration: 0.35, ease: 'power2.inOut' }));
-      },
-      accent: this.config.theme.accent,
-      gold: 0xFFC53D,
-      gsap,
-      track: <T extends { kill(): void }>(t: T): T => { this.stickyRevealTweens.push(t as unknown as gsap.core.Animation); return t; },
-      rand: (min, max) => min + Math.random() * (max - min),
-      pick: (arr) => arr[Math.floor(Math.random() * arr.length)],
-      alive: () => this.stickyRevealGen === gen,
-    };
-    try { await entry.run(ctx); } catch (err) { console.warn('[ReelSet] mechanic failed:', entry.id, err); }
   }
 
   /** startSpin WITHOUT clearing the sticky/mechanic overlays (used by

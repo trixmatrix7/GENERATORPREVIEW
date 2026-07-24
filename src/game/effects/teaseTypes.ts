@@ -10,7 +10,8 @@
 
 import type { Container } from 'pixi.js';
 import type { gsap as GsapType } from 'gsap';
-import type { FxRect } from './fxTypes';
+/** Grid-lokales Rechteck (frueher in fxTypes; das FX-Showcase-System ist entfernt). */
+export interface FxRect { x: number; y: number; w: number; h: number }
 
 export interface TeaseContext {
   layer: Container; // grid-local, above reels, auto-cleared on tease end

@@ -32,7 +32,6 @@ function stripTsOnly(src: string): string {
 function inferRegistry(e: Record<string, unknown>): StudioRegistryName | undefined {
   if ('states' in e || ('trigger' in e && 'anchor' in e)) return 'symbolAnimations';
   if ('tier' in e || 'minMultiplier' in e) return 'winScreenTiers';
-  if ('scope' in e && ('intensity' in e || 'durationMs' in e)) return 'gridEffects';
   if ('components' in e || ('trigger' in e && 'sequence' in e)) return 'winPresentation';
   if ('src' in e || 'volume' in e || 'loop' in e) return 'soundEvents';
   if ('fromPhase' in e || 'toPhase' in e) return 'transitionAnimations';

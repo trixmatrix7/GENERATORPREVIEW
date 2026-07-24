@@ -14,7 +14,6 @@ import {
   soundEventRegistry,
   textAnimationRegistry,
   transitionAnimationRegistry,
-  gridEffectRegistry,
   winScreenTierRegistry,
   type RegistryEntry,
   type RegistryIndex,
@@ -33,7 +32,6 @@ export const REGISTRIES = {
   soundEvents: soundEventRegistry,
   textAnimations: textAnimationRegistry,
   transitionAnimations: transitionAnimationRegistry,
-  gridEffects: gridEffectRegistry,
   winScreenTiers: winScreenTierRegistry,
 } satisfies Record<string, RegistryIndex<RegistryEntry>>;
 

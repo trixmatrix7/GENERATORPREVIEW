@@ -38,10 +38,27 @@ export function replaceAssets(next: SavedAssets): void {
   } catch { /* quota — skip */ }
 }
 
+/** Param-Ids des ENTFERNTEN Effekt-Systems (Features-Tab / FX). Alte Builds
+ *  (auch vice:builds / vice:builtin:*) haben sie in visualParams gespeichert —
+ *  beim Lesen rausfiltern, damit verseuchte Snapshots entschaerft sind
+ *  (Noski: "das vermischt nur den Code im Preset"). */
+const REMOVED_EFFECT_PARAMS = new Set([
+  'waysLight', 'waysLightColor', 'waysLightSpeed', 'waysLightWidth',
+  'stickyWild', 'stickyWildColor', 'stickyWildSpeed',
+]);
+
 export function loadAssets(): SavedAssets {
   try {
     const raw = localStorage.getItem(KEY);
-    if (raw) return JSON.parse(raw) as SavedAssets;
+    if (raw) {
+      const parsed = JSON.parse(raw) as SavedAssets;
+      if (parsed.visualParams) {
+        parsed.visualParams = Object.fromEntries(
+          Object.entries(parsed.visualParams).filter(([k]) => !REMOVED_EFFECT_PARAMS.has(k)),
+        );
+      }
+      return parsed;
+    }
   } catch {
     /* ignore malformed/absent */
   }

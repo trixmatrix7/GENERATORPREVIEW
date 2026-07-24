@@ -40,8 +40,5 @@ export type { TextAnimationEntry, TextAnimationTarget } from './textAnimations.j
 export { transitionAnimationRegistry } from './transitionAnimations.js';
 export type { TransitionAnimationEntry, GamePhase } from './transitionAnimations.js';
 
-export { gridEffectRegistry } from './gridEffects.js';
-export type { GridEffectEntry, GridEffectScope } from './gridEffects.js';
-
 export { winScreenTierRegistry } from './winScreenTiers.js';
 export type { WinScreenTierEntry } from './winScreenTiers.js';

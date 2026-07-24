@@ -119,19 +119,8 @@ export function FruitBuyRail({ betDisplay, onBuy, bonusActive = false }: { betDi
                 }}>{money(bet * st.costMult)}</div>
               </button>
             ))}
-            <button
-              onClick={() => { uiSfx.click(); setOpen(false); }}
-              style={{
-                position: 'absolute', left: '50%', top: '90%', transform: 'translate(-50%, -50%)',
-                width: '31%', padding: 0, border: 'none', background: 'transparent', cursor: 'pointer',
-              }}
-            >
-              <img
-                src={`${import.meta.env.BASE_URL}theme/fruitstacks/buypage/press.webp`}
-                alt="Press to continue" draggable={false} style={{ width: '100%', display: 'block' }}
-              />
-            </button>
-            {/* X oben rechts zum Verlassen (Noski) — Gold-Ring im Theme-Look */}
+            {/* X oben rechts zum Verlassen (Noski) — Gold-Ring im Theme-Look;
+                PRESS TO CONTINUE unten wieder raus ("macht kein sinn"). */}
             <button
               aria-label="Schließen"
               onClick={() => { uiSfx.click(); setOpen(false); }}

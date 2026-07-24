@@ -55,7 +55,13 @@ export interface TumbleStep {
 }
 
 export interface CrateLanding {
+  /** CURRENT cell — MUTATES while the crate rides the gravity slides; after
+   *  derivation this is the crate's FINAL board position. */
   cell: [number, number];
+  /** The cell it LANDED in (frozen) — the initial-board badge display needs
+   *  this; using the mutated `cell` painted badges onto the wrong cells
+   *  (Noski bug: "4 Geschenke, nur 2 mit Multis"). */
+  landCell: [number, number];
   value: number;
   /** step index it landed on (-1 = initial board) */
   step: number;
@@ -144,7 +150,7 @@ function playSpin(
   let scatters = 0;
   const noteLandings = (cells: Iterable<[number, number, number]>, step: number) => {
     for (const [row, reel, sym] of cells) {
-      if (sym === MULTI) crates.push({ cell: [row, reel], value: drawMulti(rand, cfg.multiWeights), step });
+      if (sym === MULTI) crates.push({ cell: [row, reel], landCell: [row, reel], value: drawMulti(rand, cfg.multiWeights), step });
       else if (sym === SCATTER) scatters++;
     }
   };

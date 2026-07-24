@@ -3493,6 +3493,20 @@ export class ReelSet {
       .fromTo(c, { y: -52 }, { y: -58, duration: 0.3, ease: 'power2.out' }, 0);
   }
 
+  /** APPLY-MERGE (Noski): die Plaque zeigt "win ×multi" — beim Multiplizieren
+   *  SCHIEBEN sich die beiden zusammen (Squeeze), dann steht instant das
+   *  Produkt mit Pop + Stern-Burst. */
+  async mergeFruitPlaqueTo(text: string): Promise<void> {
+    if (!this.fruitPlaque || !this.fruitPlaqueText) return;
+    const t = this.fruitPlaqueText;
+    await new Promise<void>(res => {
+      gsap.to(t.scale, { x: 0.6, duration: 0.18, ease: 'power2.in', onComplete: () => res() });
+    });
+    this.setFruitPlaqueText(text);
+    this.starDustAt(this.fruitPlaque.x, this.fruitPlaque.y, 10, 30);
+    this.punchFruitPlaque();
+  }
+
   private fruitPoolTex: Texture | null = null;
   setFruitPoolTexture(tex: Texture | null): void { this.fruitPoolTex = tex; }
 
@@ -3758,12 +3772,12 @@ export class ReelSet {
           resolve();
         },
       })
-        // WINNA Pool-Apply: CHARGE (~200ms, steigt ~24px ueber die Pill) und
-        // dann KOMET-DASH zur Plaque in ~130ms; Impact = Instant-Produkt-Swap.
-        .to(label.scale, { x: 1.35, y: 1.35, duration: 0.2 * speed, ease: 'power1.out' })
-        .to(label, { y: label.y - 24, duration: 0.2 * speed, ease: 'power1.out' }, '<')
-        .to(label, { x: tx, y: ty, duration: 0.13 * speed, ease: 'power2.in' }, '>')
-        .to(label.scale, { x: 0.5, y: 0.5, duration: 0.13 * speed, ease: 'power2.in' }, '<');
+        // Pool-Apply (Noski: langsamer, mit Präsenz): CHARGE ~260ms über der
+        // Pill, dann sichtbare Reise zur Plaque in ~420ms.
+        .to(label.scale, { x: 1.4, y: 1.4, duration: 0.26 * speed, ease: 'power1.out' })
+        .to(label, { y: label.y - 30, duration: 0.26 * speed, ease: 'power1.out' }, '<')
+        .to(label, { x: tx, y: ty, duration: 0.42 * speed, ease: 'power1.inOut' }, '>')
+        .to(label.scale, { x: 0.55, y: 0.55, duration: 0.42 * speed, ease: 'power2.in' }, '<');
     });
   }
 

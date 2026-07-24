@@ -23,7 +23,6 @@ import { type WinResult } from '@/engine/WinEvaluator';
 import { evalWins, activePayModel } from './winEval';
 import { isFruitStacksOutcome, type FruitStacksOutcome } from './decodeFruitStacks';
 import type { FruitSpin } from './fruitStacksSpin';
-import { FRUIT_BUY_STAGES } from './fruitStacksMath';
 import { baseFeaturePlants, type PlantFeatureConfig } from './plantFeature';
 import { DEFAULT_GAME_CONFIG, type GameConfig, type GameTheme } from '@/engine/GameConfig';
 import { playDeterministicHoldAndWin, HW_TRIGGER_MIN } from '@/engine/holdAndWin';
@@ -1710,6 +1709,13 @@ export class PixiApp {
         case 'card':
           // STATIC — cards anchor the composition; their captions are static
           // too, so nothing ever drifts relative to the box borders.
+          // AUSNAHME Outro (Noski: "Total Win atmend machen"): die TOTAL-WIN-
+          // Karten atmen sanft mit, damit der Schluss-Screen lebt.
+          if (kind === 'outro') {
+            sink.push(
+              gsap.to(spr.scale, { x: s0 * 1.018, y: s0 * 1.018, duration: 2.7, yoyo: true, repeat: -1, ease: 'sine.inOut', delay: ph }),
+            );
+          }
           break;
         case 'symbol':
           // The WHOLE object floats; no scale/rotation — in-place warping
@@ -2673,14 +2679,13 @@ export class PixiApp {
           fsRemaining += 5;
           this.reelSet.setFsCounter(fsRemaining, 'up');
         }
-        // WIN-MARQUEE AUCH IM BONUS (Noski: "die Stages kommen im FS nie"):
-        // ab 10× Einsatz feiert der SPIN-Win seine Stage (Winna: Big-Win-
-        // Overlay nach dem Apply). Bei Buys ist outcome.wager der KAUFPREIS —
-        // effektiver Einsatz = wager / costMult.
-        const effBet = round.buyStage > 0
-          ? (outcome.wager ?? 1n) / BigInt(FRUIT_BUY_STAGES[round.buyStage - 1]?.costMult ?? 1)
-          : (outcome.wager ?? 1n);
-        if (this.isLive && effBet > 0n && spin.spinWin >= effBet * 10n) {
+        // WIN-MARQUEE AUCH IM BONUS (Noski): STUFEN-REGEL wie überall —
+        // BIG ab 15×, MEGA ab 25×, EPIC ab 100× (WIN_CELEBRATION_CONFIG).
+        // outcome.wager ist im Fruit-Decode BEREITS der Basis-Einsatz (bei
+        // Buys schon durch costMult geteilt) — NICHT nochmal teilen, sonst
+        // zündet eine Stufe bei 0.6× (der Bug).
+        const effBet = outcome.wager ?? 1n;
+        if (this.isLive && effBet > 0n && spin.spinWin >= effBet * BigInt(WIN_CELEBRATION_CONFIG.minBigWin)) {
           const marqueeOrigins = this.reelSet.getWinningCellCenters(this.tumbleWinResult(spin));
           await this.playCoinWin(spin.spinWin, effBet, tokenSymbol, decimals, marqueeOrigins);
         }
@@ -2757,9 +2762,10 @@ export class PixiApp {
     }
   }
 
-  /** FRUIT FS-INTRO (Noski): darkened field, the 15-badge big and centred,
-   *  "15 FREE SPINS WON" beneath, a BREATHING "CLICK TO START" — waits for
-   *  the tap, then the round rolls. Screen-space overlay (letterbox-immune). */
+  /** FRUIT FS-INTRO (Noskis Art-Pack 2026-07-24): YOU HAVE WON + Holz-
+   *  Plakette mit gebakter 15 + FREE SPINS Candy-Lettern — Positionen aus
+   *  dem Komposit (Design-Space 1920×1080). PRESS TO CONTINUE atmet; Tap
+   *  oder 12s Auto-Continue → die Runde rollt. */
   private playFruitFsIntro(): Promise<void> {
     if (!this.isLive) return Promise.resolve();
     return new Promise<void>(resolve => {
@@ -2771,56 +2777,46 @@ export class PixiApp {
       dim.fill({ color: 0x05030c, alpha: 0.82 });
       ov.addChild(dim);
       const cx = width / 2, cy = height / 2;
-      let badge: Sprite | null = null;
-      if (this.fruitBadge15) {
-        badge = new Sprite(this.fruitBadge15);
-        badge.anchor.set(0.5);
-        badge.scale.set(Math.min(260 / this.fruitBadge15.width, 260 / this.fruitBadge15.height));
-        badge.x = cx; badge.y = cy - 60;
-        ov.addChild(badge);
-        // the "15" is BAKED into the badge art (like the retrigger 5-badge) —
-        // no text overlay, or the number doubles.
-      }
-      const title = new Text({
-        text: '15 FREE SPINS WON',
-        style: new TextStyle({
-          fontFamily: "'Poppins', ui-sans-serif, system-ui, sans-serif",
-          fontSize: 34, fontWeight: '900', fontStyle: 'italic', letterSpacing: 2,
-          fill: 0xffe698, stroke: { color: 0x1a1000, width: 6, join: 'round' },
-        }),
-      });
-      title.anchor.set(0.5);
-      title.x = cx; title.y = cy + 92;
-      ov.addChild(title);
-      const cta = new Text({
-        text: 'CLICK TO START',
-        style: new TextStyle({
-          fontFamily: "'Poppins', ui-sans-serif, system-ui, sans-serif",
-          fontSize: 20, fontWeight: '800', letterSpacing: 3,
-          fill: 0xffffff, stroke: { color: 0x1a1000, width: 4, join: 'round' },
-        }),
-      });
-      cta.anchor.set(0.5);
-      cta.x = cx; cta.y = cy + 150;
-      ov.addChild(cta);
-      this.app.stage.addChild(ov);
-      // entrance + BREATHING cta (reactive: swells on hover-ish pulse)
-      ov.alpha = 0;
-      gsap.to(ov, { alpha: 1, duration: 0.35, ease: 'power1.out' });
-      if (badge) gsap.fromTo(badge.scale, { x: badge.scale.x * 0.4, y: badge.scale.y * 0.4 }, { x: badge.scale.x, y: badge.scale.y, duration: 0.55, ease: 'back.out(1.8)' });
-      const breathe = gsap.timeline({ repeat: -1, yoyo: true })
-        .to(cta.scale, { x: 1.09, y: 1.09, duration: 0.75, ease: 'sine.inOut' }, 0)
-        .to(cta, { alpha: 0.72, duration: 0.75, ease: 'sine.inOut' }, 0);
-      const badgeBreathe = badge
-        ? gsap.to(badge.scale, { x: badge.scale.x * 1.035, y: badge.scale.y * 1.035, duration: 1.1, ease: 'sine.inOut', repeat: -1, yoyo: true, delay: 0.6 })
-        : null;
+      const s = Math.min(width / 1920, height / 1080);
+      const B = `${import.meta.env.BASE_URL}theme/fruitstacks/fsintro/`;
+      const defs = [
+        { url: `${B}yhw.webp`, cy: 295.5, tw: 428 },
+        { url: `${B}plaque15.webp`, cy: 495, tw: 493 },
+        { url: `${B}freespins.webp`, cy: 746, tw: 453 },
+        { url: `${import.meta.env.BASE_URL}theme/fruitstacks/buypage/press.webp`, cy: 968, tw: 330 },
+      ];
+      const sprites: Sprite[] = [];
       const done = () => {
-        breathe.kill(); badgeBreathe?.kill();
+        for (const spr of sprites) { gsap.killTweensOf(spr); gsap.killTweensOf(spr.scale); }
         gsap.to(ov, {
           alpha: 0, duration: 0.3, ease: 'power1.in',
           onComplete: () => { try { ov.parent?.removeChild(ov); ov.destroy({ children: true }); } catch { /* gone */ } resolve(); },
         });
       };
+      void Promise.all(defs.map(d => Assets.load<Texture>(d.url).catch(() => null))).then(texes => {
+        if (!this.isLive) return;
+        texes.forEach((tex, i) => {
+          if (!tex) return;
+          const spr = new Sprite(tex);
+          spr.anchor.set(0.5);
+          spr.scale.set((defs[i].tw * s) / tex.width);
+          spr.x = cx;
+          spr.y = cy + (defs[i].cy - 540) * s;
+          spr.eventMode = 'none';
+          ov.addChild(spr);
+          sprites[i] = spr;
+          const base = spr.scale.x;
+          gsap.fromTo(spr.scale, { x: base * 0.4, y: base * 0.4 }, { x: base, y: base, duration: 0.5, ease: 'back.out(1.7)', delay: i * 0.09 });
+        });
+        const plaque = sprites[1];
+        // GANZ subtil (Noski: 1.03 war "zu stark" auf dem Button)
+        if (plaque) gsap.to(plaque.scale, { x: plaque.scale.x * 1.012, y: plaque.scale.y * 1.012, duration: 1.7, ease: 'sine.inOut', repeat: -1, yoyo: true, delay: 0.6 });
+        const press = sprites[3];
+        if (press) gsap.to(press, { alpha: 0.4, duration: 0.75, ease: 'sine.inOut', repeat: -1, yoyo: true, delay: 0.5 });
+      });
+      this.app.stage.addChild(ov);
+      ov.alpha = 0;
+      gsap.to(ov, { alpha: 1, duration: 0.35, ease: 'power1.out' });
       ov.on('pointertap', done);
       gsap.delayedCall(12, done); // safety auto-continue
     });
@@ -2835,6 +2831,13 @@ export class PixiApp {
       const ov = new Container();
       ov.eventMode = 'none';
       const cx = width / 2, cy = height / 2;
+      // leichte Transparenz-Verdunklung hinterm Banner (Noski)
+      const rdim = new Graphics();
+      rdim.rect(0, 0, width, height);
+      rdim.fill({ color: 0x05030c, alpha: 0.48 });
+      rdim.alpha = 0;
+      ov.addChild(rdim);
+      gsap.to(rdim, { alpha: 1, duration: 0.16, ease: 'power1.out' });
       const badge = new Sprite(this.fruitBadge5!);
       badge.anchor.set(0.5);
       badge.scale.set(Math.min(
@@ -2890,8 +2893,11 @@ export class PixiApp {
     const showCrates = (stepIdx: number) => {
       // cratesAfter IS the full stand as of that step (positions ridden
       // through the gravity) — landing cells only before the first step.
+      // landCell, NICHT cell: `cell` mutiert in der Derivation zur END-
+      // Position — damit klebten Badges/Tier-Art auf falschen Zellen
+      // (Noski: "4 Geschenke, nur 2 mit Multis").
       const active = stepIdx < 0
-        ? spin.crates.filter(c => c.step === -1).map(c => ({ cell: c.cell, value: c.value }))
+        ? spin.crates.filter(c => c.step === -1).map(c => ({ cell: c.landCell ?? c.cell, value: c.value }))
         : (spin.steps[stepIdx]?.cratesAfter ?? []);
       if (active.length) this.reelSet.setCrateBadges(active);
     };
@@ -2948,10 +2954,16 @@ export class PixiApp {
       // Läuft auch in Turbo (schneller), sonst fehlt der Multiplikations-Beat.
       const appliedFs = spin.multiSum > 0 ? Math.min(spin.multiSum + spin.poolBefore, 500) : 0;
       if (spin.spinWin > 0n && appliedFs > 0) {
+        // Komet fliegt LANGSAMER (Noski: "zu schnell") — bei Ankunft
+        // verbindet die Plaque "win ×multi", hält, dann SCHIEBEN sich die
+        // beiden zusammen (Squeeze) → Instant-Produkt + Pop + Sterne.
         await this.reelSet.flyPoolToPlaque(appliedFs, { isLive: () => this.isLive, turbo: this.turbo });
         if (!this.isLive) return;
-        this.reelSet.setFruitPlaqueText(formatWin((fsCtx.roundWinBefore) + spin.spinWin, decimals));
-        await new Promise<void>(r => { gsap.delayedCall(this.turbo ? 0.25 : 0.5, () => r()); });
+        this.reelSet.setFruitPlaqueText(`${formatWin(spin.winBeforeMulti, decimals)} ×${appliedFs}`, true);
+        await new Promise<void>(r => { gsap.delayedCall(this.turbo ? 0.3 : 0.6, () => r()); });
+        if (!this.isLive) return;
+        await this.reelSet.mergeFruitPlaqueTo(formatWin((fsCtx.roundWinBefore) + spin.spinWin, decimals));
+        await new Promise<void>(r => { gsap.delayedCall(this.turbo ? 0.2 : 0.4, () => r()); });
       } else if (spin.spinWin > 0n) {
         this.reelSet.setFruitPlaqueText(formatWin((fsCtx.roundWinBefore) + spin.spinWin, decimals));
         this.reelSet.punchFruitPlaque();

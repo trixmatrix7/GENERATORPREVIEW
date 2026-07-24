@@ -65,9 +65,11 @@ export function LibraryBrowser({ soundManager }: { soundManager: SoundManager })
   useEffect(() => stopPreview, []); // page leave kills the audition
   const preview = (sound: LibrarySound) => {
     stopPreview();
-    if (soundManager.muted) return; // master mute covers auditions too
+    // Studio-Audition IMMER hoerbar (Noski: "kann die Beispiel-Sounds nicht
+    // abspielen") — der Game-Master stand auf 21%, die Vorschau erbte das
+    // und war praktisch stumm. Fixe Vorhoer-Lautstaerke, kein Mute-Gate.
     const a = new Audio(sound.url);
-    a.volume = Math.max(0, Math.min(1, 0.8 * soundManager.volume));
+    a.volume = 0.75;
     a.onended = () => stopPreview();
     previewRef.current = a;
     setPlayingId(sound.id);

@@ -3839,13 +3839,12 @@ export class ReelSet {
             resolve();
           },
         })
-          // WINNA base game (frame-vermessen): Anstieg SENKRECHT ~2 Zellen in
-          // ~300ms (beschleunigend), dann in ~200ms zur Plaque einbiegen;
-          // Peak-Groesse ~1.6x in Flugmitte, Dauer distanzunabhaengig ~0.5s.
-          .fromTo(label.scale, { x: 0.7, y: 0.7 }, { x: 1.6, y: 1.6, duration: 0.3 * speed, ease: 'power1.out' })
-          .to(label, { y: label.y - 180, duration: 0.3 * speed, ease: 'power1.in' }, '<')
-          .to(label, { x: target.x, y: target.y, duration: 0.2 * speed, ease: 'power2.in' }, '>')
-          .to(label.scale, { x: 0.55, y: 0.55, duration: 0.2 * speed, ease: 'power2.in' }, '<');
+          // GERADER STRICH (Noski: "die fliegen komisch hoch"): EIN direkter
+          // Flug von der Gift-Position zur Plaque, keine Steig-Kurve mehr.
+          // Groesse: Peak ~1.5x in der Flugmitte, klein andocken.
+          .fromTo(label.scale, { x: 0.7, y: 0.7 }, { x: 1.5, y: 1.5, duration: 0.22 * speed, ease: 'power1.out' })
+          .to(label, { x: target.x, y: target.y, duration: 0.45 * speed, ease: 'power1.in' }, '<')
+          .to(label.scale, { x: 0.55, y: 0.55, duration: 0.23 * speed, ease: 'power2.in' }, '>-0.23');
       }));
     }
     await Promise.all(flights);

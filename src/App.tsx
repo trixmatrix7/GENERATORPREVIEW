@@ -353,7 +353,7 @@ export function App() {
       // 5×4 pro Sheet) — die alte 320×320-Quetschung las sich als Pixelbrei.
       // Playback 45fps = 1,5× Tempo (Noski: "muss noch schneller sein").
       void pixiAppRef.setWinCoinRain(
-        [0, 1, 2, 3, 4, 5].map(i => `${FRUITSTACKS.base}coinrain_fs_${i}.webp`), 5, 4, 120, 45,
+        [0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map(i => `${FRUITSTACKS.base}coinrain_fs_${i}.webp`), 5, 4, 200, 45,
       );
       // Win marquee: Noskis NEUES "BONUS (29)"-Pack (2026-07-24) — der
       // Marktstand (fruit box) ist die PLATE, die Tier-Lettern sind aus den

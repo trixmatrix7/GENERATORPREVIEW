@@ -615,6 +615,44 @@ export class WinCelebration {
         },
       }, countAt);
 
+      // CLICK-ADVANCE (Noski, für Ungeduldige): ein Tap auf die Marquee
+      // springt genau EINE Stufe weiter — vor der nächsten Schwelle seekt der
+      // Count dorthin (der Tier-Slam feuert normal), auf der letzten Stufe
+      // komplettiert der Count (der volle Win steht kurz), dann der normale
+      // Hold+Exit. KEIN Komplett-Skip: Klicks im Hold tun nichts.
+      const easeFn = gsap.parseEase('power1.inOut');
+      let lastAdvance = 0;
+      const clickAdvance = () => {
+        const tl0 = this.tl;
+        if (!tl0 || !this.overlay || this.tallyEnded) return;
+        const nowMs = performance.now();
+        if (nowMs - lastAdvance < 180) return; // ein Klick = eine Stufe
+        lastAdvance = nowMs;
+        const dur = C.countDur[finalTier];
+        const t = tl0.time();
+        if (t < countAt) { tl0.seek(countAt + 0.001, false); return; }
+        const elapsed = t - countAt;
+        if (elapsed >= dur) return;
+        const liveMax = Math.min(finalTier, 2);
+        let target: number | null = null;
+        for (let n = curTier + 1; n <= liveMax; n++) {
+          if (counter.val < th[n] && th[n] < finalVal) { target = th[n]; break; }
+        }
+        if (target == null) { tl0.seek(countAt + dur - 0.001, false); return; }
+        // power1.inOut numerisch invertieren: kleinste Zeit, deren Count-Wert
+        // die Ziel-Schwelle erreicht — die Promotion feuert im onUpdate.
+        let lo = elapsed / dur, hi = 1;
+        for (let i = 0; i < 26; i++) {
+          const mid = (lo + hi) / 2;
+          if (easeFn(mid) * finalVal >= target) hi = mid; else lo = mid;
+        }
+        tl0.seek(countAt + Math.min(hi * dur + 0.002, dur - 0.001), false);
+      };
+      overlay.eventMode = 'static';
+      overlay.cursor = 'pointer';
+      overlay.hitArea = new Rectangle(0, 0, sw, sh);
+      overlay.on('pointertap', clickAdvance);
+
       // END FLARE — and for a MAX win the SWITCH happens only NOW: EPIC held
       // until the number fully counted to the cap; then MAX slams in over the
       // final amount (which keeps pulsing — see the ticker).

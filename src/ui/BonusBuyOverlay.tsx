@@ -30,14 +30,8 @@ const CH = Math.round(CW * 598 / 360);
 const FONT = "'Rubik', ui-sans-serif, system-ui, sans-serif";
 
 // ── FRUIT STACKS: purchased FS stages (sim-calibrated costs; stage 2/3
-// pre-load the pool at ×50/×100). Each card shows its tier's gift box with
-// the tier's REAL minimum gift multi from the certified multiWeights:
-// silver ×2–5, red ×6–25, gold ×50–500 (checked 2026-07-23). ──
-const FRUIT_BUY_TIER = [
-  { img: 'gift_tier1.png', min: 2 },
-  { img: 'gift_tier2.png', min: 6 },
-  { img: 'gift_tier3.png', min: 50 },
-] as const;
+// pre-load the pool at ×50/×100). Karten-Inhalte sind seit dem Buy-Page-Pack
+// (2026-07-24) komplett GEBAKED — der Preis steht im Bestätigungs-Dialog. ──
 
 export function FruitBuyRail({ betDisplay, onBuy, bonusActive = false }: { betDisplay: string; onBuy?: (stage: number) => void; bonusActive?: boolean }) {
   const [open, setOpen] = useState(false);
@@ -77,40 +71,56 @@ export function FruitBuyRail({ betDisplay, onBuy, bonusActive = false }: { betDi
 
       {!open ? null : (
         <div onClick={() => setOpen(false)} style={{
-          position: 'absolute', inset: 0, zIndex: 60, display: 'flex', flexDirection: 'column',
-          alignItems: 'center', justifyContent: 'center', gap: 14, overflow: 'auto', padding: 14,
-          background: 'rgba(3,10,5,0.84)', backdropFilter: 'blur(3px)', fontFamily: FONT,
+          position: 'absolute', inset: 0, zIndex: 60, display: 'flex',
+          alignItems: 'center', justifyContent: 'center',
+          background: 'rgba(6,3,14,0.72)', fontFamily: FONT,
         }}>
-          <div onClick={e => e.stopPropagation()} style={{ display: 'flex', gap: 12, flexWrap: 'wrap', justifyContent: 'center', maxWidth: '96%' }}>
-            {FRUIT_BUY_STAGES.map(st => (
-              <div key={st.stage} onClick={() => { uiSfx.click(); setConfirm(st.stage); }} style={{
-                position: 'relative', width: 244, height: Math.round(244 * 2400 / 1792), cursor: 'pointer',
-                backgroundImage: `url(${import.meta.env.BASE_URL}theme/fruitstacks/buycard_${st.stage}.png)`,
-                backgroundSize: 'contain', backgroundRepeat: 'no-repeat', backgroundPosition: 'center',
-                fontFamily: FONT,
-              }}>
-                {/* the cards are EMPTY frames — title / stage / gift / price overlay */}
-                <div style={{ position: 'absolute', top: '27%', left: '10%', right: '10%', textAlign: 'center', color: '#fff', fontWeight: 900, fontStyle: 'italic', fontSize: 25, textShadow: '0 2px 6px rgba(0,0,0,0.6)' }}>FREE SPINS</div>
-                <div style={{ position: 'absolute', top: '42.5%', left: '10%', right: '10%', textAlign: 'center', color: '#ffe9a8', fontWeight: 900, fontStyle: 'italic', fontSize: 30, textShadow: '0 2px 6px rgba(0,0,0,0.7)' }}>{st.stage === 1 ? '15 SPINS' : st.label}</div>
-                {/* tier gift box + its REAL minimum multi (replaces the old text line) */}
-                <div style={{ position: 'absolute', top: '52%', left: 0, right: 0, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                  <img
-                    src={`${import.meta.env.BASE_URL}theme/fruitstacks/${FRUIT_BUY_TIER[st.stage - 1].img}`}
-                    alt="" draggable={false}
-                    style={{ width: '30%', display: 'block', filter: 'drop-shadow(0 4px 8px rgba(0,0,0,0.45))' }}
-                  />
-                  {/* das ECHTE Multi-Art (Noskis x2..x500-Pack) statt Text */}
-                  <img
-                    src={`${import.meta.env.BASE_URL}theme/fruitstacks/multis/x${FRUIT_BUY_TIER[st.stage - 1].min}.webp`}
-                    alt={`×${FRUIT_BUY_TIER[st.stage - 1].min}`} draggable={false}
-                    style={{ marginTop: -14, height: 30, filter: 'drop-shadow(0 3px 3px rgba(0,0,0,0.5))' }}
-                  />
-                </div>
-                <div style={{ position: 'absolute', bottom: '8.5%', left: '12%', right: '12%', textAlign: 'center', color: '#ffe9a8', fontWeight: 900, fontStyle: 'italic', fontSize: 24, textShadow: '0 2px 5px rgba(0,0,0,0.85)' }}>{money(bet * st.costMult)}</div>
-              </div>
+          {/* NOSKIS BUY-PAGE (2026-07-24): eigener Screen — Bokeh-Bg, Logo,
+              3 Holz-Karten (Inhalte GEBAKED: 15 FREE SPINS / INITIAL
+              MULTIPLIER ×0/×50/×100 + BUY-Button), PRESS TO CONTINUE unten.
+              Karten-Positionen aus dem Komposit vermessen (Interieur-Zentren
+              555 / 965 / 1365 auf 1920). Karte antippen → Bestätigungs-
+              Dialog (Preis), PRESS TO CONTINUE / außerhalb → schließen. */}
+          <div onClick={e => e.stopPropagation()} style={{ position: 'relative', aspectRatio: '1920 / 1080', height: '100%', maxWidth: '100%', overflow: 'hidden', borderRadius: 12 }}>
+            <img
+              src={`${import.meta.env.BASE_URL}theme/fruitstacks/intro/game/bg_intro2.webp`}
+              alt="" draggable={false}
+              style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }}
+            />
+            <img
+              src={`${import.meta.env.BASE_URL}theme/fruitstacks/buypage/logo.webp`}
+              alt="Buy Free Spins" draggable={false}
+              style={{ position: 'absolute', left: '50%', top: '18.1%', transform: 'translate(-50%, -50%)', width: '16.5%' }}
+            />
+            {FRUIT_BUY_STAGES.map((st, i) => (
+              <button
+                key={st.stage}
+                onClick={() => { uiSfx.click(); setConfirm(st.stage); }}
+                title={money(bet * st.costMult)}
+                style={{
+                  position: 'absolute', left: `${[28.9, 50.3, 71.1][i]}%`, top: '56.7%',
+                  transform: 'translate(-50%, -50%)', width: '22%',
+                  padding: 0, border: 'none', background: 'transparent', cursor: 'pointer',
+                }}
+              >
+                <img
+                  src={`${import.meta.env.BASE_URL}theme/fruitstacks/buypage/card${st.stage}.webp`}
+                  alt={st.label} draggable={false} style={{ width: '100%', display: 'block' }}
+                />
+              </button>
             ))}
-          </div>
-          <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: 11 }}>tap outside to close</div>
+            <button
+              onClick={() => { uiSfx.click(); setOpen(false); }}
+              style={{
+                position: 'absolute', left: '50%', top: '90%', transform: 'translate(-50%, -50%)',
+                width: '31%', padding: 0, border: 'none', background: 'transparent', cursor: 'pointer',
+              }}
+            >
+              <img
+                src={`${import.meta.env.BASE_URL}theme/fruitstacks/buypage/press.webp`}
+                alt="Press to continue" draggable={false} style={{ width: '100%', display: 'block' }}
+              />
+            </button>
           {confirm && (
             <div onClick={e => e.stopPropagation()} style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(3,6,12,0.66)', zIndex: 5 }}>
               {/* Noskis Dialog-Art: Holzrahmen + Tafel + gebakte ✗/✓-Kugeln.
@@ -142,6 +152,7 @@ export function FruitBuyRail({ betDisplay, onBuy, bonusActive = false }: { betDi
               </div>
             </div>
           )}
+          </div>
         </div>
       )}
     </>

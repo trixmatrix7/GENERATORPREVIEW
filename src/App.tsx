@@ -324,7 +324,10 @@ export function App() {
       // EINMAL durch (kein Loop) in 30fps (~1.8s), dann FS-Transition.
       // contentScale 1.457: die Biege schwingt weit aus, die NEUTRALE Pose
       // füllt sonst nur ~48% des Frames (las sich geschrumpft).
-      void pixiAppRef.setSymbolWinSheet(1, `${FRUITSTACKS.base}scatter_win_sheet.webp`, 8, 7, 53, 30, { once: true, contentScale: 1.457 });
+      // contentScale = 1.457 (Union/Neutral-Pose) × 0.861 (sichtbarer Anteil
+      // der Static-Textur, 441/512 px) = 1.254 → die neutrale Biege-Pose
+      // liegt EXAKT auf dem sichtbaren FS, kein Padding-Versatz.
+      void pixiAppRef.setSymbolWinSheet(1, `${FRUITSTACKS.base}scatter_win_sheet.webp`, 8, 7, 53, 50, { once: true, contentScale: 1.254 });
       NO_IDLE_SYMBOLS.add(0);
       // Winna-vermessene Groessen-Hierarchie (2026-07-23): normale Symbole
       // fuellen ~0.65-0.80 der Zelle (deutliche Luft), GIFTS premium-gross

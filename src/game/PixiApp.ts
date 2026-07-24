@@ -4543,10 +4543,12 @@ export class PixiApp {
     // Position + size are PER-GAME (the amount sits on the theme's price
     // plate; see setOutroAmountStyle) — default = the Vice plaque.
     const fg = layered.children[1] as Container;
+    // Zahl-Schrift = die des Win-Marquees (per-Theme, Fruit: Baloo 2 aufrecht)
     const amt = new Text({
       text: formatWin(totalWin, decimals), style: new TextStyle({
-        fontFamily: "'Rubik', ui-sans-serif, sans-serif", fontSize: this.outroAmount.fontSize, fontWeight: '800',
-        fontStyle: 'italic', letterSpacing: 2, fill: 0xffe9a0,
+        fontFamily: WIN_CELEBRATION_CONFIG.amountFont ?? "'Rubik', ui-sans-serif, sans-serif",
+        fontSize: this.outroAmount.fontSize, fontWeight: '800',
+        fontStyle: WIN_CELEBRATION_CONFIG.amountItalic ? 'italic' : 'normal', letterSpacing: 2, fill: 0xffe9a0,
         stroke: { color: 0x1a0e02, width: 10 },
         dropShadow: { color: 0x000000, blur: 8, distance: 0, alpha: 0.55 },
       }),

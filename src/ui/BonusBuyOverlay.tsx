@@ -81,7 +81,7 @@ export function FruitBuyRail({ betDisplay, onBuy, bonusActive = false }: { betDi
               Karten-Positionen aus dem Komposit vermessen (Interieur-Zentren
               555 / 965 / 1365 auf 1920). Karte antippen → Bestätigungs-
               Dialog (Preis), PRESS TO CONTINUE / außerhalb → schließen. */}
-          <div onClick={e => e.stopPropagation()} style={{ position: 'relative', aspectRatio: '1920 / 1080', height: '100%', maxWidth: '100%', overflow: 'hidden', borderRadius: 12 }}>
+          <div onClick={e => e.stopPropagation()} style={{ position: 'relative', aspectRatio: '1920 / 1080', height: '100%', maxWidth: '100%', overflow: 'hidden', borderRadius: 12, containerType: 'size' }}>
             <img
               src={`${import.meta.env.BASE_URL}theme/fruitstacks/intro/game/bg_intro2.webp`}
               alt="" draggable={false}
@@ -107,6 +107,15 @@ export function FruitBuyRail({ betDisplay, onBuy, bonusActive = false }: { betDi
                   src={`${import.meta.env.BASE_URL}theme/fruitstacks/buypage/card${st.stage}.webp`}
                   alt={st.label} draggable={false} style={{ width: '100%', display: 'block' }}
                 />
+                {/* PREIS (Noskis rote Markierung: unter dem ×N) — dieselbe
+                    Zahl-Schrift wie das Win-Marquee (Baloo 2, aufrecht) */}
+                <div style={{
+                  position: 'absolute', left: 0, right: 0, top: '77.5%', textAlign: 'center',
+                  fontFamily: "'Baloo 2', 'Rubik', ui-sans-serif, sans-serif", fontWeight: 800,
+                  fontSize: '4.2cqh', color: '#ffe9a0', lineHeight: 1,
+                  textShadow: '0 0 4px #1a0e02, 2px 2px 0 #1a0e02, -2px 2px 0 #1a0e02, 2px -2px 0 #1a0e02, -2px -2px 0 #1a0e02, 0 4px 8px rgba(0,0,0,0.55)',
+                  pointerEvents: 'none',
+                }}>{money(bet * st.costMult)}</div>
               </button>
             ))}
             <button
@@ -121,6 +130,20 @@ export function FruitBuyRail({ betDisplay, onBuy, bonusActive = false }: { betDi
                 alt="Press to continue" draggable={false} style={{ width: '100%', display: 'block' }}
               />
             </button>
+            {/* X oben rechts zum Verlassen (Noski) — Gold-Ring im Theme-Look */}
+            <button
+              aria-label="Schließen"
+              onClick={() => { uiSfx.click(); setOpen(false); }}
+              style={{
+                position: 'absolute', right: '2.2%', top: '4%', width: '6.4cqh', height: '6.4cqh',
+                borderRadius: '50%', border: '0.45cqh solid #f2ab31', cursor: 'pointer',
+                background: 'radial-gradient(circle at 35% 30%, #7a4a22 0%, #4a2a12 70%)',
+                color: '#ffe9a0', fontWeight: 900, fontSize: '3.4cqh', lineHeight: 1,
+                fontFamily: "'Baloo 2', 'Rubik', ui-sans-serif, sans-serif",
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                boxShadow: '0 3px 10px rgba(0,0,0,0.55), inset 0 2px 3px rgba(255,255,255,0.25)',
+              }}
+            >✕</button>
           {confirm && (
             <div onClick={e => e.stopPropagation()} style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(3,6,12,0.66)', zIndex: 5 }}>
               {/* Noskis Dialog-Art: Holzrahmen + Tafel + gebakte ✗/✓-Kugeln.

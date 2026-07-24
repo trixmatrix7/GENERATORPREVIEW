@@ -10,6 +10,7 @@ import { loadMathProfileId, saveMathProfileId } from '@/config/mathProfiles';
 import { loadGridId, type GridId } from '@/dev/PresetDock';
 import { manifestForProfile } from '@/config/activeMath';
 import { defaultSoundConfig } from '@/audio/defaultSoundConfig';
+import { ULTRA_CLEAN } from '@/audio/soundPresets';
 import { FRUIT_LOCKED_SOUNDS, FRUIT_LOCKED_VOLUMES, FRUIT_LOCKED_VISUAL_PARAMS } from '@/config/fruitStacksLockedSettings';
 import { buildPresetV2, type GameKey, type ResolvedAudioEvent } from './exportPresetV2Core';
 import viceTuning from '@/data/vicePresentationTuning.json';
@@ -231,10 +232,17 @@ export function buildExportPreset(name: string): Record<string, unknown> {
   // Picks/Overrides gewinnen weiterhin).
   const lockedSounds = game === 'fruitstacks' ? FRUIT_LOCKED_SOUNDS : {};
   const lockedVols = game === 'fruitstacks' ? FRUIT_LOCKED_VOLUMES : {};
+  // Fruit-Runtime-Basis = das ULTRA-CLEAN-Preset (im Fruit-pack angewendet,
+  // Code-Default): multi-fly/collect/apply, fs-counter, fs-retrigger, tumble-
+  // pops usw. spielen daraus — der Export MUSS dieselbe Quelle+Pegel tragen,
+  // sonst kriegt der Dev andere Dateien als Noski hoert (Noski). Praezedenz:
+  // user-pick > gelockt > ULTRA-CLEAN > Registry-Default.
+  const fruitBase: Record<string, { url: string; volume: number }> =
+    game === 'fruitstacks' ? ULTRA_CLEAN.events : {};
   const audioEvents: Record<string, ResolvedAudioEvent> = {};
   for (const ev of defaultSoundConfig().events) {
-    const pick = picks[ev.id] ?? lockedSounds[ev.id];
-    const volume = volOverrides[ev.id] ?? lockedVols[ev.id] ?? ev.volume;
+    const pick = picks[ev.id] ?? lockedSounds[ev.id] ?? fruitBase[ev.id]?.url;
+    const volume = volOverrides[ev.id] ?? lockedVols[ev.id] ?? fruitBase[ev.id]?.volume ?? ev.volume;
     const file = (pick ?? ev.src[0] ?? '').replace(/^\//, '');
     if (!file) continue;
     audioEvents[ev.id] = {

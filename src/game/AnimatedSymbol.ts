@@ -327,9 +327,13 @@ export class AnimatedSymbol extends Container {
     // sheet's size when one runs (the scatter badge renders bigger than the
     // generic cell fit); a FRAMED tile sheet matches the STATIC icon's exact
     // size so it swaps in place with zero zoom; else the generic cell fit.
+    // Oversized statics (Fruit-Stacks scatter, mul 1.18) must not SHRINK
+    // into their win sheet — the resting icon wins when it's bigger than
+    // the generic cell fit.
     const restW = this.idleSheetSprite
       ? this.idleSheetSprite.width
-      : framed && this.iconSprite ? this.iconSprite.width : cell * 0.94;
+      : framed && this.iconSprite ? this.iconSprite.width
+      : Math.max(cell * 0.94, this.iconSprite?.width ?? 0);
     const restScale = restW / frameW;
     const spr = new Sprite(sheet.frames[0]);
     spr.anchor.set(0.5);

@@ -110,7 +110,7 @@ export function FruitBuyRail({ betDisplay, onBuy, bonusActive = false }: { betDi
                 {/* PREIS (Noskis rote Markierung: unter dem ×N) — dieselbe
                     Zahl-Schrift wie das Win-Marquee (Baloo 2, aufrecht) */}
                 <div style={{
-                  position: 'absolute', left: 0, right: 0, top: '80.5%', textAlign: 'center',
+                  position: 'absolute', left: 0, right: 0, top: '84.7%', textAlign: 'center',
                   fontFamily: "'Baloo 2', 'Rubik', ui-sans-serif, sans-serif", fontWeight: 800,
                   fontSize: '4.2cqh', color: '#ffe9a0', lineHeight: 1,
                   textShadow: '0 0 4px #1a0e02, 2px 2px 0 #1a0e02, -2px 2px 0 #1a0e02, 2px -2px 0 #1a0e02, -2px -2px 0 #1a0e02, 0 4px 8px rgba(0,0,0,0.55)',

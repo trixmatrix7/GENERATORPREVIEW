@@ -163,6 +163,12 @@ export class SoundManager {
         // Already playing — leave it alone.
         return;
       }
+      // HART alle Ids dieses Howls stoppen, bevor eine neue startet: vor dem
+      // Audio-Unlock meldet Howler gequeute Sounds als "not playing" — jeder
+      // Boot-Aufruf passierte so den Guard und queuete eine WEITERE Instanz;
+      // beim Unlock starteten alle zusammen und drifteten hoerbar auseinander
+      // (Noski: "Musik ueberlappt sich irgendwann und spielt doppelt").
+      try { howl.stop(); } catch { /* fresh howl */ }
       const id = howl.play();
       if (opts?.rate) howl.rate(opts.rate, id);
       this.exclusivePlaying.set(eventId, id);

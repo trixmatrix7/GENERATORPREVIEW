@@ -42,6 +42,10 @@ export const SYMBOL_WIN_SHEETS = new Map<number, {
   /** Frame-canvas → neutral-pose ratio: swing-room padding in the frames
    *  would otherwise SHRINK the art on the resting footprint. */
   contentScale?: number;
+  /** Neutral-pose centre − frame centre, in FRAME px: asymmetric swing room
+   *  shifts the pose off the frame centre — without this the art JUMPS at
+   *  the static→sheet switch (Noski: "muss pixelgenau gebindet sein"). */
+  contentOffset?: { x: number; y: number };
 }>();
 
 /** symbolId → LANDING-state spritesheet (played ONCE when the symbol settles,
@@ -347,6 +351,11 @@ export class AnimatedSymbol extends Container {
     const spr = new Sprite(sheet.frames[0]);
     spr.anchor.set(0.5);
     spr.scale.set(restScale);
+    // Pixel-exakte Bindung: die NEUTRALE Pose (nicht der Frame-Canvas) landet
+    // auf dem Ruhe-Zentrum — asymmetrischer Schwungraum wird rausgerechnet.
+    if (sheet.contentOffset) {
+      spr.position.set(-sheet.contentOffset.x * restScale, -sheet.contentOffset.y * restScale);
+    }
     // Symbols with an idle loop (the bonus badge) GROW on win — the sheet
     // swells ~28% over the resting look instead of reading as a shrink.
     if (this.idleSheetSprite) {
@@ -358,8 +367,10 @@ export class AnimatedSymbol extends Container {
     // Soft-edge mask: melts the square frame edges away so only the CHARACTER
     // pops — never a hard card. Parented to the sprite so it scales with it.
     // SKIPPED for framed-tile sheets (they carry their own frame; the vignette
-    // would fade it and read as a dark zoom-in — Noski).
-    if (!framed) {
+    // would fade it and read as a dark zoom-in — Noski) AND for clean-alpha
+    // sheets (contentScale gesetzt, z.B. der FS-Bend): die Vignette fraß die
+    // Kanten an und machte den static→sheet-Switch sichtbar.
+    if (!framed && sheet.contentScale == null) {
       const mask = new Sprite(getSoftEdgeMask());
       mask.anchor.set(0.5);
       mask.width = frameW;

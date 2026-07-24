@@ -1549,14 +1549,14 @@ export class PixiApp {
   /** Per-symbol WIN animation spritesheet: while that symbol's cell is in the
    *  'win' state (part of a connection) the sheet loops in place of the static
    *  art. Pass url=null to clear the symbol's sheet. */
-  async setSymbolWinSheet(symbolId: number, url: string | null, cols: number, rows: number, count: number, fps = 12, opts?: { once?: boolean; contentScale?: number }): Promise<void> {
+  async setSymbolWinSheet(symbolId: number, url: string | null, cols: number, rows: number, count: number, fps = 12, opts?: { once?: boolean; contentScale?: number; contentOffset?: { x: number; y: number } }): Promise<void> {
     const old = SYMBOL_WIN_SHEETS.get(symbolId);
     SYMBOL_WIN_SHEETS.delete(symbolId);
     if (old) for (const f of old.frames) { try { f.destroy(true); } catch { /* torn down */ } }
     if (!url) return;
     try {
       const frames = await this.sliceSheetHD(url, cols, rows, count);
-      SYMBOL_WIN_SHEETS.set(symbolId, { frames, fps, once: opts?.once, contentScale: opts?.contentScale });
+      SYMBOL_WIN_SHEETS.set(symbolId, { frames, fps, once: opts?.once, contentScale: opts?.contentScale, contentOffset: opts?.contentOffset });
     } catch (err) {
       console.warn('[PixiApp] failed to load symbol win sheet:', err);
     }

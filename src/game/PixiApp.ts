@@ -23,6 +23,7 @@ import { type WinResult } from '@/engine/WinEvaluator';
 import { evalWins, activePayModel } from './winEval';
 import { isFruitStacksOutcome, type FruitStacksOutcome } from './decodeFruitStacks';
 import type { FruitSpin } from './fruitStacksSpin';
+import { FRUIT_BUY_STAGES } from './fruitStacksMath';
 import { baseFeaturePlants, type PlantFeatureConfig } from './plantFeature';
 import { DEFAULT_GAME_CONFIG, type GameConfig, type GameTheme } from '@/engine/GameConfig';
 import { playDeterministicHoldAndWin, HW_TRIGGER_MIN } from '@/engine/holdAndWin';
@@ -2573,8 +2574,19 @@ export class PixiApp {
     }
     // Cluster drop-in: the fresh board rains in from above (slow-drop tease
     // takes over reel-by-reel once 2 scatters stand — no reel spin at all).
+    // KAUF-RUNDE (Noski): der Einstiegs-Spin droppt INSTANT mit dem MINIMUM-
+    // Trigger (4 Scatter) sichtbar im Board — wie ein natürlicher Treffer.
+    let entryBoard = round.base.initialBoard;
+    if (round.buyStage > 0) {
+      entryBoard = round.base.initialBoard.map(r => [...r]);
+      const reels = [0, 1, 2, 3, 4, 5].sort(() => Math.random() - 0.5).slice(0, 4);
+      for (const reel of reels) {
+        const row = Math.floor(Math.random() * entryBoard.length);
+        entryBoard[row][reel] = 1;
+      }
+    }
     await this.reelSet.playFruitDropIn(
-      round.base.initialBoard,
+      entryBoard,
       round.base.crates.filter(c => c.step === -1),
       { isLive: () => this.isLive, turbo: this.turbo },
     );
@@ -2582,7 +2594,8 @@ export class PixiApp {
 
     // SCATTER BREATHING (Noski): 3/4/5 standing scatters breathe in sync,
     // stronger per bonus tier.
-    if (outcome.scatterCount >= 3) this.reelSet.breatheScatters(outcome.scatterCount);
+    if (round.buyStage > 0) this.reelSet.breatheScatters(4);
+    else if (outcome.scatterCount >= 3) this.reelSet.breatheScatters(outcome.scatterCount);
 
     // BASE spin cascade (crate badges appear as soon as the board rests).
     await this.playTumbleSpin(round.base, decimals);
@@ -2591,9 +2604,9 @@ export class PixiApp {
     // FREE SPINS: 4+ scatters → iris → per-spin tumble chains with the pool.
     let fsOverlayToClose: { container: Container; counter: Text } | null = null;
     if (round.fsTriggered && round.fsSpins.length > 0 && !prefersReducedMotion()) {
-      // trigger beat: the landed scatters play their win state — skipped on
-      // a PURCHASED round (the base board is only the entry, no 4-scatter).
-      if (round.buyStage === 0) {
+      // trigger beat: the landed scatters play their win state — bei BUYS
+      // stehen die injizierten 4 Scatter jetzt sichtbar → Beat läuft immer.
+      {
         const scatterCells: AnimatedSymbol[] = [];
         const walkSc = (n: Container) => {
           for (const c of n.children) {
@@ -2660,6 +2673,17 @@ export class PixiApp {
           if (!this.turbo) await this.playFruitRetrigger();
           fsRemaining += 5;
           this.reelSet.setFsCounter(fsRemaining, 'up');
+        }
+        // WIN-MARQUEE AUCH IM BONUS (Noski: "die Stages kommen im FS nie"):
+        // ab 10× Einsatz feiert der SPIN-Win seine Stage (Winna: Big-Win-
+        // Overlay nach dem Apply). Bei Buys ist outcome.wager der KAUFPREIS —
+        // effektiver Einsatz = wager / costMult.
+        const effBet = round.buyStage > 0
+          ? (outcome.wager ?? 1n) / BigInt(FRUIT_BUY_STAGES[round.buyStage - 1]?.costMult ?? 1)
+          : (outcome.wager ?? 1n);
+        if (this.isLive && effBet > 0n && spin.spinWin >= effBet * 10n) {
+          const marqueeOrigins = this.reelSet.getWinningCellCenters(this.tumbleWinResult(spin));
+          await this.playCoinWin(spin.spinWin, effBet, tokenSymbol, decimals, marqueeOrigins);
         }
         await new Promise<void>(r => { gsap.delayedCall(0.3, () => r()); });
       }

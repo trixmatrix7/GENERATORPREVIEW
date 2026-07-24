@@ -3256,15 +3256,33 @@ export class ReelSet {
    *  the cell) never get shaved at the grid edge (Noski: "Rahmen überdeckt
    *  es"). Top stays small — the tumble refill temps drop in hidden above
    *  the grid and would otherwise peek early. */
+  private clipMarginCfg: { left: number; top: number; right: number; bottom: number } | null = null;
+
   setClipMargin(m: { left: number; top: number; right: number; bottom: number }): void {
-    if (!this.clipMask || !this.clipRect) return;
-    this.clipMask.clear();
-    this.clipMask.rect(-m.left, -m.top, this.clipRect.w + m.left + m.right, this.clipRect.h + m.top + m.bottom);
-    this.clipMask.fill(0xffffff);
+    this.clipMarginCfg = m;
+    this.applyClipRect(m);
     // Vertikal geöffnete Maske legt die BUFFER-Zellen der Reels frei (Noski:
     // "oben und unten schauen reels raus") — bei offener Maske verstecken.
     this.buffersHidden = m.top > 4 || m.bottom > 4;
     this.applyBufferCellVisibility();
+  }
+
+  private applyClipRect(m: { left: number; top: number; right: number; bottom: number }): void {
+    if (!this.clipMask || !this.clipRect) return;
+    this.clipMask.clear();
+    this.clipMask.rect(-m.left, -m.top, this.clipRect.w + m.left + m.right, this.clipRect.h + m.top + m.bottom);
+    this.clipMask.fill(0xffffff);
+  }
+
+  /** Während Drop-Out/Drop-In: vertikal ENG clippen, damit fallende Symbole
+   *  HINTER dem Rahmen verschwinden (Noski: "sollen dahinter verschwinden
+   *  nach unten") — seitlich bleibt der Scatter-Overflow offen. */
+  private tightenClipForDrop(): void {
+    if (this.clipMarginCfg) this.applyClipRect({ ...this.clipMarginCfg, top: 2, bottom: 2 });
+  }
+
+  private restoreClipMargin(): void {
+    if (this.clipMarginCfg) this.applyClipRect(this.clipMarginCfg);
   }
 
   private buffersHidden = false;
@@ -3324,6 +3342,7 @@ export class ReelSet {
   /** DROP-OUT (cluster construct, replaces the reel spin): the standing board
    *  falls away downward, column by column — the grid then waits empty. */
   async playFruitDropOut(opts: { isLive: () => boolean; turbo?: boolean }): Promise<void> {
+    this.tightenClipForDrop(); // Symbole tauchen HINTER dem Rahmen ab
     const speed = opts.turbo ? 0.5 : 1;
     const rows = this.grid.visibleRows;
     const drop = rows * CELL_HEIGHT + CELL_HEIGHT;
@@ -3409,6 +3428,7 @@ export class ReelSet {
     }
     await new Promise<void>(r => { gsap.delayedCall(dur + 0.3 * speed + rowStagger * rows + 0.05 * speed, () => r()); });
     this.audioHooks.onReelStopped?.(0); // one soft land beat for the board
+    this.restoreClipMargin(); // Scatter-Overflow wieder frei (Board ruht)
     this.elevateScatterCells(); // BONUS in front of everything (Noski)
     this.applyBufferCellVisibility(); // buffers stay hidden with the open clip
   }

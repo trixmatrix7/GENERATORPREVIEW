@@ -46,6 +46,37 @@ import { reloadCleanParams } from '@/audio/SoundManager';
  *  cross-frame 'storage' event (listener below). */
 const EMBED = typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('embed');
 
+/** Einmalige, idempotente Migration (2026-07-24): die Gift-Multi-Sounds
+ *  liefen frueher als Alias auf wild-expand/wild-land. Noskis handgemachte
+ *  Einstellungen (Event-Volumes + Bibliothek-Picks) fuer die Aliasse werden
+ *  auf die neuen multi-* Events GESPIEGELT — nur wenn dort noch nichts
+ *  steht, nie ueberschreibend (Settings-Durability-Regel). */
+function migrateMultiSoundSettings(): void {
+  try {
+    const volRaw = localStorage.getItem('slot:audio-event-volumes');
+    if (volRaw) {
+      const vols = JSON.parse(volRaw) as Record<string, number>;
+      let dirty = false;
+      for (const [from, to] of [['wild-expand', 'multi-fly'], ['wild-land', 'multi-collect']] as const) {
+        if (vols[from] != null && vols[to] == null) { vols[to] = vols[from]; dirty = true; }
+      }
+      if (dirty) localStorage.setItem('slot:audio-event-volumes', JSON.stringify(vols));
+    }
+    const assetsRaw = localStorage.getItem('slot:assets');
+    if (assetsRaw) {
+      const assets = JSON.parse(assetsRaw) as { sounds?: Record<string, string> };
+      if (assets.sounds) {
+        let dirty = false;
+        for (const [from, to] of [['wild-expand', 'multi-fly'], ['wild-land', 'multi-collect']] as const) {
+          if (assets.sounds[from] && !assets.sounds[to]) { assets.sounds[to] = assets.sounds[from]; dirty = true; }
+        }
+        if (dirty) localStorage.setItem('slot:assets', JSON.stringify(assets));
+      }
+    }
+  } catch { /* Storage kaputt — Defaults greifen */ }
+}
+if (typeof window !== 'undefined') migrateMultiSoundSettings();
+
 export function App() {
   const [hostApi, setHostApi] = useState<HostApiV1 | null>(null);
   const [snapshot, setSnapshot] = useState<HostSnapshotV1 | null>(null);
@@ -754,8 +785,11 @@ export function App() {
       // Fruit Stacks tumble: the burst-plopp ladders up per cascade step;
       // gift flights whoosh softly and the ×N thuds into the plate.
       onTumblePop: (stepIdx) => soundManager.play('coin-chime', { rate: 1 + Math.min(stepIdx, 6) * 0.08 }),
-      onGiftFly: () => soundManager.play('wild-expand'),
-      onPlateImpact: () => soundManager.play('wild-land'),
+      // Eigene Multi-Events (Noski): getrennt regelbar in Sound-Parametern +
+      // Audio Studio. Frueher Alias auf wild-expand/wild-land.
+      onGiftFly: () => soundManager.play('multi-fly'),
+      onPlateImpact: () => soundManager.play('multi-collect'),
+      onMultiApply: () => soundManager.play('multi-apply'),
       // Rising tally: each connection's chime pitches a step higher — the
       // classic count-up ladder instead of a flat repeated tick.
       // PER-SYMBOL win voice on Crack Farm: the symbol that won speaks (goat

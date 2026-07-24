@@ -78,6 +78,8 @@ export interface ReelSetAudioHooks {
   onTumblePop?: (stepIdx: number) => void;
   /** A gift's ×N slams into the win plate. */
   onPlateImpact?: () => void;
+  /** Multiplikations-Moment: "win xN" schiebt sich zusammen -> Produkt. */
+  onMultiApply?: () => void;
   /** A gift's ×N detaches and starts flying to the plate. */
   onGiftFly?: () => void;
   onReelStopped?: (reelIdx: number) => void;
@@ -3412,6 +3414,7 @@ export class ReelSet {
       gsap.to(t.scale, { x: 0.6, duration: 0.18, ease: 'power2.in', onComplete: () => res() });
     });
     this.setFruitPlaqueText(text);
+    this.audioHooks.onMultiApply?.();
     this.starDustAt(this.fruitPlaque.x, this.fruitPlaque.y, 10, 30);
     this.punchFruitPlaque();
   }

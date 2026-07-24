@@ -2992,6 +2992,7 @@ export class PixiApp {
       // hold the connected "win ×N" — let it breathe — then RESOLVE
       await new Promise<void>(r => { gsap.delayedCall(this.turbo ? 0.45 : 1.0, () => r()); });
       this.reelSet.setFruitPlaqueText(formatWin(spin.spinWin, decimals));
+      this.reelSet.audioHooks.onMultiApply?.();
       this.reelSet.punchFruitPlaque();
       await new Promise<void>(r => { gsap.delayedCall(this.turbo ? 0.25 : 0.5, () => r()); });
     } else if (spin.spinWin > 0n) {

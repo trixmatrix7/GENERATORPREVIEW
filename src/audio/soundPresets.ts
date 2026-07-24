@@ -31,6 +31,10 @@ export const ULTRA_CLEAN: SoundPreset = {
     'wild-land': { url: `${L}reel-stop/arcade-game-jump-coin-fdb57d.ogg`, volume: 0.34 },
     // gift flight — soft low whoosh
     'wild-expand': { url: `${L}spin-start/arrow-whoosh-4ba7f0.ogg`, volume: 0.16 },
+    // dedizierte Multi-Events (Fruit): Flug-Whoosh, Dock-Impact, Apply-Pop
+    'multi-fly': { url: `${L}spin-start/arrow-whoosh-4ba7f0.ogg`, volume: 0.16 },
+    'multi-collect': { url: `${L}reel-stop/arcade-game-jump-coin-fdb57d.ogg`, volume: 0.34 },
+    'multi-apply': { url: `${L}coin-chime/achievement-completed-8749eb.ogg`, volume: 0.4 },
     // scatter — quiet magic bubbles (attack 26ms, -23dB)
     'scatter-land': { url: `${L}scatter-land/magic-bubbles-spell-f303f8.ogg`, volume: 0.42 },
     // FS trigger — clean 1.75s winning notification

@@ -34,6 +34,12 @@ const DEFAULT_VOLUMES: Record<string, number> = {
   // the tower expansion.
   'wild-land': 0.8,
   'wild-expand': 0.85,
+  // Multi-Sounds (Noski 2026-07-24): eigene Events fuer die Gift-Multis —
+  // vorher liefen die auf wild-expand/wild-land als Alias und waren nicht
+  // getrennt regelbar. Default-Dateien = Kopien der alten Alias-Sounds.
+  'multi-fly': 0.85,
+  'multi-collect': 0.8,
+  'multi-apply': 0.75,
   'free-spin-trigger': 1.0,
   'near-miss-tease': 0.4,
   // Spin loop is OFF (silent file + zero volume): no bed under the spin —
@@ -71,7 +77,7 @@ const AUDIO_DIR = '/audio';
 // These must try .ogg FIRST: a missing .wav makes the SPA dev server answer
 // with index.html (HTTP 200), which Howler then fails to DECODE — and it
 // never falls through to the real file ("Decoding audio data failed").
-const OGG_FIRST = new Set<string>(['ambient-music', 'win-marquee', 'spin-start', 'reel-stop', 'coin-chime', 'wild-land', 'wild-expand', 'scatter-land', 'win-small', 'win-normal', 'win-big', 'win-tally-tick', 'win-tally-end', 'tier-up', 'tease-riser', 'tease-miss']);
+const OGG_FIRST = new Set<string>(['ambient-music', 'win-marquee', 'spin-start', 'reel-stop', 'coin-chime', 'wild-land', 'wild-expand', 'multi-fly', 'multi-collect', 'multi-apply', 'scatter-land', 'win-small', 'win-normal', 'win-big', 'win-tally-tick', 'win-tally-end', 'tier-up', 'tease-riser', 'tease-miss']);
 
 function bindingForEvent(id: string): SoundEventBinding {
   return {

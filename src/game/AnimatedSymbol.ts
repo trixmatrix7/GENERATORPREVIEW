@@ -35,7 +35,14 @@ import { SYMBOL_HEIGHT, SYMBOL_WIDTH } from './symbolMetrics';
 
 /** symbolId → win-state spritesheet frames (looped while the cell is in the
  *  'win' state, replacing the static art). Filled by PixiApp.setSymbolWinSheet. */
-export const SYMBOL_WIN_SHEETS = new Map<number, { frames: Texture[]; fps: number }>();
+export const SYMBOL_WIN_SHEETS = new Map<number, {
+  frames: Texture[]; fps: number;
+  /** Play ONCE and hold the last frame (FS-trigger bend) instead of looping. */
+  once?: boolean;
+  /** Frame-canvas → neutral-pose ratio: swing-room padding in the frames
+   *  would otherwise SHRINK the art on the resting footprint. */
+  contentScale?: number;
+}>();
 
 /** symbolId → LANDING-state spritesheet (played ONCE when the symbol settles,
  *  then hands back to the static art). Filled by PixiApp.setSymbolLandSheet. */
@@ -334,7 +341,9 @@ export class AnimatedSymbol extends Container {
       ? this.idleSheetSprite.width
       : framed && this.iconSprite ? this.iconSprite.width
       : Math.max(cell * 0.94, this.iconSprite?.width ?? 0);
-    const restScale = restW / frameW;
+    // contentScale: Frames mit Schwung-Reserve (Bend-Loop) — die NEUTRALE
+    // Pose soll den Footprint füllen, nicht der ganze Frame-Canvas.
+    const restScale = (restW / frameW) * (sheet.contentScale ?? 1);
     const spr = new Sprite(sheet.frames[0]);
     spr.anchor.set(0.5);
     spr.scale.set(restScale);
@@ -384,7 +393,8 @@ export class AnimatedSymbol extends Container {
       f: sheet.frames.length - 1,
       duration: sheet.frames.length / sheet.fps,
       ease: 'none',
-      repeat: -1,
+      // once (FS-Trigger-Bend): einmal durch, letzte Pose steht — kein Loop.
+      repeat: sheet.once ? 0 : -1,
       onUpdate: () => { spr.texture = sheet.frames[Math.round(proxy.f) % sheet.frames.length]; },
     });
   }

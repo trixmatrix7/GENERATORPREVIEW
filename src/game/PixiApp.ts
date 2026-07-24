@@ -1549,14 +1549,14 @@ export class PixiApp {
   /** Per-symbol WIN animation spritesheet: while that symbol's cell is in the
    *  'win' state (part of a connection) the sheet loops in place of the static
    *  art. Pass url=null to clear the symbol's sheet. */
-  async setSymbolWinSheet(symbolId: number, url: string | null, cols: number, rows: number, count: number, fps = 12): Promise<void> {
+  async setSymbolWinSheet(symbolId: number, url: string | null, cols: number, rows: number, count: number, fps = 12, opts?: { once?: boolean; contentScale?: number }): Promise<void> {
     const old = SYMBOL_WIN_SHEETS.get(symbolId);
     SYMBOL_WIN_SHEETS.delete(symbolId);
     if (old) for (const f of old.frames) { try { f.destroy(true); } catch { /* torn down */ } }
     if (!url) return;
     try {
       const frames = await this.sliceSheetHD(url, cols, rows, count);
-      SYMBOL_WIN_SHEETS.set(symbolId, { frames, fps });
+      SYMBOL_WIN_SHEETS.set(symbolId, { frames, fps, once: opts?.once, contentScale: opts?.contentScale });
     } catch (err) {
       console.warn('[PixiApp] failed to load symbol win sheet:', err);
     }
@@ -2603,7 +2603,8 @@ export class PixiApp {
         };
         walkSc(this.reelSet.container);
         for (const c of scatterCells) c.play('win');
-        await new Promise<void>(r => { gsap.delayedCall(this.turbo ? 0.6 : 1.6, () => r()); });
+        // Bend spielt EINMAL durch (53f @30fps ≈ 1.77s) → dann FS-Transition.
+        await new Promise<void>(r => { gsap.delayedCall(this.turbo ? 0.6 : 1.85, () => r()); });
         if (!this.isLive) return;
       }
 

@@ -320,9 +320,11 @@ export function App() {
       // Scatter (B-starfruit) + crate (multiplier) keep a clean static look —
       // no fallback pulse/squash warping the illustrated art.
       STATIC_LOOK_SYMBOLS.add(1);
-      // FS-Trigger-Win: Noskis Bend-Loop (fs_bend_loop.mov, 30fps→15fps 1:1,
-      // 53 Frames) — spielt wenn die Scatter beim Trigger 'win' feiern.
-      void pixiAppRef.setSymbolWinSheet(1, `${FRUITSTACKS.base}scatter_win_sheet.webp`, 8, 7, 53, 15);
+      // FS-Trigger-Win: Noskis Bend (fs_bend_loop.mov) — spielt beim Trigger
+      // EINMAL durch (kein Loop) in 30fps (~1.8s), dann FS-Transition.
+      // contentScale 1.457: die Biege schwingt weit aus, die NEUTRALE Pose
+      // füllt sonst nur ~48% des Frames (las sich geschrumpft).
+      void pixiAppRef.setSymbolWinSheet(1, `${FRUITSTACKS.base}scatter_win_sheet.webp`, 8, 7, 53, 30, { once: true, contentScale: 1.457 });
       NO_IDLE_SYMBOLS.add(0);
       // Winna-vermessene Groessen-Hierarchie (2026-07-23): normale Symbole
       // fuellen ~0.65-0.80 der Zelle (deutliche Luft), GIFTS premium-gross

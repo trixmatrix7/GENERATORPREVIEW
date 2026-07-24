@@ -74,6 +74,7 @@ export function FruitBuyRail({ betDisplay, onBuy, bonusActive = false }: { betDi
           position: 'absolute', inset: 0, zIndex: 60, display: 'flex',
           alignItems: 'center', justifyContent: 'center',
           background: 'rgba(6,3,14,0.72)', fontFamily: FONT,
+          animation: 'buyBackdropIn 0.22s ease-out both',
         }}>
           {/* NOSKIS BUY-PAGE (2026-07-24): eigener Screen — Bokeh-Bg, Logo,
               3 Holz-Karten (Inhalte GEBAKED: 15 FREE SPINS / INITIAL
@@ -81,7 +82,7 @@ export function FruitBuyRail({ betDisplay, onBuy, bonusActive = false }: { betDi
               Karten-Positionen aus dem Komposit vermessen (Interieur-Zentren
               555 / 965 / 1365 auf 1920). Karte antippen → Bestätigungs-
               Dialog (Preis), PRESS TO CONTINUE / außerhalb → schließen. */}
-          <div onClick={e => e.stopPropagation()} style={{ position: 'relative', aspectRatio: '1920 / 1080', height: '100%', maxWidth: '100%', overflow: 'hidden', borderRadius: 12, containerType: 'size' }}>
+          <div onClick={e => e.stopPropagation()} style={{ position: 'relative', aspectRatio: '1920 / 1080', height: '100%', maxWidth: '100%', overflow: 'hidden', borderRadius: 12, containerType: 'size', animation: 'buyPageIn 0.34s cubic-bezier(0.22, 1.28, 0.42, 1) both' }}>
             <img
               src={`${import.meta.env.BASE_URL}theme/fruitstacks/intro/game/bg_intro2.webp`}
               alt="" draggable={false}

@@ -157,3 +157,14 @@
 .animate-spin-fast {
   animation: tw-spin 0.7s linear infinite;
 }
+
+/* Buy-Page-Entrance (Fruit Stacks): poppt clean aus der Mitte auf (Noski). */
+@keyframes buyPageIn {
+  from { opacity: 0; transform: scale(0.72); }
+  60%  { opacity: 1; transform: scale(1.035); }
+  to   { opacity: 1; transform: scale(1); }
+}
+@keyframes buyBackdropIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}

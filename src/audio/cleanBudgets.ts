@@ -66,6 +66,7 @@ export const CLEAN_BUDGETS: Readonly<Record<string, CleanBudget>> = {
   'multi-apply': budget(1100),
   'fs-counter-down': budget(350),
   'fs-counter-up': budget(700),
+  'fs-retrigger': budget(1800),
   'coin-chime': budget(500),
 
   // Win tier stings.

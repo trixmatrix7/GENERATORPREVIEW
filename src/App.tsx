@@ -814,6 +814,8 @@ export function App() {
       onPlateImpact: () => soundManager.play('multi-collect'),
       onMultiApply: () => soundManager.play('multi-apply'),
       onFsCounterRoll: (dir) => soundManager.play(dir === 'down' ? 'fs-counter-down' : 'fs-counter-up'),
+      onFsTrigger: () => soundManager.play('free-spin-trigger'),
+      onFsRetrigger: () => soundManager.play('fs-retrigger'),
       // Rising tally: each connection's chime pitches a step higher — the
       // classic count-up ladder instead of a flat repeated tick.
       // PER-SYMBOL win voice on Crack Farm: the symbol that won speaks (goat

@@ -27,6 +27,7 @@ const LABELS: Record<string, string> = {
   'free-spin-trigger': 'FS-Trigger',
   'fs-counter-down': 'FS-Counter runter',
   'fs-counter-up': 'FS-Counter hoch (Retrigger)',
+  'fs-retrigger': 'FS-Retrigger (+5)',
   'near-miss-tease': 'Near-Miss-Riser',
   'win-small': 'Win-Jingle S',
   'win-normal': 'Win-Jingle M',

@@ -82,6 +82,10 @@ export interface ReelSetAudioHooks {
   onMultiApply?: () => void;
   /** FS-Counter-Rad rollt (down = Spin-Start, up = Retrigger). */
   onFsCounterRoll?: (dir: 'down' | 'up') => void;
+  /** Free Spins ausgeloest (4+ Scatter im Base / Kauf). */
+  onFsTrigger?: () => void;
+  /** Retrigger (3+ Scatter in einem FS-Spin, +5). */
+  onFsRetrigger?: () => void;
   /** A gift's ×N detaches and starts flying to the plate. */
   onGiftFly?: () => void;
   onReelStopped?: (reelIdx: number) => void;
@@ -3342,6 +3346,22 @@ export class ReelSet {
     const dur = 0.44 * speed;
     const COL_DELAYS = [0, 0.01, 0.03, 0.1, 0.19, 0.3];
     const rowStagger = 0.035 * speed;
+    // SCATTER-LAND-SOUND (Noski: "greift nicht ingame"): der Tumbler-Drop
+    // feuerte nur onReelStopped, nie onScatterLanded — der Scatter-Ding kam
+    // im Fruit-Base-Game nie. Jeden gelandeten Scatter zum Landezeitpunkt
+    // seiner Spalte melden (App macht die steigende Ding-Ladder daraus).
+    const scatterLandTimes: number[] = [];
+    for (let reel = 0; reel < reels; reel++) {
+      for (let row = 0; row < rows; row++) {
+        if (board[row][reel] === SymbolId.SCATTER && crateAt.get(row * reels + reel) === undefined) {
+          scatterLandTimes.push((COL_DELAYS[reel] ?? 0.3) * speed + rowStagger * (rows - 1 - row) + dur);
+        }
+      }
+    }
+    scatterLandTimes.sort((a, b) => a - b);
+    for (const t of scatterLandTimes) {
+      gsap.delayedCall(t, () => { if (opts.isLive()) this.audioHooks.onScatterLanded?.(0); });
+    }
     for (let reel = 0; reel < reels; reel++) {
       for (let row = 0; row < rows; row++) {
         const cell = this.reels[reel]?.getVisibleCell(row);

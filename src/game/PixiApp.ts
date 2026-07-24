@@ -2618,6 +2618,9 @@ export class PixiApp {
           }
         };
         walkSc(this.reelSet.container);
+        // FS-TRIGGER-Sound (Noski: "trigger wird nicht ausgeloest") — der
+        // Moment, in dem 4+ Scatter die Freispiele zuenden (natuerlich + Kauf).
+        this.reelSet.audioHooks.onFsTrigger?.();
         for (const c of scatterCells) c.play('win');
         // Bend DOPPELT @118fps (2×53f ≈ 0.9s — Noski) → dann FS-Transition.
         await new Promise<void>(r => { gsap.delayedCall(this.turbo ? 0.5 : 0.95, () => r()); });
@@ -2672,6 +2675,7 @@ export class PixiApp {
         // RETRIGGER (3+ scatters in this FS spin): 5-badge slams centre,
         // the counter wheel rolls UP (+5) — also in turbo.
         if (spin.scatters >= 3) {
+          this.reelSet.audioHooks.onFsRetrigger?.(); // eigener Sound, auch in Turbo
           if (!this.turbo) await this.playFruitRetrigger();
           fsRemaining += 5;
           this.reelSet.setFsCounter(fsRemaining, 'up');
@@ -3677,6 +3681,14 @@ export class PixiApp {
    *  one with a fan (a reel carrying 2+ winning cells) so the connection reads
    *  clearly — then spin and reveal that real outcome. Nothing is forced/faked;
    *  the symbols on the board are the actual ways win. */
+  /** Test-only (Noski): NUR das Retrigger-Design (+5 FREE SPINS Banner) +
+   *  der Retrigger-Sound — ohne echten FS-Durchlauf. */
+  public async __testFruitRetrigger(): Promise<void> {
+    if (!this.isLive) return;
+    this.reelSet.audioHooks.onFsRetrigger?.();
+    await this.playFruitRetrigger();
+  }
+
   public __testWaysWin(_symbol: string, _decimals: number, wager: bigint): void {
     if (!this.isLive) return;
     let best: { stops: number[]; winResult: WinResult } | null = null;

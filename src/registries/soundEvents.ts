@@ -251,6 +251,17 @@ const entries: readonly SoundEventEntry[] = [
     priority: 'medium',
   },
   {
+    id: 'fs-retrigger',
+    name: 'FS Retrigger',
+    description: 'Celebratory sting when 3+ scatters land during free spins and add +5 spins.',
+    version: '0.1.0',
+    implemented: true,
+    event: 'fs:retrigger',
+    trigger: 'retrigger (3+ scatters in a FS spin)',
+    loop: false,
+    priority: 'high',
+  },
+  {
     id: 'tier-up',
     name: 'Tier Promotion',
     description: 'Impact stinger when the marquee promotes a tier mid-count (BIG→MEGA→EPIC→MAX); pitched up per tier.',

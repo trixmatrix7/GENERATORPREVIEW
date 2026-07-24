@@ -30,6 +30,7 @@ const CORE_ROWS: Row[] = [
   { label: 'Multi-Collect', ids: ['multi-collect'] },
   { label: 'Multi-Apply (Win xN)', ids: ['multi-apply'] },
   { label: 'FS-Counter (runter/hoch)', ids: ['fs-counter-down', 'fs-counter-up'] },
+  { label: 'FS-Retrigger (+5)', ids: ['fs-retrigger'] },
   { label: 'FS-Trigger', ids: ['free-spin-trigger'] },
   { label: 'Near-Miss-Tease', ids: ['near-miss-tease'] },
   { label: 'Win-Jingle XL (Mega)', ids: ['win-mega'] },

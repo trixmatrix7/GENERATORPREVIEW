@@ -37,6 +37,7 @@ export const ULTRA_CLEAN: SoundPreset = {
     'multi-apply': { url: `${L}coin-chime/achievement-completed-8749eb.ogg`, volume: 0.4 },
     'fs-counter-down': { url: `${L}reel-stop/cool-interface-click-tone-adc015.ogg`, volume: 0.22 },
     'fs-counter-up': { url: `${L}coin-chime/arcade-score-interface-7d166c.ogg`, volume: 0.42 },
+    'fs-retrigger': { url: `${L}free-spin-trigger/winning-notification-64c08f.ogg`, volume: 0.6 },
     // scatter — quiet magic bubbles (attack 26ms, -23dB)
     'scatter-land': { url: `${L}scatter-land/magic-bubbles-spell-f303f8.ogg`, volume: 0.42 },
     // FS trigger — clean 1.75s winning notification

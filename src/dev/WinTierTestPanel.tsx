@@ -234,6 +234,30 @@ export function WinTierTestPanel({ pixiApp, snapshot, soundManager }: Props) {
       </button>
       <button
         onClick={() => {
+          // NUR das Retrigger-Design (+5 FREE SPINS Banner) + Sound (Noski).
+          const wasTurbo = pixiApp.turbo;
+          pixiApp.turbo = false;
+          void pixiApp.__testFruitRetrigger();
+          window.setTimeout(() => { pixiApp.turbo = wasTurbo; }, 1600);
+        }}
+        style={{
+          background: '#160a24',
+          color: '#C79BFF',
+          border: '1px solid #5a3a8a',
+          borderRadius: 4,
+          padding: '4px 8px',
+          fontSize: 11,
+          fontFamily: 'monospace',
+          cursor: 'pointer',
+          textAlign: 'left',
+          marginTop: 4,
+        }}
+        title="Nur das Retrigger-Design (+5 FREE SPINS) + Retrigger-Sound"
+      >
+        ↻ Retrigger (+5)
+      </button>
+      <button
+        onClick={() => {
           // Preview the ways-light win-line: ensure it's on, then spin into a
           // win where several symbols connect (1→3→3→2→1 fan) so you can see the
           // comet branch through multiple connections.

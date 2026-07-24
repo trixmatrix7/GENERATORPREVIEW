@@ -39,6 +39,8 @@ export const SYMBOL_WIN_SHEETS = new Map<number, {
   frames: Texture[]; fps: number;
   /** Play ONCE and hold the last frame (FS-trigger bend) instead of looping. */
   once?: boolean;
+  /** Mit once: Anzahl Durchläufe (Noski: Bend spielt DOPPELT, dann Transition). */
+  plays?: number;
   /** Frame-canvas → neutral-pose ratio: swing-room padding in the frames
    *  would otherwise SHRINK the art on the resting footprint. */
   contentScale?: number;
@@ -405,7 +407,7 @@ export class AnimatedSymbol extends Container {
       duration: sheet.frames.length / sheet.fps,
       ease: 'none',
       // once (FS-Trigger-Bend): einmal durch, letzte Pose steht — kein Loop.
-      repeat: sheet.once ? 0 : -1,
+      repeat: sheet.once ? Math.max(0, (sheet.plays ?? 1) - 1) : -1,
       onUpdate: () => { spr.texture = sheet.frames[Math.round(proxy.f) % sheet.frames.length]; },
       // Ende-SETTLE (Noski: "muss minimal zurück skalieren"): bei hohem
       // Playback-Tempo rauschen die Rückkehr-Frames durch — ein kurzer

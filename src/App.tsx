@@ -327,7 +327,7 @@ export function App() {
       // contentScale = 1.457 (Union/Neutral-Pose) × 0.861 (sichtbarer Anteil
       // der Static-Textur, 441/512 px) = 1.254 → die neutrale Biege-Pose
       // liegt EXAKT auf dem sichtbaren FS, kein Padding-Versatz.
-      void pixiAppRef.setSymbolWinSheet(1, `${FRUITSTACKS.base}scatter_win_sheet.webp`, 8, 7, 53, 94, { once: true, contentScale: 1.254, contentOffset: { x: 1.5, y: 9.5 } });
+      void pixiAppRef.setSymbolWinSheet(1, `${FRUITSTACKS.base}scatter_win_sheet.webp`, 8, 7, 53, 118, { once: true, plays: 2, contentScale: 1.254, contentOffset: { x: 1.5, y: 9.5 } });
       NO_IDLE_SYMBOLS.add(0);
       // Winna-vermessene Groessen-Hierarchie (2026-07-23): normale Symbole
       // fuellen ~0.65-0.80 der Zelle (deutliche Luft), GIFTS premium-gross
@@ -542,6 +542,12 @@ export function App() {
 
   // Boot overlay node — rendered INSIDE the game-canvas container (like the
   // generator's iframe). Per-game customization point: title + colors.
+  // Boot-Titel + Farben PRO GAME (Noski: "nicht bei jeder Slot VICE HEAT")
+  const bootTheme = {
+    vice: { title: 'VICE HEAT', grad: 'linear-gradient(180deg, #ff64c8 0%, #ffd23f 100%)', bar: 'linear-gradient(90deg, #ff64c8, #7de3ff)', glow: 'rgba(255,100,200,0.55)' },
+    crackfarm: { title: 'CRACK FARM', grad: 'linear-gradient(180deg, #a6ff6e 0%, #ffd23f 100%)', bar: 'linear-gradient(90deg, #7ef23e, #ffd75e)', glow: 'rgba(126,242,62,0.55)' },
+    fruitstacks: { title: 'FRUIT STACKS', grad: 'linear-gradient(180deg, #ff9ad0 0%, #ffd23f 100%)', bar: 'linear-gradient(90deg, #b06cf5, #ffd75e)', glow: 'rgba(176,108,245,0.55)' },
+  }[loadActiveGame() as 'vice' | 'crackfarm' | 'fruitstacks'] ?? { title: 'LOADING', grad: 'linear-gradient(180deg, #fff 0%, #aaa 100%)', bar: 'linear-gradient(90deg, #888, #ccc)', glow: 'rgba(255,255,255,0.3)' };
   const bootScreen = bootGone ? null : (
     <div style={{
       position: 'absolute', inset: 0, zIndex: 30,
@@ -554,15 +560,15 @@ export function App() {
       <style>{'@keyframes boot-breathe { 0%, 100% { opacity: 1; } 50% { opacity: 0.55; } }'}</style>
       <div style={{
         fontSize: 34, fontWeight: 900, fontStyle: 'italic', letterSpacing: 6,
-        background: 'linear-gradient(180deg, #ff64c8 0%, #ffd23f 100%)',
+        background: bootTheme.grad,
         WebkitBackgroundClip: 'text', backgroundClip: 'text', color: 'transparent',
         animation: 'boot-breathe 2.2s ease-in-out infinite',
-      }}>VICE&nbsp;HEAT</div>
+      }}>{bootTheme.title}</div>
       <div style={{ width: 300, height: 5, borderRadius: 999, background: 'rgba(255,255,255,0.08)', overflow: 'hidden' }}>
         <div style={{
           width: `${Math.round(bootProgress * 100)}%`, height: '100%', borderRadius: 999,
-          background: 'linear-gradient(90deg, #ff64c8, #7de3ff)',
-          boxShadow: '0 0 12px rgba(255,100,200,0.55)', transition: 'width 0.35s ease',
+          background: bootTheme.bar,
+          boxShadow: `0 0 12px ${bootTheme.glow}`, transition: 'width 0.35s ease',
         }} />
       </div>
       <div style={{

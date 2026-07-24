@@ -2765,6 +2765,10 @@ export class PixiApp {
    *  oder 12s Auto-Continue → die Runde rollt. */
   private playFruitFsIntro(): Promise<void> {
     if (!this.isLive) return Promise.resolve();
+    // DOM-Chrome (Buy-Rail, BONUS ACTIVE, Control-Bar) blendet fuer den
+    // ganzen Intro-Screen aus (Noski: "Buy Free Spins hervorgehoben ohne
+    // Sinn, Control-Bar zu sichtbar") — App.tsx faded die Wrapper.
+    this.onFsIntroVisible?.(true);
     return new Promise<void>(resolve => {
       const { width, height } = this.app.screen;
       const ov = new Container();
@@ -2780,14 +2784,14 @@ export class PixiApp {
         { url: `${B}yhw.webp`, cy: 295.5, tw: 428 },
         { url: `${B}plaque15.webp`, cy: 495, tw: 493 },
         { url: `${B}freespins.webp`, cy: 746, tw: 453 },
-        { url: `${import.meta.env.BASE_URL}theme/fruitstacks/buypage/press.webp`, cy: 968, tw: 330 },
+        { url: `${import.meta.env.BASE_URL}theme/fruitstacks/buypage/press.webp`, cy: 962, tw: 470 },
       ];
       const sprites: Sprite[] = [];
       const done = () => {
         for (const spr of sprites) { gsap.killTweensOf(spr); gsap.killTweensOf(spr.scale); }
         gsap.to(ov, {
           alpha: 0, duration: 0.3, ease: 'power1.in',
-          onComplete: () => { try { ov.parent?.removeChild(ov); ov.destroy({ children: true }); } catch { /* gone */ } resolve(); },
+          onComplete: () => { try { ov.parent?.removeChild(ov); ov.destroy({ children: true }); } catch { /* gone */ } this.onFsIntroVisible?.(false); resolve(); },
         });
       };
       void Promise.all(defs.map(d => Assets.load<Texture>(d.url).catch(() => null))).then(texes => {

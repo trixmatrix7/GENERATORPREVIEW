@@ -3510,7 +3510,9 @@ export class ReelSet {
 
   setFsCounterBase(base: string | null): void {
     if (!base) return;
-    const want = ['frame', ...Array.from({ length: 16 }, (_, i) => `n${i}`)];
+    // 0-50: 16-50 im Stil von Noskis 0-15 aus den Einzelziffern komponiert
+    // (freeSpinsCap 50 = das Maximum, das der Zaehler je zeigen kann)
+    const want = ['frame', ...Array.from({ length: 51 }, (_, i) => `n${i}`)];
     for (const k of want) {
       if (this.fsCounterTex.has(k)) continue;
       Assets.load<Texture>(`${base}${k}.webp`)
@@ -3519,13 +3521,14 @@ export class ReelSet {
     }
   }
 
-  /** Zahl-Node im Zaehler-Fenster: gebakte Gold-Zahl 0..15, sonst Ballon-Text
-   *  (Retrigger kann über 15 treiben). Scale-Relation frame↔Zahl vermessen:
+  /** Zahl-Node im Zaehler-Fenster: gebakte Gold-Zahl 0..50 (16-50 aus den
+   *  Einzelziffern komponiert, Stil-Beweis via Rekomposition von 10-15),
+   *  sonst Ballon-Text. Scale-Relation frame↔Zahl vermessen:
    *  Komposit-„10" = 0.863 der Quell-px, Bake-Faktor 0.45 → ×1.919. */
   private makeFsCounterNumber(value: number, frameScale: number): Container {
     const wrap = new Container();
     wrap.eventMode = 'none';
-    const tex = value >= 0 && value <= 15 ? this.fsCounterTex.get(`n${value}`) : undefined;
+    const tex = value >= 0 && value <= 50 ? this.fsCounterTex.get(`n${value}`) : undefined;
     if (tex) {
       const spr = new Sprite(tex);
       spr.anchor.set(0.5);

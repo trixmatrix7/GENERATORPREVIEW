@@ -686,8 +686,16 @@ export function App() {
   useEffect(() => {
     if (loadActiveGame() !== 'fruitstacks') return;
     for (const [eventId, def] of Object.entries(ULTRA_CLEAN.events)) {
+      // KEINE Musik bei Fruit Stacks (Noski: "eine andere Background-Musik
+      // die nicht weggeht — raus"): die Ultra-Clean 'adone'-Loop bleibt
+      // draussen; ein bewusster Bibliothek-Pick (oder der Slider) kann
+      // spaeter eine eigene Fruit-Musik aktivieren.
+      if (eventId === 'ambient-music') continue;
       soundManager.replaceSource(eventId, [def.url], def.volume);
     }
+    // Stoppt auch eine BEREITS laufende Musik (replaceSource stoppt + laedt
+    // neu) und stellt das Bed auf stumm.
+    soundManager.replaceSource('ambient-music', [`${import.meta.env.BASE_URL}audio/ambient-music.ogg`], 0);
     soundManager.replaceSource('reel-spin-loop', [`${import.meta.env.BASE_URL}audio/library/spin-start/air-woosh-985287.ogg`], 0, false);
   }, [soundManager]);
 

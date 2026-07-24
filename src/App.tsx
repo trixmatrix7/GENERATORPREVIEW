@@ -23,6 +23,7 @@ import { mathProfileById, loadMathProfileId, saveMathProfileId } from '@/config/
 import { getThemeByName } from '@/config/themes';
 import { viceSymbolMap, VICE_INTRO_URL } from '@/config/viceAssets';
 import { CRACKFARM, crackFarmSymbolMap, crackFarmGameIntro } from '@/config/crackFarmTheme';
+import { FRUIT_LOCKED_SOUNDS, FRUIT_LOCKED_VOLUMES, FRUIT_LOCKED_VISUAL_PARAMS } from '@/config/fruitStacksLockedSettings';
 import { FRUITSTACKS, fruitStacksSymbolMap, fruitStacksGameIntro } from '@/config/fruitStacksTheme';
 import introLayers from '@/data/introLayers.json';
 import { loadAssets } from '@/studio/assetPersistence';
@@ -578,6 +579,13 @@ export function App() {
       // Das Features-Tab/Effekt-System ist ENTFERNT — sein Store verschwindet
       // mit (loadAssets filtert die alten Effekt-Ids zusaetzlich beim Lesen).
       try { localStorage.removeItem('slot:feature-selection'); } catch { /* egal */ }
+      // GELOCKTE Fruit-Defaults (Rahmen aus, kein Zell-Backdrop) — greifen fuer
+      // frische Besucher, werden vom User-Replay unten pro-Id ueberschrieben.
+      if (activeGame === 'fruitstacks') {
+        for (const [pid, pval] of Object.entries(FRUIT_LOCKED_VISUAL_PARAMS)) {
+          pixiAppRef.applyVisualParam(pid, pval);
+        }
+      }
       for (const [pid, pval] of Object.entries(loadAssets().visualParams ?? {})) {
         pixiAppRef.applyVisualParam(pid, pval);
       }
@@ -709,9 +717,20 @@ export function App() {
     // Musik-Bed stumm — Noskis Fruit-Sounds (Mango Market Loop / Island
     // Victory Fanfare) liegen in der BIBLIOTHEK ("Bewaehrt") und werden dort
     // bewusst zugewiesen: so traegt der Export nur SEIN Preset, kein
-    // Hardcode (Noski). Kein play()-Aufruf hier — der stackte die Musik.
+    // Hardcode-Mute als Ausgangspunkt (wird gleich von den gelockten
+    // Defaults ueberschrieben).
     soundManager.replaceSource('ambient-music', [`${import.meta.env.BASE_URL}audio/ambient-music.ogg`], 0);
     soundManager.replaceSource('reel-spin-loop', [`${import.meta.env.BASE_URL}audio/library/spin-start/air-woosh-985287.ogg`], 0, false);
+    // ── GELOCKTER FINAL-ZUSTAND (Noski, 2026-07-24) ────────────────────────
+    // Ein FRISCHER Vercel-Besucher (leerer localStorage) findet EXAKT diesen
+    // Zustand vor: Mango-Musik, Island-Fanfare, seine Picks + Pegel. Liegt
+    // UNTER den User-Picks (Library-Effekt unten re-appliziert loadAssets()
+    // .sounds) und UNTER den User-Volume-Overrides (SoundManager.effVolume
+    // nimmt slot:audio-event-volumes wenn gesetzt). Settings-Durability-Regel.
+    for (const [ev, url] of Object.entries(FRUIT_LOCKED_SOUNDS)) {
+      soundManager.replaceSource(ev, [url], FRUIT_LOCKED_VOLUMES[ev]);
+    }
+    soundManager.play('ambient-music'); // Mango-Loop startet (wie jetzt)
   }, [soundManager]);
 
   // SOUND-LIBRARY picks (studio "Sound-Bibliothek"): a saved selection WINS

@@ -10,6 +10,7 @@ import { loadMathProfileId, saveMathProfileId } from '@/config/mathProfiles';
 import { loadGridId, type GridId } from '@/dev/PresetDock';
 import { manifestForProfile } from '@/config/activeMath';
 import { defaultSoundConfig } from '@/audio/defaultSoundConfig';
+import { FRUIT_LOCKED_SOUNDS, FRUIT_LOCKED_VOLUMES, FRUIT_LOCKED_VISUAL_PARAMS } from '@/config/fruitStacksLockedSettings';
 import { buildPresetV2, type GameKey, type ResolvedAudioEvent } from './exportPresetV2Core';
 import viceTuning from '@/data/vicePresentationTuning.json';
 
@@ -225,10 +226,15 @@ export function buildExportPreset(name: string): Record<string, unknown> {
   let cleanMap: Record<string, { offsetMs: number; durMs: number; fadeOutMs: number; gainDb: number }> = {};
   try { cleanMap = JSON.parse(localStorage.getItem('slot:audio-clean') ?? '{}'); } catch { /* keep {} */ }
   const picks = o.sounds ?? {};
+  // Fruit Stacks: Noskis gelockte Picks/Pegel sind der EXPORT-Default, damit
+  // die JSON auch bei leerem localStorage exakt seinen Zustand traegt (User-
+  // Picks/Overrides gewinnen weiterhin).
+  const lockedSounds = game === 'fruitstacks' ? FRUIT_LOCKED_SOUNDS : {};
+  const lockedVols = game === 'fruitstacks' ? FRUIT_LOCKED_VOLUMES : {};
   const audioEvents: Record<string, ResolvedAudioEvent> = {};
   for (const ev of defaultSoundConfig().events) {
-    const pick = picks[ev.id];
-    const volume = volOverrides[ev.id] ?? ev.volume;
+    const pick = picks[ev.id] ?? lockedSounds[ev.id];
+    const volume = volOverrides[ev.id] ?? lockedVols[ev.id] ?? ev.volume;
     const file = (pick ?? ev.src[0] ?? '').replace(/^\//, '');
     if (!file) continue;
     audioEvents[ev.id] = {
@@ -250,6 +256,7 @@ export function buildExportPreset(name: string): Record<string, unknown> {
     manifest,
     overrides: { bg: o.bg, fsBg: o.fsBg, frame: o.frame, expandingWild: o.expandingWild },
     audioEvents,
+    visualParams: { ...(game === 'fruitstacks' ? FRUIT_LOCKED_VISUAL_PARAMS : {}), ...(o.visualParams ?? {}) },
     bare: isBareBuild(),
     exportedAt: new Date().toISOString(),
     generatorVersion: '2.1.0',

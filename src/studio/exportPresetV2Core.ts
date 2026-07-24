@@ -42,6 +42,10 @@ export interface PresetInputs {
   overrides: AssetOverrides;
   /** eventId → resolved {file, volume,…} incl. library picks + user volume overrides. */
   audioEvents: Record<string, ResolvedAudioEvent>;
+  /** applyVisualParam id → value: the shipped studio-parameter state (frame
+   *  width/opacity, cell backdrop, colours, symbol size, …). The dev reproduces
+   *  each 1:1 — this IS the locked look of the build. */
+  visualParams: Record<string, string>;
   bare: boolean;
   exportedAt: string;
   generatorVersion: string;
@@ -199,6 +203,11 @@ const MECHANICS: Record<GameKey, Record<string, unknown>[]> = {
       params: { style: 'dark field 0.82, 15-badge, breathing CLICK TO START, 12s auto' } },
     { id: 'win-marquees', kind: 'win-presentation', enabled: true, affectsMath: false,
       params: { tiers: ['win', 'big', 'mega', 'epic', 'max'], coinRain: 'own green-keyed rain behind marquee', marqueeDucksAmbient: true } },
+    { id: 'sound-volume-parameters', kind: 'presentation', enabled: true, affectsMath: false,
+      params: {
+        note: 'GENERATOR FEATURE (Noski): expose a per-event VOLUME parameter for EVERY audio event in the real generator UI. audio.events[<id>].volume in this preset is the operative loudness of the shipped build (design default merged with the volume sliders) — reproduce it 1:1 and make each one adjustable. The sound LIBRARY picker is studio-only and NOT part of this feature.',
+        source: 'audio.events (complete: every registry event with file + volume + loop/exclusive flags)',
+      } },
   ],
 };
 
@@ -452,6 +461,10 @@ export function buildPresetV2(i: PresetInputs): Record<string, unknown> {
       mixing: { marqueeDucksAmbient: true, exclusiveGroups: [['ambient-music', 'win-marquee']] },
       events: i.audioEvents,
     },
+    // The shipped studio-parameter state (frame/cell-backdrop/colours/size).
+    // Every id maps to an adjustable generator parameter; reproduce 1:1 so the
+    // build looks EXACTLY like the preview (Noski: locked look).
+    visualParams: i.visualParams,
     flow: FLOWS[i.game],
     extras: {
       profileId: i.profileId,

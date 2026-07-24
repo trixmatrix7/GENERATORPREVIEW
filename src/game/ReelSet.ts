@@ -3110,16 +3110,42 @@ export class ReelSet {
 
   /** ×N value badges on the multiplier crates currently on the board.
    *  Cleared on startSpin (winAmountsContainer children are per-spin). */
-  private crateBadges: Container[] = [];
+  private crateBadges: Array<{ node: Container; cell: [number, number]; value: number }> = [];
 
   setCrateBadges(crates: { cell: [number, number]; value: number }[]): void {
-    this.clearCrateBadges();
+    // DIFF statt Recreate (Noski: "der Multi laggt hinterher"): Badges, die
+    // schon stehen (gleiche Zelle+Wert — sie sind den Gravity-Ritt in
+    // playTumbleStep MITgefahren), bleiben unangetastet; nur NEUE poppen
+    // ein, verschwundene gehen weg. Kein Re-Pop-Flackern nach jedem Step.
+    const key = (cell: [number, number], v: number) => `${cell[0]},${cell[1]}:${v}`;
+    const want = new Map(crates.map(c => [key(c.cell, c.value), c]));
+    const keep: typeof this.crateBadges = [];
+    for (const b of this.crateBadges) {
+      const k = key(b.cell, b.value);
+      if (want.has(k)) {
+        want.delete(k);
+        // exakt einrasten (der Ritt landet auf demselben Delta — Snap
+        // korrigiert nur Subpixel)
+        const rect = resolveAnchor(cellAnchor(b.cell[1], b.cell[0]), this.grid);
+        const pl = this.fruitMultiPlace(rect);
+        gsap.killTweensOf(b.node);
+        b.node.x = pl.x; b.node.y = pl.y; b.node.rotation = pl.rot;
+        keep.push(b);
+      } else {
+        try { b.node.parent?.removeChild(b.node); b.node.destroy(); } catch { /* torn down */ }
+      }
+    }
+    this.crateBadges = keep;
     for (const c of crates) {
       const [row, reel] = c.cell;
       // The gift art itself carries the TIER (reference stages: silver ×2-5,
       // red ×6-30, gold ×31-500) — swap the cell to its stage the moment the
-      // value is known. Math keeps id 0; this is display-only.
+      // value is known. Math keeps id 0; this is display-only. (Auch fuer
+      // stehende Badges: normalise setzt die Zelle sonst auf die Roh-Art.)
       this.reels[reel]?.getVisibleCell(row)?.setSymbol(fruitGiftTierId(c.value));
+    }
+    for (const c of want.values()) {
+      const [row, reel] = c.cell;
       const rect = resolveAnchor(cellAnchor(reel, row), this.grid);
       const label = this.makeMultiValue(c.value);
       // Default 'unten' = reference construct (Winna): the value hangs AT THE
@@ -3128,13 +3154,13 @@ export class ReelSet {
       label.x = pl.x; label.y = pl.y; label.rotation = pl.rot;
       label.eventMode = 'none';
       this.winAmountsContainer.addChild(label);
-      this.crateBadges.push(label);
+      this.crateBadges.push({ node: label, cell: [row, reel], value: c.value });
       gsap.fromTo(label.scale, { x: 0.2, y: 0.2 }, { x: 1, y: 1, duration: 0.28, ease: 'back.out(2.2)' });
     }
   }
 
   clearCrateBadges(): void {
-    for (const b of this.crateBadges) { try { b.parent?.removeChild(b); b.destroy(); } catch { /* torn down */ } }
+    for (const b of this.crateBadges) { try { b.node.parent?.removeChild(b.node); b.node.destroy(); } catch { /* torn down */ } }
     this.crateBadges = [];
   }
 
@@ -3904,6 +3930,14 @@ export class ReelSet {
         const inner = cell.objectLayer;
         gsap.killTweensOf(inner);
         gsap.to(inner, { y: SYMBOL_HEIGHT / 2 + below * CELL_HEIGHT, duration: fallDur * teaseMul, ease: 'power2.in', delay: teaseDelay(reel) });
+        // Multi-Badge klebt am Geschenk (Noski: "muss tuck sein, nicht
+        // nachrutschen"): identischer Tween (Dauer/Ease/Delay) auf dem Badge.
+        const badge = this.crateBadges.find(b => b.cell[0] === row && b.cell[1] === reel);
+        if (badge) {
+          gsap.killTweensOf(badge.node);
+          gsap.to(badge.node, { y: badge.node.y + below * CELL_HEIGHT, duration: fallDur * teaseMul, ease: 'power2.in', delay: teaseDelay(reel) });
+          badge.cell = [row + below, reel];
+        }
       }
       // fresh symbols fall in from above the mask (temp sprites; the real
       // cells take over at normalise)

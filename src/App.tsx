@@ -417,8 +417,8 @@ export function App() {
       // FS-OUTRO: Marktstand + TOTAL-WIN-Lettern als ruhige Karten, der
       // Rundengewinn zählt auf der Gold-Plakette hoch (vermessen 959/802).
       void pixiAppRef.setLayeredIntro('outro', [
-        // Basegame-Bokeh als Cover dahinter (Noski: "da ist alles schwarz")
-        { file: FRUITSTACKS.bgBase, role: 'coverbg', cx: 960, cy: 540 },
+        // KEIN Cover mehr: der echte Slot scheint gedimmt durch (Noski:
+        // "verdunkelt über der Slot mit Transparenz, nicht nur Background")
         { file: `${Fw}plate.webp`, role: 'card', cx: 960, cy: 540 },
         { file: `${Fw}total.webp`, role: 'card', cx: 960, cy: 540 },
       ]);
@@ -790,6 +790,7 @@ export function App() {
       onGiftFly: () => soundManager.play('multi-fly'),
       onPlateImpact: () => soundManager.play('multi-collect'),
       onMultiApply: () => soundManager.play('multi-apply'),
+      onFsCounterRoll: (dir) => soundManager.play(dir === 'down' ? 'fs-counter-down' : 'fs-counter-up'),
       // Rising tally: each connection's chime pitches a step higher — the
       // classic count-up ladder instead of a flat repeated tick.
       // PER-SYMBOL win voice on Crack Farm: the symbol that won speaks (goat

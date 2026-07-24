@@ -35,6 +35,8 @@ export const ULTRA_CLEAN: SoundPreset = {
     'multi-fly': { url: `${L}spin-start/arrow-whoosh-4ba7f0.ogg`, volume: 0.16 },
     'multi-collect': { url: `${L}reel-stop/arcade-game-jump-coin-fdb57d.ogg`, volume: 0.34 },
     'multi-apply': { url: `${L}coin-chime/achievement-completed-8749eb.ogg`, volume: 0.4 },
+    'fs-counter-down': { url: `${L}reel-stop/cool-interface-click-tone-adc015.ogg`, volume: 0.22 },
+    'fs-counter-up': { url: `${L}coin-chime/arcade-score-interface-7d166c.ogg`, volume: 0.42 },
     // scatter — quiet magic bubbles (attack 26ms, -23dB)
     'scatter-land': { url: `${L}scatter-land/magic-bubbles-spell-f303f8.ogg`, volume: 0.42 },
     // FS trigger — clean 1.75s winning notification

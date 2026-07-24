@@ -105,6 +105,8 @@ export const EVENT_LABELS: Record<string, string> = {
   'multi-fly': 'Multi-Flug',
   'multi-collect': 'Multi-Collect',
   'multi-apply': 'Multi-Apply (Win xN)',
+  'fs-counter-down': 'FS-Counter runter',
+  'fs-counter-up': 'FS-Counter hoch (Retrigger)',
   'scatter-land': 'Scatter-Land',
   'free-spin-trigger': 'FS-Trigger',
   'near-miss-tease': 'Near-Miss-Riser',

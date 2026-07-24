@@ -2686,6 +2686,12 @@ export class PixiApp {
           const marqueeOrigins = this.reelSet.getWinningCellCenters(this.tumbleWinResult(spin));
           await this.playCoinWin(spin.spinWin, effBet, tokenSymbol, decimals, marqueeOrigins);
         }
+        // COLLECT-BEAT erst JETZT (nach der Marquee): das Spin-Ergebnis auf
+        // der Plakette sammelt sichtbar in den Runden-Gesamtwert.
+        if (this.isLive && spin.spinWin > 0n) {
+          this.reelSet.setFruitPlaqueText(formatWin(roundWin, decimals));
+          this.reelSet.punchFruitPlaque();
+        }
         await new Promise<void>(r => { gsap.delayedCall(0.3, () => r()); });
       }
       // Sicherheitsnetz (fsCap-Clipping): das Rad landet immer auf 0.
@@ -2810,8 +2816,15 @@ export class PixiApp {
           gsap.fromTo(spr.scale, { x: base * 0.4, y: base * 0.4 }, { x: base, y: base, duration: 0.5, ease: 'back.out(1.7)', delay: i * 0.09 });
         });
         const plaque = sprites[1];
-        // GANZ subtil (Noski: 1.03 war "zu stark" auf dem Button)
-        if (plaque) gsap.to(plaque.scale, { x: plaque.scale.x * 1.012, y: plaque.scale.y * 1.012, duration: 1.7, ease: 'sine.inOut', repeat: -1, yoyo: true, delay: 0.6 });
+        // GANZ subtil — und mit der ECHTEN End-Scale gerechnet: vorher las
+        // der Tween die Scale waehrend der Entrance-Pop noch bei 0.4x stand
+        // und pulste deshalb riesig (Noski: "wieder zu stark").
+        if (plaque) {
+          const pBase = (defs[1].tw * s) / plaque.texture.width;
+          gsap.fromTo(plaque.scale,
+            { x: pBase, y: pBase },
+            { x: pBase * 1.012, y: pBase * 1.012, duration: 1.7, ease: 'sine.inOut', repeat: -1, yoyo: true, delay: 0.75, immediateRender: false });
+        }
         const press = sprites[3];
         if (press) gsap.to(press, { alpha: 0.4, duration: 0.75, ease: 'sine.inOut', repeat: -1, yoyo: true, delay: 0.5 });
       });
@@ -2966,19 +2979,12 @@ export class PixiApp {
         await new Promise<void>(r => { gsap.delayedCall(this.turbo ? 0.3 : 0.6, () => r()); });
         if (!this.isLive) return;
         await this.reelSet.mergeFruitPlaqueTo(formatWin(spin.spinWin, decimals));
-        // COLLECT-BEAT: das Produkt steht kurz, DANN sammelt es sichtbar in
-        // den Runden-Gesamtwert (ein Swap + Punch — nie vor der Multiplikation).
+        // Das PRODUKT bleibt stehen — der Collect in den Rundenstand kommt
+        // erst NACH der Marquee (Noski: "Marquee 55, oben stand 180" — die
+        // Plakette darf waehrend der Feier nie eine andere Zahl zeigen).
         await new Promise<void>(r => { gsap.delayedCall(this.turbo ? 0.35 : 0.7, () => r()); });
-        if (!this.isLive) return;
-        this.reelSet.setFruitPlaqueText(formatWin((fsCtx.roundWinBefore) + spin.spinWin, decimals));
-        this.reelSet.punchFruitPlaque();
-        await new Promise<void>(r => { gsap.delayedCall(this.turbo ? 0.2 : 0.4, () => r()); });
       } else if (spin.spinWin > 0n) {
-        // kein Multi: Spin-Win steht — kurzer Beat, dann Collect in den Rundenstand
-        await new Promise<void>(r => { gsap.delayedCall(this.turbo ? 0.25 : 0.5, () => r()); });
-        if (!this.isLive) return;
-        this.reelSet.setFruitPlaqueText(formatWin((fsCtx.roundWinBefore) + spin.spinWin, decimals));
-        this.reelSet.punchFruitPlaque();
+        // kein Multi: der Spin-Win bleibt stehen (Collect nach der Marquee)
         await new Promise<void>(r => { gsap.delayedCall(this.turbo ? 0.25 : 0.5, () => r()); });
       }
       return;
@@ -4483,8 +4489,11 @@ export class PixiApp {
     this.irisOverlay = overlay;
     const scene = new Container();
     scene.alpha = 0;
+    // Transparentes Dunkel statt Vollschwarz: das Basegame scheint unter dem
+    // TOTAL-WIN-Screen durch (Noski). Games mit eigenem Outro-Coverbg (Vice/
+    // Crack Farm) decken es ohnehin voll ab.
     const sceneBg = new Graphics();
-    sceneBg.rect(0, 0, sw, sh).fill({ color: 0x050509, alpha: 1 });
+    sceneBg.rect(0, 0, sw, sh).fill({ color: 0x05030c, alpha: 0.82 });
     scene.addChild(sceneBg);
     const content = new Container();
     content.position.set(cx, cy);

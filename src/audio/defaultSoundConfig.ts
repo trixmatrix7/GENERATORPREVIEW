@@ -40,6 +40,9 @@ const DEFAULT_VOLUMES: Record<string, number> = {
   'multi-fly': 0.85,
   'multi-collect': 0.8,
   'multi-apply': 0.75,
+  // FS-Counter-Rad (Noski): Tick pro Spin-Start, steigender Tick bei Retrigger
+  'fs-counter-down': 0.3,
+  'fs-counter-up': 0.5,
   'free-spin-trigger': 1.0,
   'near-miss-tease': 0.4,
   // Spin loop is OFF (silent file + zero volume): no bed under the spin —
@@ -77,7 +80,7 @@ const AUDIO_DIR = '/audio';
 // These must try .ogg FIRST: a missing .wav makes the SPA dev server answer
 // with index.html (HTTP 200), which Howler then fails to DECODE — and it
 // never falls through to the real file ("Decoding audio data failed").
-const OGG_FIRST = new Set<string>(['ambient-music', 'win-marquee', 'spin-start', 'reel-stop', 'coin-chime', 'wild-land', 'wild-expand', 'multi-fly', 'multi-collect', 'multi-apply', 'scatter-land', 'win-small', 'win-normal', 'win-big', 'win-tally-tick', 'win-tally-end', 'tier-up', 'tease-riser', 'tease-miss']);
+const OGG_FIRST = new Set<string>(['ambient-music', 'win-marquee', 'spin-start', 'reel-stop', 'coin-chime', 'wild-land', 'wild-expand', 'multi-fly', 'multi-collect', 'multi-apply', 'fs-counter-down', 'fs-counter-up', 'scatter-land', 'win-small', 'win-normal', 'win-big', 'win-tally-tick', 'win-tally-end', 'tier-up', 'tease-riser', 'tease-miss']);
 
 function bindingForEvent(id: string): SoundEventBinding {
   return {

@@ -80,6 +80,8 @@ export interface ReelSetAudioHooks {
   onPlateImpact?: () => void;
   /** Multiplikations-Moment: "win xN" schiebt sich zusammen -> Produkt. */
   onMultiApply?: () => void;
+  /** FS-Counter-Rad rollt (down = Spin-Start, up = Retrigger). */
+  onFsCounterRoll?: (dir: 'down' | 'up') => void;
   /** A gift's ×N detaches and starts flying to the plate. */
   onGiftFly?: () => void;
   onReelStopped?: (reelIdx: number) => void;
@@ -3601,9 +3603,18 @@ export class ReelSet {
     this.fsCounterWin!.addChild(next);
     this.fsCounterNum = next;
     this.fsCounterShown = value;
-    gsap.to(next, { y: 0, duration: 0.38, ease: 'back.out(1.15)' });
-    gsap.to(old, {
-      y: dir * dist, duration: 0.38, ease: 'power2.in',
+    this.audioHooks.onFsCounterRoll?.(roll === 'down' ? 'down' : 'up');
+    // LOCKSTEP (Noski: "rutscht in die andere Zahl rein"): EIN Proxy treibt
+    // beide Positionen — der Abstand bleibt konstant `dist`, die Zahlen
+    // koennen sich nie ueberlappen (vorher: back.out rein + power2.in raus
+    // = die neue war schneller drin als die alte draussen).
+    const st = { p: 0 };
+    gsap.to(st, {
+      p: 1, duration: 0.38, ease: 'back.out(1.1)',
+      onUpdate: () => {
+        next.y = -dir * dist * (1 - st.p);
+        old.y = dir * dist * st.p;
+      },
       onComplete: () => { try { old.destroy({ children: true }); } catch { /* gone */ } },
     });
   }

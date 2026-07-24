@@ -64,6 +64,8 @@ export const CLEAN_BUDGETS: Readonly<Record<string, CleanBudget>> = {
   'multi-fly': budget(500),
   'multi-collect': budget(600),
   'multi-apply': budget(1100),
+  'fs-counter-down': budget(350),
+  'fs-counter-up': budget(700),
   'coin-chime': budget(500),
 
   // Win tier stings.

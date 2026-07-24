@@ -47,6 +47,14 @@ export function FruitBuyRail({ betDisplay, onBuy, bonusActive = false }: { betDi
     window.addEventListener('slot:leftrail', on);
     return () => window.removeEventListener('slot:leftrail', on);
   }, []);
+  // Während einer Win-Marquee blenden sich die DOM-Rails aus — DOM läge
+  // sonst immer ÜBER dem Canvas-Marquee (Noski: "muss dahinter sein").
+  const [marqueeOn, setMarqueeOn] = useState(false);
+  useEffect(() => {
+    const on = (e: Event) => setMarqueeOn(Boolean((e as CustomEvent).detail));
+    window.addEventListener('slot:marquee', on);
+    return () => window.removeEventListener('slot:marquee', on);
+  }, []);
   const bet = Math.max(0.01, Number(betDisplay || '0'));
   return (
     <>
@@ -55,13 +63,14 @@ export function FruitBuyRail({ betDisplay, onBuy, bonusActive = false }: { betDi
         <img
           src={`${import.meta.env.BASE_URL}theme/fruitstacks/bonus_active2.webp`}
           alt="Bonus active"
-          style={{ position: 'absolute', left: `${railLeftPct}%`, top: '45%', zIndex: 40, width: '16%', minWidth: 130, pointerEvents: 'none' }}
+          style={{ position: 'absolute', left: `${railLeftPct}%`, top: '45%', zIndex: 40, width: '16%', minWidth: 130, pointerEvents: 'none', opacity: marqueeOn ? 0 : 1, transition: 'opacity 0.25s ease' }}
         />
       ) : (
       <button onClick={() => { uiSfx.open(); setOpen(true); }} title="Buy bonus" style={{
         position: 'absolute', left: `${railLeftPct}%`, top: '46%', zIndex: 40, width: '15%', minWidth: 124,
         padding: 0, border: 'none', background: 'transparent', cursor: 'pointer',
         filter: 'drop-shadow(0 4px 12px rgba(0,0,0,0.5))',
+        opacity: marqueeOn ? 0 : 1, pointerEvents: marqueeOn ? 'none' : 'auto', transition: 'opacity 0.25s ease',
       }}>
         {/* Noski's button art (Holz-Plakette "BUY FREE SPINS", 2026-07-23) —
             deliberately NO price on it */}

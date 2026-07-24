@@ -164,6 +164,9 @@ export class WinCelebration {
   private signalExit(smooth: boolean): void {
     if (this.exitSignalled) return;
     this.exitSignalled = true;
+    // DOM-Rails (BONUS ACTIVE etc.) blenden sich für die Marquee aus —
+    // DOM liegt sonst IMMER über dem Canvas (Noski).
+    try { window.dispatchEvent(new CustomEvent('slot:marquee', { detail: false })); } catch { /* ssr */ }
     // A SKIP jumps the counter to the final amount — the terminator still
     // fires (immediately), so the tally always lands its hit exactly once.
     this.fireTallyEnd();
@@ -284,6 +287,7 @@ export class WinCelebration {
   play(p: WinCelebrationParams): Promise<void> {
     this.cancel();
     this.exitSignalled = false;
+    try { window.dispatchEvent(new CustomEvent('slot:marquee', { detail: true })); } catch { /* ssr */ }
     this.tallyEnded = false;
     try { this.onMarqueeStart?.(); } catch { /* host callback */ }
 

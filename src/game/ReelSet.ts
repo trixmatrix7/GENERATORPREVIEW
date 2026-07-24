@@ -3636,11 +3636,13 @@ export class ReelSet {
         f.scale.set(frameScale);
         c.addChild(f);
       }
-      // Masken-Fenster um das vermessene Zahl-Zentrum (cx 0.752, cy 0.50)
+      // Masken-Fenster = das DUNKLE Zahl-Feld der Plakette (Komposit-Messung:
+      // Feld ~0.62 der Höhe) — NICHT höher, sonst rollt die Zahl sichtbar
+      // übers Holz statt im Feld zu verschwinden (Noski).
       const win = new Container();
       win.x = FRAME_W * (0.752 - 0.5);
       const m = new Graphics();
-      m.rect(-FRAME_W * 0.19, -frameH * 0.38, FRAME_W * 0.38, frameH * 0.76);
+      m.rect(-FRAME_W * 0.17, -frameH * 0.31, FRAME_W * 0.34, frameH * 0.62);
       m.fill({ color: 0xffffff });
       win.addChild(m);
       win.mask = m;

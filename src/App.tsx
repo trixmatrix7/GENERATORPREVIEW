@@ -385,6 +385,8 @@ export function App() {
       // FS-OUTRO: Marktstand + TOTAL-WIN-Lettern als ruhige Karten, der
       // Rundengewinn zählt auf der Gold-Plakette hoch (vermessen 959/802).
       void pixiAppRef.setLayeredIntro('outro', [
+        // Basegame-Bokeh als Cover dahinter (Noski: "da ist alles schwarz")
+        { file: FRUITSTACKS.bgBase, role: 'coverbg', cx: 960, cy: 540 },
         { file: `${Fw}plate.webp`, role: 'card', cx: 960, cy: 540 },
         { file: `${Fw}total.webp`, role: 'card', cx: 960, cy: 540 },
       ]);

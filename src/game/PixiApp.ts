@@ -2603,9 +2603,9 @@ export class PixiApp {
         };
         walkSc(this.reelSet.container);
         for (const c of scatterCells) c.play('win');
-        // Bend EINMAL, SLOT-TEMPO (53f @50fps ≈ 1.06s, Noski: "muss fast
-        // sein wie richtige Animation") → direkt die FS-Transition.
-        await new Promise<void>(r => { gsap.delayedCall(this.turbo ? 0.5 : 1.2, () => r()); });
+        // Bend EINMAL @75fps (53f ≈ 0.71s — Noski: "nochmal 50% schneller")
+        // → direkt die FS-Transition.
+        await new Promise<void>(r => { gsap.delayedCall(this.turbo ? 0.45 : 0.85, () => r()); });
         if (!this.isLive) return;
       }
 

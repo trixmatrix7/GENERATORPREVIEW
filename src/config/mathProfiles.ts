@@ -135,7 +135,7 @@ export const MATH_PROFILES: readonly MathProfileOption[] = [
   },
   {
     id: 'fruit-stacks-tumble', name: '🍉 Fruit Stacks 96% (6×5 Tumbler)',
-    description: 'SCATTER-PAYS: 8+/10-11/12+ gleiche irgendwo zahlen, Tumble-Kaskade, Kisten-Multis ×2-×500 summieren, FS 15 Spins mit persistentem Multi-Pool (Cap ×500). RTP 96.25% (200k-Sim), Max Win 5000×.',
+    description: 'SCATTER-PAYS: 8+/10-11/12+ gleiche irgendwo zahlen, Tumble-Kaskade, Kisten-Multis ×2-×500, FS 15 Spins mit Multi-Pool (Cap ×500). SCATTER-TIERS: 5sc → Pool-Start ×50 (1-in-4k), 6sc → ×100 (1-in-57k). RTP 96.1% (stratifiziert 2M+), Max Win 5000×. Buys 100/300/460×.',
     build: () => fromManifest(fruitStacks as Record<string, unknown>),
     grid: null, // 6x5 — outside the classic pair; grid comes from the manifest
   },

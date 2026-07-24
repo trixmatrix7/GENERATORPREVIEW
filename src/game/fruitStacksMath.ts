@@ -23,7 +23,10 @@ const m = manifest as unknown as {
 export const FRUIT_BUY_STAGES = [
   { stage: 1, startPool: 0, costMult: 100, label: 'FREE SPINS' },
   { stage: 2, startPool: 50, costMult: 300, label: 'START ×50' },
-  { stage: 3, startPool: 100, costMult: 500, label: 'START ×100' },
+  // 460x statt 500x: unter dem 5000x-Cap saettigt die Stage-3-EV bei ~443x
+  // (mehr Gifts verdraengen zahlende Fruechte + Cap-Clipping) -> ehrlicher
+  // Preis fuer 96.25% Payback (Re-Cert 2026-07-24).
+  { stage: 3, startPool: 100, costMult: 460, label: 'START ×100' },
 ] as const;
 
 export const FRUIT_STACKS_MATH: FruitStacksMathConfig = {

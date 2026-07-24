@@ -7,7 +7,9 @@
 //   • crate symbols (id 0, the repurposed wild slot) carry ×N values that
 //     SUM and multiply the whole spin's win
 //   • 4+ scatters → free spins with a persistent multiplier POOL (applies
-//     only when a NEW crate lands in that spin, reference rule)
+//     only when a NEW crate lands in that spin, reference rule);
+//     SCATTER-TIERS (Noski): 5sc → pool starts ×50, 6sc → ×100 (structural
+//     board max = 6; ladder 1-in-350 / 1-in-4k / 1-in-57k)
 //
 // This module is intentionally PURE — no imports, no engine deps — so BOTH
 // settlement (mockHost) and presentation (decode façade → PixiApp) call the
@@ -88,7 +90,7 @@ export interface FruitRound {
   totalWin: bigint;            // capped, authoritative
   capped: boolean;
   /** 0 = natural round; 1/2/3 = purchased FS stage (start pool ×0/×50/×100,
-   *  gift-enhanced strips; stage 1 additionally drops the ×500 tail). */
+   *  gift-enhanced strips + per-stage tail weight, see BUY_STAGE_TAIL_WEIGHT). */
   buyStage: number;
 }
 
@@ -124,8 +126,9 @@ function tierOf(count: number): 0 | 1 | 2 {
   return count >= 12 ? 2 : count >= 10 ? 1 : 0;
 }
 
-/** One spin (base or FS): initial board → tumble chain → multiplier. */
-function playSpin(
+/** One spin (base or FS): initial board → tumble chain → multiplier.
+ *  Exported for the STRATIFIED certification (custom-math/strat_fruit.mjs). */
+export function playSpin(
   rand: () => number,
   bet: bigint,
   cfg: FruitStacksMathConfig,
@@ -272,7 +275,11 @@ export const BUY_STAGE_START_POOL = [0, 0, 50, 100] as const;
 /** Bought rounds play with ENHANCED gift density (invisible standard
  *  practice — the fixed reference prices 100/300/500× must return ~95%).
  *  Value = extra gifts spliced into each FS strip; tuned by sim. */
-export const BUY_STAGE_EXTRA_GIFTS = [0, 0.67, 1.17, 1.5]; // sim-tuned 2026-07-22 (100k cert below)
+export const BUY_STAGE_EXTRA_GIFTS = [0, 0.667, 1.33, 1.33]; // gifts pro Stage (1/6-Schritte); strat re-cert 2026-07-24
+/** Kontinuierlicher Fein-Hebel pro Buy-Stage: Gewichts-Faktor auf die
+ *  x100/x250/x500 Gift-Werte (1 = volle Tail). Dampft die EV stufenlos,
+ *  ohne die grossen Multis unmoeglich zu machen (der x500-Traum bleibt). */
+export const BUY_STAGE_TAIL_WEIGHT = [1, 1, 2.5, 3]; // 500k-cert: stage1 94.7x@100, stage2 ~287x@300, stage3 ~440x@460
 
 /** Deterministically splice extra gifts into the FS strips (replacing
  *  spread-out low fruits) — bought rounds only. `extra` is the AVERAGE
@@ -308,16 +315,19 @@ export function deriveFruitStacksRound(
 ): FruitRound {
   const rand = rngFromHex(randomness);
   const maxWin = bet * BigInt(cfg.maxWinMultiplier);
-  const startPool: number = BUY_STAGE_START_POOL[buyStage] ?? 0;
+  let startPool: number = BUY_STAGE_START_POOL[buyStage] ?? 0;
   // bought rounds: FS spins draw from gift-enhanced strips (display renders
   // the derived records, so the enhanced boards show 1:1)
   const fsCfg: FruitStacksMathConfig = buyStage > 0 && BUY_STAGE_EXTRA_GIFTS[buyStage] > 0
     ? {
         ...cfg,
         reelStrips: buyEnhancedStrips(cfg.reelStrips, BUY_STAGE_EXTRA_GIFTS[buyStage]),
-        // stage-1 fine trim: the x500 tail leaves the gift draws (gift
-        // granularity alone jumps 86->97; retrigger-trim overshot to 90)
-        multiWeights: buyStage === 1 ? cfg.multiWeights.filter(([v]) => v < 500) : cfg.multiWeights,
+        // Fein-Trim: Tail-Gewichts-Faktor der Stage (stufenlos statt
+        // 1/6-Gift-Spruenge; strat re-cert 2026-07-24)
+        multiWeights: (BUY_STAGE_TAIL_WEIGHT[buyStage] ?? 1) === 1
+          ? cfg.multiWeights
+          : cfg.multiWeights.map(([v, w]) =>
+              [v, v >= 100 ? w * BUY_STAGE_TAIL_WEIGHT[buyStage] : w] as [number, number]),
       }
     : cfg;
 
@@ -337,6 +347,13 @@ export function deriveFruitStacksRound(
   let totalWin = base.spinWin > maxWin ? maxWin : base.spinWin;
 
   const fsTriggered = buyStage > 0 || base.scatters >= 4;
+  // NATURAL SCATTER-TIERS (Noski): 5 Scatter -> Pool startet auf x50,
+  // 6 Scatter -> x100 (dieselbe Schiene wie Buy-Stufe 2/3). Das Board ist
+  // strukturell auf 6 gedeckelt (Strips: max 1 sichtbarer Scatter pro Reel,
+  // minGap 13+); `scatters` zaehlt Land + Tumble-Refills, Tier bei >=6 = x100.
+  if (buyStage === 0 && fsTriggered) {
+    startPool = base.scatters >= 6 ? 100 : base.scatters === 5 ? 50 : 0;
+  }
   const fsSpins: FruitSpin[] = [];
   let capped = totalWin >= maxWin;
   if (fsTriggered && !capped) {

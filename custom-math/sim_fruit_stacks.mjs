@@ -3,7 +3,7 @@
 //   node --experimental-strip-types custom-math/sim_fruit_stacks.mjs [rounds] [--write]
 // --write bakes src/data/math_fruit_stacks.json (strips + pays + custom rules).
 
-import { deriveFruitStacksRound, BUY_STAGE_EXTRA_GIFTS } from '../src/game/fruitStacksSpin.ts';
+import { deriveFruitStacksRound, BUY_STAGE_EXTRA_GIFTS, BUY_STAGE_TAIL_WEIGHT } from '../src/game/fruitStacksSpin.ts';
 import { writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
@@ -13,6 +13,8 @@ const WRITE = process.argv.includes('--write');
 const BUY = process.argv.includes('--buy') ? Number(process.argv[process.argv.indexOf('--buy') + 1]) : 0;
 const GIFTS = process.argv.includes('--gifts') ? Number(process.argv[process.argv.indexOf('--gifts') + 1]) : -1;
 if (BUY > 0 && GIFTS >= 0) BUY_STAGE_EXTRA_GIFTS[BUY] = GIFTS;
+const TAIL = process.argv.includes('--tail') ? Number(process.argv[process.argv.indexOf('--tail') + 1]) : -1;
+if (BUY > 0 && TAIL >= 0) BUY_STAGE_TAIL_WEIGHT[BUY] = TAIL;
 
 // ── strip generation (deterministic) ───────────────────────────────────────
 // Lows carry the hit rate (dense), mids/highs are genuinely premium (sparse
@@ -52,18 +54,21 @@ function makeStrip(seed, withCrate, extraScatter) {
 const CFG = {
   reelStrips: [101, 202, 303, 404, 505, 606].map((s, i) => makeStrip(s, true, i === 2 || i === 5)),
   visibleRows: 5,
+  // SCATTER-TIER-Umbau (Noski 2026-07-24): 5sc stehend -> Pool-Start x50,
+  // 6sc -> x100. Kompensation: payTiers x0.98 (strat-kalibriert) + 6sc-Direktpay 100x -> 25x
+  // (der Pool-Start ist jetzt der Jackpot; Re-Cert unten).
   payTiers: {
-    2: [23200, 30900, 185000],
-    3: [30900, 77300, 232000],
-    4: [38600, 154300, 386300],
-    5: [154300, 386300, 772600],
-    6: [3900, 11500, 30900],
-    7: [12400, 18500, 123700],
-    8: [6100, 13900, 61800],
-    9: [7800, 15400, 77300],
-    10: [15400, 23200, 154300],
+    2: [22700, 30300, 181300],
+    3: [30300, 75800, 227400],
+    4: [37800, 151200, 378600],
+    5: [151200, 378600, 757100],
+    6: [3800, 11300, 30300],
+    7: [12200, 18100, 121200],
+    8: [6000, 13600, 60600],
+    9: [7600, 15100, 75800],
+    10: [15100, 22700, 151200],
   },
-  scatterPayBps: [30000, 50000, 1000000],
+  scatterPayBps: [30000, 50000, 250000],
   multiWeights: [[2, 600], [3, 250], [4, 120], [5, 70], [6, 35], [8, 20], [10, 12], [15, 6], [20, 4], [25, 3], [50, 1.5], [100, 0.6], [250, 0.25], [500, 0.1]],
   freeSpinsCount: 15,
   retriggerSpins: 5,

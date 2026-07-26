@@ -584,18 +584,13 @@ export function App() {
     // whole layer stack (tier art, WIN, number plate) scales together.
     setWinTierGeometry({ sizeMul: 0.48 * 1.3 });
     track(pixiAppRef.setUserAssetTextures(symbols));
-    // Custom upload wins; otherwise the Vice MOTEL-BEACH base background —
-    // static art paints instantly, then the LIVING loop takes over (45-frame
-    // seamless spritesheet, cross-faded @6fps: ocean rolls, palms sway).
+    // Custom upload wins; otherwise Noski's Vice MARINA base background (new
+    // static art in bg_motel.webp). The old animated motel loop is OFF — those
+    // frames are a DIFFERENT scene, so the static marina shows alone (a matching
+    // animated loop can be re-added later from this art).
     const B = `${import.meta.env.BASE_URL}theme/vice/`;
     if (saved.bg) track(pixiAppRef.setBackgroundImage(saved.bg));
-    else {
-      track(pixiAppRef.setBackgroundImage(`${B}bg_motel.webp`));
-      void pixiAppRef.setBackgroundSpritesheet(
-        [`${B}bg_motel_anim_1.webp`, `${B}bg_motel_anim_2.webp`, `${B}bg_motel_anim_3.webp`],
-        4, 4, 45, 6,
-      );
-    }
+    else track(pixiAppRef.setBackgroundImage(`${B}bg_motel.webp`));
     // VICE HEAT logo on the LEFT rail (Noski: "oben links ähnlich wie fruit
     // stacks") — upper-left letterbox, the bonus-buy button docks underneath it.
     track(pixiAppRef.setTitleImage(`${B}logo.webp`, 'left'));
@@ -641,14 +636,11 @@ export function App() {
     void pixiAppRef.setFrameWinFlash(
       `${B}frame_win_flash_1.webp`, 8, 6, 48, 12, { x: 1025, y: 225, w: 475, h: 1062.5 },
     );
-    // FS-only background: custom static upload wins; otherwise the LIVING
-    // Vice BEACH-CLUB LOUNGE (v3: cabanas + tiki bar + disco ball —
-    // 48-frame seamless spritesheet loop, cross-faded @6fps = full 8s take).
+    // FS-only background: custom static upload wins; otherwise Noski's new Vice
+    // NIGHT-MARINA static art (fsbg_beachclub.webp). The old animated beach-club
+    // loop is OFF — different scene; the static night marina shows alone.
     if (saved.fsBg) void pixiAppRef.setFreeSpinsBackgroundImage(saved.fsBg);
-    else void pixiAppRef.setFreeSpinsBackgroundSpritesheet(
-      [`${B}fsbg_beachclub_anim_1.webp`, `${B}fsbg_beachclub_anim_2.webp`, `${B}fsbg_beachclub_anim_3.webp`],
-      4, 4, 48, 6,
-    );
+    else void pixiAppRef.setFreeSpinsBackgroundImage(`${B}fsbg_beachclub.webp`);
     // Layered win-marquee art (BIG/MEGA/EPIC/MAX + WIN + number plate).
     const T = `${import.meta.env.BASE_URL}theme/win-tiers/`;
     void pixiAppRef.setWinTierImages({

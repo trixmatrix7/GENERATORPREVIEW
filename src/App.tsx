@@ -14,10 +14,10 @@ import viceSoundPreset from '@/data/viceSoundPreset.json';
 import { Sidebar } from '@/ui/Sidebar';
 import { GameCanvas } from '@/ui/GameCanvas';
 import { ControlBar } from '@/ui/ControlBar';
-import { BonusBuyOverlay, FruitBuyRail, ViceBuyRail, type ViceBuyStageDef } from '@/ui/BonusBuyOverlay';
+import { BonusBuyOverlay, FruitBuyRail, SushiBuyRail, ViceBuyRail, type ViceBuyStageDef } from '@/ui/BonusBuyOverlay';
 import { StudioDrawer } from '@/studio/StudioDrawer';
 import { DEFAULT_GAME_CONFIG, type GameConfig } from '@/engine/GameConfig';
-import { GRID_5x3, GRID_5x5, GRID_6x5 } from '@/config/gridConfig';
+import { GRID_5x3, GRID_5x5, GRID_6x5, GRID_6x6 } from '@/config/gridConfig';
 import { PresetDock, loadGridId, type GridId } from '@/dev/PresetDock';
 import { mathProfileById, loadMathProfileId, saveMathProfileId } from '@/config/mathProfiles';
 import { getThemeByName } from '@/config/themes';
@@ -25,6 +25,8 @@ import { viceSymbolMap, VICE_INTRO_URL } from '@/config/viceAssets';
 import { CRACKFARM, crackFarmSymbolMap, crackFarmGameIntro } from '@/config/crackFarmTheme';
 import { FRUIT_LOCKED_SOUNDS, FRUIT_LOCKED_VOLUMES, FRUIT_LOCKED_VISUAL_PARAMS } from '@/config/fruitStacksLockedSettings';
 import { FRUITSTACKS, fruitStacksSymbolMap, fruitStacksGameIntro } from '@/config/fruitStacksTheme';
+import { SUSHI, sushiSymbolMap, sushiGameIntro } from '@/config/sushiTheme';
+import { SUSHI_MATH } from '@/game/sushiMath';
 import introLayers from '@/data/introLayers.json';
 import { loadAssets } from '@/studio/assetPersistence';
 import type { PixiApp } from '@/game/PixiApp';
@@ -141,7 +143,7 @@ export function App() {
     if (profile.build) return profile.build();
     return {
       ...DEFAULT_GAME_CONFIG,
-      gridConfig: gridId === '5x3' ? GRID_5x3 : gridId === '6x5' ? GRID_6x5 : GRID_5x5,
+      gridConfig: gridId === '5x3' ? GRID_5x3 : gridId === '6x5' ? GRID_6x5 : (gridId as string) === '6x6' ? GRID_6x6 : GRID_5x5,
       theme: getThemeByName('Fantasy'),
     };
   }, [gridId]);
@@ -435,12 +437,18 @@ export function App() {
         // "verdunkelt über der Slot mit Transparenz, nicht nur Background")
         { file: `${Fw}plate.webp`, role: 'card', cx: 960, cy: 540 },
         { file: `${Fw}total.webp`, role: 'card', cx: 960, cy: 540 },
+        // PRESS TO CONTINUE prompt UNDER the total-win amount (Noski: fehlte im
+        // FS-Outro). role 'press' = breathing CTA; sits below the amount (y802).
+        { file: `${FRUITSTACKS.base}press_continue.png`, role: 'press', cx: 960, cy: 956, tw: 620 },
       ]);
       pixiAppRef.setOutroAmountStyle(959, 802, 64);
       // TOP WIN PLAQUE (reference construct): the price-area plate sits above
       // the grid; cascade wins tick into it and the gift ×N values fly to it.
       void pixiAppRef.setFruitPlaqueArt(`${FRUITSTACKS.base}plate_pill.png`);
       void pixiAppRef.setFruitPoolArt(`${FRUITSTACKS.base}pool_gift.png`);
+      // TOTAL WIN plaque (Task B): persistent capped FS round total, sits UNDER
+      // the FS counter on the right rail (same x-centre + width as the counter).
+      void pixiAppRef.setFruitTotalWinArt(`${FRUITSTACKS.base}total_win_counter.png`);
       // 15er-Badge fürs FS-Intro; Retrigger = Noskis "+5 FREE SPINS"-Banner
       // (2026-07-24), Text ist im Art gebaked.
       void pixiAppRef.setFruitFsBadges(`${FRUITSTACKS.base}fs_badge_15.png`, `${FRUITSTACKS.base}retrigger_plus5.webp`);
@@ -455,6 +463,77 @@ export function App() {
       track(pixiAppRef.setLayeredIntro('game', fruitStacksGameIntro()));
       // Audio: NO sounds wired — none recorded for this game yet, and the
       // hard rule is silence over placeholders (skill §4).
+    } else if (activeGame === 'sushi') {
+      // ── SUSHI PARTY (6×6 cluster + PowerNudge, illustrated sushi-bar) ─────
+      // Cluster/tumbler feel like Fruit Stacks: landing is a SUBTLE knick only
+      // (no slam, no board jolt) — the cluster pop + refill IS the show, so
+      // everything else stays calm.
+      landingImpactConfig.enabled = true;
+      landingImpactConfig.squashMul = 0.55;  // gentle knick, not a slam
+      landingImpactConfig.thudAmp = 0;       // no board jolt
+      waysImmersiveConfig.enabled = false;
+      const sushiSymbols = saved.symbols && Object.keys(saved.symbols).length
+        ? new Map(Object.entries(saved.symbols).map(([k, v]) => [Number(k), v]))
+        : sushiSymbolMap();
+      track(pixiAppRef.setUserAssetTextures(sushiSymbols));
+      // Symbol sizing (explicit so no other game's muls leak into the global map):
+      // the paying sushi symbols fill the cell; the FS/scatter BADGE (id 1) sits
+      // SLIGHTLY BIGGER than the others (Noski) and its cells are elevated so it
+      // overhangs its neighbours cleanly (layer). A small reel-clip margin gives
+      // the oversized badge room at the grid's top/bottom edge without clipping.
+      for (const id of [0, 2, 3, 4, 5, 6, 7, 8, 9]) SYMBOL_SIZE_MULS.set(id, 1.0);
+      SYMBOL_SIZE_MULS.set(1, 1.26); // FS badge — leicht größer als die anderen
+      pixiAppRef.setReelClipMargin({ left: 6, top: 16, right: 6, bottom: 16 });
+      track(pixiAppRef.setBackgroundImage(saved.bg ?? SUSHI.bgBase));
+      // Grid frame around the 6×6 board (alpha window auto-detected).
+      track(pixiAppRef.setFrameImage(saved.frame ?? SUSHI.frame));
+      // Cluster look: no reel separators — symbols read as the frontmost layer
+      // on the open board (mirrors the Fruit Stacks cluster/tumbler board).
+      pixiAppRef.setSeparatorsVisible(false);
+      // FULL-BOARD arrival = CLASSIC REEL SPIN (roll + stagger-stop) for BASE
+      // and FREE SPINS. Thread the base + FS reel strips so the reels can be
+      // rebuilt onto the FS strips for the FS spins and back to base after.
+      pixiAppRef.setClusterStrips(SUSHI_MATH.reelStrips, SUSHI_MATH.fsReelStrips);
+      // Frosted reel pane OFF: the painted sushi-bar scene would bleed through
+      // transparent symbol corners as a milky veil (theme rule, skill §3).
+      pixiAppRef.setReelFrosted(false);
+      // Win marquee: the sushiparty winscreen bundle addresses its plates inline
+      // off SUSHI.base (sushiTheme exports no win-tier helper). The bundle uses a
+      // {tier}_full composite per band + a boat plate + a TOTAL WIN composite —
+      // mapped onto the 6-key WinTierImageUrls shape (big/mega/epic/max = the
+      // _full composites, win = total_full, plate = the sushi boat).
+      // LAYERED win tiers (Noski: use the ELEMENTS, not the _full composite):
+      // the {tier}_only text + the boat plate are full-canvas 1080p layers; the
+      // engine dims the board, floats the tier text, lands the boat, and draws
+      // the LIVE amount on the boat at plateCy (measured: text cy≈0.41, boat
+      // amount band ≈0.63). Upright Baloo-2 amount like the ×N markers.
+      const Sw = `${SUSHI.base}winscreen/`;
+      setWinTierGeometry({
+        tierCy: { big: 0.42, mega: 0.40, epic: 0.42, max: 0.42 },
+        winCy: 0.42,
+        plateCy: 0.63,
+        plateH: 0.16,
+        contentFrac: 0.98,
+        contentCy: 0.5,
+        sizeMul: 0.72,
+        dimAlpha: 0.6,
+        amountFont: "'Baloo 2', 'Rubik', ui-sans-serif, sans-serif",
+        amountItalic: false,
+      });
+      void pixiAppRef.setWinTierImages({
+        big: `${Sw}big_only.png`, mega: `${Sw}mega_only.png`, epic: `${Sw}epic_only.png`,
+        max: `${Sw}max_only.png`, win: `${Sw}total_only.png`, plate: `${Sw}boat.png`,
+      });
+      // FREE-SPINS art (GRATULATION award plaque + right-rail counter plaque).
+      // Feeds playSushiFsAward + the FS counter; digit glyphs preload here so
+      // the counter is warm before the first FS spin renders.
+      pixiAppRef.setSushiFsArtBase(SUSHI.fs.base);
+      // Layered GAME intro (the sushiparty bundle ships no intro/game/ layer art,
+      // so sushiGameIntro() returns []; skip setLayeredIntro on an empty set).
+      const sushiIntro = sushiGameIntro();
+      if (sushiIntro.length) track(pixiAppRef.setLayeredIntro('game', sushiIntro));
+      // Audio: NO sounds wired — none recorded for this game yet, and the hard
+      // rule is silence over placeholders (skill §4).
     } else {
     const symbols = saved.symbols && Object.keys(saved.symbols).length
       ? new Map(Object.entries(saved.symbols).map(([k, v]) => [Number(k), v]))
@@ -467,15 +546,36 @@ export function App() {
     // the game's sound state whenever the user has no own picks stored —
     // survives every reload/reboot; Save Build/Export carry it as usual.
     {
+      // Vice sound slate. viceSoundPreset.json is Noski's baked mix.
+      //  • picks NON-EMPTY → seed his mix for every event the user hasn't
+      //    explicitly overridden, then start the music (survives reload/reboot).
+      //  • picks EMPTY (CLEARED — he's hand-tuning in the Audio Studio) → seed
+      //    NOTHING: Vice runs on the user's own library picks (slot:assets.sounds)
+      //    plus registry defaults. Do NOT force-silence here: a 0 design volume
+      //    poisons every later library assign (replaceSource inherits it → the
+      //    picked sound loads MUTE — that was the "assigned sounds don't play in
+      //    the preview" bug). The reconstruction is already gone from the export
+      //    because buildPresets reads the same (now empty) viceSoundPreset.
       const savedSounds = loadAssets().sounds ?? {};
-      if (Object.keys(savedSounds).length === 0) {
-        const vsp = viceSoundPreset as { picks: Record<string, string>; volumes: Record<string, number> };
+      const vsp = viceSoundPreset as { picks: Record<string, string>; volumes: Record<string, number> };
+      const hasBakedMix = Object.keys(vsp.picks).length > 0;
+      if (hasBakedMix) {
         for (const [ev, url] of Object.entries(vsp.picks)) {
-          soundManager.replaceSource(ev, [`${import.meta.env.BASE_URL}${url}`], vsp.volumes[ev]);
+          if (!(ev in savedSounds)) soundManager.replaceSource(ev, [`${import.meta.env.BASE_URL}${url}`], vsp.volumes[ev]);
         }
-        for (const [ev, vol] of Object.entries(vsp.volumes)) soundManager.setEventVolume(ev, vol);
-        soundManager.play('ambient-music');
+        for (const [ev, vol] of Object.entries(vsp.volumes)) {
+          if (!(ev in savedSounds)) soundManager.setEventVolume(ev, vol);
+        }
       }
+      // Background music: play it ONLY when there's a real ambient source (baked
+      // mix or a user-assigned one). On an empty slate there must be NO bg music
+      // (Noski: "background music löschen"). useSoundLayer force-plays the generic
+      // default ambient on mount AND on the first gesture — so a plain stop()
+      // loses the race and it dudels again. Instead point the default ambient at
+      // volume 0, so every (re)play is silent. A later ambient ASSIGN still plays
+      // (design 0 → 0.5 via the library/embed handlers) — same pattern Fruit uses.
+      if (hasBakedMix || 'ambient-music' in savedSounds) soundManager.play('ambient-music');
+      else soundManager.replaceSource('ambient-music', [`${import.meta.env.BASE_URL}audio/ambient-music.ogg`], 0);
     }
     // Vice tease: NO landed-cell FX (burst/brackets/dim on the 1:1 field) —
     // only the pending-reel gold gate + rising embers stay (Noski 2026-07-22).
@@ -496,8 +596,13 @@ export function App() {
         4, 4, 45, 6,
       );
     }
-    // VICE HEAT logo above the grid (replaces the text title).
-    track(pixiAppRef.setTitleImage(`${B}logo.webp`));
+    // VICE HEAT logo on the LEFT rail (Noski: "oben links ähnlich wie fruit
+    // stacks") — upper-left letterbox, the bonus-buy button docks underneath it.
+    track(pixiAppRef.setTitleImage(`${B}logo.webp`, 'left'));
+    // FS right-rail counter plaques (Noski's neon FREE SPINS + TOTAL WIN art) —
+    // replace the plain drawn counters; the title is baked, only the value is drawn
+    // in each plaque's dark inset box.
+    void pixiAppRef.setFsPlaquePair(`${B}free_spins_counter.png`, `${B}total_win_counter.png`);
     // Symbol WIN animations: looped spritesheets on connection (7×7 = 48
     // frames @ 12fps each), color-matched to the static art. HIGH_A(2) =
     // shades guy, HIGH_B(3) = cigar boss, MID_C(4) = pink car, MID_D(5) =
@@ -603,7 +708,8 @@ export function App() {
     vice: { title: 'VICE HEAT', grad: 'linear-gradient(180deg, #ff64c8 0%, #ffd23f 100%)', bar: 'linear-gradient(90deg, #ff64c8, #7de3ff)', glow: 'rgba(255,100,200,0.55)' },
     crackfarm: { title: 'CRACK FARM', grad: 'linear-gradient(180deg, #a6ff6e 0%, #ffd23f 100%)', bar: 'linear-gradient(90deg, #7ef23e, #ffd75e)', glow: 'rgba(126,242,62,0.55)' },
     fruitstacks: { title: 'FRUIT STACKS', grad: 'linear-gradient(180deg, #ff9ad0 0%, #ffd23f 100%)', bar: 'linear-gradient(90deg, #b06cf5, #ffd75e)', glow: 'rgba(176,108,245,0.55)' },
-  }[loadActiveGame() as 'vice' | 'crackfarm' | 'fruitstacks'] ?? { title: 'LOADING', grad: 'linear-gradient(180deg, #fff 0%, #aaa 100%)', bar: 'linear-gradient(90deg, #888, #ccc)', glow: 'rgba(255,255,255,0.3)' };
+    sushi: { title: 'SUSHI PARTY', grad: 'linear-gradient(180deg, #ff6f91 0%, #4fd1c5 100%)', bar: 'linear-gradient(90deg, #ff6f91, #4fd1c5)', glow: 'rgba(255,111,145,0.55)' },
+  }[loadActiveGame() as 'vice' | 'crackfarm' | 'fruitstacks' | 'sushi'] ?? { title: 'LOADING', grad: 'linear-gradient(180deg, #fff 0%, #aaa 100%)', bar: 'linear-gradient(90deg, #888, #ccc)', glow: 'rgba(255,255,255,0.3)' };
   const bootScreen = bootGone ? null : (
     <div style={{
       position: 'absolute', inset: 0, zIndex: 30,
@@ -646,6 +752,7 @@ export function App() {
     handleSpin,
     handleBuyBonus,
     handleBuyFruit,
+    handleBuySushi,
     handleBuyVice,
     handleSkip,
     handleAutoSpin,
@@ -915,7 +1022,15 @@ export function App() {
     const on = (e: StorageEvent) => {
       if (e.key === 'slot:assets') {
         const sounds = (loadAssets().sounds ?? {}) as Record<string, string>;
-        for (const [ev, url] of Object.entries(sounds)) sm.replaceSource(ev, [url]);
+        for (const [ev, url] of Object.entries(sounds)) {
+          // Mirror the Audio Studio assign handler: an event whose current
+          // design volume is 0 — a muted default OR the Vice empty-slate silence
+          // — must come back AUDIBLE when the user picks a sound, else the pick
+          // inherits volume 0 and loads MUTE (the "assigned sounds don't play in
+          // the preview" bug). design>0 keeps the level; design 0 → 0.5.
+          const design = sm.getEventDefault(ev);
+          sm.replaceSource(ev, [url], design > 0 ? undefined : 0.5);
+        }
       } else if (e.key === 'slot:audio-event-volumes') {
         sm.reloadEventOverrides();
       } else if (e.key === 'slot:audio-clean') {
@@ -985,7 +1100,9 @@ export function App() {
                 }} />
               : loadActiveGame() === 'fruitstacks'
                 ? <FruitBuyRail betDisplay={state.betDisplay} bonusActive={fsRoundOn} onBuy={stage => { void handleBuyFruit(stage); }} />
-                : (gameConfig as { viceBuyStages?: ViceBuyStageDef[] }).viceBuyStages
+                : loadActiveGame() === 'sushi'
+                  ? <SushiBuyRail betDisplay={state.betDisplay} bonusActive={fsRoundOn} onBuy={stage => { void handleBuySushi(stage); }} />
+                  : (gameConfig as { viceBuyStages?: ViceBuyStageDef[] }).viceBuyStages
                   ? <ViceBuyRail
                       betDisplay={state.betDisplay}
                       stages={(gameConfig as { viceBuyStages?: ViceBuyStageDef[] }).viceBuyStages!}

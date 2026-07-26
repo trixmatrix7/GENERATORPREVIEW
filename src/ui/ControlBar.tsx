@@ -17,6 +17,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { formatUnits, parseUnits } from 'viem';
 import { GAME_CONFIG } from '@/config/gameConfig';
+import { loadActiveGame } from '@/studio/buildPresets';
 import type { GameState } from '@/state/types';
 import type { HostSnapshotV1 } from '@/bridge/types';
 import type { SoundManager } from '@/audio/SoundManager';
@@ -85,6 +86,29 @@ export function ControlBar({ gameState, snapshot, onBetChange, onSpin, onSkip, o
   const bet = Number(gameState.betDisplay || '0').toFixed(2);
   const winAmount = gameState.phase === 'settled_win' && gameState.lastOutcome
     ? Number(formatUnits(gameState.lastOutcome.winAmount, decimals)).toFixed(2)
+    : null;
+
+  // ── VICE ante ("3× FREE SPINS CHANCE") ────────────────────────────────────
+  // While ON, every spin costs bet × costMult (≈3.25× on a 1.00 bet). The
+  // ViceBuyRail owns the toggle and BROADCASTS it (event + sticky global); the
+  // bar surfaces the raised per-spin cost so the player isn't billed 3× by
+  // surprise. Vice-only (guarded below) and OFF by default (ViceBuyRail resets
+  // vice:ante each session). The sticky global covers a mount that raced the
+  // broadcast event.
+  const [ante, setAnte] = useState<{ on: boolean; costMult: number }>(
+    () => (window as unknown as { __viceAnte?: { on: boolean; costMult: number } }).__viceAnte ?? { on: false, costMult: 0 },
+  );
+  useEffect(() => {
+    const onAnte = (e: Event) => {
+      const d = (e as CustomEvent).detail as { on?: boolean; costMult?: number } | undefined;
+      if (d) setAnte({ on: !!d.on, costMult: Number(d.costMult) || 0 });
+    };
+    window.addEventListener('slot:ante', onAnte);
+    return () => window.removeEventListener('slot:ante', onAnte);
+  }, []);
+  const anteActive = ante.on && ante.costMult > 0 && loadActiveGame() === 'vice';
+  const anteSpinCost = anteActive
+    ? (Number(gameState.betDisplay || '0') * ante.costMult).toFixed(2)
     : null;
 
   // ── bet − / + (same clamp as BetInput ÷2/×2) ──────────────────────────────
@@ -177,7 +201,13 @@ export function ControlBar({ gameState, snapshot, onBetChange, onSpin, onSkip, o
           {/* BET row: label (108,84) · coin (220,84) · value (236,84) · hit zone (104,70,150×36) */}
           <span className="absolute whitespace-nowrap" style={{ ...poppins, left: 108, top: 84, transform: 'translateY(-50%)', fontSize: 20, fontWeight: 700, letterSpacing: -1.4, color: '#dfe2e5' }}>BET</span>
           <img src={`${UI}coin.png`} alt="" draggable={false} className="absolute" style={{ left: 220 - 9.5, top: 84 - 9.5, width: 19, height: 19 }} />
-          <span className="absolute whitespace-nowrap tabular-nums" style={{ ...poppins, left: 236, top: 84, transform: 'translateY(-50%)', fontSize: 18, fontWeight: 600, color: '#eef0f2' }}>{bet}</span>
+          <span className="absolute whitespace-nowrap tabular-nums" style={{ ...poppins, left: 236, top: 84, transform: 'translateY(-50%)', fontSize: 18, fontWeight: 600, color: anteActive ? 'var(--color-yellow)' : '#eef0f2' }}>{bet}</span>
+          {/* VICE ante ON → the real per-spin cost (bet × costMult) under BET */}
+          {anteActive && (
+            <span className="absolute whitespace-nowrap tabular-nums" style={{ ...poppins, left: 108, top: 107, transform: 'translateY(-50%)', fontSize: 12, fontWeight: 800, letterSpacing: -0.3, color: 'var(--color-yellow)' }}>
+              {`ANTE ×${ante.costMult} · €${anteSpinCost}/SPIN`}
+            </span>
+          )}
           {hitZone(104, 70, 150, 36, 'Bet (menu — separate overlay set)', () => { /* openBetMenu: overlay set is a separate preset */ })}
 
           {/* center status (526,62): "START AND WIN" 30px white italic ls −2 / "WIN  x.xx" */}

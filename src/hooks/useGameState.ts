@@ -6,9 +6,11 @@ import type { HostApiV1, HostSnapshotV1 } from '@/bridge/types';
 import { gameReducer, initialState } from '@/state/GameStateMachine';
 import { decodeSpinOutcome, encodeGameData } from '@/engine/SlotEngine';
 import { decodeFruitStacksOutcome } from '@/game/decodeFruitStacks';
+import { decodeSushiOutcome } from '@/game/decodeSushi';
 import { FRUIT_BUY_STAGES } from '@/game/fruitStacksMath';
+import { SUSHI_BUY_STAGES } from '@/game/sushiMath';
 import { activePayModel } from '@/game/winEval';
-import { encodeAbiParameters } from 'viem';
+import { encodeAbiParameters, decodeAbiParameters } from 'viem';
 import type { PixiApp } from '@/game/PixiApp';
 import { EMPTY_HEX, GAME_CONFIG } from '@/config/gameConfig';
 import { mathProfileById, loadMathProfileId } from '@/config/mathProfiles';
@@ -67,6 +69,37 @@ export function useGameState(
         resolvingRef.current = true;
         if (spinTimerRef.current) { clearTimeout(spinTimerRef.current); spinTimerRef.current = null; }
         const wager = BigInt(settled.wager);
+        // VICE bought/ante rounds: the session wager is the PREMIUM (base bet ×
+        // costMult for a buy, or × anteCostMult for an ante spin). Settlement
+        // already credits + caps the payout on the BASE bet, but the FS
+        // PRESENTATION keys off outcome.wager — the 5000× cap, the per-spin win
+        // eval and the running TOTAL plaque (PixiApp). Passed the premium, a
+        // bought round therefore displays costMult× too large and never reaches
+        // the cap (Noski's TOTAL WIN 25779 on a 5000× game = ~129× × 200). Decode
+        // the round at the BASE bet — the same `bet` the mockHost settle derives
+        // — so display == settled payout and can never exceed 5000× the base bet.
+        // Vice-only: fires only when this profile carries viceBuyStages/anteBet;
+        // every other game (and a plain Vice spin, gameData '0x') keeps `wager`.
+        let decodeWager = wager;
+        {
+          const build = mathProfileById(loadMathProfileId()).build?.() as {
+            viceBuyStages?: Array<{ stage: number; costMult: number }>;
+            anteBet?: { costMult: number };
+          } | undefined;
+          if (build?.viceBuyStages || build?.anteBet) {
+            const gd = settled.raw.gameData;
+            let stageCode = 0;
+            if (typeof gd === 'string' && gd.length >= 66) {
+              try { stageCode = Number(decodeAbiParameters([{ type: 'uint8' }], gd as `0x${string}`)[0]); } catch { stageCode = 0; }
+            }
+            const viceBuy = build.viceBuyStages?.find(s => s.stage === stageCode);
+            if (viceBuy) {
+              decodeWager = wager / BigInt(viceBuy.costMult);
+            } else if (stageCode === 3 && build.anteBet) {
+              decodeWager = (wager * 100n) / BigInt(Math.round(build.anteBet.costMult * 100));
+            }
+          }
+        }
         try {
           // Fruit Stacks bypasses the frozen uint8[5] decode — its 6-reel
           // cascade round is re-derived from the randomness via the same
@@ -77,9 +110,15 @@ export function useGameState(
                 wager,
                 settled.raw.randomness as `0x${string}`,
               )
-            : decodeSpinOutcome(
+            : activePayModel() === 'cluster'
+            ? decodeSushiOutcome(
                 settled.raw.gameState as `0x${string}`,
                 wager,
+                settled.raw.randomness as `0x${string}`,
+              )
+            : decodeSpinOutcome(
+                settled.raw.gameState as `0x${string}`,
+                decodeWager,
                 settled.raw.randomness as `0x${string}` | undefined,
               );
 
@@ -295,6 +334,45 @@ export function useGameState(
     }
   }, [hostApi, snapshot, pixiApp]);
 
+  // SUSHI PARTY purchased FS stage (single stage): wager = bet x 100, gameData
+  // carries the stage; settlement + decode derive the same bought cluster round.
+  const handleBuySushi = useCallback(async (stage: number) => {
+    if (!hostApi || !snapshot) return;
+    const current = stateRef.current;
+    if (current.phase !== 'idle') return;
+    const def = SUSHI_BUY_STAGES[stage - 1];
+    if (!def) return;
+    const baseBet = BigInt(current.betBaseUnits || '0');
+    const cost = baseBet * BigInt(def.costMult);
+    const balance = BigInt(snapshot.balances.smartVaultBalance ?? '0');
+    if (cost <= 0n || cost > balance) {
+      if (cost > balance) notifyInsufficientFunds();
+      return;
+    }
+
+    dispatch({ type: 'SPIN_REQUESTED' });
+    pixiApp?.spin();
+    if (spinTimerRef.current) clearTimeout(spinTimerRef.current);
+    spinTimerRef.current = setTimeout(() => {
+      const p = stateRef.current.phase;
+      if (p === 'spinning' || p === 'awaiting_tx' || p === 'resolving') {
+        dispatch({ type: 'ERROR', payload: 'Spin timed out — please try again.' });
+      }
+    }, SPIN_TIMEOUT_MS);
+    try {
+      const { sessionKey } = await hostApi.openSession({
+        wager: cost.toString(),
+        gameData: encodeAbiParameters([{ type: 'uint8' }], [stage]),
+        randomnessRequestData: EMPTY_HEX,
+      });
+      dispatch({ type: 'SESSION_OPENED', payload: { sessionKey } });
+    } catch (err: unknown) {
+      if (spinTimerRef.current) { clearTimeout(spinTimerRef.current); spinTimerRef.current = null; }
+      const msg = err instanceof Error ? err.message : 'Transaction failed.';
+      dispatch({ type: 'ERROR', payload: mapTxError(msg) });
+    }
+  }, [hostApi, snapshot, pixiApp]);
+
   const handleAutoSpin = useCallback(
     (count: number) => {
       dispatch({ type: 'AUTO_SPIN_START', payload: { count } });
@@ -328,6 +406,7 @@ export function useGameState(
     handleSpin,
     handleBuyBonus,
     handleBuyFruit,
+    handleBuySushi,
     handleBuyVice,
     handleSkip,
     handleAutoSpin,

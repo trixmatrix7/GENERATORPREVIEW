@@ -14,6 +14,7 @@ import { ULTRA_CLEAN } from '@/audio/soundPresets';
 import { FRUIT_LOCKED_SOUNDS, FRUIT_LOCKED_VOLUMES, FRUIT_LOCKED_VISUAL_PARAMS } from '@/config/fruitStacksLockedSettings';
 import { buildPresetV2, type GameKey, type ResolvedAudioEvent } from './exportPresetV2Core';
 import viceTuning from '@/data/vicePresentationTuning.json';
+import viceSoundPreset from '@/data/viceSoundPreset.json';
 
 const BUILDS_KEY = 'vice:builds';
 const BARE_KEY = 'vice:bare';
@@ -53,10 +54,10 @@ function loadBuiltinSnapshot(game: string): BuiltinSnapshot | null {
 }
 
 /** Which baked game theme the App wires (default Vice Heat). */
-export function loadActiveGame(): 'vice' | 'crackfarm' | 'fruitstacks' {
+export function loadActiveGame(): 'vice' | 'crackfarm' | 'fruitstacks' | 'sushi' {
   try {
     const g = localStorage.getItem(GAME_KEY);
-    return g === 'crackfarm' ? 'crackfarm' : g === 'fruitstacks' ? 'fruitstacks' : 'vice';
+    return g === 'crackfarm' ? 'crackfarm' : g === 'fruitstacks' ? 'fruitstacks' : g === 'sushi' ? 'sushi' : 'vice';
   }
   catch { return 'vice'; }
 }
@@ -201,6 +202,22 @@ export function applyFruitStacks(): void {
   window.location.reload();
 }
 
+/** Built-in SUSHI PARTY 6×6 cluster + PowerNudge slot (sushi theme,
+ *  baked in public/theme/sushiparty/). */
+export function applySushi(): void {
+  const saved = loadBuiltinSnapshot('sushi');
+  replaceAssets(saved?.assets ?? {});
+  writeVolumes(saved?.soundVolumes);
+  saveMathProfileId(saved?.mathProfileId ?? 'sushi-cluster');
+  try {
+    localStorage.setItem(GRID_KEY, saved?.gridId ?? '6x6');
+    localStorage.setItem(BARE_KEY, '0');
+    localStorage.setItem(GAME_KEY, 'sushi');
+    localStorage.removeItem(ACTIVE_KEY);
+  } catch { /* quota */ }
+  window.location.reload();
+}
+
 /** EXPORT BUILD — chainwtf-game-preset v2 (the STANDARDIZED format agreed
  *  with the partner dev; see exportPresetV2Core.ts + the schema JSON). Game-
  *  aware: ships the ACTIVE game's assets + the CURRENT certified manifest of
@@ -211,8 +228,8 @@ export function buildExportPreset(name: string): Record<string, unknown> {
   const profileId = loadMathProfileId();
   // Fall back to the game's canonical profile when the selected one has no
   // manifest (e.g. the legacy 'fantasy-extreme' library).
-  const FALLBACK: Record<GameKey, string> = {
-    vice: 'vice-heat-custom', crackfarm: 'crack-farm-lines', fruitstacks: 'fruit-stacks-tumble',
+  const FALLBACK: Record<string, string> = {
+    vice: 'vice-heat-custom', crackfarm: 'crack-farm-lines', fruitstacks: 'fruit-stacks-tumble', sushi: 'sushi-cluster',
   };
   const manifest = manifestForProfile(profileId) ?? manifestForProfile(FALLBACK[game]);
   const usedProfile = manifestForProfile(profileId) ? profileId : FALLBACK[game];
@@ -239,10 +256,19 @@ export function buildExportPreset(name: string): Record<string, unknown> {
   // user-pick > gelockt > ULTRA-CLEAN > Registry-Default.
   const fruitBase: Record<string, { url: string; volume: number }> =
     game === 'fruitstacks' ? ULTRA_CLEAN.events : {};
+  // Vice: Noskis repo-baked mix (viceSoundPreset.json) is the EXPORT default so
+  // the JSON carries his exact picks/levels (ambient gimme-that-groove @ 0.06)
+  // even from empty localStorage — the runtime seeds the same file into the
+  // SoundManager only, never into the export-read localStorage. Precedence:
+  // user-pick/override > vice base > registry default. (The exporter then ships
+  // every file FLAT as /audio/<id>.ogg via its Vice remap.)
+  const viceBase = game === 'vice'
+    ? (viceSoundPreset as { picks: Record<string, string>; volumes: Record<string, number> })
+    : null;
   const audioEvents: Record<string, ResolvedAudioEvent> = {};
   for (const ev of defaultSoundConfig().events) {
-    const pick = picks[ev.id] ?? lockedSounds[ev.id] ?? fruitBase[ev.id]?.url;
-    const volume = volOverrides[ev.id] ?? lockedVols[ev.id] ?? fruitBase[ev.id]?.volume ?? ev.volume;
+    const pick = picks[ev.id] ?? lockedSounds[ev.id] ?? viceBase?.picks[ev.id] ?? fruitBase[ev.id]?.url;
+    const volume = volOverrides[ev.id] ?? lockedVols[ev.id] ?? viceBase?.volumes[ev.id] ?? fruitBase[ev.id]?.volume ?? ev.volume;
     const file = (pick ?? ev.src[0] ?? '').replace(/^\//, '');
     if (!file) continue;
     audioEvents[ev.id] = {

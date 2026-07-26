@@ -239,6 +239,18 @@ export class ReelSet {
   /** Lifted winning-symbol objects sit here — ABOVE the win line, so the line
    *  renders behind the symbols. */
   private readonly winObjectsContainer: Container;
+  /** SUSHI cluster: persistent, position-fixed blue ×N multiplier markers.
+   *  Translucent + above the reels so tumbling symbols read as falling THROUGH
+   *  them (Sugar Supreme PowerNudge look). Cleared on command (base round end). */
+  private readonly clusterMarkerContainer: Container = new Container();
+  /** SUSHI cluster: transient white win-boxes/frames for the current step. */
+  private readonly clusterBoxContainer: Container = new Container();
+  /** Active ×N markers keyed "row,reel" → node + numeral + current value. */
+  private clusterMarkers = new Map<string, { node: Container; text: Text; value: number }>();
+  /** Box graphics + amount labels owned by the CURRENT cluster win box. */
+  private clusterBoxNodes: Container[] = [];
+  /** Winning symbols currently scale-pulsed by a cluster win box (reset on clear). */
+  private clusterPulsed: AnimatedSymbol[] = [];
   /** Symbols whose object layer is currently lifted; restored on clear. */
   private liftedCells: AnimatedSymbol[] = [];
   /** Tweens for win frames/lines, killed when the decoration is cleared. */
@@ -298,10 +310,7 @@ export class ReelSet {
     const gridRect = resolveAnchor(gridAnchor, grid);
 
     for (let i = 0; i < grid.reelCount; i++) {
-      const reel = new Reel(atlases, config.reelStrips[i], config.theme, grid.visibleRows);
-      reel.container.x = resolveAnchor(reelAnchor(i), grid).x;
-      this.clipContainer.addChild(reel.container);
-      this.reels.push(reel);
+      this.reels.push(this.buildOneReel(i, config.reelStrips[i]));
     }
 
     // Mask extends a couple of pixels beyond the visible grid top + bottom
@@ -333,6 +342,12 @@ export class ReelSet {
     this.container.addChild(this.stickyContainer);      // sticky-wild overlays — above symbols
     this.stickyObjectsContainer.eventMode = 'none';
     this.container.addChild(this.stickyObjectsContainer); // wild art ABOVE its gold frame
+    // SUSHI cluster layers: ×N markers just above the reels (translucent →
+    // symbols tumble THROUGH them), win boxes above the markers. Inert to taps.
+    this.clusterMarkerContainer.eventMode = 'none';
+    this.clusterBoxContainer.eventMode = 'none';
+    this.container.addChild(this.clusterMarkerContainer);
+    this.container.addChild(this.clusterBoxContainer);
     // The WIN presentation is the FRONTMOST play layer — winners (and their
     // 1.22–1.34× pops, which overhang into neighbouring reels) must render on
     // top of the opaque expanding towers, never get clipped behind them.
@@ -359,6 +374,77 @@ export class ReelSet {
     }
   }
 
+  /** Build ONE reel exactly as the constructor does — same Reel construction,
+   *  x-position from the shared anchor, zIndex reset, and insertion into
+   *  clipContainer BEFORE the clip mask (constructor added reels first, then the
+   *  mask, so addChildAt(i) preserves that order in BOTH the initial build and a
+   *  rebuild). Shared by the constructor loop and rebuildReels so a rebuilt reel
+   *  is byte-for-byte identical to a constructed one. */
+  private buildOneReel(index: number, strip: ReadonlyArray<number>): Reel {
+    const reel = new Reel(this.atlases, strip, this.config.theme, this.grid.visibleRows);
+    reel.container.x = resolveAnchor(reelAnchor(index), this.grid).x;
+    reel.container.zIndex = 0; // fresh reel — drop any elevate-scatter zIndex
+    this.clipContainer.addChildAt(reel.container, index);
+    return reel;
+  }
+
+  /** SUSHI cluster ONLY: destroy the current reels and rebuild them from
+   *  `strips` (base ↔ FS). The frozen Reel/ReelSet stop path lands
+   *  `strip[(stop+row)%len]` reading ONLY each reel's constructor strip, so the
+   *  classic roll can only reproduce the FS boards if the reels are rebuilt onto
+   *  the FS strips. Every reel is rebuilt through buildOneReel — the SAME
+   *  per-reel construction the constructor uses — so layout, x-position, mask,
+   *  clip margins and buffer visibility are preserved. The scatter/near-miss
+   *  detection helpers (detectNearMiss, reelHasVisibleScatter/Wild) read
+   *  this.config.reelStrips/reelLengths, so those are swapped too (mirrors
+   *  mockHost's runtime strip swap). PixiApp owns a CLONED config, so this
+   *  never touches the settlement/host config. Overlay layers (×N markers,
+   *  cluster boxes, counter, collector) live in separate containers ABOVE the
+   *  reels and are left untouched. Leaves the reels at rest, spin-ready. */
+  rebuildReels(strips: number[][]): void {
+    // Tear down: kill each reel's tweens (dispose), then free its display
+    // objects. iconSprite textures are shared/owned by PixiApp, and
+    // destroy({children:true}) defaults texture:false, so they stay intact.
+    for (const reel of this.reels) {
+      reel.dispose();
+      const c = reel.container;
+      if (c.parent) c.parent.removeChild(c);
+      c.destroy({ children: true });
+    }
+    this.reels.length = 0;
+    // Keep tease/scatter detection consistent with the displayed reels.
+    const cfg = this.config as unknown as {
+      reelStrips: readonly (readonly number[])[];
+      reelLengths: readonly number[];
+    };
+    cfg.reelStrips = strips;
+    cfg.reelLengths = strips.map(s => s.length);
+    // Rebuild fresh, spin-ready reels through the shared per-reel construction.
+    for (let i = 0; i < this.grid.reelCount; i++) {
+      this.reels.push(this.buildOneReel(i, strips[i]));
+    }
+    // Re-apply open-clip buffer visibility (no-op for sushi: no clip margin,
+    // buffersHidden stays false).
+    this.applyBufferCellVisibility();
+  }
+
+  /** Bought cluster entry: the base spin is only the FS trigger — the math
+   *  forced scatters onto random cells the rolled strip board never shows. After
+   *  the reels have stopped on the base stops, swap those cells to the scatter
+   *  tile and give each a landing pop so the guaranteed trigger reads like a
+   *  real drop. */
+  landForcedScatters(board: number[][]): void {
+    for (let reel = 0; reel < this.grid.reelCount; reel++) {
+      for (let row = 0; row < this.grid.visibleRows; row++) {
+        if (board[row]?.[reel] !== SymbolId.SCATTER) continue;
+        const cell = this.reels[reel]?.getVisibleCell(row);
+        if (!cell || cell.symbol === SymbolId.SCATTER) continue;
+        cell.setSymbol(SymbolId.SCATTER);
+        cell.play('landing');
+      }
+    }
+  }
+
   /** Re-home the four PRESENTATION layers (sticky towers, lifted winning
    *  objects, floating amounts, ways-light comet) into `host` — a container
    *  the app positions exactly like this.container but ABOVE the custom
@@ -370,8 +456,10 @@ export class ReelSet {
     // breathe OVER the custom frame border too.
     host.addChild(this.stickyContainer);
     host.addChild(this.stickyObjectsContainer);
+    host.addChild(this.clusterMarkerContainer); // ×N markers — behind win boxes/amounts
+    host.addChild(this.clusterBoxContainer);    // white cluster boxes — above markers
     host.addChild(this.winObjectsContainer);
-    host.addChild(this.winAmountsContainer);
+    host.addChild(this.winAmountsContainer);    // amount labels — top of the play layers
     host.addChild(this.waysLightContainer);
   }
 
@@ -3182,6 +3270,11 @@ export class ReelSet {
   private fruitPoolValue: Container | null = null;
   private fruitPoolValueY = 0;
   private fruitPoolShown = -1;
+  // TOTAL WIN plaque (Task B): persistent capped FS round total, sits UNDER
+  // the FS counter on the right rail (same x-centre + width as the counter).
+  private fruitTotalWinTex: Texture | null = null;
+  private fruitTotalWin: Container | null = null;
+  private fruitTotalWinText: Text | null = null;
 
   setFruitPlaqueTexture(tex: Texture | null): void {
     this.fruitPlaqueTex = tex;
@@ -3413,7 +3506,8 @@ export class ReelSet {
       t.anchor.set(0.5);
       c.addChild(t);
       c.x = this.totalWidth / 2;
-      c.y = -58; // rides above the grid, overlapping the frame top (reference)
+      c.y = -22; // sits DOWN ON the frame top (Noski) — the bigger board pushed
+                 // the old -58 off the screen; keep it overlapping the frame rope.
       this.container.addChild(c);
       this.fruitPlaque = c;
       this.fruitPlaqueText = t;
@@ -3448,8 +3542,13 @@ export class ReelSet {
     gsap.killTweensOf(c.scale); gsap.killTweensOf(c);
     gsap.timeline()
       .fromTo(c.scale, { x: 1.3, y: 1.3 }, { x: 1, y: 1, duration: 0.42, ease: 'elastic.out(1, 0.55)' })
-      .fromTo(c, { rotation: -0.05 }, { rotation: 0, duration: 0.36, ease: 'elastic.out(1, 0.4)' }, 0)
-      .fromTo(c, { y: -52 }, { y: -58, duration: 0.3, ease: 'power2.out' }, 0);
+      .fromTo(c, { rotation: -0.05 }, { rotation: 0, duration: 0.36, ease: 'elastic.out(1, 0.4)' }, 0);
+    // NO y-relocation: the old `.fromTo(c, {y:-52},{y:-58})` snapped the plate to
+    // its stale (pre-shrink) off-screen resting spot on every punch. Harmless
+    // when punch fired rarely, but the per-cluster COLLECT now punches on each
+    // amount arrival — a y-jump there would fling the plate off the top. The
+    // plate stays at its real resting y (showFruitPlaque sets it); the elastic
+    // scale + tilt carry the punch.
   }
 
   /** APPLY-MERGE (Noski): die Plaque zeigt "win ×multi" — beim Multiplizieren
@@ -3469,6 +3568,79 @@ export class ReelSet {
 
   private fruitPoolTex: Texture | null = null;
   setFruitPoolTexture(tex: Texture | null): void { this.fruitPoolTex = tex; }
+
+  setFruitTotalWinTexture(tex: Texture | null): void { this.fruitTotalWinTex = tex; }
+
+  /** TOTAL WIN plaque (Task B): sits DIRECTLY UNDER the FS counter on the right
+   *  rail — SAME x-centre + SAME width as the counter — and shows the running
+   *  (Task-A-capped) FS round total. `text` is the pre-formatted amount (caller
+   *  owns formatWin + the cap clamp); null hides it. Hard number swap + a small
+   *  punch, like the FS counter. */
+  setFruitTotalWin(text: string | null, pop = false): void {
+    if (text === null) {
+      if (this.fruitTotalWin) this.fruitTotalWin.visible = false;
+      return;
+    }
+    const TW_W = 240; // == FS-Counter FRAME_W (setFsCounter)
+    if (!this.fruitTotalWin) {
+      const c = new Container();
+      c.eventMode = 'none';
+      let numberY = 0;
+      // total_win_counter.png: 1920×1080 canvas, plaque CONTENT bbox
+      // (456,234)-(1464,821) = 1008×587 (centre 960,527.5). Scale by the CONTENT
+      // width so the visible plaque — not the transparent canvas — is TW_W wide.
+      const contentW = 1008, contentH = 587;
+      const sc = TW_W / contentW;
+      if (this.fruitTotalWinTex) {
+        const s = new Sprite(this.fruitTotalWinTex);
+        s.anchor.set(0.5);
+        s.scale.set(sc);
+        s.x = 0;
+        s.y = (540 - 527.5) * sc; // canvas centre vs content centre → +~3px
+        c.addChild(s);
+      }
+      // Number sits in the LOWER inset (empty box). Inset centre ≈ texture
+      // y 640 → ~0.19·contentH below the plaque centre. Tunable — Noski eyeball.
+      numberY = contentH * sc * 0.19;
+      const t = new Text({
+        text: '',
+        style: new TextStyle({
+          fontFamily: "'Baloo 2', 'Rubik', ui-sans-serif, system-ui, sans-serif",
+          fontSize: 34, fontWeight: '800', letterSpacing: 0.5,
+          fill: fruitMultiGradientFill(fruitMultiConfig.color),
+          stroke: { color: 0x241300, width: 5, join: 'round' },
+          dropShadow: { color: 0x1a0d00, alpha: 0.4, blur: 1, distance: 2, angle: Math.PI / 2 },
+          align: 'center',
+        }),
+      });
+      t.anchor.set(0.5);
+      t.y = numberY;
+      c.addChild(t);
+      // SAME rail axis + width as the FS counter; DIRECTLY UNDER it. Counter is
+      // 0.14·H centre, fscounter frame 480×198 @ TW_W → ~99 tall; this plaque is
+      // ~140 tall (contentH·sc); ~10px gap between them.
+      const COUNTER_H = 198 * (TW_W / 480); // 99
+      const twH = contentH * sc;            // ~140
+      c.x = this.totalWidth + 168;
+      c.y = this.totalHeight * 0.14 + COUNTER_H / 2 + 10 + twH / 2;
+      this.container.addChild(c);
+      this.fruitTotalWin = c;
+      this.fruitTotalWinText = t;
+    }
+    this.fruitTotalWin.visible = true;
+    const t = this.fruitTotalWinText!;
+    t.scale.set(1);
+    t.text = text;
+    // keep the amount inside the inset (measured interior ≈ 0.64·TW_W wide)
+    const maxW = TW_W * 0.62;
+    const w = t.width;
+    if (w > maxW) t.scale.set(maxW / w);
+    if (pop) {
+      gsap.killTweensOf(t.scale);
+      const s = t.scale.x;
+      gsap.fromTo(t.scale, { x: s * 1.25, y: s * 1.25 }, { x: s, y: s, duration: 0.3, ease: 'back.out(2.2)' });
+    }
+  }
 
   /** WINNA arrival juice: a small gold STAR-DUST burst (no white flash — the
    *  perceived flash in the reference is just particles + the bigger text). */
@@ -3520,10 +3692,12 @@ export class ReelSet {
         }
       }
       this.fruitPoolValueY = textY; // Pillen-Zentrum — der Wert-Node haengt hier
-      // Rail-Achse: Counter + Pool-Badge ZENTRIERT untereinander, etwas
-      // weiter rechts (Noski 2026-07-24).
+      // Rail-Achse: Counter + TOTAL-WIN-Plakette + Pool-Badge ZENTRIERT
+      // untereinander, etwas weiter rechts (Noski 2026-07-24). Das Pool-Badge
+      // rutschte von 0.55 -> 0.67 RUNTER (Task B), damit die neue TOTAL-WIN-
+      // Plakette (unter dem Counter) nicht ueberlappt.
       c.x = this.totalWidth + 168;
-      c.y = this.totalHeight * 0.55;
+      c.y = this.totalHeight * 0.67;
       this.container.addChild(c);
       this.fruitPool = c;
     }
@@ -3823,6 +3997,59 @@ export class ReelSet {
     if (!opts.isLive()) return;
   }
 
+  /** FRUIT STACKS collect: a cluster's WIN AMOUNT no longer fades in place —
+   *  it POPS on the cluster's cells, holds briefly (still readable), then FLIES
+   *  UP onto the win plate as a visible collect. Same 2-phase arc the ×N / pool
+   *  flies use (rise ~2 cells, accelerating + swelling to peak ~1.6×, then curve
+   *  into the plate centre while shrinking to ~0.5× and fading only on arrival),
+   *  so the whole plate-feed reads as one system. Resolves ON ARRIVAL so the
+   *  caller can tick + punch the plate the moment the amount lands (Noski:
+   *  "hochfliegen lassen auf das Feld als sammeln"). Distance-independent ~0.5s
+   *  flight (research 18 / slot-feel §1b). */
+  async flyAmountToPlaque(
+    originCenter: { x: number; y: number },
+    amountText: string,
+    opts: { turbo?: boolean } = {},
+  ): Promise<void> {
+    if (!this.fruitPlaque) return;
+    const S = opts.turbo ? 0.55 : 1;
+    const label = new Text({
+      text: amountText,
+      style: new TextStyle({
+        fontFamily: "'Poppins', ui-sans-serif, system-ui, sans-serif",
+        fontSize: 38, fontWeight: '800', fontStyle: 'italic', letterSpacing: 1,
+        fill: 0xfff6d8, stroke: { color: 0x1c1206, width: 6, join: 'round' },
+        dropShadow: { color: 0x000000, blur: 8, distance: 0, alpha: 0.45, angle: 0 },
+        align: 'center',
+      }),
+    });
+    label.anchor.set(0.5);
+    label.x = originCenter.x; label.y = originCenter.y;
+    label.alpha = 0; label.scale.set(0.5);
+    label.eventMode = 'none';
+    this.winAmountsContainer.addChild(label);
+    const tx = this.fruitPlaque.x, ty = this.fruitPlaque.y;
+    const rise = CELL_HEIGHT * 2; // launch ~2 cells up, then curve into the plate
+    await new Promise<void>(resolve => {
+      gsap.timeline({
+        onComplete: () => {
+          try { label.parent?.removeChild(label); label.destroy(); } catch { /* gone */ }
+          resolve();
+        },
+      })
+        // POP in place — the amount the symbols brought, held readable a beat.
+        .to(label, { alpha: 1, duration: 0.1 * S, ease: 'power1.out' }, 0)
+        .fromTo(label.scale, { x: 0.5, y: 0.5 }, { x: 1, y: 1, duration: 0.24 * S, ease: 'back.out(2.2)' }, 0)
+        // PHASE 1 — rise ~2 cells, accelerating, swelling to the peak (~1.6×).
+        .to(label, { y: originCenter.y - rise, duration: 0.3 * S, ease: 'power1.in' }, 0.15 * S)
+        .to(label.scale, { x: 1.6, y: 1.6, duration: 0.3 * S, ease: 'power1.out' }, 0.15 * S)
+        // PHASE 2 — curve into the plate centre, shrinking; fade only on arrival.
+        .to(label, { x: tx, y: ty, duration: 0.2 * S, ease: 'power1.inOut' }, 0.45 * S)
+        .to(label.scale, { x: 0.5, y: 0.5, duration: 0.2 * S, ease: 'power2.in' }, 0.45 * S)
+        .to(label, { alpha: 0, duration: 0.12 * S, ease: 'power1.in' }, 0.53 * S);
+    });
+  }
+
   /** One tumble step: pop the winning cells, drop the survivors, refill from
    *  the top, then normalise every cell to `boardAfter`. */
   async playTumbleStep(
@@ -3834,7 +4061,16 @@ export class ReelSet {
       cratesAfter?: { cell: [number, number]; value: number }[];
     },
     amountTexts: string[],
-    opts: { isLive: () => boolean; turbo?: boolean; teaseSlow?: boolean },
+    opts: {
+      isLive: () => boolean;
+      turbo?: boolean;
+      teaseSlow?: boolean;
+      /** Fired when cluster win #`winIndex`'s amount LANDS on the plate (or
+       *  immediately in turbo, which skips the flight). The caller ticks the
+       *  running plate total + punches it here, so the plate is visibly FED by
+       *  each flying win. */
+      onCollect?: (winIndex: number) => void;
+    },
   ): Promise<void> {
     const speed = opts.turbo ? 0.5 : 1;
     const rows = this.grid.visibleRows;
@@ -3844,6 +4080,10 @@ export class ReelSet {
     //    slow swell, then BURST — juice droplets spray, the art pops away.
     //    Each win floats its +amount, gliding away from the cluster.
     const themeTex = (this.config.theme as { userAssetTextures?: Map<number, Texture> }).userAssetTextures;
+    // Each cluster's amount now FLIES to the plate (collect); these settle
+    // during the gravity/refill and are awaited before the step returns so the
+    // caller's running total is complete.
+    const amountFlights: Promise<void>[] = [];
     for (let w = 0; w < step.wins.length; w++) {
       const win = step.wins[w];
       let cx = 0, cy = 0;
@@ -3895,25 +4135,24 @@ export class ReelSet {
         }
       }
       cx /= win.cells.length; cy /= win.cells.length;
-      const label = new Text({
-        text: amountTexts[w] ?? '',
-        style: new TextStyle({
-          fontFamily: "'Poppins', ui-sans-serif, system-ui, sans-serif",
-          fontSize: 38, fontWeight: '800', fontStyle: 'italic', letterSpacing: 1,
-          fill: 0xfff6d8, stroke: { color: 0x1c1206, width: 6, join: 'round' },
-          dropShadow: { color: 0x000000, blur: 8, distance: 0, alpha: 0.45, angle: 0 },
-          align: 'center',
-        }),
-      });
-      label.anchor.set(0.5); label.x = cx; label.y = cy; label.eventMode = 'none';
-      this.winAmountsContainer.addChild(label);
-      // WINNA (frame-vermessen): der Betrag erscheint quasi INSTANT in voller
-      // Groesse (~100ms nach Pop-Start), steht FIX am Cluster-Schwerpunkt
-      // (kein Gleiten — er ueberlebt Collapse+Refill drunter) und fadet dann
-      // in ~270ms an Ort und Stelle aus.
-      gsap.timeline({ delay: 0.1 * speed, onComplete: () => { try { label.parent?.removeChild(label); label.destroy(); } catch { /* gone */ } } })
-        .fromTo(label, { alpha: 0 }, { alpha: 1, duration: 0.1 * speed, ease: 'power1.out' }, 0)
-        .to(label, { alpha: 0, duration: 0.27 * speed, ease: 'power1.in' }, 0.1 + 1.13 * speed);
+      // COLLECT (Noski): the amount the symbols brought no longer fades in
+      // place — it POPS on the cluster, then FLIES UP onto the win plate as a
+      // visible collect; on arrival the plate ticks + punches (fed by the
+      // flying win). Turbo skips the flight and ticks the plate instantly so
+      // fast play stays snappy.
+      const amountText = amountTexts[w] ?? '';
+      if (opts.turbo) {
+        opts.onCollect?.(w);
+      } else {
+        const wi = w; // pin the index for the deferred arrival callback
+        amountFlights.push(new Promise<void>(res => {
+          // stagger multiple clusters ~120ms so they land one after another
+          gsap.delayedCall(0.12 * wi, () => {
+            this.flyAmountToPlaque({ x: cx, y: cy }, amountText, { turbo: opts.turbo })
+              .then(() => { if (opts.isLive()) opts.onCollect?.(wi); res(); });
+          });
+        }));
+      }
     }
     await new Promise<void>(r => { gsap.delayedCall(0.5 * speed, () => r()); });
     if (!opts.isLive()) return;
@@ -4028,6 +4267,423 @@ export class ReelSet {
       }
     }
     this.elevateScatterCells(); // BONUS in front of everything (Noski)
+    // Hold until every collect has landed on the plate (they overlapped the
+    // gravity/refill above, so this is usually already done) — guarantees the
+    // caller's running plate total is fully ticked before the step resolves.
+    if (amountFlights.length) await Promise.all(amountFlights);
+  }
+
+  // ── SUSHI PARTY: cluster + PowerNudge presentation primitives ────────────
+  // A base cluster round is: highlight the winning clusters (white box +
+  // amount + a scale pulse — NEVER a brightness filter, slot-feel §3), the
+  // winners EMPTY OUT, the affected columns TUMBLE down + refill, then a
+  // position-fixed blue ×N marker is stamped on every ex-winner cell. The
+  // markers persist through the connecting chain and clear at round end.
+
+  /** Highlight one winning cluster: a clean WHITE rounded frame around each of
+   *  its cells, a gentle scale-pulse on the winning symbols (backlight-style
+   *  emphasis, no filter), and the bold outlined win amount (+ "×N" when the
+   *  cluster crossed multiplier cells) floating over the cluster centroid. */
+  showClusterWin(cells: ReadonlyArray<[number, number]>, amountText: string, multiText?: string): void {
+    if (cells.length === 0) return;
+    let cx = 0, cy = 0;
+    for (const [row, reel] of cells) {
+      const rect = resolveAnchor(cellAnchor(reel, row), this.grid);
+      cx += rect.x + rect.w / 2; cy += rect.y + rect.h / 2;
+      // clean WHITE rounded frame per winning cell — collectively outlines the
+      // (possibly non-rectangular) flood-fill cluster shape.
+      const inset = 4, rad = Math.min(rect.w, rect.h) * 0.16;
+      const box = new Graphics();
+      box.roundRect(rect.x + inset, rect.y + inset, rect.w - inset * 2, rect.h - inset * 2, rad)
+        .stroke({ color: 0xffffff, width: 3.5, alpha: 0.95 });
+      box.eventMode = 'none';
+      box.pivot.set(rect.x + rect.w / 2, rect.y + rect.h / 2);
+      box.position.set(rect.x + rect.w / 2, rect.y + rect.h / 2);
+      this.clusterBoxContainer.addChild(box);
+      this.clusterBoxNodes.push(box);
+      gsap.fromTo(box.scale, { x: 0.86, y: 0.86 }, { x: 1, y: 1, duration: 0.24, ease: 'back.out(2)' });
+      // emphasis = SCALE pulse on the symbol art (slot-feel: backlight/scale,
+      // never a brightness filter that bleaches the art).
+      const cell = this.reels[reel]?.getVisibleCell(row);
+      if (cell) {
+        const inner = cell.objectLayer;
+        gsap.killTweensOf(inner.scale);
+        gsap.to(inner.scale, { x: 1.1, y: 1.1, duration: 0.34, ease: 'sine.inOut', repeat: -1, yoyo: true });
+        this.clusterPulsed.push(cell);
+      }
+    }
+    cx /= cells.length; cy /= cells.length;
+    const label = new Text({
+      text: multiText ? `${amountText}  ${multiText}` : amountText,
+      style: new TextStyle({
+        fontFamily: "'Poppins', ui-sans-serif, system-ui, sans-serif",
+        fontSize: 34, fontWeight: '800', letterSpacing: 0.5,
+        fill: 0xfff6d8, stroke: { color: 0x1c1206, width: 6, join: 'round' },
+        dropShadow: { color: 0x000000, blur: 8, distance: 0, alpha: 0.45, angle: 0 },
+        align: 'center',
+      }),
+    });
+    label.anchor.set(0.5); label.x = cx; label.y = cy; label.eventMode = 'none';
+    this.winAmountsContainer.addChild(label);
+    this.clusterBoxNodes.push(label);
+    gsap.fromTo(label, { alpha: 0 }, { alpha: 1, duration: 0.14, ease: 'power1.out' });
+    gsap.fromTo(label.scale, { x: 0.7, y: 0.7 }, { x: 1, y: 1, duration: 0.28, ease: 'back.out(2.2)' });
+  }
+
+  /** Tear down the current step's win boxes + amount labels and release the
+   *  winning-cell scale pulses (call before the winners empty out / tumble). */
+  clearClusterBoxes(): void {
+    for (const n of this.clusterBoxNodes) {
+      gsap.killTweensOf(n); gsap.killTweensOf(n.scale);
+      try { n.parent?.removeChild(n); n.destroy(); } catch { /* already gone */ }
+    }
+    this.clusterBoxNodes = [];
+    for (const cell of this.clusterPulsed) {
+      const inner = cell.objectLayer;
+      gsap.killTweensOf(inner.scale);
+      gsap.to(inner.scale, { x: 1, y: 1, duration: 0.16, ease: 'power2.out' });
+    }
+    this.clusterPulsed = [];
+  }
+
+  /** Build one blue ×N marker cell (procedural, any N): a rounded blue gradient
+   *  cell + a gold Baloo-2 balloon numeral (matches the gift-badge look). */
+  private makeClusterMarker(value: number): { node: Container; text: Text } {
+    const rect = resolveAnchor(cellAnchor(0, 0), this.grid);
+    const w = rect.w, h = rect.h;
+    const bw = w * 0.9, bh = h * 0.9, rad = Math.min(16, bw * 0.16);
+    const node = new Container();
+    node.eventMode = 'none';
+    const grad = new FillGradient(0, 0, 0, 1);
+    grad.addColorStop(0, 0x39b4ff);
+    grad.addColorStop(0.5, 0x1470ee);
+    grad.addColorStop(1, 0x0a3fc4);
+    const g = new Graphics();
+    g.roundRect(-bw / 2, -bh / 2, bw, bh, rad).fill({ fill: grad, alpha: 0.52 });
+    g.roundRect(-bw / 2, -bh / 2, bw, bh, rad).stroke({ color: 0x9fdcff, width: 3, alpha: 0.92 });
+    g.roundRect(-bw / 2 + 4, -bh / 2 + 4, bw - 8, bh * 0.4, rad * 0.7).fill({ color: 0xffffff, alpha: 0.1 });
+    node.addChild(g);
+    const text = new Text({ text: `×${value}`, style: this.fruitMultiStyle(-4) });
+    text.anchor.set(0.5);
+    text.y = h * 0.2; // sits toward the cell bottom, clear of the symbol face
+    node.addChild(text);
+    return { node, text };
+  }
+
+  /** Stamp / grow the position-fixed blue ×N markers to match `grid`
+   *  (multiAfter). Diffs against the current markers: fresh cells DEBUT with a
+   *  pop + twinkle, existing cells GROW (hard numeral swap + elastic punch,
+   *  slot-feel: multiplication is an instant swap). Markers never move. */
+  setMultiMarkers(grid: number[][]): void {
+    const rows = this.grid.visibleRows, reels = this.grid.reelCount;
+    const want = new Set<string>();
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < reels; c++) {
+        const v = grid[r]?.[c] ?? 0;
+        if (v <= 0) continue;
+        const key = `${r},${c}`;
+        want.add(key);
+        const rect = resolveAnchor(cellAnchor(c, r), this.grid);
+        const cxp = rect.x + rect.w / 2, cyp = rect.y + rect.h / 2;
+        const existing = this.clusterMarkers.get(key);
+        if (!existing) {
+          const { node, text } = this.makeClusterMarker(v);
+          node.x = cxp; node.y = cyp;
+          this.clusterMarkerContainer.addChild(node);
+          this.clusterMarkers.set(key, { node, text, value: v });
+          gsap.killTweensOf(node.scale);
+          gsap.fromTo(node.scale, { x: 0.2, y: 0.2 }, { x: 1, y: 1, duration: 0.34, ease: 'back.out(2.4)' });
+          this.starDustAt(cxp, cyp, 7, 22);
+        } else if (existing.value !== v) {
+          existing.value = v;
+          existing.text.text = `×${v}`;
+          gsap.killTweensOf(existing.node.scale);
+          gsap.fromTo(existing.node.scale, { x: 1.32, y: 1.32 }, { x: 1, y: 1, duration: 0.4, ease: 'elastic.out(1, 0.55)' });
+          this.starDustAt(cxp, cyp, 6, 20);
+        }
+      }
+    }
+    // Base never zeroes a marker mid-round; drop any that vanished (safety).
+    for (const [key, m] of [...this.clusterMarkers]) {
+      if (want.has(key)) continue;
+      gsap.killTweensOf(m.node.scale);
+      try { m.node.parent?.removeChild(m.node); m.node.destroy(); } catch { /* already gone */ }
+      this.clusterMarkers.delete(key);
+    }
+  }
+
+  /** Remove every ×N marker (base round end — the markers do NOT carry to the
+   *  next spin; free-spins would simply skip this call to persist them). */
+  clearMultiMarkers(): void {
+    for (const m of this.clusterMarkers.values()) {
+      gsap.killTweensOf(m.node.scale);
+      try { m.node.parent?.removeChild(m.node); m.node.destroy(); } catch { /* already gone */ }
+    }
+    this.clusterMarkers.clear();
+  }
+
+  /** One PowerNudge cascade step (Noski: the winning symbols do NOT vanish). The
+   *  connected columns NUDGE DOWN 1 TOGETHER ("die Reels wo locked zusammen 1
+   *  runter"): every symbol in each affected column shifts down one cell, the
+   *  bottom symbol slides off into the mask, and a single fresh symbol slides in
+   *  from the top. Then the columns snap to boardAfter with a soft squash-land.
+   *  Position-fixed ×N markers are NOT moved. */
+  async playClusterTumble(
+    step: {
+      clearedCells: [number, number][];   // winning cells (highlighted; they NUDGE, not vanish)
+      nudgedCols: number[];
+      refills: Record<number, number[]>;
+      boardAfter: number[][];
+    },
+    opts: { isLive: () => boolean; turbo?: boolean },
+  ): Promise<void> {
+    const speed = opts.turbo ? 0.5 : 1;
+    const rows = this.grid.visibleRows;
+    const theme = this.config.theme as { userAssetTextures?: Map<number, Texture> };
+    const cols = [...step.nudgedCols].sort((a, b) => a - b);
+
+    // Winners drop any win-state emphasis but STAY on the board — they ride the
+    // nudge down (no vanish/shrink; that was the wrong "tumble" look, Noski).
+    for (const [row, reel] of step.clearedCells) this.reels[reel]?.getVisibleCell(row)?.clearState();
+
+    // NUDGE DOWN 1, all affected columns TOGETHER: every visible cell shifts down
+    // one CELL_HEIGHT; the bottom cell slides off into the mask; one fresh symbol
+    // slides in from one cell above the grid top.
+    const nudgeDur = 0.42 * speed;
+    const temps: Sprite[] = [];
+    for (const reel of cols) {
+      for (let row = 0; row < rows; row++) {
+        const cell = this.reels[reel]?.getVisibleCell(row);
+        if (!cell) continue;
+        const inner = cell.objectLayer;
+        gsap.killTweensOf(inner);
+        gsap.to(inner, { y: SYMBOL_HEIGHT / 2 + CELL_HEIGHT, duration: nudgeDur, ease: 'power2.inOut' });
+      }
+      // one fresh symbol slides in from above the grid top (refills[reel] = [fresh])
+      const id = (step.refills[reel] ?? [])[0];
+      const tex = id != null ? theme.userAssetTextures?.get(id) : undefined;
+      if (tex != null && id != null) {
+        const rect = resolveAnchor(cellAnchor(reel, 0), this.grid);
+        const spr = new Sprite(tex);
+        spr.anchor.set(0.5);
+        const mul = SYMBOL_SIZE_MULS.get(id) ?? (id === SymbolId.SCATTER ? 1.2 : 1);
+        const target = Math.round(Math.min(SYMBOL_WIDTH, SYMBOL_HEIGHT) * 0.88 * symbolSizing.objectScale * mul);
+        spr.width = target; spr.height = target;
+        spr.x = rect.x + rect.w / 2;
+        spr.y = rect.y + rect.h / 2 - CELL_HEIGHT;
+        spr.eventMode = 'none';
+        this.clipContainer.addChild(spr); // masked at the grid top
+        temps.push(spr);
+        gsap.to(spr, { y: rect.y + rect.h / 2, duration: nudgeDur, ease: 'power2.inOut' });
+      }
+    }
+    await new Promise<void>(r => { gsap.delayedCall(nudgeDur + 0.1 * speed, () => r()); });
+    if (!opts.isLive()) { for (const t of temps) { try { t.parent?.removeChild(t); t.destroy(); } catch { /* gone */ } } return; }
+
+    // NORMALISE: every affected cell snaps to boardAfter (seamless swap), temps
+    // die, the nudged columns get a soft squash-land (no overshoot below cell).
+    for (const t of temps) { try { t.parent?.removeChild(t); t.destroy(); } catch { /* gone */ } }
+    for (const reel of cols) {
+      for (let row = 0; row < rows; row++) {
+        const cell = this.reels[reel]?.getVisibleCell(row);
+        if (!cell) continue;
+        const inner = cell.objectLayer;
+        gsap.killTweensOf(inner); gsap.killTweensOf(inner.scale);
+        inner.y = SYMBOL_HEIGHT / 2; inner.scale.set(1); inner.alpha = 1;
+        cell.setSymbol(step.boardAfter[row][reel] as SymbolIdType);
+        if (!opts.turbo) this.squashLand(cell);
+      }
+    }
+    this.elevateScatterCells();
+  }
+
+  // ── SUSHI FREE-SPINS COUNTER (Noski art: fs/counter_frame + counter_empty +
+  // counter_num/nN). Remaining spins on the right-rail plaque. The digit glyphs
+  // ship 0..10 only, so counts >10 (retrigger → 20+) are COMPOSED from the
+  // single digits n0..n9. Hard number swap with a small punch (not a rolling
+  // wheel — a wheel needs a cropped window measurement we don't have yet). ──
+  private sushiCounter: Container | null = null;
+  private sushiCounterNumWrap: Container | null = null;
+  private sushiCounterShown = -1;
+  private readonly sushiCounterTex = new Map<string, Texture>();
+  private sushiCounterBaseLoaded = false;
+
+  /** Preload the sushi FS-counter plaque + digit glyphs from the fs/ base
+   *  (idempotent — safe to call every round). */
+  setSushiCounterBase(fsBase: string): void {
+    if (this.sushiCounterBaseLoaded) return;
+    this.sushiCounterBaseLoaded = true;
+    const want: Array<[string, string]> = [
+      ['frame', `${fsBase}counter_frame.png`],
+      ['empty', `${fsBase}counter_empty.png`],
+    ];
+    for (let i = 0; i <= 10; i++) want.push([`n${i}`, `${fsBase}counter_num/n${i}.png`]);
+    for (const [k, url] of want) {
+      Assets.load<Texture>(url).then(t => { this.sushiCounterTex.set(k, t); }).catch(() => { /* text fallback */ });
+    }
+  }
+
+  /** Compose the remaining-spins numeral from the baked glyphs: a whole-number
+   *  glyph (n0..n10) when present, else single digits n0..n9 laid side by side.
+   *  Falls back to balloon text while the glyphs are still in flight. */
+  private makeSushiCounterNumber(value: number, targetH: number): Container {
+    const wrap = new Container();
+    wrap.eventMode = 'none';
+    const whole = value >= 0 && value <= 10 ? this.sushiCounterTex.get(`n${value}`) : undefined;
+    const glyphs: Texture[] = [];
+    if (whole) glyphs.push(whole);
+    else for (const ch of String(Math.max(0, value))) { const g = this.sushiCounterTex.get(`n${ch}`); if (g) glyphs.push(g); }
+    if (glyphs.length === 0) {
+      const t = new Text({ text: String(value), style: this.fruitMultiStyle(6) });
+      t.anchor.set(0.5); wrap.addChild(t);
+      return wrap;
+    }
+    const scaled = glyphs.map(g => { const sc = targetH / g.height; return { g, w: g.width * sc, sc }; });
+    const gapUnit = targetH * 0.04;
+    let totalW = scaled.reduce((s, x) => s + x.w, 0) + gapUnit * (scaled.length - 1);
+    let x = -totalW / 2;
+    for (const s of scaled) {
+      const spr = new Sprite(s.g);
+      spr.anchor.set(0, 0.5);
+      spr.scale.set(s.sc);
+      spr.x = x; spr.y = 0;
+      wrap.addChild(spr);
+      x += s.w + gapUnit;
+    }
+    return wrap;
+  }
+
+  /** Show the remaining FS spins on the right-rail plaque. roll 'down' = spin
+   *  start, 'up' = retrigger (fires the counter-roll audio hook); null = hide. */
+  setSushiFsCounter(value: number | null, roll: 'down' | 'up' | 'none' = 'none'): void {
+    if (value === null) {
+      if (this.sushiCounter) this.sushiCounter.visible = false;
+      this.sushiCounterShown = -1;
+      return;
+    }
+    const FRAME_W = 240; // matches the fruit counter's right-rail footprint
+    const frameTex = this.sushiCounterTex.get('frame');
+    const emptyTex = this.sushiCounterTex.get('empty');
+    const plaqueTex = frameTex ?? emptyTex;
+    const frameScale = plaqueTex ? FRAME_W / plaqueTex.width : 1;
+    const frameH = plaqueTex ? plaqueTex.height * frameScale : 120;
+    if (!this.sushiCounter) {
+      const c = new Container();
+      c.eventMode = 'none';
+      // layer: empty face (back) → frame (front). Exact layering + the number
+      // window offset AWAIT NOSKI'S plaque measurement — kept as tunable consts.
+      if (emptyTex && emptyTex !== plaqueTex) { const e = new Sprite(emptyTex); e.anchor.set(0.5); e.scale.set(FRAME_W / emptyTex.width); c.addChild(e); }
+      if (plaqueTex) { const f = new Sprite(plaqueTex); f.anchor.set(0.5); f.scale.set(frameScale); c.addChild(f); }
+      const numHost = new Container();
+      numHost.y = frameH * 0.04; // TUNABLE number-window offset
+      c.addChild(numHost);
+      c.x = this.totalWidth + 168;  // same right-rail axis as the fruit counter
+      c.y = this.totalHeight * 0.14;
+      this.container.addChild(c);
+      this.sushiCounter = c;
+      this.sushiCounterNumWrap = numHost;
+    }
+    this.sushiCounter.visible = true;
+    if (this.sushiCounterShown === value && this.sushiCounterNumWrap!.children.length) return;
+    const host = this.sushiCounterNumWrap!;
+    for (const ch of host.removeChildren()) { try { ch.destroy({ children: true }); } catch { /* gone */ } }
+    const num = this.makeSushiCounterNumber(value, frameH * 0.42); // TUNABLE numeral height
+    host.addChild(num);
+    this.sushiCounterShown = value;
+    gsap.killTweensOf(num.scale);
+    gsap.fromTo(num.scale, { x: 1.3, y: 1.3 }, { x: 1, y: 1, duration: 0.34, ease: 'back.out(2)' });
+    if (roll !== 'none') this.audioHooks.onFsCounterRoll?.(roll);
+  }
+
+  clearSushiFsCounter(): void {
+    if (this.sushiCounter) { try { this.sushiCounter.parent?.removeChild(this.sushiCounter); this.sushiCounter.destroy({ children: true }); } catch { /* gone */ } }
+    this.sushiCounter = null; this.sushiCounterNumWrap = null; this.sushiCounterShown = -1;
+  }
+
+  // ── SUSHI FS SCATTER COLLECTOR (Noski: "da sammeln sich die FS-Symbole
+  // drin" — the FS scatter symbols COLLECT in the frame's RIGHT bamboo rail,
+  // ~5 slots). SELF-CONTAINED + TUNABLE: the exact collector RULE (accumulate
+  // across the round vs. reset per spin, slot count, rail geometry) AWAITS
+  // NOSKI'S VIDEO CONFIRMATION. Current behaviour: accumulate across the FS
+  // round, fly a token into the next free slot, cap the visible slots at 5. ──
+  private static readonly SUSHI_RAIL_SLOTS = 5;
+  private scatterRail: Container | null = null;
+  private scatterRailSlots: Container[] = [];
+  private scatterCollected = 0;
+
+  /** Right-rail slot centre (grid-local) for slot index i — TUNABLE geometry. */
+  private sushiRailSlotPos(i: number): { x: number; y: number } {
+    const n = ReelSet.SUSHI_RAIL_SLOTS;
+    const x = this.totalWidth + 96; // just inside the frame's right bamboo rail
+    const top = this.totalHeight * 0.30, bot = this.totalHeight * 0.88;
+    const y = n > 1 ? top + (bot - top) * (i / (n - 1)) : (top + bot) / 2;
+    return { x, y };
+  }
+
+  private ensureScatterRail(): void {
+    if (this.scatterRail) return;
+    const rail = new Container();
+    rail.eventMode = 'none';
+    this.container.addChild(rail);
+    this.scatterRail = rail;
+    this.scatterRailSlots = [];
+    for (let i = 0; i < ReelSet.SUSHI_RAIL_SLOTS; i++) {
+      const slot = new Container();
+      const p = this.sushiRailSlotPos(i);
+      slot.x = p.x; slot.y = p.y;
+      rail.addChild(slot);
+      this.scatterRailSlots.push(slot);
+    }
+  }
+
+  private makeScatterToken(): Sprite | null {
+    const tex = (this.config.theme as { userAssetTextures?: Map<number, Texture> }).userAssetTextures?.get(SymbolId.SCATTER);
+    if (!tex) return null;
+    const spr = new Sprite(tex);
+    spr.anchor.set(0.5);
+    const rect = resolveAnchor(cellAnchor(0, 0), this.grid);
+    spr.width = spr.height = Math.min(rect.w, rect.h) * 0.5; // small rail token
+    spr.eventMode = 'none';
+    return spr;
+  }
+
+  /** Hard-set the collected count (rebuild the slot tokens). n = 0 resets. */
+  setScatterCollector(n: number): void {
+    this.ensureScatterRail();
+    this.scatterCollected = Math.max(0, n);
+    const shown = Math.min(this.scatterCollected, ReelSet.SUSHI_RAIL_SLOTS);
+    for (let i = 0; i < this.scatterRailSlots.length; i++) {
+      const slot = this.scatterRailSlots[i];
+      for (const ch of slot.removeChildren()) { try { ch.destroy({ children: true }); } catch { /* gone */ } }
+      if (i < shown) { const tok = this.makeScatterToken(); if (tok) slot.addChild(tok); }
+    }
+  }
+
+  /** Fly a scatter token from a board cell into the next free rail slot,
+   *  incrementing the collected count. Decorative + tunable (see class note). */
+  flyScatterToRail(cell: [number, number]): void {
+    this.ensureScatterRail();
+    const [row, reel] = cell;
+    const rect = resolveAnchor(cellAnchor(reel, row), this.grid);
+    const tok = this.makeScatterToken();
+    if (!tok) { this.scatterCollected++; return; }
+    const slotIdx = Math.min(this.scatterCollected, ReelSet.SUSHI_RAIL_SLOTS - 1);
+    const dest = this.sushiRailSlotPos(slotIdx);
+    tok.x = rect.x + rect.w / 2; tok.y = rect.y + rect.h / 2;
+    this.container.addChild(tok);
+    const baseSc = tok.scale.x;
+    gsap.timeline({ onComplete: () => {
+      try { tok.parent?.removeChild(tok); tok.destroy(); } catch { /* gone */ }
+      this.setScatterCollector(this.scatterCollected + 1);
+      this.starDustAt(dest.x, dest.y, 6, 18);
+    } })
+      .to(tok, { x: dest.x, y: dest.y, duration: 0.46, ease: 'power2.inOut' }, 0)
+      .fromTo(tok.scale, { x: baseSc * 1.1, y: baseSc * 1.1 }, { x: baseSc * 0.7, y: baseSc * 0.7, duration: 0.46, ease: 'power1.in' }, 0);
+  }
+
+  clearScatterCollector(): void {
+    if (this.scatterRail) { try { this.scatterRail.parent?.removeChild(this.scatterRail); this.scatterRail.destroy({ children: true }); } catch { /* gone */ } }
+    this.scatterRail = null; this.scatterRailSlots = []; this.scatterCollected = 0;
   }
 
 }

@@ -26,6 +26,7 @@ import crackFarm from '@/data/math_crack_farm.json';
 import crackFarm10k from '@/data/math_crack_farm_10k.json';
 import crackFarm15k from '@/data/math_crack_farm_15k.json';
 import fruitStacks from '@/data/math_fruit_stacks.json';
+import sushiParty from '@/data/math_sushi_party.json';
 
 type Pay3 = [number, number, number];
 
@@ -46,6 +47,7 @@ const MANIFESTS: Record<string, Record<string, unknown>> = {
   'crack-farm-lines-10k': crackFarm10k as Record<string, unknown>,
   'crack-farm-lines-15k': crackFarm15k as Record<string, unknown>,
   'fruit-stacks-tumble': fruitStacks as Record<string, unknown>,
+  'sushi-cluster': sushiParty as Record<string, unknown>,
 };
 
 /** Raw math-manifest JSON for a profile id (null for manifest-less profiles
@@ -79,6 +81,7 @@ export const ACTIVE_MATH: ActiveMathOverride | null = (() => {
   // used to fall back to the legacy fantasy math with its x18 FS wins).
   const gameDefault = readLS('active-game') === 'crackfarm' ? 'crack-farm-lines'
     : readLS('active-game') === 'fruitstacks' ? 'fruit-stacks-tumble'
+    : readLS('active-game') === 'sushi' ? 'sushi-cluster'
     : 'vice-heat-custom';
   const m = MANIFESTS[readLS('studio-math') ?? gameDefault];
   if (!m) return null;
@@ -89,7 +92,8 @@ export const ACTIVE_MATH: ActiveMathOverride | null = (() => {
   }
   return {
     reelStrips: m['reelStrips'] as number[][],
-    visibleRows: m['gridId'] === '5x5' || m['gridId'] === '6x5' ? 5 : 3,
+    visibleRows: m['gridId'] === '6x6' ? 6
+      : m['gridId'] === '5x5' || m['gridId'] === '6x5' ? 5 : 3,
     payTable,
     scatterPay: (m['scatterPay'] as Pay3) ?? [40, 219, 1495],
   };

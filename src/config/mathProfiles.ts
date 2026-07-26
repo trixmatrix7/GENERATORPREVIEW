@@ -4,7 +4,7 @@
 // The original Fantasy math (older library snapshot) stays the default.
 
 import { SymbolId } from './symbols';
-import { GRID_5x3, GRID_5x5, GRID_6x5 } from './gridConfig';
+import { GRID_5x3, GRID_5x5, GRID_6x5, GRID_6x6 } from './gridConfig';
 import type { GameConfig } from '@/engine/GameConfig';
 import type { PayEntry } from './paytable';
 import { getThemeByName } from './themes';
@@ -15,6 +15,7 @@ import crackFarm from '@/data/math_crack_farm.json';
 import crackFarm10k from '@/data/math_crack_farm_10k.json';
 import crackFarm15k from '@/data/math_crack_farm_15k.json';
 import fruitStacks from '@/data/math_fruit_stacks.json';
+import sushiParty from '@/data/math_sushi_party.json';
 
 const KEY_TO_ID: Record<string, number> = {
   wild: SymbolId.WILD, scatter: SymbolId.SCATTER,
@@ -43,7 +44,7 @@ function fromManifest(m: Record<string, unknown>): GameConfig {
   }
   const reelStrips = m['reelStrips'] as number[][];
   return {
-    gridConfig: m['gridId'] === '6x5' ? GRID_6x5 : m['gridId'] === '5x5' ? GRID_5x5 : GRID_5x3,
+    gridConfig: m['gridId'] === '6x6' ? GRID_6x6 : m['gridId'] === '6x5' ? GRID_6x5 : m['gridId'] === '5x5' ? GRID_5x5 : GRID_5x3,
     reelStrips,
     reelLengths: reelStrips.map(s => s.length),
     payTable,
@@ -140,6 +141,12 @@ export const MATH_PROFILES: readonly MathProfileOption[] = [
     grid: null, // 6x5 — outside the classic pair; grid comes from the manifest
   },
   {
+    id: 'sushi-cluster', name: '🍣 Sushi Party 96% (6×6 Cluster + PowerNudge)',
+    description: 'CLUSTER-PAYS: 5+ verbundene gleiche Symbole zahlen, PowerNudge schiebt Reihen für neue Cluster, Zell-Multis bis ×25. FS 3/4/5/6 SC → 10/12/15/20 Spins (Retrigger +10). RTP 96.1%, Max Win 5000×.',
+    build: () => fromManifest(sushiParty as Record<string, unknown>),
+    grid: null, // 6x6 — outside the classic pair; grid comes from the manifest
+  },
+  {
     id: 'vice-heat-custom', name: '⭐ Vice Heat 96% (Custom 5×5)',
     description: 'UNSER Modell auf 5×5/3125 Ways: alles zahlt ab 3er (Hit 69%), FS = Expanding Wilds (3 SC = 7 Spins, 4 SC = 10 Sticky-Spins), Hot-Spin 1-in-80, Max Win 5000×. RTP ~96% (20M-Sim).',
     build: () => fromManifest(viceHeat as Record<string, unknown>),
@@ -157,6 +164,7 @@ function defaultProfileForActiveGame(): string {
     const g = localStorage.getItem('active-game');
     if (g === 'crackfarm') return 'crack-farm-lines';
     if (g === 'fruitstacks') return 'fruit-stacks-tumble';
+    if (g === 'sushi') return 'sushi-cluster';
     return 'vice-heat-custom';
   } catch { return 'vice-heat-custom'; }
 }

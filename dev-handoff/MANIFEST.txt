@@ -8,14 +8,15 @@ README.md
 assets/audio/README.md
 assets/audio/ambient-music.ogg
 assets/audio/coin-chime.ogg
+assets/audio/connect-symbol.ogg
 assets/audio/free-spin-trigger.ogg
-assets/audio/near-miss-tease.ogg
 assets/audio/reel-stop.ogg
 assets/audio/scatter-land.ogg
 assets/audio/spin-start.ogg
-assets/audio/wild-expand.ogg
-assets/audio/wild-land.ogg
-assets/audio/win-marquee.ogg
+assets/audio/win-big.ogg
+assets/audio/win-normal.ogg
+assets/audio/win-screen-music.ogg
+assets/audio/win-small.ogg
 assets/introLayers.json
 assets/theme/vice/bg_motel.webp
 assets/theme/vice/bg_motel_anim_1.webp
@@ -25,6 +26,7 @@ assets/theme/vice/bonus_intro.png
 assets/theme/vice/car_win.webp
 assets/theme/vice/frame_neon.webp
 assets/theme/vice/frame_win_flash_1.webp
+assets/theme/vice/free_spins_counter.png
 assets/theme/vice/fsbg_beachclub.webp
 assets/theme/vice/fsbg_beachclub_anim_1.webp
 assets/theme/vice/fsbg_beachclub_anim_2.webp
@@ -49,7 +51,7 @@ assets/theme/vice/intro/game/max_logo_intro_screen_vice.webp
 assets/theme/vice/intro/game/max_win_symbol_intro_screen_vice.webp
 assets/theme/vice/intro/game/max_win_text_intro_screen_vice.webp
 assets/theme/vice/intro/game/press_to_continue_intro_screen_vice.webp
-assets/theme/vice/intro/game/scatter_text_ntro_screen_vice.webp
+assets/theme/vice/intro/game/scatter_text_intro_screen_vice.webp
 assets/theme/vice/intro/game/sticky_logo_intro_screen_vice.webp
 assets/theme/vice/intro/game/vice_heat_logo_intro_screen_vice.webp
 assets/theme/vice/intro/game/vice_logo_intro_screen_vice.webp
@@ -73,6 +75,7 @@ assets/theme/vice/symbol_mid_c_landing.png
 assets/theme/vice/symbol_mid_d_landing.png
 assets/theme/vice/symbol_scatter_landing.png
 assets/theme/vice/symbol_wild_landing.png
+assets/theme/vice/total_win_counter.png
 assets/theme/vice/wild_column.webp
 assets/theme/win-tiers/big.png
 assets/theme/win-tiers/coinrain3_0.webp

@@ -19,6 +19,9 @@ import { buildBoard } from '@/config/reels';
 import { type WinResult } from '@/engine/WinEvaluator';
 import { evalWins, activePayModel } from './winEval';
 import { isFruitStacksOutcome, type FruitStacksOutcome } from './decodeFruitStacks';
+import { isSushiOutcome, type SushiPartyOutcome } from './decodeSushi';
+import type { SushiSpin } from './sushiClusterSpin';
+import { SUSHI } from '@/config/sushiTheme';
 import type { FruitSpin } from './fruitStacksSpin';
 import { baseFeaturePlants, type PlantFeatureConfig } from './plantFeature';
 import { DEFAULT_GAME_CONFIG, type GameConfig, type GameTheme } from '@/engine/GameConfig';
@@ -583,6 +586,10 @@ export class PixiApp {
     // tight margins, near-full width, and the frame-art overhang (palm sign)
     // must NOT shrink the machine; the sign may clip at the canvas edge.
     const compact = width < 520;
+    const spays = activePayModel() === 'scatterpays';
+    // VICE Heat is the only 'ways' game — Noski wants its grid ~30% bigger with
+    // less empty space around it (like the Fruit Stacks treatment).
+    const ways = activePayModel() === 'ways';
     // Scale scene to fit viewport with margin. Frame art (palm marquee) may
     // hang OUTSIDE the machine box — include that overhang so it never clips.
     // Only the frame-art overhang shrinks the machine — the side characters
@@ -593,7 +600,11 @@ export class PixiApp {
     // Side character + mascot stand beside the machine — no room on compact.
     if (this.sideCharSprite) this.sideCharSprite.visible = !compact && !this.fsActive;
     if (this.mascotSprite) this.mascotSprite.visible = !compact;
-    const margin = compact ? 8 : SCENE_MARGIN;
+    // Fruit Stacks (cluster): TIGHT margin — the board is the show and Noski
+    // wants it 20-30% bigger; on a short/wide pane it is height-bound, so the
+    // big SCENE_MARGIN was the main thing shrinking it. scaleY still caps the
+    // height (never over the top edge).
+    const margin = compact ? 8 : spays ? 12 : ways ? 14 : SCENE_MARGIN;
     const availW = width - margin * 2;
     const availH = height - margin * 2;
     const scaleX = availW / (totalW + ovL + ovR);
@@ -601,13 +612,24 @@ export class PixiApp {
     // ×0.85 — grid sits 15% smaller in the bounded box (still centred below),
     // giving the animated background more breathing room around the reels.
     // Compact keeps nearly full width (0.98) — phone play needs the grid big.
-    // Fruit Stacks (cluster): the board IS the show — bigger diagonal, no
-    // side-actor margins needed (Noski: "grid größer, etwas hochschieben").
-    const spays = activePayModel() === 'scatterpays';
-    let scale = Math.min(scaleX, scaleY, 1.3) * (compact ? 0.98 : spays ? 0.97 : 0.85);
+    // Fruit Stacks (cluster): the board IS the show — Noski wants it 20-30%
+    // BIGGER ("locker 20-30% größer"), filling the space. The 1.3 cap was what
+    // left the empty margin; lift it to 1.85 for scatterpays so the board grows
+    // until scaleX/scaleY bind (scaleY still caps the height → never over the top).
+    let scale = Math.min(scaleX, scaleY, spays ? 1.85 : ways ? 1.7 : 1.3) * (compact ? 0.98 : spays ? 0.99 : ways ? 0.98 : 0.85);
+    // VICE ('ways'): the bottom control bar layers over the canvas with NO hud
+    // reserve (bottomHudFraction 0), so an enlarged grid drops its bottom row
+    // behind the bar (Noski: "symbole hinter control bar"). Reserve a bottom band
+    // for the bar so the grid is sized + centred ABOVE it (sits high, bottom clear).
+    // When a host sets the canonical width-based bottomHudFraction (Vice 5×5,
+    // GameCanvas), `hud` above already reserves the bar band — so DON'T also
+    // add the legacy approximate height×0.12 (they must not stack). Callers
+    // that leave bottomHudFraction at its default 0 keep the legacy reserve
+    // unchanged, so this is a no-op for every existing path.
+    const bottomReserve = (ways && !compact) ? Math.round(height * 0.12) : 0;
     // Only-if-needed clamp: never let the grid extend into the bar band.
-    if (hud > 0 && totalH * scale > height - hud - 8) {
-      scale = (height - hud - 8) / totalH;
+    if (hud + bottomReserve > 0 && totalH * scale > height - hud - bottomReserve - 8) {
+      scale = (height - hud - bottomReserve - 8) / totalH;
     }
 
     this.sceneRoot.scale.set(scale);
@@ -615,13 +637,20 @@ export class PixiApp {
     // overhang would fall off the canvas (right side wins — the marquee).
     let sx = Math.round((width - totalW * scale) / 2);
     const artR = sx + (totalW + ovR) * scale;
-    if (artR > width - 2) sx -= Math.round(artR - (width - 2));
+    // VICE ('ways'): do NOT let the right-hand palm/marquee overhang push the grid
+    // LEFT (Noski: "scheiß auf die palme, grid rechts zentrieren"). Keep the grid
+    // CENTRED so a proper left rail exists for the logo; the palm may clip right.
+    if (!ways && artR > width - 2) sx -= Math.round(artR - (width - 2));
     if (sx - ovL * scale < 2) sx = Math.round(2 + ovL * scale);
     this.sceneRoot.x = sx;
-    this.sceneRoot.y = Math.round((height - hud - totalH * scale) / 2)
+    this.sceneRoot.y = Math.round((height - hud - bottomReserve - totalH * scale) / 2)
       - (spays && !compact ? Math.round(height * 0.045) : 0);
     // Side actors: keep beside the frame, clamped onto the canvas.
     this.layoutSideActors();
+    // Re-place the left-rail logo + re-broadcast its centre every layout, so the
+    // DOM buy button (which may mount AFTER the one-shot theme-load broadcast)
+    // always catches the current position and centres symmetrically under it.
+    this.alignLeftRailLogo();
 
     // Centre win banner over reels
     this.winBanner.x = rw / 2;
@@ -719,7 +748,9 @@ export class PixiApp {
       // the letterbox area left of the grid, upper third — the buy button
       // (DOM rail) docks underneath it.
       const rh = this.reelSet.totalHeight + FRAME_PAD * 2;
-      const s = Math.min(330 / tex.width, 300 / tex.height);
+      // Logo SMALLER (Noski) — the board grew, so the wordmark shrinks to keep
+      // the left rail balanced. Cap ~250×228 (was 330×300).
+      const s = Math.min(250 / tex.width, 228 / tex.height);
       this.titleSprite.anchor.set(0.5);
       this.titleSprite.scale.set(s);
       this.titleSprite.x = -(FRAME_PAD + 6 + (tex.width * s) / 2); // provisional — aligned below
@@ -753,16 +784,36 @@ export class PixiApp {
     if (!spr || !this.titleLeftLayout) return;
     const sc = this.sceneRoot.scale.x || 1;
     const scX = this.sceneRoot.x;
-    const wScene = spr.width; // texture width × sprite scale (scene units)
-    const frameRight = this.frameImageSprite
-      ? this.frameImageSprite.getBounds().maxX
-      : scX + (this.reelSet.totalWidth + FRAME_PAD * 2) * sc;
-    const gapRight = Math.max(0, this.app.screen.width - frameRight);
-    let xc = (gapRight - scX) / sc + wScene / 2;
-    xc = Math.min(xc, -10 - wScene / 2);
+    let xc: number;
+    if (activePayModel() === 'ways') {
+      // VICE (Noski: "mittig zwischen rand und rahmen"): centre the logo EXACTLY in
+      // the LEFT letterbox — midway between the canvas LEFT edge (scene-x -scX/sc)
+      // and the reel FRAME's left edge (scene-x 0). Size to ~80% of that gap so it
+      // sits centred with air both sides. Grid stays FULL size (no rail reserved).
+      // The DOM buy button follows via the broadcast centre below (symmetric).
+      const gapScene = scX / sc;                       // left letterbox width, scene units
+      const texW = spr.texture.width, texH = spr.texture.height;
+      const sTarget = Math.min((gapScene * 0.80) / texW, 250 / texW, 228 / texH);
+      if (sTarget > 0) spr.scale.set(sTarget);
+      xc = -gapScene / 2;                              // logo centre = exact middle of the gap
+    } else {
+      const wScene = spr.width; // texture width × sprite scale (scene units)
+      const frameRight = this.frameImageSprite
+        ? this.frameImageSprite.getBounds().maxX
+        : scX + (this.reelSet.totalWidth + FRAME_PAD * 2) * sc;
+      const gapRight = Math.max(0, this.app.screen.width - frameRight);
+      xc = (gapRight - scX) / sc + wScene / 2;
+      xc = Math.min(xc, -10 - wScene / 2);
+    }
     spr.x = xc;
-    const leftPct = Math.max(0, ((scX + (xc - wScene / 2) * sc) / this.app.screen.width) * 100);
-    window.dispatchEvent(new CustomEvent('slot:leftrail', { detail: leftPct }));
+    // Broadcast the logo's CENTRE x (% of screen) so the DOM buy button can sit
+    // SYMMETRICALLY under the logo (Noski) — the rail centres itself on this via
+    // translateX(-50%), instead of left-aligning to the logo's left edge.
+    const centerPct = Math.max(0, ((scX + xc * sc) / this.app.screen.width) * 100);
+    // Sticky: store the latest so a DOM rail mounting AFTER this broadcast can
+    // read it immediately (event listeners miss the one-shot fire otherwise).
+    (window as unknown as { __slotLeftRail?: number }).__slotLeftRail = centerPct;
+    window.dispatchEvent(new CustomEvent('slot:leftrail', { detail: centerPct }));
   }
 
   /** Logo-style title: warm foil fill, dark outline for legibility on any
@@ -2176,12 +2227,17 @@ export class PixiApp {
     this.reelSet.hideFruitPlaque();
     this.reelSet.setFruitPool(null);
     this._scatterLands = 0;
-    // CLUSTER CONSTRUCT (Fruit Stacks): no reels roll — the board DROPS OUT
-    // downward and waits empty; resolve() rains the new board in from above.
+    // FRUIT STACKS (scatterpays): no reels roll — the board DROPS OUT downward
+    // and waits empty; resolve() rains the new board in from above.
     if (activePayModel() === 'scatterpays') {
       void this.reelSet.playFruitDropOut({ isLive: () => this.isLive, turbo: this.turbo });
       return;
     }
+    // SUSHI PARTY (cluster): the board arrival is a CLASSIC REEL SPIN (roll +
+    // stagger-stop), same as the ways games. Make sure the reels hold the BASE
+    // strips before rolling — an interrupted FS round can leave them on the FS
+    // strips (rebuild is a no-op when already on base).
+    if (activePayModel() === 'cluster') this.ensureClusterReels('base');
     this.reelSet.startSpin();
   }
 
@@ -2202,6 +2258,12 @@ export class PixiApp {
     // script instead of the ways/lines flow.
     if (activePayModel() === 'scatterpays' && isFruitStacksOutcome(outcome)) {
       return this.resolveTumble(outcome, tokenSymbol, decimals);
+    }
+    // SUSHI PARTY (6×6 cluster + PowerNudge): the round was re-derived from the
+    // settlement randomness (decode façade). MINIMAL baseline — settle the
+    // initial board + total; the full cluster/nudge/FS choreography lands later.
+    if (activePayModel() === 'cluster' && isSushiOutcome(outcome)) {
+      return this.resolveCluster(outcome, tokenSymbol, decimals);
     }
     // PAYLINES games (Crack Farm): the decoded outcome.winResult came from the
     // frozen engine's WAYS evaluation — re-evaluate the same board through the
@@ -2590,7 +2652,12 @@ export class PixiApp {
     }
     await this.reelSet.playFruitDropIn(
       entryBoard,
-      round.base.crates.filter(c => c.step === -1),
+      // INITIAL board → INITIAL gift positions: c.cell mutates to the crate's
+      // FINAL post-tumble cell during derivation, so keying the drop-in by
+      // c.cell painted gift art onto whatever FRUIT now sits there (Noski:
+      // "a gift turns into a fruit after the drop"). landCell is the frozen
+      // landing cell — the SAME source showCrates(-1)/setCrateBadges uses.
+      round.base.crates.filter(c => c.step === -1).map(c => ({ cell: c.landCell ?? c.cell, value: c.value })),
       { isLive: () => this.isLive, turbo: this.turbo },
     );
     if (!this.isLive) return;
@@ -2647,7 +2714,16 @@ export class PixiApp {
       let fsRemaining = Math.max(1, round.fsSpins.length - 5 * retrigCount);
       this.reelSet.setFsCounter(fsRemaining, 'none');
 
-      let roundWin = 0n;
+      // DISPLAY-only round total (Task A): starts at the TRIGGER spin's win so
+      // the running readout reconciles with the authoritative outro amount, and
+      // is CLAMPED to the capped round total (outcome.winAmount == round.totalWin)
+      // so no plaque ever shows MORE than the end screen (Noski: "Plakette 1846,
+      // Endscreen 300 — ohne Sinn"). Settlement totals stay untouched.
+      const capDisplay = outcome.winAmount;
+      let roundWin = round.base.spinWin;
+      // TOTAL WIN readout (Task B): persistent capped round total under the FS
+      // counter on the right rail.
+      this.reelSet.setFruitTotalWin(formatWin(roundWin < capDisplay ? roundWin : capDisplay, decimals));
       for (let i = 0; i < round.fsSpins.length; i++) {
         if (!this.isLive) break;
         const spin = round.fsSpins[i];
@@ -2664,11 +2740,16 @@ export class PixiApp {
         if (!this.isLive) break;
         await this.reelSet.playFruitDropIn(
           spin.initialBoard,
-          spin.crates.filter(c => c.step === -1),
+          // INITIAL positions (landCell), NOT c.cell — c.cell has mutated to
+          // the crate's FINAL post-tumble cell, so keying by it stamped gift
+          // art onto a FRUIT that reverted at the first tumble step (Noski's
+          // "gift → fruit after the drop", worse with many gifts). Mirrors
+          // showCrates(-1).
+          spin.crates.filter(c => c.step === -1).map(c => ({ cell: c.landCell ?? c.cell, value: c.value })),
           { isLive: () => this.isLive, turbo: this.turbo },
         );
         if (!this.isLive) break;
-        await this.playTumbleSpin(spin, decimals, { fs: true, roundWinBefore: roundWin });
+        await this.playTumbleSpin(spin, decimals, { fs: true, roundWinBefore: roundWin, cap: capDisplay });
         roundWin += spin.spinWin;
         // fresh gifts grew the pool — field ticks AFTER the fly-in beat
         if (spin.poolAfter !== spin.poolBefore) this.reelSet.setFruitPool(spin.poolAfter, true);
@@ -2693,8 +2774,12 @@ export class PixiApp {
         // COLLECT-BEAT erst JETZT (nach der Marquee): das Spin-Ergebnis auf
         // der Plakette sammelt sichtbar in den Runden-Gesamtwert.
         if (this.isLive && spin.spinWin > 0n) {
-          this.reelSet.setFruitPlaqueText(formatWin(roundWin, decimals));
+          // ROUND total CLAMPED to the cap (Task A): the plaque + the TOTAL WIN
+          // readout collect into round.totalWin, never past it.
+          const roundShown = roundWin < capDisplay ? roundWin : capDisplay;
+          this.reelSet.setFruitPlaqueText(formatWin(roundShown, decimals));
           this.reelSet.punchFruitPlaque();
+          this.reelSet.setFruitTotalWin(formatWin(roundShown, decimals), true);
         }
         await new Promise<void>(r => { gsap.delayedCall(0.3, () => r()); });
       }
@@ -2705,10 +2790,12 @@ export class PixiApp {
       // final total on the plaque and retire the badge.
       if (this.isLive) {
         this.reelSet.setFruitPlaqueText(formatWin(outcome.winAmount, decimals));
+        this.reelSet.setFruitTotalWin(formatWin(outcome.winAmount, decimals), true);
         await new Promise<void>(r => { gsap.delayedCall(this.turbo ? 0.3 : 0.6, () => r()); });
       }
       this.reelSet.setFruitPool(null);
       this.reelSet.setFsCounter(null);
+      this.reelSet.setFruitTotalWin(null);
       this.onFsRoundActive?.(false);
       fsOverlayToClose = fsOverlay;
       this.fsOverlayOpen = fsOverlay;
@@ -2731,6 +2818,326 @@ export class PixiApp {
     }
   }
 
+  /** One cluster PowerNudge cascade (base OR one FS spin): replay each derived
+   *  step — HIGHLIGHT (white box + amount + ×N) → hold → clear boxes → TUMBLE →
+   *  stamp/grow the blue ×N markers. Markers are NEVER cleared here: in base the
+   *  CALLER clears them at round end; in FS the CALLER keeps them so they PERSIST
+   *  + GROW spin-to-spin (each step.multiAfter is the cumulative shared grid, so
+   *  setMultiMarkers naturally shows the growth up to ×20+). */
+  private async playClusterCascade(spin: SushiSpin, decimals: number, opts: { fs: boolean }): Promise<void> {
+    const wait = (s: number) => new Promise<void>(r => { gsap.delayedCall(s, () => r()); });
+    for (let s = 0; s < spin.steps.length; s++) {
+      if (!this.isLive) return;
+      const step = spin.steps[s];
+      // a. HIGHLIGHT the winners: white box + amount (+ ×N if the cluster crossed
+      //    multi cells) + scale pulse; hold.
+      for (const win of step.wins) {
+        this.reelSet.showClusterWin(
+          win.cells,
+          formatWin(win.amount, decimals),
+          win.multiplier > 1 ? `×${win.multiplier}` : undefined,
+        );
+      }
+      this.reelSet.audioHooks?.onTumblePop?.(s);
+      await wait(this.turbo ? 0.28 : 0.7);
+      if (!this.isLive) return;
+      // b+c. Winners empty out + the affected columns tumble down + refill.
+      this.reelSet.clearClusterBoxes();
+      await this.reelSet.playClusterTumble(step, { isLive: () => this.isLive, turbo: this.turbo });
+      if (!this.isLive) return;
+      // d. Stamp / grow the blue ×N markers at every ex-winner position.
+      this.reelSet.setMultiMarkers(step.multiAfter);
+      // e. Beat before the next step — FS growth beats get a touch more room so
+      //    the ×N punch reads (Noski watches the multiplier climb).
+      await wait((this.turbo ? 0.14 : 0.35) + (opts.fs ? (this.turbo ? 0.05 : 0.12) : 0));
+    }
+  }
+
+  /** Minimal WinResult from a cluster spin's LAST winning step — only used to
+   *  source the coin/marquee origins (getWinningCellCenters). */
+  private sushiWinResult(spin: SushiSpin): WinResult {
+    const lastWin = [...spin.steps].reverse().find(st => st.wins.length > 0);
+    return {
+      totalWin: spin.spinWin,
+      combinations: lastWin ? lastWin.wins.map(w => ({
+        symbolId: w.sym, matchCount: w.count, ways: 1,
+        payBps: w.basePayBps, winAmount: w.amount, cells: w.cells,
+      })) : [],
+      scatterCount: 0, scatterPaid: false,
+    };
+  }
+
+  /** SUSHI PARTY (6×6 cluster + PowerNudge) — base cluster round + FREE-SPINS.
+   *  Base: drop the settled board in, replay the PowerNudge cascade, settle the
+   *  total. FS (fsTriggered): a GRATULATION award, then a per-FS-spin cascade
+   *  with the multiplier grid PERSISTING + GROWING across the whole round, a
+   *  right-rail scatter collector, a decrementing counter (+10 on retrigger),
+   *  and the grand-total outro. */
+  private async resolveCluster(outcome: SushiPartyOutcome, tokenSymbol: string, decimals: number): Promise<void> {
+    if (!this.isLive) return;
+    const round = outcome.sushiRound;
+    const base = round.base;
+    const wait = (s: number) => new Promise<void>(r => { gsap.delayedCall(s, () => r()); });
+    // Sweep any FS overlay a previous resolve left open (never leak the counter).
+    if (this.fsOverlayOpen) {
+      this.hideFreeSpinOverlay(this.fsOverlayOpen);
+      this.fsOverlayOpen = null;
+      this.exitFsBackground();
+    }
+    // Never inherit cluster fx from a previous round (markers clear each base
+    // round; boxes are per-step).
+    this.reelSet.clearMultiMarkers();
+    this.reelSet.clearClusterBoxes();
+    this.reelSet.clearSushiFsCounter();
+    this.reelSet.clearScatterCollector();
+    // Warm the FS-counter plaque glyphs (idempotent) — ready long before the
+    // first FS spin renders the counter (the award holds for a tap / 12s).
+    if (this.sushiFsBase) this.reelSet.setSushiCounterBase(this.sushiFsBase);
+
+    // 1. Initial board: CLASSIC REEL SPIN (Sugar Supreme feel). The reels are
+    //    already rolling (spin() → startSpin for the cluster model); dead-lock-
+    //    stop them on the base stops with the left→right stagger. base.stops
+    //    reproduces base.initialBoard EXACTLY because the reels hold the base
+    //    strips (config.reelStrips === SUSHI_MATH.reelStrips).
+    await this.reelSet.stopOnStops(base.stops, this.turbo);
+    if (!this.isLive) return;
+    // BOUGHT entry: the base spin is only the trigger — the forced scatters live
+    // at random cells the rolled strip board doesn't show. Land them onto the
+    // stopped board so the guaranteed trigger reads like a real drop.
+    if (round.buyStage > 0) this.reelSet.landForcedScatters(base.initialBoard);
+    // Any scatter tease-zoom the roll engaged eases back out — the base cascade
+    // plays at normal zoom (the FS award is the trigger celebration).
+    this.releaseTeaseZoom(false);
+    // Standing scatters (base can carry them without triggering) breathe.
+    if (outcome.scatterCount >= 3) this.reelSet.breatheScatters(outcome.scatterCount);
+    await wait(this.turbo ? 0.18 : 0.45);
+    if (!this.isLive) return;
+
+    // 2. BASE PowerNudge cascade (markers cleared at round end, below).
+    await this.playClusterCascade(base, decimals, { fs: false });
+    if (!this.isLive) return;
+
+    // 3. FREE SPINS — persistent + growing multiplier cluster round.
+    let fsOverlayToClose: { container: Container; counter: Text } | null = null;
+    if (round.fsTriggered && round.fsSpins.length > 0 && !prefersReducedMotion()) {
+      // a. TRIGGER BEAT: the landed scatters (id 1) play their win state.
+      {
+        const scatterCells: AnimatedSymbol[] = [];
+        const walkSc = (n: Container) => {
+          for (const c of n.children) {
+            if (c instanceof AnimatedSymbol) { if (c.symbol === 1) scatterCells.push(c); }
+            else if (c instanceof Container) walkSc(c);
+          }
+        };
+        walkSc(this.reelSet.container);
+        this.reelSet.audioHooks.onFsTrigger?.();
+        for (const c of scatterCells) c.play('win');
+        await wait(this.turbo ? 0.5 : 0.9);
+        if (!this.isLive) return;
+      }
+
+      // b. STARTING SPINS for THIS trigger: 3sc→10, 4sc→12, 5sc→15, 6sc→20.
+      //    (retrigger adds +10 later; the settled fsSpins list already carries
+      //    those extra spins, so the counter lands on exactly 0.)
+      const startScatter = Math.min(6, Math.max(3, outcome.scatterCount || base.scatters || 3));
+      const startingSpins = ({ 3: 10, 4: 12, 5: 15, 6: 20 } as Record<number, number>)[startScatter] ?? 10;
+
+      // c. GRATULATION AWARD — fs/ plaque + title + "N FREE SPINS" + press;
+      //    waits for a tap or a 12s auto-continue.
+      await this.playSushiFsAward(startingSpins);
+      if (!this.isLive) return;
+      this.onFsRoundActive?.(true);
+      this.enterFsBackground(); // no-op unless a sushi FS bg is wired
+      // fresh persistent multiplier grid for the whole FS round
+      this.reelSet.clearMultiMarkers();
+      // FS overlay stand-in (mirrors resolveTumble — no generic FREE SPINS /
+      // TOTAL WIN plaque; the award + counter + marquee carry the round).
+      const fsOverlay = { container: new Container(), counter: null as unknown as Text };
+
+      // d. FS COUNTER (right-rail plaque) — starts at the trigger's spins.
+      let fsRemaining = startingSpins;
+      this.reelSet.setScatterCollector(0);
+      this.reelSet.setSushiFsCounter(fsRemaining, 'none');
+
+      // FS ENTER: rebuild the reels onto the FS strips so the classic roll lands
+      // the FS boards (spin.stops → spin.initialBoard). The persistent ×N marker
+      // / counter / collector overlays live above the reels and are untouched.
+      this.ensureClusterReels('fs');
+
+      for (let i = 0; i < round.fsSpins.length; i++) {
+        if (!this.isLive) break;
+        const spin = round.fsSpins[i];
+        this._winRevealId++;
+        // spin start: the counter rolls down one.
+        fsRemaining--;
+        this.reelSet.setSushiFsCounter(Math.max(0, fsRemaining), 'down');
+        // CLASSIC REEL SPIN for the FS board: roll + left→right stagger-stop on
+        // the FS stops. The reels hold the FS strips (rebuilt at FS enter), so
+        // stopOnStops(spin.stops) lands spin.initialBoard exactly. The persistent
+        // ×N markers stay fixed above the rolling reels (tumble-through look).
+        this.reelSet.startSpin();
+        await this.reelSet.stopOnStops(spin.stops, this.turbo);
+        if (!this.isLive) break;
+        // A retrigger tease-zoom (2+ scatters mid-FS) eases back out.
+        this.releaseTeaseZoom(false);
+        // f. SCATTER COLLECTOR (Noski: FS scatters gather in the frame's right
+        //    bamboo rail). EXACT rule awaits Noski's video confirmation — for now
+        //    accumulate this spin's scatters into the rail.
+        {
+          const reels = spin.initialBoard[0]?.length ?? 6;
+          for (let r = 0; r < spin.initialBoard.length; r++)
+            for (let c = 0; c < reels; c++)
+              if (spin.initialBoard[r][c] === 1) this.reelSet.flyScatterToRail([r, c]);
+        }
+        // e. FS cascade — markers PERSIST + GROW (never cleared inside the loop;
+        //    step.multiAfter is the cumulative shared grid).
+        await this.playClusterCascade(spin, decimals, { fs: true });
+        if (!this.isLive) break;
+        // WIN MARQUEE (bonus): STUFEN-REGEL wie überall — BIG/MEGA/EPIC by
+        // spin.spinWin / base bet. outcome.wager is ALREADY the base bet (buys
+        // divided by costMult) — NICHT nochmal teilen (that fires a tier at 0.6×).
+        const effBet = outcome.wager ?? 1n;
+        if (this.isLive && effBet > 0n && spin.spinWin >= effBet * BigInt(WIN_CELEBRATION_CONFIG.minBigWin)) {
+          const origins = this.reelSet.getWinningCellCenters(this.sushiWinResult(spin));
+          await this.playCoinWin(spin.spinWin, effBet, tokenSymbol, decimals, origins);
+        }
+        // RETRIGGER (3+ scatters in this FS spin): own sound, counter +10, beat.
+        if (this.isLive && spin.scatters >= 3) {
+          this.reelSet.audioHooks.onFsRetrigger?.();
+          fsRemaining += 10;
+          this.reelSet.setSushiFsCounter(fsRemaining, 'up');
+          await wait(this.turbo ? 0.3 : 0.7);
+        }
+        await wait(this.turbo ? 0.15 : 0.3);
+      }
+      if (this.isLive) this.reelSet.setSushiFsCounter(0, 'none'); // land on 0
+      this.onFsRoundActive?.(false);
+      fsOverlayToClose = fsOverlay;
+      this.fsOverlayOpen = fsOverlay;
+    }
+
+    // 4a. BASE ceremony (no FS): reuse playCoinWin — it self-gates the marquee
+    //     tier (below minBigWin → coins only). Origins = last winning step.
+    if (this.isLive && round.totalWin > 0n && !fsOverlayToClose) {
+      const origins = this.reelSet.getWinningCellCenters(this.sushiWinResult(base));
+      await this.playCoinWin(round.totalWin, outcome.wager ?? 1n, tokenSymbol, decimals, origins);
+    }
+    // 4b. FS ceremony: GRATULATION-total beat via the win marquee (sushi has no
+    //     layered outro art, so playFreeSpinsOutro falls back to a clean iris —
+    //     the marquee settles the grand total), then close the overlay + FS bg.
+    if (this.isLive && fsOverlayToClose) {
+      const lastFsWin = [...round.fsSpins].reverse().find(sp => sp.steps.some(st => st.wins.length > 0));
+      const origins = lastFsWin ? this.reelSet.getWinningCellCenters(this.sushiWinResult(lastFsWin)) : [];
+      if (outcome.winAmount > 0n) {
+        await this.playCoinWin(outcome.winAmount, outcome.wager ?? 1n, tokenSymbol, decimals, origins);
+      }
+      const overlay = fsOverlayToClose;
+      await this.playFreeSpinsOutro(outcome.winAmount, decimals, () => {
+        this.hideFreeSpinOverlay(overlay);
+        if (this.fsOverlayOpen === overlay) this.fsOverlayOpen = null;
+        this.exitFsBackground();
+        this.reelSet.setSushiFsCounter(null);
+        this.reelSet.clearScatterCollector();
+      });
+    }
+
+    // 5. Clear the ×N markers (+ any lingering box) at the very end — base
+    //    clears each round; FS kept them growing until now.
+    this.reelSet.clearMultiMarkers();
+    this.reelSet.clearClusterBoxes();
+    // FS EXIT: rebuild the reels back onto the BASE strips (no-op if this was a
+    // base-only round) so the next base spin rolls + lands on base boards. Kept
+    // last so the last FS board stays visible through the outro ceremony; an
+    // early interrupt is caught by spin()'s ensureClusterReels('base').
+    this.ensureClusterReels('base');
+  }
+
+  /** FS-art base (…/theme/sushiparty/fs/) — feeds the GRATULATION award loader
+   *  and the right-rail counter plaque. Wired by the app's sushi branch. */
+  private sushiFsBase: string | null = null;
+  setSushiFsArtBase(base: string): void {
+    this.sushiFsBase = base;
+    this.reelSet?.setSushiCounterBase(base);
+  }
+
+  /** SUSHI FS AWARD ("GRATULATION"): fs/award_banner plaque + baked award_text
+   *  title + "{spins} FREE SPINS" + a breathing award_press "CLICK TO START".
+   *  Tap or 12s auto-continue → the FS round rolls. Mirrors playFruitFsIntro's
+   *  gating, built for the sushi award art. Positions are design-space (1920×
+   *  1080) scaled to the canvas. */
+  private playSushiFsAward(spins: number): Promise<void> {
+    if (!this.isLive || !this.sushiFsBase) return Promise.resolve();
+    this.onFsIntroVisible?.(true);
+    const base = this.sushiFsBase;
+    return new Promise<void>(resolve => {
+      const { width, height } = this.app.screen;
+      const ov = new Container();
+      ov.eventMode = 'static';
+      const dim = new Graphics();
+      dim.rect(0, 0, width, height).fill({ color: 0x05030c, alpha: 0.82 });
+      ov.addChild(dim);
+      const cx = width / 2, cy = height / 2;
+      const s = Math.min(width / 1920, height / 1080);
+      let settled = false;
+      const done = () => {
+        if (settled) return;
+        settled = true;
+        gsap.killTweensOf(ov);
+        gsap.to(ov, {
+          alpha: 0, duration: 0.3, ease: 'power1.in',
+          onComplete: () => { try { ov.parent?.removeChild(ov); ov.destroy({ children: true }); } catch { /* gone */ } this.onFsIntroVisible?.(false); resolve(); },
+        });
+      };
+      void Promise.all([
+        Assets.load<Texture>(`${base}award_banner.png`).catch(() => null),
+        Assets.load<Texture>(`${base}award_text.png`).catch(() => null),
+        Assets.load<Texture>(`${base}award_press.png`).catch(() => null),
+      ]).then(([bannerTex, titleTex, pressTex]) => {
+        if (!this.isLive) return;
+        if (bannerTex) {
+          const b = new Sprite(bannerTex); b.anchor.set(0.5);
+          b.scale.set((720 * s) / bannerTex.width);
+          b.x = cx; b.y = cy - 10 * s; b.eventMode = 'none';
+          ov.addChild(b);
+          const bs = b.scale.x;
+          gsap.fromTo(b.scale, { x: bs * 0.5, y: bs * 0.5 }, { x: bs, y: bs, duration: 0.5, ease: 'back.out(1.7)' });
+        }
+        if (titleTex) {
+          const t = new Sprite(titleTex); t.anchor.set(0.5);
+          t.scale.set((520 * s) / titleTex.width);
+          t.x = cx; t.y = cy - 150 * s; t.eventMode = 'none';
+          ov.addChild(t);
+          const ts = t.scale.x;
+          gsap.fromTo(t.scale, { x: ts * 0.4, y: ts * 0.4 }, { x: ts, y: ts, duration: 0.5, ease: 'back.out(1.9)', delay: 0.08 });
+        }
+        // "{N} FREE SPINS" — marquee-styled (no baked count art ships).
+        const spinsText = new Text({
+          text: `${spins} FREE SPINS`, style: new TextStyle({
+            fontFamily: "'Poppins', ui-sans-serif, system-ui, sans-serif",
+            fontSize: Math.round(64 * s), fontWeight: '900', letterSpacing: 1,
+            fill: 0xffe9a0, stroke: { color: 0x2a1500, width: Math.max(4, Math.round(9 * s)), join: 'round' },
+            dropShadow: { color: 0x000000, blur: 8, distance: 0, alpha: 0.5, angle: 0 }, align: 'center',
+          }),
+        });
+        spinsText.anchor.set(0.5); spinsText.x = cx; spinsText.y = cy + 78 * s; spinsText.eventMode = 'none';
+        ov.addChild(spinsText);
+        gsap.fromTo(spinsText.scale, { x: 0.5, y: 0.5 }, { x: 1, y: 1, duration: 0.45, ease: 'back.out(2)', delay: 0.16 });
+        if (pressTex) {
+          const p = new Sprite(pressTex); p.anchor.set(0.5);
+          p.scale.set((470 * s) / pressTex.width);
+          p.x = cx; p.y = cy + 230 * s; p.eventMode = 'none';
+          ov.addChild(p);
+          gsap.to(p, { alpha: 0.4, duration: 0.75, ease: 'sine.inOut', repeat: -1, yoyo: true, delay: 0.5 });
+        }
+      });
+      this.app.stage.addChild(ov);
+      ov.alpha = 0;
+      gsap.to(ov, { alpha: 1, duration: 0.35, ease: 'power1.out' });
+      ov.on('pointertap', done);
+      gsap.delayedCall(12, done); // safety auto-continue
+    });
+  }
+
   /** Cluster games: hide the vertical reel separators. */
   setSeparatorsVisible(v: boolean): void {
     if (!this.isLive) return;
@@ -2740,6 +3147,35 @@ export class PixiApp {
   /** Widen the reel clip for oversized symbols (Fruit-Stacks scatter). */
   setReelClipMargin(m: { left: number; top: number; right: number; bottom: number }): void {
     this.reelSet?.setClipMargin(m);
+  }
+
+  // ── SUSHI cluster: classic-reel-spin strip threading ─────────────────────
+  // The frozen reels land on their constructor strip only, so to roll+land the
+  // FS boards (different symbols) the reels are rebuilt onto the FS strips at FS
+  // enter and back to base at FS exit. Both strip sets are threaded in from the
+  // App sushi branch and the active mode is tracked so rebuilds only happen on a
+  // real base↔FS transition.
+  private clusterBaseStrips: number[][] | null = null;
+  private clusterFsStrips: number[][] | null = null;
+  private clusterReelMode: 'base' | 'fs' = 'base';
+
+  /** Provide the base + FS reel strips (SUSHI_MATH.reelStrips / fsReelStrips).
+   *  Called from the App sushi theme branch. */
+  setClusterStrips(base: number[][], fs: number[][]): void {
+    this.clusterBaseStrips = base.map(s => [...s]);
+    this.clusterFsStrips = fs.map(s => [...s]);
+  }
+
+  /** Rebuild the reels onto the base or FS strips if not already there. Only
+   *  meaningful for the sushi cluster path (strips set via setClusterStrips);
+   *  a no-op for every other game. */
+  private ensureClusterReels(mode: 'base' | 'fs'): void {
+    if (!this.isLive) return;
+    const strips = mode === 'fs' ? this.clusterFsStrips : this.clusterBaseStrips;
+    if (!strips) return;                      // not a cluster game / not threaded
+    if (this.clusterReelMode === mode) return; // already on these strips
+    this.reelSet.rebuildReels(strips);
+    this.clusterReelMode = mode;
   }
 
   /** Fruit Stacks plate art for the top win plaque (cropped to the plate's
@@ -2902,10 +3338,26 @@ export class PixiApp {
     }
   }
 
+  /** TOTAL WIN plaque art (wooden "TOTAL WIN" + number inset, Noski) — Task B,
+   *  the persistent capped FS round total under the FS counter. */
+  async setFruitTotalWinArt(url: string): Promise<void> {
+    try {
+      const tex = await Assets.load<Texture>(url);
+      if (this._aborted) return;
+      this.reelSet?.setFruitTotalWinTexture(tex);
+    } catch (err) {
+      console.warn('[PixiApp] fruit total-win art failed:', err);
+    }
+  }
+
   /** One spin's cascade — the FULL reference choreography:
    *  wins tick into the top plate → gifts pulse, their ×N flies to the
    *  plate → plate reads "«win» ×«sum»" → holds → resolves to the product. */
-  private async playTumbleSpin(spin: FruitSpin, decimals: number, fsCtx?: { fs: boolean; roundWinBefore: bigint }): Promise<void> {
+  private async playTumbleSpin(spin: FruitSpin, decimals: number, fsCtx?: { fs: boolean; roundWinBefore: bigint; cap: bigint }): Promise<void> {
+    // Task A: in FS, no plaque value may exceed the capped round total. This is
+    // a DISPLAY clamp only (per-spin transient numbers still animate the multiply
+    // beat); the round-total collect is clamped by the caller (resolveTumble).
+    const capClamp = (v: bigint): bigint => (fsCtx?.fs && v > fsCtx.cap ? fsCtx.cap : v);
     // Badges are PINNED to their gifts: step -1 uses the landing cells, each
     // later step uses the core's cratesAfter (gifts RIDE the gravity slide).
     const showCrates = (stepIdx: number) => {
@@ -2940,20 +3392,27 @@ export class PixiApp {
       await this.reelSet.playTumbleStep(
         step,
         step.wins.map(w => '+' + formatWin(w.amount, decimals)),
-        { isLive: () => this.isLive, turbo: this.turbo, teaseSlow },
+        {
+          isLive: () => this.isLive, turbo: this.turbo, teaseSlow,
+          // COLLECT (Noski): each cluster's amount flies up onto the plate; the
+          // moment it LANDS the plate ticks to the new running total + punches,
+          // so the plate is visibly FED by the flying win instead of the value
+          // just "appearing" up top. Turbo skips the flight and ticks instantly.
+          // (Still spin-win only — the round total lands after the multi beat.)
+          onCollect: (wi) => {
+            running += step.wins[wi].amount;
+            this.reelSet.setFruitPlaqueText(formatWin(capClamp(running), decimals), true);
+            this.reelSet.punchFruitPlaque();
+          },
+        },
       );
-      for (const w of step.wins) running += w.amount;
-      // Die Plakette zeigt waehrend des Spins NUR den Spin-Win (FS wie Base).
-      // Der Runden-Gesamtwert kommt erst NACH der Multiplikation drauf —
-      // vorher stand er als "random grosse Zahl" vor dem x-Connect (Noski).
-      this.reelSet.setFruitPlaqueText(formatWin(running, decimals), true);
       showCrates(s);
       curBoard = step.boardAfter;
       await new Promise<void>(r => { gsap.delayedCall(this.turbo ? 0.12 : 0.35, () => r()); });
     }
     if (spin.scatterPay > 0n) {
       running += spin.scatterPay;
-      this.reelSet.showFruitPlaque(formatWin(running, decimals));
+      this.reelSet.showFruitPlaque(formatWin(capClamp(running), decimals));
     }
 
     // MULTI BEAT. FS (Noski flow): gift values fly RIGHT into the POOL
@@ -2979,10 +3438,10 @@ export class PixiApp {
         // beiden zusammen (Squeeze) → Instant-Produkt + Pop + Sterne.
         await this.reelSet.flyPoolToPlaque(appliedFs, { isLive: () => this.isLive, turbo: this.turbo });
         if (!this.isLive) return;
-        this.reelSet.setFruitPlaqueText(`${formatWin(spin.winBeforeMulti, decimals)} ×${appliedFs}`, true);
+        this.reelSet.setFruitPlaqueText(`${formatWin(capClamp(spin.winBeforeMulti), decimals)} ×${appliedFs}`, true);
         await new Promise<void>(r => { gsap.delayedCall(this.turbo ? 0.3 : 0.6, () => r()); });
         if (!this.isLive) return;
-        await this.reelSet.mergeFruitPlaqueTo(formatWin(spin.spinWin, decimals));
+        await this.reelSet.mergeFruitPlaqueTo(formatWin(capClamp(spin.spinWin), decimals));
         // Das PRODUKT bleibt stehen — der Collect in den Rundenstand kommt
         // erst NACH der Marquee (Noski: "Marquee 55, oben stand 180" — die
         // Plakette darf waehrend der Feier nie eine andere Zahl zeigen).
@@ -3021,7 +3480,9 @@ export class PixiApp {
       this.reelSet.punchFruitPlaque();
       await new Promise<void>(r => { gsap.delayedCall(this.turbo ? 0.25 : 0.5, () => r()); });
     } else if (spin.spinWin > 0n) {
-      this.reelSet.setFruitPlaqueText(formatWin(spin.spinWin, decimals), true);
+      // FS spins with NO crates fall through to here — clamp to the cap (Task A);
+      // capClamp is a no-op in the base game.
+      this.reelSet.setFruitPlaqueText(formatWin(capClamp(spin.spinWin), decimals), true);
     }
   }
 
@@ -4276,6 +4737,30 @@ export class PixiApp {
     label: 0xFF9ED8, value: 0xFFE9A0,
   };
 
+  /** VICE: two baked-title FS plaques (free_spins_counter.png + total_win_counter.png).
+   *  When BOTH load, showFreeSpinOverlay renders each as a sprite with NO drawn label
+   *  (the "FREE SPINS"/"TOTAL WIN" titles are baked into the art) and centres the live
+   *  value in the dark inset box. Crack Farm's single-texture path (fsPlaqueTex) and the
+   *  plain neon-plate fallback are left untouched. */
+  private fsPlaqueFreeTex: Texture | null = null;
+  private fsPlaqueTotalTex: Texture | null = null;
+
+  /** Load the Vice two-plaque FS counter art (FREE SPINS + TOTAL WIN). Both must
+   *  resolve for the branch to activate; on failure it silently keeps the neon plate. */
+  async setFsPlaquePair(freeUrl: string, totalUrl: string): Promise<void> {
+    try {
+      const [f, t] = await Promise.all([
+        Assets.load<Texture>(freeUrl),
+        Assets.load<Texture>(totalUrl),
+      ]);
+      if (this._aborted) return;
+      this.fsPlaqueFreeTex = f;
+      this.fsPlaqueTotalTex = t;
+    } catch (err) {
+      console.warn('[PixiApp] FS plaque pair failed:', err);
+    }
+  }
+
   private showFreeSpinOverlay(totalSpins: number): { container: Container; counter: Text; total: Text; totalFit: () => void } {
     const rw = this.reelSet.totalWidth + FRAME_PAD * 2;
     const rh = this.reelSet.totalHeight + FRAME_PAD * 2;
@@ -4333,15 +4818,21 @@ export class PixiApp {
     // drawn CENTRED on the panel origin; the plain neon plate stays as the
     // fallback for themes without plaque art.
     const themed = this.fsPlaqueTex;
+    // VICE: two baked-title plaques (FREE SPINS + TOTAL WIN). When both loaded we
+    // render each as a sprite with NO drawn label (titles baked) and drop the value
+    // into the dark inset box. Crack Farm (single fsPlaqueTex) + neon plate untouched.
+    const pair = (this.fsPlaqueFreeTex && this.fsPlaqueTotalTex)
+      ? { free: this.fsPlaqueFreeTex, total: this.fsPlaqueTotalTex } : null;
     // Font matches the win marquee (Noski) so every number in the game reads
     // as one family instead of two.
     const NUM_FONT = this.fsPlaqueStyle.font;
     // HALF the first pass (Noski: "50% kleiner nicht 5"), then +20% back for
     // free games (Noski: "free spins und total win button 20% größer").
-    const panelW = themed ? 112 : 168;
-    const panelH = themed ? Math.round(112 * (themed.height / themed.width)) : 92;
-    // Text must stay inside the frame's inner panel (the wood eats ~15% a side).
-    const innerW = themed ? panelW * 0.66 : panelW - 24;
+    const panelW = pair ? 176 : themed ? 112 : 168;
+    const panelH = pair ? Math.round(176 * (pair.free.height / pair.free.width))
+      : themed ? Math.round(112 * (themed.height / themed.width)) : 92;
+    // Text must stay inside the plaque's inner value box.
+    const innerW = pair ? panelW * 0.55 : themed ? panelW * 0.66 : panelW - 24;
     /** Shrink a Text so it can never overflow the plaque (Noski: numbers were
      *  cut off on the right). */
     const fitText = (t: Text, maxW: number) => {
@@ -4360,7 +4851,14 @@ export class PixiApp {
     }
     panel.eventMode = 'none';
     let plate: Container;
-    if (themed) {
+    if (pair) {
+      const spr = new Sprite(pair.free);
+      spr.anchor.set(0.5);
+      spr.width = panelW; spr.height = panelH;
+      spr.position.set(panelW / 2, 0);
+      spr.eventMode = 'none';
+      plate = spr;
+    } else if (themed) {
       const spr = new Sprite(themed);
       spr.anchor.set(0.5);
       spr.width = panelW; spr.height = panelH;
@@ -4375,41 +4873,43 @@ export class PixiApp {
       plate = g;
     }
     panel.addChild(plate);
-    const label = new Text({
-      text: 'FREE SPINS',
-      style: new TextStyle({
-        fontFamily: NUM_FONT,
-        fontSize: themed ? 11 : 13, fontWeight: '800', fill: themed ? 0xBFFFA8 : this.fsPlaqueStyle.label, letterSpacing: themed ? 1 : 2,
-        stroke: themed ? { color: 0x0c2a10, width: 2 } : undefined,
-      }),
-    });
-    label.anchor.set(0.5);
-    label.position.set(panelW / 2, themed ? -panelH * 0.17 : -panelH / 2 + 24);
-    fitText(label, innerW);
-    panel.addChild(label);
+    if (!pair) {
+      const label = new Text({
+        text: 'FREE SPINS',
+        style: new TextStyle({
+          fontFamily: NUM_FONT,
+          fontSize: themed ? 11 : 13, fontWeight: '800', fill: themed ? 0xBFFFA8 : this.fsPlaqueStyle.label, letterSpacing: themed ? 1 : 2,
+          stroke: themed ? { color: 0x0c2a10, width: 2 } : undefined,
+        }),
+      });
+      label.anchor.set(0.5);
+      label.position.set(panelW / 2, themed ? -panelH * 0.17 : -panelH / 2 + 24);
+      fitText(label, innerW);
+      panel.addChild(label);
+    }
     const counter = new Text({
       text: `1 / ${totalSpins}`,
       style: new TextStyle({
         fontFamily: NUM_FONT,
-        fontSize: themed ? 24 : 32, fontWeight: '900', fontStyle: 'italic', fill: this.fsPlaqueStyle.value,
+        fontSize: pair ? 30 : themed ? 24 : 32, fontWeight: '900', fontStyle: 'italic', fill: this.fsPlaqueStyle.value,
         letterSpacing: 1,
         stroke: { color: 0x1a0e02, width: 5 },
         dropShadow: { color: 0x000000, blur: 6, distance: 0, alpha: 0.5 },
       }),
     });
     counter.anchor.set(0.5);
-    counter.position.set(panelW / 2, themed ? panelH * 0.10 : 14);
+    counter.position.set(panelW / 2, pair ? panelH * 0.18 : themed ? panelH * 0.10 : 14);
     fitText(counter, innerW);
     panel.addChild(counter);
     // Soft breathing on the neon rim so the plaque feels alive, not stamped.
-    // Themed wood frame must NOT breathe its opacity (it would look like a
-    // flickering board); only the plain neon plate pulses.
-    if (!themed) this.fsDancerTweens.push(gsap.to(plate, { alpha: 0.82, duration: 1.6, yoyo: true, repeat: -1, ease: 'sine.inOut' }));
+    // Themed / image plaques must NOT breathe (would look like a flickering board);
+    // only the plain neon plate pulses.
+    if (!themed && !pair) this.fsDancerTweens.push(gsap.to(plate, { alpha: 0.82, duration: 1.6, yoyo: true, repeat: -1, ease: 'sine.inOut' }));
     fsContainer.addChild(panel);
 
     // TOTAL WIN plaque — same design, right below the spins counter; the
     // round's wins accumulate into it spin by spin.
-    const panel2H = themed ? panelH : 86;
+    const panel2H = pair ? panelH : themed ? panelH : 86;
     const panel2 = new Container();
     if (compact) {
       panel2.scale.set(0.66);
@@ -4419,7 +4919,14 @@ export class PixiApp {
     }
     panel2.eventMode = 'none';
     let plate2: Container;
-    if (themed) {
+    if (pair) {
+      const spr = new Sprite(pair.total);
+      spr.anchor.set(0.5);
+      spr.width = panelW; spr.height = panel2H;
+      spr.position.set(panelW / 2, 0);
+      spr.eventMode = 'none';
+      plate2 = spr;
+    } else if (themed) {
       const spr = new Sprite(themed);
       spr.anchor.set(0.5);
       spr.width = panelW; spr.height = panel2H;
@@ -4434,35 +4941,37 @@ export class PixiApp {
       plate2 = g;
     }
     panel2.addChild(plate2);
-    const label2 = new Text({
-      text: 'TOTAL WIN',
-      style: new TextStyle({
-        fontFamily: NUM_FONT,
-        fontSize: themed ? 11 : 13, fontWeight: '800', fill: themed ? 0xBFFFA8 : this.fsPlaqueStyle.label, letterSpacing: themed ? 1 : 2,
-        stroke: themed ? { color: 0x0c2a10, width: 2 } : undefined,
-      }),
-    });
-    label2.anchor.set(0.5);
-    label2.position.set(panelW / 2, themed ? -panel2H * 0.17 : -panel2H / 2 + 22);
-    fitText(label2, innerW);
-    panel2.addChild(label2);
+    if (!pair) {
+      const label2 = new Text({
+        text: 'TOTAL WIN',
+        style: new TextStyle({
+          fontFamily: NUM_FONT,
+          fontSize: themed ? 11 : 13, fontWeight: '800', fill: themed ? 0xBFFFA8 : this.fsPlaqueStyle.label, letterSpacing: themed ? 1 : 2,
+          stroke: themed ? { color: 0x0c2a10, width: 2 } : undefined,
+        }),
+      });
+      label2.anchor.set(0.5);
+      label2.position.set(panelW / 2, themed ? -panel2H * 0.17 : -panel2H / 2 + 22);
+      fitText(label2, innerW);
+      panel2.addChild(label2);
+    }
     const total = new Text({
       text: '0.00',
       style: new TextStyle({
         fontFamily: NUM_FONT,
-        fontSize: themed ? 20 : 26, fontWeight: '900', fontStyle: 'italic', fill: this.fsPlaqueStyle.value,
+        fontSize: pair ? 26 : themed ? 20 : 26, fontWeight: '900', fontStyle: 'italic', fill: this.fsPlaqueStyle.value,
         letterSpacing: 1,
         stroke: { color: 0x1a0e02, width: 5 },
         dropShadow: { color: 0x000000, blur: 6, distance: 0, alpha: 0.5 },
       }),
     });
     total.anchor.set(0.5);
-    total.position.set(panelW / 2, themed ? panel2H * 0.10 : 12);
+    total.position.set(panelW / 2, pair ? panel2H * 0.18 : themed ? panel2H * 0.10 : 12);
     panel2.addChild(total);
     // Long amounts shrink to stay inside the plaque's inner panel.
     const totalFit = () => { total.scale.set(1); fitText(total, innerW); };
     totalFit();
-    if (!themed) this.fsDancerTweens.push(gsap.to(plate2, { alpha: 0.82, duration: 1.6, yoyo: true, repeat: -1, ease: 'sine.inOut', delay: 0.4 }));
+    if (!themed && !pair) this.fsDancerTweens.push(gsap.to(plate2, { alpha: 0.82, duration: 1.6, yoyo: true, repeat: -1, ease: 'sine.inOut', delay: 0.4 }));
     fsContainer.addChild(panel2);
 
     // Animate in

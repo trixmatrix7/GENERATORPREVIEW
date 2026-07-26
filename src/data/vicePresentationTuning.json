@@ -328,8 +328,8 @@
  "layout": {
   "logo": {
    "file": "theme/vice/logo.webp",
-   "placement": "top (setTitleImage default layout — vice passes no layout arg)",
-   "sizeRule": "scale = min((gridWidth*0.6)/texW, 150/texH) — max 60% of grid width AND max 150 scene-px tall; anchor (0.5, 1); x = rw/2; y = HEADER_H - 2 (bottom edge just above frame) — PixiApp.ts:730-738"
+   "placement": "left (App.tsx:580 setTitleImage(logo.webp,'left') — left-rail wordmark; the DOM buy button docks under it)",
+   "sizeRule": "LEFT RAIL: scale = min((leftLetterboxGap*0.80)/texW, 250/texW, 228/texH); anchor (0.5,0.5); centred in the left letterbox (midway between canvas edge and frame); y = HEADER_H + (gridH+2*framePad)*0.24 — PixiApp.ts setTitleImage('left') + alignLeftRailLogo (ways branch)"
   },
   "frame": {
    "file": "theme/vice/frame_neon.webp",
@@ -487,11 +487,11 @@
     "note": "connection swish, was 0.5 then -40%"
    },
    "ambient-music": {
-    "volume": 0.35,
+    "volume": 0.06,
     "oggFirst": true,
     "loop": true,
     "exclusive": true,
-    "note": "vice keeps default synthwave /audio/ambient-music.ogg"
+    "note": "Noski's pick: gimme-that-groove @ 0.06 (src/data/viceSoundPreset.json), shipped FLAT as /audio/ambient-music.ogg. NOT the dev-default synthwave."
    },
    "win-tally-tick": {
     "volume": 0,

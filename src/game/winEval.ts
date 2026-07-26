@@ -9,14 +9,14 @@ import { evaluatePaylines } from './paylineEval';
 import { evaluateScatterPays } from './scatterPaysEval';
 import type { GameConfig } from '@/engine/GameConfig';
 
-export type PayModel = 'ways' | 'lines' | 'scatterpays';
+export type PayModel = 'ways' | 'lines' | 'scatterpays' | 'cluster';
 
 /** Crack Farm plays PAYLINES, Fruit Stacks plays SCATTER-PAYS (pay-anywhere
  *  tumbler); every other game keeps the engine's ways. */
 export function activePayModel(): PayModel {
   try {
     const g = localStorage.getItem('active-game');
-    return g === 'crackfarm' ? 'lines' : g === 'fruitstacks' ? 'scatterpays' : 'ways';
+    return g === 'crackfarm' ? 'lines' : g === 'fruitstacks' ? 'scatterpays' : g === 'sushi' ? 'cluster' : 'ways';
   } catch {
     return 'ways';
   }

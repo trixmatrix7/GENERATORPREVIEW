@@ -54,9 +54,10 @@ export function GameCanvas({ lastOutcome, phase, onPixiReady, config, controls, 
 
     pixiApp.init(canvasRef.current).then(() => {
       if (cancelled) return;
-      // NOTE: no bottomHudFraction reserve — the grid keeps its full-box
-      // centring/size and the control bar simply layers over the canvas
-      // bottom (its gradient top is transparent, so nothing is hidden).
+      // NOTE: no bottomHudFraction reserve here — the ways (Vice 5×5) grid keeps
+      // Noski's arrangement (the height×0.12 bottom reserve computed inside PixiApp
+      // onResize); the control bar simply layers over the canvas bottom. The
+      // width-based 0.125 variant shifted the grid vs Noski's layout, so it is off.
       onPixiReady(pixiApp);
       // Sync the renderer buffer to the parent size, then keep it synced.
       // Pixi's built-in `resizeTo` uses a ResizeObserver that only fires on

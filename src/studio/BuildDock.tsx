@@ -8,7 +8,7 @@
 import { useEffect, useState } from 'react';
 import {
   listBuilds, saveBuild, deleteBuild, applyBuild, createNewBuild,
-  applyViceBase, applyCrackFarm, applyFruitStacks, loadActiveGame, downloadExport, activeBuildId, isBareBuild, type SavedBuild,
+  applyViceBase, applyCrackFarm, applyFruitStacks, applySushi, loadActiveGame, downloadExport, activeBuildId, isBareBuild, type SavedBuild,
 } from './buildPresets';
 
 const chip: React.CSSProperties = {
@@ -109,6 +109,15 @@ export function BuildSlots() {
         onClick={() => applyFruitStacks()}
         title="Das eingebaute Fruit-Stacks-Spiel (6×5 Scatter-Pays-Tumbler)"
       >🍉 Fruit Stacks 6×5</button>
+      <button
+        style={{
+          ...chip,
+          background: !bare && active === null && game === 'sushi' ? '#e11d48' : '#15151d',
+          borderColor: !bare && active === null && game === 'sushi' ? '#e11d48' : '#34344a',
+        }}
+        onClick={() => applySushi()}
+        title="Das eingebaute Sushi-Party-Spiel (6×6 Cluster + PowerNudge)"
+      >🍣 Sushi Party 6×6</button>
       {builds.map(b => (
         <span key={b.id} style={{ position: 'relative', display: 'inline-flex' }}>
           <button

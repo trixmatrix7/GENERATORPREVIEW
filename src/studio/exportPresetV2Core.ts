@@ -116,7 +116,85 @@ function normalizeManifest(game: GameKey, m: Record<string, unknown>): Record<st
     ];
     if (out.retriggerSpins == null && custom.retriggerSpins != null) out.retriggerSpins = custom.retriggerSpins;
   }
+  if (game === 'vice') {
+    // D10: hand the partner assembler the certified RTP. Without
+    // expectedMetrics it recomputes RTP_BPS from `rtpPct ?? 96`, stamping
+    // 9600 / 96.0 over our certified 9599 / 95.99. Cosmetic (risk-reserve
+    // quote) but removes the 1-bps drift.
+    if (out.expectedMetrics == null) {
+      const target = Number((m as { targetRtpPct?: number }).targetRtpPct);
+      out.expectedMetrics = { rtpPct: Number.isFinite(target) && target > 0 ? target : (out.rtpBps as number) / 100 };
+    }
+    // 4b: stamp an explicit cost label on each buy stage so the engine renders
+    // the certified cost verbatim (100X / 200X BET) instead of inventing
+    // "300x" from `100×(scatters−1)`. Copies each stage (never mutates the
+    // shared math JSON).
+    const stages = custom.viceBuyStages;
+    if (Array.isArray(stages)) {
+      custom.viceBuyStages = stages.map((s) => {
+        const st = s as Record<string, unknown>;
+        return st.label == null && st.costMult != null ? { ...st, label: `${st.costMult}X BET` } : st;
+      });
+    }
+  }
   out.custom = custom;
+  return out;
+}
+
+// ── Vice audio: reshape to the partner's fixed flat key contract ─────────────
+// The partner runtime only loads /audio/<registryId>.{ogg,…}; our nested
+// library paths are never read and non-registry keys are dropped at compile.
+// So the Vice export hands over a FLAT by-id map: keys = partner registry IDs,
+// files referenced flat as /audio/<id>.ogg. Renames win-marquee →
+// win-screen-music, adds connect-symbol from the connection swish, keeps
+// coin-chime, and drops every event the partner never dispatches (wild-*,
+// tally/tier, tease, near-miss, reel-spin-loop, multi-*, fs-*).
+const VICE_AUDIO_CONTRACT: { devId: string; sourceId: string }[] = [
+  { devId: 'ambient-music', sourceId: 'ambient-music' },
+  { devId: 'win-screen-music', sourceId: 'win-marquee' },
+  { devId: 'connect-symbol', sourceId: 'coin-chime' },
+  { devId: 'coin-chime', sourceId: 'coin-chime' },
+  { devId: 'spin-start', sourceId: 'spin-start' },
+  { devId: 'reel-stop', sourceId: 'reel-stop' },
+  { devId: 'scatter-land', sourceId: 'scatter-land' },
+  { devId: 'free-spin-trigger', sourceId: 'free-spin-trigger' },
+  { devId: 'win-small', sourceId: 'win-small' },
+  { devId: 'win-normal', sourceId: 'win-normal' },
+  { devId: 'win-big', sourceId: 'win-big' },
+  { devId: 'win-mega', sourceId: 'win-mega' },
+];
+
+function viceAudioEvents(src: Record<string, ResolvedAudioEvent>): Record<string, ResolvedAudioEvent> {
+  const out: Record<string, ResolvedAudioEvent> = {};
+  for (const { devId, sourceId } of VICE_AUDIO_CONTRACT) {
+    const s = src[sourceId];
+    if (!s) continue;
+    out[devId] = {
+      file: `/audio/${devId}.ogg`,
+      volume: s.volume,
+      loop: s.loop,
+      exclusive: s.exclusive,
+      role: s.role,
+      enabled: s.enabled,
+      trim: s.trim,
+    };
+  }
+  return out;
+}
+
+// D8: the partner's loaders (buildGameConfig / simulator / assembler) read
+// reelStrips/payTable/… at the PROFILE ROOT. Our exporter nests them under
+// math.manifest; surface a flat copy at the export root too (belt-and-braces —
+// the nested math.manifest stays for our own tooling). Vice-gated at the call
+// site so other games' export bytes are untouched.
+const VICE_MATH_ROOT_KEYS = [
+  'gridId', 'reelStrips', 'reelLengths', 'payTable', 'scatterPay',
+  'freeSpinsCount', 'freeSpinsCap', 'freeSpinMultiplier', 'retriggerSpins',
+  'maxWinMultiplier', 'minWager', 'rtpBps', 'expectedMetrics', 'custom',
+];
+function flattenMathRoot(m: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const k of VICE_MATH_ROOT_KEYS) if (m[k] !== undefined) out[k] = m[k];
   return out;
 }
 
@@ -226,10 +304,18 @@ function viceAssets(o: AssetOverrides): Record<string, unknown> {
     theme: B,
     images: {
       logo: `${B}logo.webp`,
+      // Runtime truth (App.tsx:580): setTitleImage(logo.webp, 'left') — the
+      // wordmark stands in the LEFT letterbox rail, the buy button docks under
+      // it. Without this the partner records the default 'top' placement.
+      logoLayout: 'left',
       background: (o.bg as string) ?? `${B}bg_motel.webp`,
       fsBackground: (o.fsBg as string) ?? `${B}fsbg_beachclub.webp`,
       expandingWildTower: (o.expandingWild as string) ?? `${B}wild_column.webp`,
       frame: (o.frame as object) ?? { file: `${B}frame_neon.webp`, window: { x: 197, y: 314, w: 832, h: 832 } },
+      // FS counter plaques (App.tsx:584 setFsPlaquePair): neon FREE SPINS +
+      // TOTAL WIN art; the value is drawn in each plaque's dark inset box.
+      fsPlaque: `${B}free_spins_counter.png`,
+      totalWinPlaque: `${B}total_win_counter.png`,
     },
     symbols: {
       wild: sym('wild'),
@@ -416,6 +502,22 @@ function sizingPackage(game: GameKey, gridId: string): Record<string, unknown> {
       mobilePortraitPreview: { w: 390, h: 760 },
     },
     introDesignSpace: { w: 1920, h: 1080, bgFit: 'cover = max(sw/1920, sh/1080)', cardFit: 'contain*0.98 = min(sw/1920, sh/1080)*0.98' },
+    // Ways grid HUD band (Vice only): the enlarged 5×5 grid is kept OUT of the
+    // control-bar strip. This mirrors Noski's arrangement in the runtime exactly.
+    ...(game === 'vice' ? {
+      bottomReserve: {
+        basis: 'height',
+        fraction: 0.12,
+        formula: 'round(height * 0.12)',
+        waysOnly: true,
+        note: 'full-size 5×5 ways grid sized + centred ABOVE the bar band (Noski arrangement)',
+      },
+      logoPlacement: {
+        layout: 'left',
+        centring: 'centred in the LEFT letterbox (midway between canvas edge and reel frame); size ~80% of that gap',
+        note: 'DOM bonus-buy button sits symmetrically under the logo via the broadcast rail centre',
+      },
+    } : {}),
     symbolDraw: {
       formula: 'targetSize = round(min(cell.w, cell.h) * 0.88 * objectScale * perSymbolMul)',
       objectScale: 1.3,
@@ -453,14 +555,29 @@ export function buildPresetV2(i: PresetInputs): Record<string, unknown> {
     math: manifest
       ? { mode: 'inline', manifest }
       : { mode: 'inline', manifest: { gridId: i.gridId, reelStrips: [], payTable: {}, scatterPay: [0, 0, 0], freeSpinsCount: 0, freeSpinsCap: 0, maxWinMultiplier: 0 } },
+    // D8: also surface the payout fields FLAT at the export root so the
+    // partner's root-reading loaders can't silently fall back to Fantasy 5×3.
+    // Vice-gated — keeps the other games' export bytes unchanged. The nested
+    // math.manifest above is retained for our own tooling.
+    ...(i.game === 'vice' && manifest ? flattenMathRoot(manifest) : {}),
     mechanics: i.bare ? [] : MECHANICS[i.game],
     assets: i.bare ? { root: 'assets/' } : ASSET_BUILDERS[i.game](i.overrides),
-    audio: {
-      format: 'ogg',
-      dir: 'audio/',
-      mixing: { marqueeDucksAmbient: true, exclusiveGroups: [['ambient-music', 'win-marquee']] },
-      events: i.audioEvents,
-    },
+    audio: i.game === 'vice'
+      ? {
+          format: 'ogg',
+          dir: 'audio/',
+          // Renamed exclusive pair to the partner's flat key (win-screen-music).
+          mixing: { marqueeDucksAmbient: true, exclusiveGroups: [['ambient-music', 'win-screen-music']] },
+          // Single dev-shaped by-id map: flat /audio/<id>.ogg, dropped
+          // no-dispatch keys, win-marquee→win-screen-music, +connect-symbol.
+          events: viceAudioEvents(i.audioEvents),
+        }
+      : {
+          format: 'ogg',
+          dir: 'audio/',
+          mixing: { marqueeDucksAmbient: true, exclusiveGroups: [['ambient-music', 'win-marquee']] },
+          events: i.audioEvents,
+        },
     // The shipped studio-parameter state (frame/cell-backdrop/colours/size).
     // Every id maps to an adjustable generator parameter; reproduce 1:1 so the
     // build looks EXACTLY like the preview (Noski: locked look).

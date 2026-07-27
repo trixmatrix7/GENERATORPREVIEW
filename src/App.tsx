@@ -640,8 +640,11 @@ export function App() {
       bgColor: 0x1a0616, bgAlpha: 0.92,
       borderColor: 0xff3ea5, borderWidth: 3,
       numberColor: 0xffd7f0,
-      slotYFrac: 0.74,
-      sizeFrac: 0.56,
+      // Pushed further DOWN (Noski): at 0.74 the plate still clipped the bottom
+      // of the vertical "WILD" lettering on the surfboard. 0.86 seats it below
+      // the type, just above the board's tail.
+      slotYFrac: 0.86,
+      sizeFrac: 0.52,
     });
     // Custom neon frame (palm + marquee arrow). The window rect is the TRUE
     // transparent hole measured from the 1500² art's alpha — mapped onto the

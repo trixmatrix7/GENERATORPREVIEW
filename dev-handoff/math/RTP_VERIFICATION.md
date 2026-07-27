@@ -1,6 +1,32 @@
 # Vice Heat — RTP verification (for the dev)
 
-> **⚠️ RE-CERTIFIED 2026-07-27 — use `simulate_vice_heat_v2.py` (this folder).**
+> # ✅ CURRENT CERTIFICATION — 2026-07-27 (use `sim_vice.mjs`, not the Python)
+>
+> The Python model describes the DESIGN. `sim_vice.mjs` in this folder mirrors the actual
+> settlement code, and re-measuring against it is what exposed four live defects (a ways
+> evaluator that under-paid whenever a wild sat in column 0, a retired multiplier ladder still
+> being paid, a hot-spin feature that was advertised but never built, and buy strips that had
+> been overwritten). Everything below is the fixed, shipped game:
+>
+> | mode | cost | certified RTP | rounds |
+> |---|---|---|---|
+> | natural | 1× | **95.91%** ±1.14pp | 30,000,000 |
+> | buy 3-scatter | 100× | **95.93%** ±1.04pp | 1,500,000 |
+> | buy 4-scatter | 200× | **96.11%** ±1.20pp | 1,500,000 |
+> | ante | 3.25× | **96.40%** ±1.35pp | 12,000,000 |
+>
+> Zero max-win-cap violations across ~45M rounds. `rtpBps` 9591. Natural attribution
+> (% of wager): base 52.98 · hot 6.56 · fs3 9.82 · fs4 26.55. Hit frequency 70.43%,
+> per-round std 24.32× of stake, max win 1-in-109,091.
+>
+> Reproduce: `node sim_vice.mjs 30000000 --mode=natural --eval=corrected --no-simul --hot --seed=880022`
+> (swap `--mode=` for buy3 / buy4 / ante). `fit_fs_density.mjs` is the tool that tuned the
+> top-level `fsReelStrips` density onto target. **Never run without `--eval=corrected --no-simul --hot`
+> — the defaults deliberately model the OLD broken runtime so the difference stays measurable.**
+>
+> ---
+>
+> **⚠️ Superseded 2026-07-27 (earlier pass, kept for history) — `simulate_vice_heat_v2.py`:**
 > The FS math was redesigned: **5 full wild reels = instant 5000× max win** in
 > both bonuses (`custom.fullBoardInstantMaxWin`), the FS rolls its own
 > **rare-wild `fsReelStrips`** (5×120-stop, 1 wild/reel), sticky tower cap **5**,

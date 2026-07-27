@@ -3,6 +3,29 @@
 **Status:** Launch-blocking. Target launch: **Thursday.**
 **Preset under discussion:** `dev-handoff/preset/vice-heat.chainwtf-preset.json` (schema `chainwtf-game-preset` v2).
 
+> ## ✅ FINAL CERTIFICATION — 2026-07-27 (this supersedes every RTP number anywhere below)
+>
+> The whole game was re-measured against a **runtime-faithful** simulator (`math/sim_vice.mjs`, which mirrors our settlement path rather than the design model). Doing that surfaced four separate defects — see D11 for the big one. All are fixed; these are the shipped numbers:
+>
+> | mode | cost | certified RTP | rounds |
+> |---|---|---|---|
+> | **natural** | 1× | **95.91%** ±1.14pp | 30,000,000 |
+> | **buy 3-scatter** | 100× | **95.93%** ±1.04pp | 1,500,000 |
+> | **buy 4-scatter** | 200× | **96.11%** ±1.20pp | 1,500,000 |
+> | **ante** | 3.25× | **96.40%** ±1.35pp | 12,000,000 |
+>
+> **Zero max-win-cap violations across ~45M certified rounds.** `rtpBps` is now **9591** and `expectedMetrics.rtpPct` carries the same measured 95.91 (so D10's 9600 stamp no longer drifts).
+>
+> **What moved, and why it matters to you:**
+> - **The base game now carries 53% of natural RTP** (was 29.6%). That is the D11 evaluator fix — most boards were under-paying.
+> - **fs3 fell to 9.8%** (was 32.5%) because `custom.simulExpandMultipliers` was **deleted** — both the top-level table and the buy3 override. 1–4 wilds pay natural ways; only 5 full wild reels pay the instant max win. **Do not implement a simul ladder.**
+> - **Hot spins are now real** and contribute 6.6% (`custom.hotSpinChance1In` 80). They were in the manifest and advertised in this preset but implemented nowhere. They fire on natural and ante base spins and **never on a bought round** (expansion would erase the scatters the player paid for). ⚠️ The **ante depends on them**: with hot spins off the ante drops to ~84%.
+> - **The buy stages were re-fitted.** Their previous strips had been overwritten and were paying **8.9%** (buy3) and **122%** (buy4) of their price. buy3 now carries its own 405-stop / 15-wild FS strips, buy4 a diluted 401-stop / 3-wild set. **Prices are unchanged at 100× and 200×.**
+> - **The ante was re-fitted** (its reel 0 had lost its wild entirely). Trigger promise preserved: 1-in-18.31 combined, 3sc 1-in-20.5 / 4+sc 1-in-173.2.
+> - The top-level `fsReelStrips` are now **1170 stops with 10 wilds** (the 120-stop originals, ×10 with the density nudged +2.6% to land natural on target). buy3/buy4 carry their own and were unaffected.
+>
+> Reproduce any row: `node math/sim_vice.mjs <rounds> --mode=<natural|buy3|buy4|ante> --eval=corrected --no-simul --hot --seed=880022`.
+
 > **UPDATE 2026-07-27 — FREE-SPINS RE-CERTIFICATION (supersedes the D2 numbers and the §E scatterPay below):**
 > The FS math was redesigned to Noski's volatile spec and re-certified at RTP **95.99%** (`custom-math/simulate_vice_heat_v2.py`, k=1.13). The preset now carries — at `math.manifest` **and** the flat export root:
 > - **Rare-wild FS strips `fsReelStrips`** (5×**120**-stop, ONE wild/reel = **3× rarer** than the 40-stop base). **The free spins MUST roll these strips, NOT the base strips.** Now surfaced at both `math.manifest.fsReelStrips` and the export root (belt-and-braces, same as the D8 math-root flatten).
@@ -144,7 +167,8 @@ All "our spec" lines are `src/data/math_vice_heat.json` unless noted; the same v
 - **This is a PAYOUT bug, not a display bug.** Settlement and presentation both score through the same evaluator, so the game genuinely paid less. Our certified simulator has always used the correct model (`math/simulate_vice_heat_v2.py:171-183` iterates every paying symbol), so **the runtime has been paying under its own certification** — the published RTP did not describe the shipped build.
 - **Our fix (ours, already shipped):** we did NOT edit `src/engine/*` (it stays byte-identical to your repo). We added `src/game/viceWays.ts`, a mirror of the engine evaluator whose ONLY difference is the candidate set — every paying symbol id in the paytable, wild and scatter excluded — and routed the `ways` model to it through our `winEval` façade, which fixes settlement and presentation in one edit.
 - **Verification we ran (recommend you repeat it):** across **548,631** fuzzed boards with no wild in column 0 the two evaluators produced **identical combination sets** — the correction is provably a no-op wherever the shortcut was valid, so it cannot regress a non-expanding ways game.
-- **Concrete dev fix:** replace the column-0 seeding loop with an iteration over every paying symbol id in the paytable (skip WILD and SCATTER), keeping everything else — scatter block, per-reel counting, consecutive-from-reel-0 matching, ways product, pay-index caps, bps arithmetic — untouched. Mirror the same change in `SlotGame.sol:_evaluateWins` so the contract and the client agree. **Re-run your RTP simulation afterwards: this raises Vice's RTP materially, and the paytable is being re-fitted on our side to land back on target — take the re-certified `payTable`/`scatterPay` from the updated preset, do not keep the old numbers with the corrected evaluator.**
+- **Concrete dev fix:** replace the column-0 seeding loop with an iteration over every paying symbol id in the paytable (skip WILD and SCATTER), keeping everything else — scatter block, per-reel counting, consecutive-from-reel-0 matching, ways product, pay-index caps, bps arithmetic — untouched. Mirror the same change in `SlotGame.sol:_evaluateWins` so the contract and the client agree.
+- **Rebalancing already done on our side — take it, don't redo it.** The paytable did NOT need re-scaling: `payTable` and `scatterPay` in the preset are unchanged and correct. What absorbed the evaluator fix was the strip set — the top-level `fsReelStrips` (now 1170 stops / 10 wilds) plus fully re-fitted buy and ante strips. Ship the preset's numbers as-is; the certified result is natural **95.91%**, buys **95.93 / 96.11%**, ante **96.40%**. Any RTP you measured before applying D11 is void.
 
 **Math ownership summary:** D1–D4, D6, D7, D9 are DEV-engine work — the preset already carries the full certified spec in `preset.math.manifest.custom`. D8 is shared. D10 (and the export-flattening half of D8) are the only items we fix in the preset/export. Nothing in the win-evaluator's scatter/wild handling needs changing on either side.
 
@@ -186,6 +210,7 @@ The runtime `GameConfig` carries **no presentation at all**. `buildGameConfigFro
 
 ## B4 — Intro / bg-transition (instant jump, no transition)
 - **Symptom:** the game "jumps INSTANTLY to the slot" with no boot/intro/background transition.
+- **Confirmed again on your latest preview (Noski, 2026-07-27):** the intro cards render **directly on top of the reel grid** the moment the slot opens — no loading screen, no boot background, no iris. On our build the same cards sit on the game-intro BACKGROUND and only reveal the reels after `transitionOut: "iris-from-black"`. So the assets are arriving and drawing; what is missing is the **flow that owns them**. Because no boot/intro stage exists, the cards have nowhere to live and land over the grid. **This is a flow bug, not an asset bug — do not re-cut the art.** Implement `flow.stages` (`boot` → `game-intro` → `base`) and the cards will sit where they belong. `flow` is carried in the preset (`flow.iris`, `flow.stages[]`, `assets.introLayers`, `extras.layout.introScreens`, `extras.layout.bootScreen`) and is currently read by nothing on your side.
 - **Root cause:** there is **no intro/boot/iris system** in the engine. `grep intro|boot|splash|iris` across the dev runtime (`App.tsx`, `PixiApp.ts`, `useGameState.ts`, `GameCanvas.tsx`) returns nothing. `src/App.tsx:14-60` mounts `GameCanvas` straight to the base reels. The only "transition" is `PixiApp.playTransitionCard()` (`PixiApp.ts:985`, called :849/:912) — a FS-entry/total dim-plaque, not a boot→game transition. `transitionAnimations.ts`'s only intro-ish entry `base-to-fs-intro` (:28-37) is `implemented:false` and FS-scoped. Background is a procedural gradient from theme colors (`PixiApp.ts:287-330, 517-534`); a real bg image can only come via `setBackgroundImage(dataUrl)` (`PixiApp.ts:683-723`), a **wizard-only** upload path — not a deploy/preset channel and not in `GameConfig`.
 - **Our preset fully specifies the intro** (all unread): `flow.iris.style="looney-iris"` (preset :3697-3699); `flow.stages[]` `boot`/`game-intro` with `transitionOut:"iris-from-black"` (:3701-3712), `fs-intro` with `transitionIn:"iris"` (:3729-3731); `assets.introLayers` → `data/introLayers.json` + `theme/vice/intro/` (:3631-3634); `extras.layout.introScreens` (18-layer game intro + fs3/fs4/outro, :4249-4255) + `bootScreen` (:4256-4265) + `background.fsIntroImage` (:4233).
 - **Concrete dev fix (minimum):** add a `boot → game-intro → base` phase that (1) reads `flow.stages`, (2) renders `assets.introLayers` (manifest `data/introLayers.json`, dir `theme/vice/intro/`) over the `bootScreen` gradient, (3) plays `transitionOut = "iris-from-black"` before revealing the base reels. Make `flow.iris:"looney-iris"` a real `implemented:true` transition. If a full intro is out of scope for Thursday, the smallest acceptable fix is a boot→base **crossfade** honoring `transitionOut`, so the game stops hard-cutting into the reels.

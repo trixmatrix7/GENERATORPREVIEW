@@ -1,5 +1,5 @@
 Vice Heat — dev handoff package · file manifest
-generated 2026-07-27 (FS re-certification drop)
+generated 2026-07-27 (FINAL certification: natural 95.91% / buy3 95.93% / buy4 96.11% / ante 96.40%)
 
 ASSET_SPECS.md
 FLOW.md
@@ -127,6 +127,8 @@ features/win-marquees/feature.json
 flow/intro-screens/README.md
 math/MATH_MODEL.md
 math/RTP_VERIFICATION.md
+math/fit_fs_density.mjs
+math/sim_vice.mjs
 math/sims/README.md
 math/sims/calibrate_buy4_cap4.py
 math/sims/calibrate_vice_buy_fs_strips.py

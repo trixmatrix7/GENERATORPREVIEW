@@ -6,7 +6,18 @@
 
 Hey — updated **Vice Heat** preset is in (`vice-heat.chainwtf-preset.json`, schema v2, exported 2026-07-27). We went through our whole repo and split everything into: what **we already fixed** in the preset, and what **you still need to change** engine-side. Full detail with file:line on both sides is in `VICE_HEAT_FIXES_FOR_DEV.md` in the zip — short version below.
 
-**NEW in this drop — the free spins were re-certified** (still RTP 95.99%). The FS now rolls its own rare-wild strips (`fsReelStrips`), **5 full wild reels = instant 5000× max win** in both bonuses (`custom.fullBoardInstantMaxWin`), 3sc = per-spin expansion / 4sc = sticky towers to cap 5, and the old sticky ×2/×10 + full-house doubling is retired. New `payTable.wild [1243,2034,3616]` / `scatterPay [1164,2260,6780]`. See the ⚠️ display-strips note below — it bit us and it'll bite the engine the same way.
+**✅ FINAL NUMBERS IN THIS DROP** (everything re-measured against a runtime-faithful simulator, ~45M rounds, zero max-win-cap violations):
+
+| mode | cost | certified RTP |
+|---|---|---|
+| natural | 1× | **95.91%** ±1.14 |
+| buy 3-scatter | 100× | **95.93%** ±1.04 |
+| buy 4-scatter | 200× | **96.11%** ±1.20 |
+| ante | 3.25× | **96.40%** ±1.35 |
+
+Prices unchanged (100× / 200× / 3.25×). `payTable` and `scatterPay` unchanged too — the rebalance rode on the strips, which are all in the preset. **`rtpBps` is now 9591** and `expectedMetrics.rtpPct` matches it. Three things also changed on our side: `simulExpandMultipliers` is **deleted** (top-level *and* the buy3 override — don't implement a simul ladder), **hot spins are implemented** for the first time (they were advertised but never built; the ante depends on them), and the buy/ante strips were **re-fitted** (buy3 had been paying 8.9% of its price, buy4 122%).
+
+**NEW in this drop — the free spins were re-certified.** The FS now rolls its own rare-wild strips (`fsReelStrips`), **5 full wild reels = instant 5000× max win** in both bonuses (`custom.fullBoardInstantMaxWin`), 3sc = per-spin expansion / 4sc = sticky towers to cap 5, and the old sticky ×2/×10 + full-house doubling is retired. New `payTable.wild [1243,2034,3616]` / `scatterPay [1164,2260,6780]`. See the ⚠️ display-strips note below — it bit us and it'll bite the engine the same way.
 
 **🔴 We found a PAYOUT bug that is in YOUR engine too — byte-identical (`D11` in the doc)**
 `_evaluateWins` picks which symbols to test by looking at **column 0 only**, and turns a WILD sitting there into HIGH_A:

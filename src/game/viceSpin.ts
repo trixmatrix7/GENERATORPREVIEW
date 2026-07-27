@@ -44,6 +44,12 @@ export interface ViceBuyStage {
   retriggerSpins?: number;
   stickyTowerCap?: number;
   stickyFullBoardMultiplier?: number;
+  /** Bought round: if the FIRST free spin would land no tower at all, nudge one
+   *  reel onto a wild so the round always delivers what it was sold as. */
+  guaranteedTowerOnFirstSpin?: boolean;
+  /** Which reel the guarantee nudges (default 0 — by far the cheapest, because
+   *  the engine's column-0 rule collapses a reel-0 tower to one combination). */
+  guaranteedTowerReel?: number;
 }
 
 /** Everything the round derivation reads off the active GameConfig. The Vice
@@ -141,6 +147,40 @@ function spinSeed(randomness: `0x${string}`, index: bigint): `0x${string}` {
   return keccak256(
     encodeAbiParameters([{ type: 'bytes32' }, { type: 'uint256' }], [randomness, index]),
   );
+}
+
+/** Does the 5-row window starting at `stop` carry a WILD? */
+function windowHasWild(strip: ReadonlyArray<number>, stop: number, rows: number): boolean {
+  const L = strip.length;
+  for (let r = 0; r < rows; r++) if (strip[(stop + r) % L] === SymbolId.WILD) return true;
+  return false;
+}
+
+/** GUARANTEED TOWER (bought 4-scatter round only). The bought round is SOLD as a
+ *  sticky-tower round, but on its deliberately thin strips 15.5% of rounds — 1 in
+ *  6.4 — used to finish without a single tower. On the FIRST free spin, if no reel
+ *  would expand, `reel`'s stop is advanced FORWARD to the first stop whose window
+ *  carries a wild (the same forward scan that already places the bought trigger
+ *  board). Pure function of the spin's stops, so no new randomness is consumed.
+ *
+ *  The reel is pinned to 0 and that is NOT cosmetic: the engine's column-0 rule
+ *  (a wild there folds to HIGH_A) makes a reel-0 tower collapse to a single
+ *  combination instead of adding a way to every symbol, so it is by far the
+ *  cheapest tower to hand out — measured +14.5pp against +83.7 to +159.2pp for
+ *  reels 1-4. It is the only tower the round can afford to give away. */
+function applyGuaranteedTower(
+  stops: number[],
+  strips: ReadonlyArray<ReadonlyArray<number>>,
+  rows: number,
+  reel: number,
+): void {
+  if (stops.some((s, i) => windowHasWild(strips[i], s, rows))) return;  // a tower already lands
+  const strip = strips[reel];
+  const L = strip.length;
+  for (let k = 0; k < L; k++) {
+    const stop = (stops[reel] + k) % L;
+    if (windowHasWild(strip, stop, rows)) { stops[reel] = stop; return; }
+  }
 }
 
 // ── tower multipliers ──────────────────────────────────────────────────────
@@ -394,6 +434,12 @@ export function deriveViceRound(
     while (remaining > 0 && fsSpins.length < fsCap) {
       const seed = spinSeed(randomness, BigInt(fsSpins.length));
       const fsStops = deriveStops(seed, fsStrips);
+      // GUARANTEED TOWER: bought stages only, first free spin only. Scoped to the
+      // stage flag so a NATURAL 4-scatter trigger is untouched and no other
+      // certified round moves.
+      if (fsSpins.length === 0 && buyStage?.guaranteedTowerOnFirstSpin) {
+        applyGuaranteedTower(fsStops, fsStrips, rows, buyStage.guaranteedTowerReel ?? 0);
+      }
       const fsBoard = boardFromStops(fsStops, fsStrips, rows);
       const fsEvalBoard = fsBoard.map(r => [...r]);
       const expandedReels: number[] = [];

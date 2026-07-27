@@ -42,6 +42,7 @@ All "our spec" lines are `src/data/math_vice_heat.json` unless noted; the same v
 
 | ID | Mechanic | Severity | Owner |
 |----|----------|----------|-------|
+| **D11** | **Ways evaluator: wild on reel 0 collapses the paytable to HIGH_A** | **Launch-blocking (underpays)** | **DEV (same bug, byte-identical)** |
 | D8 | Ingestion object (nested vs flat root) | **VERIFY FIRST** | Coordinate |
 | D1 | Expanding wilds in FS | Launch-blocking | DEV |
 | D2 | Sticky towers / simul-multipliers / full-house | Launch-blocking | DEV |
@@ -118,6 +119,32 @@ All "our spec" lines are `src/data/math_vice_heat.json` unless noted; the same v
 
 ## D10 — rtpBps/targetRtp overwritten at compile (cosmetic)
 - Our preset carries `rtpBps:9599 / targetRtpPct:95.99` (`math_vice_heat.json:3-4`). `assembler.ts:52-53` recomputes from `expectedMetrics.rtpPct ?? 96`, which our manifest lacks, so it stamps `RTP_BPS=9600 / 96.0`. Affects only the contract's risk-reserve quote (`SlotGame.sol:156`), not payouts. **Fix:** US adds `expectedMetrics.rtpPct` to the manifest (see our-side doc), or DEV reads `rtpBps` directly.
+
+## D11 — WAYS EVALUATOR: a wild on reel 0 collapses the whole paytable to HIGH_A (**underpays; both engines**)
+
+- **Symptom:** on a board where reel 0 is a full wild reel, only ONE symbol combination pays. Noski hit it in a sticky free-spins round — towers standing on reels 1/2/4 and only the shades guy (HIGH_A) connected, while J, K and the briefcase visibly should have.
+- **Root cause (in YOUR engine too — this code is byte-identical to ours):** `evaluateWins` seeds its candidate-symbol set from **column 0 only**, and folds a wild there into HIGH_A:
+  ```ts
+  const sym = board[row][0];
+  if (sym === SymbolId.SCATTER) continue;
+  const effectiveSym = sym === SymbolId.WILD ? SymbolId.HIGH_A : sym;   // <-- the bug
+  if (evaluatedSymbols.has(effectiveSym)) continue;
+  ```
+  (ours: `src/engine/WinEvaluator.ts:113-123`; yours: same function, plus `SlotGame.sol:340-341`.)
+  Seeding from column 0 is a legitimate shortcut — a left-to-right ways win must start on reel 0, so only symbols visible there can pay. But a **wild substitutes for every symbol**, so a wild in column 0 should open the door for all of them. Mapping it to HIGH_A instead means a full wild reel 0 yields the candidate set `{HIGH_A}` and at most one combination can ever pay — even though the counting loop right below (`cell === effectiveSym || cell === SymbolId.WILD`, ours `:138`, yours `WinEvaluator.ts:138` / `SlotGame.sol:351`) already substitutes wilds for anything.
+- **Measured on the reported board** (towers on reels 0,1,3; reel 2 = `[K, shades, J, briefcase, J]`; reel 4 = `[J, J, shades, car, white-suit]`) with the shipped paytable:
+
+  | | combinations | total |
+  |---|---|---|
+  | current engine | shades guy 5-of-a-kind, 125 ways | **45.20×** |
+  | correct model | + briefcase 4oak 18.36× + K 4oak 16.95× + **J 5oak, 500 ways, 73.45×** | **153.96×** |
+
+  The player received **29.4%** of what the certified math owed.
+- **Blast radius (measured, 300k boards per mode on the shipped Vice strips):** base game — 7.6% of boards change value, ways RTP component **47.15% → 52.74%** (+5.6pp); free spins — **73.85% → 92.78%** (+18.9pp). It bites on **any board with a wild anywhere in column 0**, which is ~12.5% of base spins (reel 0 carries one wild in 40 stops) and effectively every expanded free spin — not just sticky rounds.
+- **This is a PAYOUT bug, not a display bug.** Settlement and presentation both score through the same evaluator, so the game genuinely paid less. Our certified simulator has always used the correct model (`math/simulate_vice_heat_v2.py:171-183` iterates every paying symbol), so **the runtime has been paying under its own certification** — the published RTP did not describe the shipped build.
+- **Our fix (ours, already shipped):** we did NOT edit `src/engine/*` (it stays byte-identical to your repo). We added `src/game/viceWays.ts`, a mirror of the engine evaluator whose ONLY difference is the candidate set — every paying symbol id in the paytable, wild and scatter excluded — and routed the `ways` model to it through our `winEval` façade, which fixes settlement and presentation in one edit.
+- **Verification we ran (recommend you repeat it):** across **548,631** fuzzed boards with no wild in column 0 the two evaluators produced **identical combination sets** — the correction is provably a no-op wherever the shortcut was valid, so it cannot regress a non-expanding ways game.
+- **Concrete dev fix:** replace the column-0 seeding loop with an iteration over every paying symbol id in the paytable (skip WILD and SCATTER), keeping everything else — scatter block, per-reel counting, consecutive-from-reel-0 matching, ways product, pay-index caps, bps arithmetic — untouched. Mirror the same change in `SlotGame.sol:_evaluateWins` so the contract and the client agree. **Re-run your RTP simulation afterwards: this raises Vice's RTP materially, and the paytable is being re-fitted on our side to land back on target — take the re-certified `payTable`/`scatterPay` from the updated preset, do not keep the old numbers with the corrected evaluator.**
 
 **Math ownership summary:** D1–D4, D6, D7, D9 are DEV-engine work — the preset already carries the full certified spec in `preset.math.manifest.custom`. D8 is shared. D10 (and the export-flattening half of D8) are the only items we fix in the preset/export. Nothing in the win-evaluator's scatter/wild handling needs changing on either side.
 
@@ -248,9 +275,10 @@ Cross-reference: the paytable/feature copy is maintained on our side and deliver
 # PRIORITIZED FIX ORDER
 
 1. **D8 — verify the ingestion object first** (could be the whole story; ~5 min). Confirm `preset.math.manifest` (not `preset`/`preset.math`) reaches `configFromMathProfile`.
-2. **D1 + D2 — expanding wilds + sticky/simul/full-house FS** (restores ~65% of RTP). Reference: `src/dev/mockHost.ts:407-548` reads the exact `custom{}` keys the preset already ships.
-3. **D3, D4 — staged buys + ante** (only if those buttons ship at launch).
-4. **Section D layout** — switch to bottom bar + tuned onResize + left-rail logo (biggest visible fix after RTP).
-5. **B1/B2 marquee + ways-immersive; B4 intro** — presentation richness.
-6. **D6 retrigger amount, D7 hot-spins; C audio dev-side keys** — correctness/feel.
-7. **D9, D10, D5-note; B3 FS counters (after our asset delivery)** — cleanup.
+2. **D11 — the ways-evaluator wild-on-reel-0 bug** (a ~10-line change in `_evaluateWins`, client + contract). It underpays on ~12.5% of base spins and on effectively every expanded free spin, and it is in YOUR engine today regardless of anything else on this list. Cheap to fix, and it invalidates any RTP figure measured before it.
+3. **D1 + D2 — expanding wilds + sticky/simul/full-house FS** (restores ~65% of RTP). Reference: `src/dev/mockHost.ts:407-548` reads the exact `custom{}` keys the preset already ships.
+4. **D3, D4 — staged buys + ante** (only if those buttons ship at launch).
+5. **Section D layout** — switch to bottom bar + tuned onResize + left-rail logo (biggest visible fix after RTP).
+6. **B1/B2 marquee + ways-immersive; B4 intro** — presentation richness.
+7. **D6 retrigger amount, D7 hot-spins; C audio dev-side keys** — correctness/feel.
+8. **D9, D10, D5-note; B3 FS counters (after our asset delivery)** — cleanup.

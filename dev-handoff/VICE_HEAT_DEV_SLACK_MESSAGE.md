@@ -8,6 +8,15 @@ Hey — updated **Vice Heat** preset is in (`vice-heat.chainwtf-preset.json`, sc
 
 **NEW in this drop — the free spins were re-certified** (still RTP 95.99%). The FS now rolls its own rare-wild strips (`fsReelStrips`), **5 full wild reels = instant 5000× max win** in both bonuses (`custom.fullBoardInstantMaxWin`), 3sc = per-spin expansion / 4sc = sticky towers to cap 5, and the old sticky ×2/×10 + full-house doubling is retired. New `payTable.wild [1243,2034,3616]` / `scatterPay [1164,2260,6780]`. See the ⚠️ display-strips note below — it bit us and it'll bite the engine the same way.
 
+**🔴 We found a PAYOUT bug that is in YOUR engine too — byte-identical (`D11` in the doc)**
+`_evaluateWins` picks which symbols to test by looking at **column 0 only**, and turns a WILD sitting there into HIGH_A:
+```ts
+const effectiveSym = sym === SymbolId.WILD ? SymbolId.HIGH_A : sym;   // <-- here
+```
+A wild substitutes for *everything*, so a wild in column 0 should let every symbol pay. Folding it into HIGH_A means a **full wild reel 0 can pay at most ONE combination**. Real board from our build — towers on reels 1/2/4: engine paid 45.20× (shades guy only), correct is 153.96× (+ J with 500 ways, + K, + briefcase). **The player got 29.4% of what he was owed.** Measured blast radius: ~12.5% of base spins and effectively every expanded free spin; Vice's base ways component alone goes 47.15% → 52.74%.
+Fix = iterate every paying symbol in the paytable instead of seeding from column 0; leave the rest of the function alone (the counting loop already substitutes wilds correctly). Same change in `SlotGame.sol:_evaluateWins`. We verified on 548,631 boards without a wild in column 0 that the corrected model is **identical** — it cannot regress a normal ways game.
+**Any RTP number either of us measured before this fix is void.** We're re-fitting the paytable now and the updated preset will carry re-certified `payTable`/`scatterPay` — please take those, don't keep the old numbers with a corrected evaluator.
+
 **⚠️ Check this FIRST (5 min — could be half the issue)**
 Confirm you feed `preset.math.manifest` (NOT `preset` or `preset.math`) into `configFromMathProfile` / `buildGameConfigFromMathProfile`. If not, `reelStrips` is `undefined` → silent fallback to the Fantasy 5×3 default. (We also flattened those fields onto the preset root as a safety net.)
 

@@ -924,7 +924,13 @@ export class ReelSet {
             relocate?: boolean;
             /** Crack Farm v2: weights for how many plants a round grows (index 0 = 1 plant).
              *  Present = the round draws 1..N instead of the flat stickyTowerCap. */
-            plantCountWeights?: number[] } = {},
+            plantCountWeights?: number[];
+            /** VICE REPLAY: land the stops the SETTLEMENT actually paid and expand
+             *  exactly the reels it expanded, instead of rolling our own. Present =
+             *  every RNG decision below is skipped. Source: viceRound.fsSpins[i]
+             *  (see src/game/viceSpin.ts) — this is what makes the displayed round
+             *  and the credited round the same round. */
+            script?: { stops: readonly number[]; expandReels: readonly number[] } } = {},
   ): Promise<number[]> {
     const live = opts.isLive ?? (() => true);
 
@@ -962,7 +968,24 @@ export class ReelSet {
     const displayStops = this.config.reelLengths.map(len => Math.floor(Math.random() * len));
     const landingRows: number[] = [];
 
-    if (opts.sticky && opts.relocate) {
+    if (opts.script) {
+      // ── VICE REPLAY ────────────────────────────────────────────────────────
+      // The settlement already played this spin and the player is being paid for
+      // it; our only job is to SHOW it. Land its exact stops and expand exactly
+      // the reels it expanded — no Math.random() anywhere on this path. Reels
+      // already standing as towers are filtered out so only the tower that JOINS
+      // this spin plays its grow animation; the rest simply stay up.
+      this.startSpin();
+      gen = this.stickyRevealGen;
+      for (let r = 0; r < displayStops.length; r++) {
+        if (opts.script.stops[r] !== undefined) displayStops[r] = opts.script.stops[r];
+      }
+      chosen = opts.script.expandReels.filter(r => !this.expandedReels.has(r)).sort((a, b) => a - b);
+      // Grow from the cell where the wild actually landed; a scripted reel can
+      // legitimately show no wild in-window (a sticky tower carried over from an
+      // earlier spin), in which case start from the middle row.
+      for (const reel of chosen) landingRows.push(wildRowInWindow(reel, displayStops[reel]) ?? (rows >> 1));
+    } else if (opts.sticky && opts.relocate) {
       // CRACK FARM STICKY: the plants are KEPT for the round but they do NOT
       // stand still — every spin they sink out and push back up somewhere
       // else (Noski: "zwischen den spins immer dieser positions wechsel").

@@ -20,6 +20,7 @@ import { type WinResult } from '@/engine/WinEvaluator';
 import { evalWins, activePayModel } from './winEval';
 import { isFruitStacksOutcome, type FruitStacksOutcome } from './decodeFruitStacks';
 import { isSushiOutcome, type SushiPartyOutcome } from './decodeSushi';
+import { isViceOutcome } from './decodeVice';
 import type { SushiSpin } from './sushiClusterSpin';
 import { SUSHI } from '@/config/sushiTheme';
 import type { FruitSpin } from './fruitStacksSpin';
@@ -2284,6 +2285,18 @@ export class PixiApp {
     // Sum of the DISPLAYED per-spin wins — the outro shows exactly what the
     // TOTAL WIN plaque accumulated, never a diverging mock total.
     let fsRoundDisplayTotal = 0n;
+    // ── VICE REPLAY SCRIPT ────────────────────────────────────────────────────
+    // The settled round, spin by spin (src/game/viceSpin.ts). When present the
+    // free-spins loop below REPLAYS it instead of rolling its own reels: same
+    // stops, same expansions, same per-spin amounts. Before this existed the
+    // display ran an independent RNG stream, which is how a single free spin
+    // could show 42 inside a round that paid 32.
+    const viceRound = isViceOutcome(outcome) ? outcome.viceRound : null;
+    // The TRIGGER spin's own win is part of the round total in settlement, so it
+    // must seed the plaque — otherwise the running total (and with it the MAX
+    // WIN cap check below) sits permanently low and can SKIP the max-win
+    // ceremony on a round that genuinely hit the cap.
+    if (viceRound) fsRoundDisplayTotal = viceRound.base.credited;
     if (outcome.freeSpinsTriggered && outcome.freeSpinsPlayed > 0 && !this.turbo && !prefersReducedMotion()) {
       // Land the TRIGGER board first — the 3+ scatters visibly hit (with the
       // natural near-miss anticipation) before anything else happens.
@@ -2365,16 +2378,22 @@ export class PixiApp {
       // settlement + simulator stop at the same spin — same rule).
       const capAmount = BigInt((this.config as { maxWinMultiplier?: number }).maxWinMultiplier ?? 5000)
         * (outcome.wager ?? 1n);
-      for (let i = 0; i < outcome.freeSpinsPlayed; i++) {
+      // Vice replays exactly the spins that were settled. Trusting
+      // freeSpinsPlayed alone would silently fall back to the RNG path if the
+      // two ever disagreed — the very divergence this rewrite removes.
+      const fsCount = viceRound ? viceRound.fsSpins.length : outcome.freeSpinsPlayed;
+      for (let i = 0; i < fsCount; i++) {
         if (!this.isLive) break;
         if (fsOverlay.counter) {
-          fsOverlay.counter.text = `${i + 1} / ${outcome.freeSpinsPlayed}`;
+          fsOverlay.counter.text = `${i + 1} / ${fsCount}`;
           // small pop so the count-change reads at a glance
           gsap.fromTo(fsOverlay.counter.scale, { x: 1.22, y: 1.22 }, { x: 1, y: 1, duration: 0.35, ease: 'back.out(2.5)' });
         }
         // Abort the PREVIOUS spin's win presentation (a tally could still be
         // mid-flight) before the reels roll — only spin() bumps the id.
         this._winRevealId++;
+        // VICE: the settled spin we are about to SHOW (null for Crack Farm).
+        const vSpin = viceRound ? viceRound.fsSpins[i] : null;
         const expanded = await this.reelSet.playExpandingWildReveal(
           {
             // Crack Farm v2: 3, 4 and 5 scatters play the IDENTICAL round —
@@ -2389,21 +2408,29 @@ export class PixiApp {
             plantCountWeights: crackLines
               ? (this.config as { plantCountWeights?: number[] }).plantCountWeights
               : undefined,
+            // Vice: land the stops settlement paid for and expand exactly the
+            // reels it expanded — no dice on this path.
+            script: vSpin ? { stops: vSpin.stops, expandReels: vSpin.expandedReels } : undefined,
           },
         );
         if (!this.isLive) break;
         // Evaluate the DISPLAYED board with every standing tower fully wild.
         // A spin may expand nothing (rare wilds) — the plain board still
         // pays its natural connections, so the evaluation always runs.
-        const board = this.reelSet.getVisibleBoard();
-        for (const reel of expanded) for (let row = 0; row < this.grid.visibleRows; row++) board[row][reel] = 0; // WILD
-        let winResult = this.applySimulMultiplier(
+        //
+        // VICE: nothing is evaluated here at all — the settled spin already
+        // carries the authoritative combination list for exactly this board, so
+        // re-deriving it could only introduce a disagreement with the payout.
+        const board = vSpin ? vSpin.evalBoard : this.reelSet.getVisibleBoard();
+        if (!vSpin) for (const reel of expanded) for (let row = 0; row < this.grid.visibleRows; row++) board[row][reel] = 0; // WILD
+        let winResult = vSpin ? vSpin.winResult : this.applySimulMultiplier(
           evalWins(board, outcome.wager ?? 1n, this.config),
           stickyMode ? 0 : expanded.length,
         );
         // FULL HOUSE: with every sticky tower standing the spin pays x2 —
-        // displayed amounts mirror the settlement rule exactly.
-        if (stickyMode) winResult = this.applyStickyFullBoard(winResult, expanded.length);
+        // displayed amounts mirror the settlement rule exactly. (Vice replays a
+        // settled winResult that already has every multiplier baked in.)
+        if (stickyMode && !vSpin) winResult = this.applyStickyFullBoard(winResult, expanded.length);
         // PLANT MULTIPLIER (crack-farm 4sc): tower-crossing line wins pay
         // × the shared multi; each CROSSING connection then grows it by +1
         // (capped). Mirrors mock settlement + simulate_crack_farm.py exactly.
@@ -2451,11 +2478,18 @@ export class PixiApp {
           pendingPlantMulti = Math.max(displayPlantMulti,
             ...[...displayPlants.values()], ...[...grown.values()]);
         }
-        const crossesCap = capAmount > 0n && fsRoundDisplayTotal + winResult.totalWin >= capAmount;
-        if (winResult.totalWin > 0n && !crossesCap) {
+        // What this spin actually PAID. For Vice that is the settled, already
+        // cap-clamped `credited` — so the plaque below is not an approximation
+        // of the payout, it IS the payout. The cap test stays exact BigInt: a
+        // capped round is clamped to precisely capAmount, so reaching it is the
+        // max win, and the 5-wild instant max arrives here the same way (its
+        // credited amount alone reaches the cap).
+        const spinWin = vSpin ? vSpin.credited : winResult.totalWin;
+        const crossesCap = capAmount > 0n && fsRoundDisplayTotal + spinWin >= capAmount;
+        if (spinWin > 0n && !crossesCap) {
           const spinOutcome: SpinOutcome = {
             stops: this.config.reelLengths.map(() => 0), board,
-            winAmount: winResult.totalWin, wager: outcome.wager ?? 1n,
+            winAmount: spinWin, wager: outcome.wager ?? 1n,
             scatterCount: 0, freeSpinsTriggered: false, freeSpinsPlayed: 0,
             holdWinTriggered: false, holdWinWin: 0n, holdWin: null, winResult,
           };
@@ -2476,7 +2510,7 @@ export class PixiApp {
             this.reelSet.setTowerMultiplier(displayPlantMulti);
           }
           // Roll the spin's win into the TOTAL WIN plaque (pop on update).
-          fsRoundDisplayTotal += winResult.totalWin;
+          fsRoundDisplayTotal += spinWin;
           fsOverlay.total.text = formatWin(fsRoundDisplayTotal, decimals);
           fsOverlay.totalFit();
           const ts = fsOverlay.total.scale.x;
@@ -2601,13 +2635,22 @@ export class PixiApp {
     // blink lands back on the normal base screen.
     if (this.isLive && fsOverlayToClose) {
       const overlay = fsOverlayToClose;
-      // The TOTAL WIN screen shows the AUTHORITATIVE settled payout, never the
-      // re-enacted running sum. The per-spin display drives an independent RNG
-      // stream from settlement (a faithful re-enactment, like Hold & Win), so
-      // fsRoundDisplayTotal can differ by a few x from what is actually
-      // credited — the final total the player reads must equal their balance.
-      // Capped rounds already locked fsRoundDisplayTotal to the cap = winAmount.
+      // The TOTAL WIN screen shows the settled payout. For VICE the running
+      // plaque is now built from the settled per-spin `credited` amounts seeded
+      // with the trigger spin's win, so it already EQUALS outcome.winAmount and
+      // this is no longer a correction — it is an identity. It used to be a
+      // genuine correction, because the display re-enacted the round on its own
+      // RNG stream; that is how a spin showing 42 could sit inside a round that
+      // paid 32. The assert below is what keeps it honest: if the replay ever
+      // drifts from settlement we want to know in development, not ship a
+      // silently re-snapped number.
       const authoritativeTotal = outcome.winAmount > 0n ? outcome.winAmount : fsRoundDisplayTotal;
+      if (import.meta.env?.DEV && viceRound && fsRoundDisplayTotal !== outcome.winAmount) {
+        console.error('[PixiApp] VICE REPLAY DRIFT — plaque', fsRoundDisplayTotal.toString(),
+          '!= settled', outcome.winAmount.toString(),
+          '(base', viceRound.base.credited.toString(),
+          '+ spins', viceRound.fsSpins.map(s => s.credited.toString()).join('+'), ')');
+      }
       this.reelSet.fsExpandMode = null;
       this.onFsRoundActive?.(false);
       await this.playFreeSpinsOutro(authoritativeTotal, decimals, () => {
@@ -3872,7 +3915,15 @@ export class PixiApp {
     const r = wager > 0n ? Number(winAmount) / Number(wager) : Number(winAmount);
     const C = WIN_CELEBRATION_CONFIG;
     const capX = this.config.maxWinMultiplier;
-    const isMax = capX > 0 && r >= capX * 0.999;
+    // MAX WIN is decided EXACTLY, in BigInt, never on the float ratio: settlement
+    // clamps a capped round to precisely maxWinMultiplier x wager, so "this is a
+    // max win" is `winAmount >= cap`, full stop. The old `r >= capX * 0.999`
+    // fudged it two ways — it celebrated MAX WIN on a merely-huge win (4996x of a
+    // 5000x cap) and, because Number(bigint) loses precision above 2^53, it could
+    // in principle mis-read a genuinely capped win at large wagers and SKIP the
+    // ceremony the player earned. Both are unacceptable on a payout signal.
+    const capAmount = capX > 0 ? BigInt(capX) * wager : 0n;
+    const isMax = capAmount > 0n && winAmount >= capAmount;
     if (!isMax && r < C.minBigWin) {
       // On-board win: the classic jingle carries it (marquee music above).
       if (r > 0) this.reelSet.audioHooks?.onWinJingle?.(r < 2 ? 'small' : r < 8 ? 'normal' : 'big');

@@ -14,6 +14,8 @@ import { FRUIT_GAME_STATE } from '@/game/decodeFruitStacks';
 import { deriveSushiRound } from '@/game/sushiClusterSpin';
 import { SUSHI_MATH, SUSHI_BUY_STAGES } from '@/game/sushiMath';
 import { SUSHI_GAME_STATE } from '@/game/decodeSushi';
+import { deriveViceRound, isViceMathConfig, type ViceMathConfig } from '@/game/viceSpin';
+import { VICE_GAME_STATE } from '@/game/decodeVice';
 import { deriveStopsFromRandomness } from '@/engine/SlotEngine';
 import { GAME_CONFIG } from '@/config/gameConfig';
 import type { GameConfig } from '@/engine/GameConfig';
@@ -218,6 +220,26 @@ export class MockHost {
         try { buyStage = Number(decodeAbiParameters([{ type: 'uint8' }], gameData as `0x${string}`)[0]); } catch { buyStage = 0; }
       }
       this.settleSushi(sessionId, sessionKey, wager, randomness, buyStage);
+      return;
+    }
+
+    // ── VICE HEAT (5×5 ways + expanding wilds) ─────────────────────────────
+    // Same isolation as Fruit Stacks / Sushi Party: the pure core settles the
+    // WHOLE round (base spin incl. hot expansion + the free-spins chain) from
+    // the randomness and the decode façade re-derives the identical round, so
+    // display == payout. Before this branch existed the free spins were settled
+    // as loop-locals here and the presentation invented its own board with
+    // Math.random() — two RNG streams, a spin could pay 42 while the round total
+    // said 32. Gated on the Vice custom rule set (expandingWildsInFS); the
+    // generic ways profiles (vol3-5x3, vol3-5x5, fantasy) fall through to the
+    // engine path below unchanged.
+    if (activePayModel() === 'ways' && isViceMathConfig(this.config)) {
+      // gameData = abi.encode(uint8 stage): 1 = buy 3sc, 2 = buy 4sc, 3 = ante.
+      let stage = 0;
+      if (typeof gameData === 'string' && gameData.length >= 66) {
+        try { stage = Number(decodeAbiParameters([{ type: 'uint8' }], gameData as `0x${string}`)[0]); } catch { stage = 0; }
+      }
+      this.settleVice(sessionId, sessionKey, wager, randomness, stage, gameData);
       return;
     }
 
@@ -676,6 +698,69 @@ export class MockHost {
           lastEventTimestamp: now,
           raw: {
             gameData: '0x' as `0x${string}`,
+            gameState,
+            randomness,
+          },
+        },
+      ],
+    };
+    this.onStateChange(snapshot);
+  }
+
+  /** VICE HEAT settlement — the certified pure core derives the whole round
+   *  (base spin incl. the hot-spin expansion + the free-spins chain with its
+   *  towers, retriggers and the hard session cap) from the randomness; only the
+   *  authoritative totals are encoded. Mirrors what a SlotGame.sol variant would
+   *  compute on-chain from the same seed. */
+  private settleVice(
+    sessionId: string, sessionKey: string, wager: bigint,
+    randomness: `0x${string}`, stage = 0, gameData?: string,
+  ) {
+    const config = this.config as unknown as ViceMathConfig;
+    // A purchase/ante pays the COST as the wager; the round plays at the base bet.
+    const buy = config.viceBuyStages?.find(st => st.stage === stage);
+    const bet = buy
+      ? wager / BigInt(buy.costMult)
+      : stage === 3 && config.anteBet
+        ? (wager * 100n) / BigInt(Math.round(config.anteBet.costMult * 100))
+        : wager;
+    const round = deriveViceRound(randomness, bet, config, stage);
+    const totalWin = round.totalWin;
+
+    const gameState = encodeAbiParameters(
+      VICE_GAME_STATE as unknown as { type: string; name: string }[],
+      [
+        round.base.stops as unknown as [number, number, number, number, number],
+        totalWin,
+        Math.min(round.base.scatters, 255),
+        round.fsSpins.length,
+        round.fsTriggered,
+        stage,
+      ],
+    );
+
+    this.balance += totalWin;
+
+    const now = Math.floor(Date.now() / 1000);
+    const snapshot = this.getSnapshot();
+    snapshot.sessions = {
+      items: [
+        {
+          sessionId,
+          sessionKey,
+          gameAddress: MOCK_GAME_ADDRESS,
+          phase: 3,
+          phaseName: 'SETTLED',
+          wager: wager.toString(),
+          payout: totalWin.toString(),
+          outcome: totalWin > 0n ? 1 : 0,
+          isSettled: true,
+          openedAt: now - 2,
+          settledAt: now,
+          lastEventTimestamp: now,
+          raw: {
+            // preserve the buy/ante stage marker — the UI reads it back
+            gameData: (gameData ?? '0x') as `0x${string}`,
             gameState,
             randomness,
           },

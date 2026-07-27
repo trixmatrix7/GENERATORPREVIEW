@@ -7,6 +7,8 @@ import { gameReducer, initialState } from '@/state/GameStateMachine';
 import { decodeSpinOutcome, encodeGameData } from '@/engine/SlotEngine';
 import { decodeFruitStacksOutcome } from '@/game/decodeFruitStacks';
 import { decodeSushiOutcome } from '@/game/decodeSushi';
+import { decodeViceOutcome } from '@/game/decodeVice';
+import { isViceMathConfig } from '@/game/viceSpin';
 import { FRUIT_BUY_STAGES } from '@/game/fruitStacksMath';
 import { SUSHI_BUY_STAGES } from '@/game/sushiMath';
 import { activePayModel } from '@/game/winEval';
@@ -81,6 +83,10 @@ export function useGameState(
         // Vice-only: fires only when this profile carries viceBuyStages/anteBet;
         // every other game (and a plain Vice spin, gameData '0x') keeps `wager`.
         let decodeWager = wager;
+        // Vice rounds decode through their OWN façade (the round script), which
+        // recovers the base bet from the encoded stage itself.
+        const isVice = activePayModel() === 'ways'
+          && isViceMathConfig(mathProfileById(loadMathProfileId()).build?.());
         {
           const build = mathProfileById(loadMathProfileId()).build?.() as {
             viceBuyStages?: Array<{ stage: number; costMult: number }>;
@@ -112,6 +118,17 @@ export function useGameState(
               )
             : activePayModel() === 'cluster'
             ? decodeSushiOutcome(
+                settled.raw.gameState as `0x${string}`,
+                wager,
+                settled.raw.randomness as `0x${string}`,
+              )
+            // Vice Heat bypasses the frozen uint8[5] decode too — its whole
+            // round (base spin, hot expansion, every free spin with its towers
+            // and credited win) is re-derived from the randomness via the same
+            // pure core the settlement used, so the presentation replays the
+            // settled round instead of inventing one.
+            : isVice
+            ? decodeViceOutcome(
                 settled.raw.gameState as `0x${string}`,
                 wager,
                 settled.raw.randomness as `0x${string}`,

@@ -66,10 +66,11 @@ function fromManifest(m: Record<string, unknown>): GameConfig {
     // Small fixed retrigger award (custom rule) — undefined keeps the
     // template's re-award-freeSpinsCount behaviour.
     retriggerSpins: (m['custom'] as { retriggerSpins?: number } | undefined)?.retriggerSpins,
-    // Simultaneous-expansion multiplier table (3sc bonus + hot spins):
-    // n reels expanding in ONE spin multiply the spin win per this map
-    // (late ladder, e.g. {"3": 2, "4": 8}).
-    simulExpandMultipliers: (m['custom'] as { simulExpandMultipliers?: Record<string, number> } | undefined)?.simulExpandMultipliers,
+    // custom.simulExpandMultipliers ({"3":2,"4":10}) is DELIBERATELY NOT
+    // mapped: the certification RETIRED the simultaneous-expansion ladder.
+    // It stays in the manifest for the record, but nothing may apply it —
+    // deriveViceRound ignores it and, unmapped, PixiApp.applySimulMultiplier
+    // resolves to ×1 as well, so settlement and presentation agree.
     // Sticky rounds run longer than 3sc rounds (own spin count + cap).
     stickyRoundSpins: (m['custom'] as { stickyRoundSpins?: number } | undefined)?.stickyRoundSpins,
     stickyRoundCap: (m['custom'] as { stickyRoundCap?: number } | undefined)?.stickyRoundCap,
@@ -99,6 +100,11 @@ function fromManifest(m: Record<string, unknown>): GameConfig {
     // BOARD of 5 wild reels = INSTANT MAX WIN in both bonuses.
     fsReelStrips: (m['fsReelStrips'] as number[][] | undefined),
     fullBoardInstantMaxWin: !!(m['custom'] as { fullBoardInstantMaxWin?: boolean } | undefined)?.fullBoardInstantMaxWin,
+    // HOT SPIN (Vice): 1-in-N NATURAL/ANTE base spins run in per-spin expansion
+    // mode — every wild-carrying reel becomes a full tower before evaluation.
+    // Certified and advertised in the manifest; deriveViceRound implements it.
+    hotSpinChance1In: (m['custom'] as { hotSpinChance1In?: number } | undefined)?.hotSpinChance1In,
+    hotSpinExpandsWilds: !!(m['custom'] as { hotSpinExpandsWilds?: boolean } | undefined)?.hotSpinExpandsWilds,
   } as unknown as GameConfig;
 }
 

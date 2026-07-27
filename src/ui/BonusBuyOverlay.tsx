@@ -363,7 +363,7 @@ function FitPrice({ leftPct, textStyle, value }: { leftPct: number; textStyle: C
   }, [value]);
   return (
     <div ref={boxRef} style={{
-      position: 'absolute', left: `${leftPct}%`, top: '56%', width: '8.4%',
+      position: 'absolute', left: `${leftPct}%`, top: '55.5%', width: '8.4%',
       transform: 'translate(-50%, -50%)', display: 'flex', justifyContent: 'center',
       alignItems: 'center', pointerEvents: 'none',
     }}>
@@ -416,7 +416,7 @@ export function ViceBuyRail({ betDisplay, stages, anteCostMult, onBuy }: {
   // only; FitPrice shrinks it to the pill on any bet amount / currency length.
   const priceTextStyle: CSSProperties = {
     fontFamily: V_FONT, fontWeight: 900, fontStyle: 'italic', fontSize: '2.7cqh',
-    color: '#ffd75e', letterSpacing: 0.3, whiteSpace: 'nowrap', lineHeight: 1,
+    color: '#ffffff', letterSpacing: 0.3, whiteSpace: 'nowrap', lineHeight: 1,
     textShadow: '0 0 4px #1a0016, 2px 2px 0 #1a0016, -2px 2px 0 #1a0016, 2px -2px 0 #1a0016, -2px -2px 0 #1a0016, 0 4px 10px rgba(0,0,0,0.6)',
   };
   return (

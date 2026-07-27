@@ -624,6 +624,11 @@ export function App() {
     // Expected art: 512×2560 px (5×5 grid) / 512×1484 px (5×3) — one reel's
     // aspect; setExpandingWildImage height-fits whichever grid is active.
     void pixiAppRef.setExpandingWildImage(saved.expandingWild ?? `${B}wild_column.webp`);
+    // Grow clip 1:1 → expanded: Noski's WILD-surfboard animation (baked from
+    // WILD_expand_green.mp4 — green-keyed + each frame aligned so the LAST frame
+    // freezes seamlessly onto wild_column.webp). Sub-sampled 90→24 frames and
+    // played @34fps ≈ 0.7s (the raw 3s take was too slow). Plays on first landing.
+    void pixiAppRef.setExpandGrowSheet(`${B}wild_grow_sheet.webp`, 6, 4, 24, 34);
     // Custom neon frame (palm + marquee arrow). The window rect is the TRUE
     // transparent hole measured from the 1500² art's alpha — mapped onto the
     // frame bounds so the palm/arrow hang over the background, not the reels.

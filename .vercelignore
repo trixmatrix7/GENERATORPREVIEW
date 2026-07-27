@@ -1,0 +1,31 @@
+# Vercel CLI uploads the whole working directory unless told otherwise, and this
+# repo carries a lot that the deployed app does not need: reference video, bake
+# scratchpads, the dev handoff package, the partner's engine snapshot. Without
+# this file the upload was 456 MB and the deploy failed outright on Vercel's
+# 100 MB per-file limit.
+#
+# The build only needs: index.html, package.json(+lock), tsconfig*, vite.config*,
+# src/ and public/.
+
+# Bake + analysis scratchpads (video, frame dumps, montages)
+scratchpad_sushi/
+scratchpad_vice_bonus/
+scratchpad/
+
+# Dev handoff package (shipped to the partner as a zip, not part of the app)
+dev-handoff/
+
+# The partner's engine snapshot, kept for reference only
+devgen/
+
+# Math simulators and certification tooling (Node scripts, never bundled)
+custom-math/
+
+# Slot-feel research reports
+research/
+
+# Built output — Vercel runs the build itself
+dist/
+
+# Local Vercel state
+.vercel/

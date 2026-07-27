@@ -965,6 +965,13 @@ export class ReelSet {
     let chosen: number[];
     let gen: number;
     let relocateActive = false;
+    // VICE REPLAY: towers that were ALREADY standing when this spin began. They
+    // must come straight back once the board lands (a sticky tower never comes
+    // down mid-round) — startSpin() below tears every tower off the display, so
+    // without this they would re-GROW from scratch every single spin instead of
+    // sticking. Only the tower that newly joins this spin belongs in `chosen`.
+    let scriptRestore: number[] = [];
+    const scriptRestoreRows: number[] = [];
     const displayStops = this.config.reelLengths.map(len => Math.floor(Math.random() * len));
     const landingRows: number[] = [];
 
@@ -975,16 +982,23 @@ export class ReelSet {
       // the reels it expanded — no Math.random() anywhere on this path. Reels
       // already standing as towers are filtered out so only the tower that JOINS
       // this spin plays its grow animation; the rest simply stay up.
+      // Snapshot the standing towers BEFORE startSpin() wipes them (it calls
+      // clearStickyWilds, which empties expandedReels and kills the sprites).
+      const standingBefore = opts.sticky ? new Set(this.expandedReels) : new Set<number>();
       this.startSpin();
       gen = this.stickyRevealGen;
       for (let r = 0; r < displayStops.length; r++) {
         if (opts.script.stops[r] !== undefined) displayStops[r] = opts.script.stops[r];
       }
-      chosen = opts.script.expandReels.filter(r => !this.expandedReels.has(r)).sort((a, b) => a - b);
+      // A tower that was already up is RESTORED (it never left, as far as the
+      // player is concerned); only a tower joining THIS spin grows on screen.
+      scriptRestore = opts.script.expandReels.filter(r => standingBefore.has(r)).sort((a, b) => a - b);
+      chosen = opts.script.expandReels.filter(r => !standingBefore.has(r)).sort((a, b) => a - b);
       // Grow from the cell where the wild actually landed; a scripted reel can
-      // legitimately show no wild in-window (a sticky tower carried over from an
-      // earlier spin), in which case start from the middle row.
+      // legitimately show no wild in-window (settlement expands the whole reel),
+      // in which case start from the middle row.
       for (const reel of chosen) landingRows.push(wildRowInWindow(reel, displayStops[reel]) ?? (rows >> 1));
+      for (const reel of scriptRestore) scriptRestoreRows.push(wildRowInWindow(reel, displayStops[reel]) ?? (rows >> 1));
     } else if (opts.sticky && opts.relocate) {
       // CRACK FARM STICKY: the plants are KEPT for the round but they do NOT
       // stand still — every spin they sink out and push back up somewhere
@@ -1148,6 +1162,18 @@ export class ReelSet {
     await new Promise(res => setTimeout(res, opts.turbo ? 240 : 520));
     if (this.stickyRevealGen !== gen || !live()) return opts.sticky ? allExpanded() : [];
     await this.stopOnStops(displayStops, !!opts.turbo);
+
+    // VICE REPLAY, STICKY ROUND: put the ALREADY-STANDING towers straight back
+    // the moment the board lands. They are restored preGrown (no grow clip) and
+    // all at once, so to the player they simply never came down — which is the
+    // whole promise of a sticky tower. Only the tower that JOINS this spin is in
+    // `chosen` below and plays the grow animation. Without this the towers were
+    // torn off by startSpin() and re-grew from scratch every single spin.
+    if (scriptRestore.length > 0) {
+      if (this.stickyRevealGen !== gen || !live()) return opts.sticky ? allExpanded() : [];
+      await Promise.all(scriptRestore.map((reel, k) =>
+        this.expandOneWildReel(reel, scriptRestoreRows[k], true, true)));
+    }
 
     // Sequential, one reel finishing before the next starts (like the ref) —
     // this is the LOCK ORDER: each relocating plant locks in turn while the

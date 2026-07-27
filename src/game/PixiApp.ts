@@ -2341,7 +2341,13 @@ export class PixiApp {
       // TIERED BONUS: 3 scatters = per-spin expansion (towers clear each
       // spin); 4+ scatters = STICKY expansion — towers stay for the rest of
       // the round and new ones accumulate wherever a sack naturally lands.
-      const stickyMode = outcome.scatterCount >= 4;
+      // Sticky vs per-spin comes from the SETTLED round, not from re-deriving it
+      // off the scatter count. A BOUGHT 4-scatter round is sticky by contract,
+      // and re-deriving it here is exactly how the display ended up playing a
+      // per-spin round (towers re-growing every spin) over a settlement that was
+      // accumulating sticky towers. viceRound.sticky is the same field the payout
+      // used. The scatterCount form stays as the fallback for Crack Farm.
+      const stickyMode = viceRound ? viceRound.sticky : outcome.scatterCount >= 4;
       // Covered-scatter rule for the whole round (see ReelSet.fsExpandMode).
       this.reelSet.fsExpandMode = stickyMode ? 'sticky' : 'perSpin';
       // VICE re-cert: swap the DISPLAYED reels onto the RARE-wild fsReelStrips so

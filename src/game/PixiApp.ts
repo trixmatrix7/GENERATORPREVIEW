@@ -3,7 +3,7 @@
 
 import { Application, Assets, BlurFilter, Container, Filter, Graphics, Rectangle, Sprite, Text, TextStyle, Texture, Ticker } from 'pixi.js';
 import { gsap } from 'gsap';
-import { ReelSet, type ReelSetAudioHooks } from './ReelSet';
+import { ReelSet, type ReelSetAudioHooks, type TowerBadgeStyle } from './ReelSet';
 import { setActiveGrid, type GridConfig } from '@/config/gridConfig';
 import { WIN_LINE_PRESETS, WIN_COIN_PRESETS, ACCENT_PRESETS } from '@/config/adjustableParams';
 import { waysLightConfig } from './effects/WaysLightComet';
@@ -366,6 +366,11 @@ export class PixiApp {
     await this.ensureFontsLoaded();
     if (this._aborted) return;
     this.reelSet = new ReelSet(this.atlases, this.config, this.grid);
+    // A tower-badge style set before init lands here rather than being dropped.
+    if (this.pendingTowerBadgeStyle) {
+      this.reelSet.towerBadgeStyle = this.pendingTowerBadgeStyle;
+      this.pendingTowerBadgeStyle = null;
+    }
     this._initialized = true;
     this.buildScene();
     this.winCelebration = new WinCelebration(this.app, {
@@ -2437,6 +2442,16 @@ export class PixiApp {
           evalWins(board, outcome.wager ?? 1n, this.config),
           stickyMode ? 0 : expanded.length,
         );
+        // TOWER MULTIPLIERS: show each standing tower's badge before the win
+        // presentation, so the player reads the ×N that is about to be applied.
+        // The values come from the SETTLED spin — the display never rolls them.
+        // A 1× tower carries no plate (setOneTowerMultiplier's debut rule).
+        if (vSpin) {
+          const badges = new Map<number, number>(
+            Object.entries(vSpin.towerMultipliers).map(([r, m]) => [Number(r), m]),
+          );
+          if (badges.size > 0) this.reelSet.setTowerMultiplier(badges);
+        }
         // FULL HOUSE: with every sticky tower standing the spin pays x2 —
         // displayed amounts mirror the settlement rule exactly. (Vice replays a
         // settled winResult that already has every multiplier baked in.)
@@ -3233,6 +3248,13 @@ export class PixiApp {
    *  displayed board matches the settlement (which swaps to the same strips).
    *  Reuses the cluster swap mechanism above. No-op when the config has no
    *  fsReelStrips (non-Vice games). Call once after the game config is set. */
+  /** Per-game tower-badge styling (colours + where the plate sits on the reel). */
+  setTowerBadgeStyle(style: TowerBadgeStyle): void {
+    if (this.reelSet) this.reelSet.towerBadgeStyle = style;
+    else this.pendingTowerBadgeStyle = style;
+  }
+  private pendingTowerBadgeStyle: TowerBadgeStyle | null = null;
+
   setupFsSwapStrips(): void {
     const fs = (this.config as { fsReelStrips?: number[][] }).fsReelStrips;
     if (fs && this.config.reelStrips) this.setClusterStrips(this.config.reelStrips as number[][], fs);

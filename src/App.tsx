@@ -633,6 +633,16 @@ export function App() {
     // fsReelStrips (matches the mock's settlement, which swaps to the same). No-op
     // when the config has no fsReelStrips. Reuses the cluster swap mechanism.
     pixiAppRef.setupFsSwapStrips();
+    // TOWER MULTIPLIER badge, Vice styling: hot magenta neon on near-black to
+    // sit on the pink WILD surfboard, and dropped into the LOWER THIRD of the
+    // column (Noski) so the board's "WILD" lettering stays readable above it.
+    pixiAppRef.setTowerBadgeStyle({
+      bgColor: 0x1a0616, bgAlpha: 0.92,
+      borderColor: 0xff3ea5, borderWidth: 3,
+      numberColor: 0xffd7f0,
+      slotYFrac: 0.74,
+      sizeFrac: 0.56,
+    });
     // Custom neon frame (palm + marquee arrow). The window rect is the TRUE
     // transparent hole measured from the 1500² art's alpha — mapped onto the
     // frame bounds so the palm/arrow hang over the background, not the reels.

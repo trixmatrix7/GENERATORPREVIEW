@@ -128,7 +128,14 @@ export const multiBadgeConfig = {
   fontFamily: "'Rubik', ui-sans-serif, system-ui, sans-serif",
   sizeFrac: 0.6,   // square side as a fraction of the reel width (smaller than the old ring)
   corner: 12,
+  /** Where the plate sits down the reel: 0 = top, 0.5 = middle, 1 = bottom.
+   *  Crack Farm keeps it centred in the plant; Vice drops it into the LOWER
+   *  THIRD of the wild surfboard (Noski) so the board art stays readable. */
+  slotYFrac: 0.5,
 };
+
+/** Per-game overrides for the tower badge (see ReelSet.towerBadgeStyle). */
+export type TowerBadgeStyle = Partial<typeof multiBadgeConfig>;
 
 /** Live-adjustable look of the 1×1 wild LOCK backing (the panel + frame behind
  *  the pot when a wild pops on a cell). Frame + backdrop colour/opacity are all
@@ -223,6 +230,9 @@ export class ReelSet {
    *  A scatter behind such a reel is COVERED and must not count for the
    *  tease/trigger (Noski: "das verdeckte Scatter zählt nicht"). */
   public fsExpandMode: 'perSpin' | 'sticky' | null = null;
+  /** Per-game tower-badge styling (colours + where the plate sits on the reel).
+   *  null = the Crack Farm defaults in multiBadgeConfig. */
+  public towerBadgeStyle: TowerBadgeStyle | null = null;
   /** Each expanded reel's tower sprite + rest pose — the win presentation
    *  THUMPS the column (physical motion, no overlay flash) when it pays. */
   private readonly expandedTowerSprites = new Map<number, { spr: Sprite; baseY: number; baseScale: number }>();
@@ -2412,11 +2422,13 @@ export class ReelSet {
       let badge = this.towerBadges.get(reelIdx);
       if (badge && !badge.root.parent) { this.towerBadges.delete(reelIdx); badge = undefined; }
       const rr = resolveAnchor(reelAnchor(reelIdx), this.grid);
-      const cfg = multiBadgeConfig;
+      // Per-game styling: Crack Farm keeps the green plate centred in the plant,
+      // Vice uses its own neon colours and drops the plate into the lower third.
+      const cfg = { ...multiBadgeConfig, ...(this.towerBadgeStyle ?? {}) };
       // Centred square field in the plant's middle (Noski: "feld mittig
       // quadratisch, etwas kleiner"). Side scales with the reel + the param.
       const side = Math.round(rr.w * cfg.sizeFrac);
-      const slotY = rr.y + rr.h * 0.5;
+      const slotY = rr.y + rr.h * cfg.slotYFrac;
       if (!badge) {
         const root = new Container();
         root.eventMode = 'none';

@@ -80,6 +80,10 @@ const CFG = {
   fullBoardInstantMaxWin: !!M.custom.fullBoardInstantMaxWin,
   hotSpinChance1In: M.custom.hotSpinChance1In,
   hotSpinExpandsWilds: !!M.custom.hotSpinExpandsWilds,
+  // TOWER MULTIPLIERS — must be mirrored here too, exactly like every other
+  // custom.* key. This file duplicates mathProfiles.fromManifest, so a field
+  // added there and forgotten here silently measures the feature as OFF.
+  towerMultiplierWeights: M.custom.towerMultiplierWeights,
   viceBuyStages: M.custom.viceBuyStages,
   anteBet: M.custom.anteBet,
 };

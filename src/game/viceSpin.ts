@@ -59,6 +59,9 @@ export interface ViceMathConfig extends Pick<GameConfig, 'gridConfig' | 'payTabl
   maxWinMultiplier: number;
   expandingWildsInFS?: boolean;
   stickyTowerCap?: number;
+  /** Weights over the tower badges 1×…5× (index 0 = 1×). Absent/empty = the
+   *  feature is off and no reel is dealt a badge. */
+  towerMultiplierWeights?: number[];
   stickyRoundSpins?: number;
   stickyRoundCap?: number;
   retriggerSpins?: number;
@@ -90,6 +93,14 @@ export interface ViceSpin {
    *  JOIN order — index 0 is the tower that locked in first, so the
    *  presentation can tell a NEW tower from ones already standing. */
   stickyReels: number[];
+  /** TOWER MULTIPLIER per expanded reel, `reel -> 1..5`. Every reel that stands
+   *  fully wild in a FREE SPIN is dealt a badge; a sticky tower keeps the badge
+   *  it was dealt when it joined, a 3-scatter round re-draws every spin. A
+   *  winning combination pays × the HIGHEST badge among the expanded reels it
+   *  crosses (scatter pay is never multiplied). Hot base-game expansions carry
+   *  NO badge, so this is empty on the base spin. Reels with a 1× badge are
+   *  present here too — the presentation just does not draw a plate for them. */
+  towerMultipliers: Record<number, number>;
   /** Scatters on the EVALUATED board — expanded reels carry none. */
   scatters: number;
   /** Base spin only: this spin rolled HOT (per-spin expansion in the base game). */
@@ -130,6 +141,59 @@ function spinSeed(randomness: `0x${string}`, index: bigint): `0x${string}` {
   return keccak256(
     encodeAbiParameters([{ type: 'bytes32' }, { type: 'uint256' }], [randomness, index]),
   );
+}
+
+// ── tower multipliers ──────────────────────────────────────────────────────
+/** Reserved index namespace for the badge draws. Free-spin indices run 0…fsCap
+ *  (≤13) and the hot roll uses 2^64, so 2^200 can never collide with either —
+ *  the badge draw therefore does NOT consume from the stop stream and adding
+ *  this feature leaves every previously certified board untouched. */
+const TOWER_MULT_NS = 1n << 200n;
+
+/** Deal one reel its badge. Uniform over the weight table (index 0 = 1×). */
+function drawTowerMultiplier(
+  randomness: `0x${string}`,
+  spinIndex: number,
+  reel: number,
+  weights: readonly number[],
+): number {
+  const total = weights.reduce((a, b) => a + b, 0);
+  if (total <= 0) return 1;
+  const seed = spinSeed(randomness, TOWER_MULT_NS + BigInt(spinIndex) * 16n + BigInt(reel));
+  let x = Number(BigInt(seed) % BigInt(total));
+  for (let i = 0; i < weights.length; i++) {
+    x -= weights[i];
+    if (x < 0) return i + 1;
+  }
+  return 1;
+}
+
+/** Apply the badges to an evaluated spin: a combination pays × the HIGHEST badge
+ *  among the expanded reels it CROSSES (a ways combo starts on reel 0 and runs
+ *  `matchCount` reels, so it crosses reels 0…matchCount-1). Scatter pay is never
+ *  multiplied. HIGHEST — not the product — is deliberate: the product is
+ *  multiplicative in tower count and measured 187% RTP on a bought 4-scatter
+ *  round, the same failure mode Crack Farm hit at 3125%. */
+function applyTowerMultipliers(
+  ev: WinResult,
+  mults: Record<number, number>,
+): WinResult {
+  const reels = Object.keys(mults).map(Number);
+  if (reels.length === 0) return ev;
+  let total = 0n;
+  let touched = false;
+  const combinations = ev.combinations.map(c => {
+    if (c.symbolId === SymbolId.SCATTER) { total += c.winAmount; return c; }
+    let best = 1;
+    for (const reel of reels) if (reel < c.matchCount && mults[reel] > best) best = mults[reel];
+    if (best <= 1) { total += c.winAmount; return c; }
+    touched = true;
+    const winAmount = c.winAmount * BigInt(best);
+    total += winAmount;
+    return { ...c, winAmount, multApplied: best } as typeof c;
+  });
+  if (!touched) return ev;
+  return { ...ev, combinations, totalWin: total };
 }
 
 /** Reserved seed index for the HOT-SPIN roll. Free-spin indices run 0…fsCap-1
@@ -286,6 +350,9 @@ export function deriveViceRound(
     stops, board, evalBoard,
     expandedReels: hotReels,
     stickyReels: [],
+    // Hot base-game expansions carry NO badge: with badges the same fit measures
+    // 103.09% instead of 96.36%, and the badge is a free-spins feature.
+    towerMultipliers: {},
     scatters: scatterCount,
     hot,
     retriggered: false,
@@ -317,6 +384,12 @@ export function deriveViceRound(
       buyStage?.stickyFullBoardMultiplier ?? config.stickyFullBoardMultiplier ?? 1,
     );
     const stickyReels: number[] = [];
+    // TOWER MULTIPLIERS: weights over 1×…5× (index 0 = 1×). A sticky tower keeps
+    // the badge it was dealt when it JOINED — `stickyMults` carries it across the
+    // round; a 3-scatter round expands from scratch each spin and re-draws.
+    const towerWeights = config.towerMultiplierWeights ?? [];
+    const towerOn = towerWeights.length > 0;
+    const stickyMults: Record<number, number> = {};
 
     while (remaining > 0 && fsSpins.length < fsCap) {
       const seed = spinSeed(randomness, BigInt(fsSpins.length));
@@ -342,10 +415,31 @@ export function deriveViceRound(
         }
       }
 
+      // Deal this spin's badges. Sticky: a tower keeps whatever it was dealt when
+      // it joined, so only reels without an entry yet draw. Per-spin: everything
+      // standing this spin draws fresh.
+      const towerMultipliers: Record<number, number> = {};
+      if (towerOn && expandFS) {
+        for (const reel of expandedReels) {
+          if (sticky) {
+            if (stickyMults[reel] === undefined) {
+              stickyMults[reel] = drawTowerMultiplier(randomness, fsSpins.length, reel, towerWeights);
+            }
+            towerMultipliers[reel] = stickyMults[reel];
+          } else {
+            towerMultipliers[reel] = drawTowerMultiplier(randomness, fsSpins.length, reel, towerWeights);
+          }
+        }
+      }
+
       const instantMaxWin = expandFS
         && fullWildReelCount(fsEvalBoard, reels) >= reels
         && !!config.fullBoardInstantMaxWin;
-      const fsEval = evalWins(fsEvalBoard, bet, config);
+      // Badges multiply the ways combinations; an INSTANT MAX WIN is already the
+      // cap, so nothing is applied on top of it.
+      const fsEval = instantMaxWin
+        ? evalWins(fsEvalBoard, bet, config)
+        : applyTowerMultipliers(evalWins(fsEvalBoard, bet, config), towerMultipliers);
       const rawFsWin = instantMaxWin ? maxWin : fsEval.totalWin;
       // simulExpandMultipliers RETIRED — see the header note.
       const fullMult = sticky && stickyReels.length >= stickyCap ? fullHouseMult : 1n;
@@ -362,6 +456,7 @@ export function deriveViceRound(
         evalBoard: fsEvalBoard,
         expandedReels,
         stickyReels: sticky ? [...stickyReels] : [],
+        towerMultipliers,
         scatters: fsEval.scatterCount,
         hot: false,
         retriggered,

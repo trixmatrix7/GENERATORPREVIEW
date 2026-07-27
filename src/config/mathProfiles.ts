@@ -105,6 +105,10 @@ function fromManifest(m: Record<string, unknown>): GameConfig {
     // Certified and advertised in the manifest; deriveViceRound implements it.
     hotSpinChance1In: (m['custom'] as { hotSpinChance1In?: number } | undefined)?.hotSpinChance1In,
     hotSpinExpandsWilds: !!(m['custom'] as { hotSpinExpandsWilds?: boolean } | undefined)?.hotSpinExpandsWilds,
+    // TOWER MULTIPLIERS: weights over the per-reel badges 1×…5× (index 0 = 1×).
+    // Absent = feature off. A combination pays × the HIGHEST badge it crosses.
+    towerMultiplierWeights:
+      (m['custom'] as { towerMultiplierWeights?: number[] } | undefined)?.towerMultiplierWeights,
   } as unknown as GameConfig;
 }
 

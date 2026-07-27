@@ -94,6 +94,11 @@ function fromManifest(m: Record<string, unknown>): GameConfig {
     // BASE-GAME plant feature: odds (1 in N) + weighted multiplier table.
     baseFeatureOdds: (m['custom'] as { baseFeatureOdds?: number } | undefined)?.baseFeatureOdds,
     baseFeatureMultipliers: (m['custom'] as { baseFeatureMultipliers?: [number, number][] } | undefined)?.baseFeatureMultipliers,
+    // Vice FS re-design (Noski): the FREE SPINS use their OWN rare-wild reel
+    // strips (top-level fsReelStrips) so a full board is a rare jackpot; a FULL
+    // BOARD of 5 wild reels = INSTANT MAX WIN in both bonuses.
+    fsReelStrips: (m['fsReelStrips'] as number[][] | undefined),
+    fullBoardInstantMaxWin: !!(m['custom'] as { fullBoardInstantMaxWin?: boolean } | undefined)?.fullBoardInstantMaxWin,
   } as unknown as GameConfig;
 }
 

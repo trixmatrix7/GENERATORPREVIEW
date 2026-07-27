@@ -629,6 +629,10 @@ export function App() {
     // freezes seamlessly onto wild_column.webp). Sub-sampled 90→24 frames and
     // played @34fps ≈ 0.7s (the raw 3s take was too slow). Plays on first landing.
     void pixiAppRef.setExpandGrowSheet(`${B}wild_grow_sheet.webp`, 6, 4, 24, 34);
+    // FS re-cert: during free spins the DISPLAYED reels swap onto the rare-wild
+    // fsReelStrips (matches the mock's settlement, which swaps to the same). No-op
+    // when the config has no fsReelStrips. Reuses the cluster swap mechanism.
+    pixiAppRef.setupFsSwapStrips();
     // Custom neon frame (palm + marquee arrow). The window rect is the TRUE
     // transparent hole measured from the 1500² art's alpha — mapped onto the
     // frame bounds so the palm/arrow hang over the background, not the reels.

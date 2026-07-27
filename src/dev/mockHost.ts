@@ -324,7 +324,12 @@ export class MockHost {
     // stage's OWN certified strips (buy-3sc wild-buffed to ~95x, buy-4sc
     // wild-trimmed to ~190x) — natural triggers never touch them. Source:
     // custom.viceBuyStages[].fsReelStrips (same strip lengths as base).
-    const buyFsStrips = (viceBuy as { fsReelStrips?: number[][] } | undefined)?.fsReelStrips;
+    // FS uses its OWN reel strips (RARE wilds): the buy stage's fsReelStrips if
+    // bought, else the top-level config.fsReelStrips for NATURAL triggers — this
+    // is Noski's volatile FS (a full-board 5-wild is a rare jackpot). Base game
+    // strips stay untouched.
+    const buyFsStrips = (viceBuy as { fsReelStrips?: number[][] } | undefined)?.fsReelStrips
+      ?? (this.config as { fsReelStrips?: number[][] }).fsReelStrips;
     if (freeSpinsTriggered && buyFsStrips) swapStrips(buyFsStrips);
     if (freeSpinsTriggered) {
       // Per-stage overrides for BOUGHT rounds (tail-shape calibration —
@@ -476,8 +481,18 @@ export class MockHost {
             }
           }
         }
+        // FULL BOARD (5 wild reels) = INSTANT MAX WIN (Noski, BOTH bonuses): when
+        // the whole board is wild the spin pays exactly maxWin and the round ends
+        // (the 5000x marquee). custom.fullBoardInstantMaxWin — mirrors
+        // simulate_vice_heat_v2.py (eval returns MAX_WIN when len(full)==REELS).
+        // 3sc full board = 5 simul wilds in ONE spin (~1-in-75M, legendary);
+        // 4sc = 5 sticky towers standing (~0.5%, hard jackpot).
+        const reelsN = fsBoard[0].length;
+        const fullReels = Array.from({ length: reelsN }, (_, reel) => fsBoard.every(r => r[reel] === 0)).filter(Boolean).length;
+        const instantMax = expandFS && fullReels >= reelsN
+          && !!(this.config as { fullBoardInstantMaxWin?: boolean }).fullBoardInstantMaxWin;
         const fsEval = evalWins(fsBoard, bet, this.config);
-        let rawFsWin = fsEval.totalWin;
+        let rawFsWin = instantMax ? maxWin : fsEval.totalWin;
         const fsScatter = fsEval.scatterCount;
         // PLANT MULTIPLIER (4sc crack-farm rounds): line wins CROSSING a
         // standing tower pay × the shared multi; each tower-CROSSING winning

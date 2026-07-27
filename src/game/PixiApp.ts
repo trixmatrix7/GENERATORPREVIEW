@@ -2237,7 +2237,7 @@ export class PixiApp {
     // stagger-stop), same as the ways games. Make sure the reels hold the BASE
     // strips before rolling — an interrupted FS round can leave them on the FS
     // strips (rebuild is a no-op when already on base).
-    if (activePayModel() === 'cluster') this.ensureClusterReels('base');
+    if (activePayModel() === 'cluster' || activePayModel() === 'ways') this.ensureClusterReels('base');
     this.reelSet.startSpin();
   }
 
@@ -2331,6 +2331,13 @@ export class PixiApp {
       const stickyMode = outcome.scatterCount >= 4;
       // Covered-scatter rule for the whole round (see ReelSet.fsExpandMode).
       this.reelSet.fsExpandMode = stickyMode ? 'sticky' : 'perSpin';
+      // VICE re-cert: swap the DISPLAYED reels onto the RARE-wild fsReelStrips so
+      // the shown wilds/towers match the settlement (mockHost swaps to the same
+      // strips). Without this the display rolls base-density wilds while the mock
+      // pays FS-density -> "wild didn't connect" divergence. No-op for games that
+      // never called setupFsSwapStrips (Crack Farm). FS-exit restore + spin-start
+      // guard rebuild to base. See PixiApp.setupFsSwapStrips.
+      this.ensureClusterReels('fs');
       // Left rail swaps BUY -> BONUS ACTIVE for the whole round (Noski).
       this.onFsRoundActive?.(true);
       // CRACK FARM (paylines): 3sc = ROAMING PLANT (one reel sprouts per
@@ -3166,9 +3173,18 @@ export class PixiApp {
     this.clusterFsStrips = fs.map(s => [...s]);
   }
 
-  /** Rebuild the reels onto the base or FS strips if not already there. Only
-   *  meaningful for the sushi cluster path (strips set via setClusterStrips);
-   *  a no-op for every other game. */
+  /** VICE FS reel swap: the free spins draw from RARE-wild fsReelStrips so the
+   *  displayed board matches the settlement (which swaps to the same strips).
+   *  Reuses the cluster swap mechanism above. No-op when the config has no
+   *  fsReelStrips (non-Vice games). Call once after the game config is set. */
+  setupFsSwapStrips(): void {
+    const fs = (this.config as { fsReelStrips?: number[][] }).fsReelStrips;
+    if (fs && this.config.reelStrips) this.setClusterStrips(this.config.reelStrips as number[][], fs);
+  }
+
+  /** Rebuild the reels onto the base or FS strips if not already there. Meaningful
+   *  for any game that set strips via setClusterStrips — the sushi cluster path AND
+   *  the Vice FS rare-wild swap (setupFsSwapStrips); a no-op for every other game. */
   private ensureClusterReels(mode: 'base' | 'fs'): void {
     if (!this.isLive) return;
     const strips = mode === 'fs' ? this.clusterFsStrips : this.clusterBaseStrips;

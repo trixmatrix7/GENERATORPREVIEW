@@ -192,11 +192,19 @@ pro Spalte; Rohdaten scratchpad/winna_analysis/timings.json). DIE Referenz für 
     cfg, stage)` → mockHost `settleX` settelt damit UND die Decode-Fassade re-derived damit
     → Anzeige und Auszahlung sind dieselbe Funktion desselben Seeds, Divergenz unmöglich.
     Wer das Skript stattdessen ins gameState schreiben will, scheitert am uint8[5]-Schema.
-- **AUSZAHLUNGS-Bugs verstecken sich im frozen Code (2026-07-27):** `WinEvaluator` seedet die
-  Kandidaten-Symbole nur aus Spalte 0 und klappt ein WILD dort auf HIGH_A → ein voller Wild-Turm
-  auf Reel 0 lässt nur EINE Kombi zahlen. Frozen ⇒ Fix gehört in die `winEval`-Fassade
-  (`viceWays.ts`), nie ins Engine-File. Beweis-Muster: fuzzen und zeigen, dass der Fix dort, wo
-  die alte Abkürzung gültig war, ein exaktes No-op ist. [[ways-evaluator-col0-bug]]
+- **⚠️ DER VERTRAG GEWINNT — IMMER (2026-07-27, teuer gelernt):** `WinEvaluator` seedet die
+  Kandidaten-Symbole nur aus Spalte 0 und klappt ein WILD dort auf HIGH_A. Ich hielt das für einen
+  Underpay-Bug (der Python-Sim seedet alle Symbole) und „korrigierte" es über die `winEval`-Fassade.
+  **Falsch.** `SlotGame.sol:341` macht exakt dasselbe — ein volles Wild-Reel zahlt EINE Kombi zur
+  Wild/HIGH_A-Rate, es lässt NICHT die ganze Paytable verbinden. Folge des „Fixes": auf expandierten
+  Boards connectete alles mit allem (Noski: *„komplette math ist im eimer"*) und der Client hätte
+  mehr gezahlt als die Chain. **Regel: bei JEDEM Widerspruch zwischen Designmodell/Simulator und
+  Engine/Vertrag gewinnt der Vertrag.** `src/engine/*` ist nicht bloß „frozen wegen Dev-Parität",
+  es ist die ausführbare Spezifikation — vor jedem vermeintlichen Engine-Bug erst
+  `devgen/.../SlotGame.sol` gegenlesen. Weicht der Python-Sim ab, ist zuerst der SIM verdächtig.
+  Zweitschaden: unter dem falschen Evaluator sahen die Simul-Multiplikatoren `{3:2,4:10}` überflüssig
+  aus und flogen raus — in Wahrheit waren sie der Mechanismus, der Expansionen überhaupt wertvoll
+  macht. [[ways-evaluator-col0-bug]]
 - **Eine stimmende Gesamt-RTP beweist GAR NICHTS (2026-07-27):** bei Vice hoben sich ein
   Underpay-Bug, eine unzertifizierte ×10-Regel und ein fehlendes Feature fast auf — Headline
   96,03% vs behauptete 95,99%, während JEDE Komponente falsch war (base 52,95 statt 29,58).

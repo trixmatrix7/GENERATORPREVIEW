@@ -4,7 +4,9 @@
 
 ---
 
-Hey — updated **Vice Heat** preset is in (`vice-heat.chainwtf-preset.json`, schema v2, exported 2026-07-26). We went through our whole repo and split everything into: what **we already fixed** in the preset, and what **you still need to change** engine-side. Full detail with file:line on both sides is in `VICE_HEAT_FIXES_FOR_DEV.md` in the zip — short version below.
+Hey — updated **Vice Heat** preset is in (`vice-heat.chainwtf-preset.json`, schema v2, exported 2026-07-27). We went through our whole repo and split everything into: what **we already fixed** in the preset, and what **you still need to change** engine-side. Full detail with file:line on both sides is in `VICE_HEAT_FIXES_FOR_DEV.md` in the zip — short version below.
+
+**NEW in this drop — the free spins were re-certified** (still RTP 95.99%). The FS now rolls its own rare-wild strips (`fsReelStrips`), **5 full wild reels = instant 5000× max win** in both bonuses (`custom.fullBoardInstantMaxWin`), 3sc = per-spin expansion / 4sc = sticky towers to cap 5, and the old sticky ×2/×10 + full-house doubling is retired. New `payTable.wild [1243,2034,3616]` / `scatterPay [1164,2260,6780]`. See the ⚠️ display-strips note below — it bit us and it'll bite the engine the same way.
 
 **⚠️ Check this FIRST (5 min — could be half the issue)**
 Confirm you feed `preset.math.manifest` (NOT `preset` or `preset.math`) into `configFromMathProfile` / `buildGameConfigFromMathProfile`. If not, `reelStrips` is `undefined` → silent fallback to the Fantasy 5×3 default. (We also flattened those fields onto the preset root as a safety net.)
@@ -16,13 +18,16 @@ The generator ingests Vice as **math-only + theme art** — it silently drops ou
 - RTP **95.99%** (9599 bps). `reelStrips` (5 strips), payTable, scatterPay — all in `manifest`.
 - `custom{}` block (your engine currently drops this — a working reference impl is in your own repo at `src/dev/mockHost.ts`, it reads the exact same keys):
   - **Expanding wilds in free spins ← this is the ~65% RTP**
-  - Sticky towers + simultaneous-expand multipliers (**×2 / ×10**) + full-house **×2**
+  - **FS rolls its OWN rare-wild strips `fsReelStrips`** (5×120-stop, 1 wild/reel = 3× rarer than base) — display MUST roll these too (⚠️ below)
+  - **5 full wild reels = INSTANT MAX WIN 5000×** in both bonuses (`custom.fullBoardInstantMaxWin`); 1–4 wilds pay natural ways
+  - Sticky towers to **cap 5** (4sc, 10 spins) / per-spin expansion (3sc, 7 spins). Old ×2/×10 simul + full-house ×2 doubling is **RETIRED** (max win = the 5-tower/5-simul jackpot; certified 4sc max-win 0.74% only at 4–5 towers, 3sc ~1-in-333k/bonus)
   - Staged bonus buys: 3-scatter = **100× bet**, 4-scatter = **200× bet** (read verbatim from `costMult`)
   - Ante bet **3.25×** (~3× free-spins chance)
   - Hot-spins base feature
   - Retrigger = **+3** spins
 
 **Points that were WRONG before (so you know what to look for):**
+- ⚠️ **FS display strips must mirror settlement.** In our own build the FS wild expanded on screen but "didn't connect with Q/J" — because the display was rolling the **base** strips while settlement evaluated `fsReelStrips`, so the shown board ≠ the paid board. **Rule: whatever strips the FS settlement evaluates, the display reels must roll the same.** If your engine draws FS visuals off base strips but settles on `fsReelStrips`, you'll hit this exact bug.
 - Buy-4 card showed **300×** → correct is **200×** (read from `costMult`, don't hardcode)
 - Retrigger added **+7** → correct is **+3**
 - FS counter + total-win = bottom text on your side → we ship neon **FREE SPINS + TOTAL WIN** plaques

@@ -191,6 +191,10 @@ const VICE_MATH_ROOT_KEYS = [
   'gridId', 'reelStrips', 'reelLengths', 'payTable', 'scatterPay',
   'freeSpinsCount', 'freeSpinsCap', 'freeSpinMultiplier', 'retriggerSpins',
   'maxWinMultiplier', 'minWager', 'rtpBps', 'expectedMetrics', 'custom',
+  // FS re-cert: the free spins roll their OWN rare-wild strips (a full-wild
+  // board is a genuine jackpot). Surface at root so the partner's loader picks
+  // them up, not only from math.manifest.
+  'fsReelStrips',
 ];
 function flattenMathRoot(m: Record<string, unknown>): Record<string, unknown> {
   const out: Record<string, unknown> = {};
@@ -208,7 +212,13 @@ const MECHANICS: Record<GameKey, Record<string, unknown>[]> = {
       mathBinding: ['custom.expandingWildsInFreeSpins', 'custom.simulExpandMultipliers'],
       params: { towerArt: 'theme/vice/wild_column.webp', racesOutOfLandingCell: true, locksReel: true }, compatibleGrids: ['5x5'] },
     { id: 'sticky-expanding-towers', kind: 'grid-effect', enabled: true, affectsMath: true,
-      mathBinding: ['custom.stickyExpandingFrom4Scatters', 'custom.stickyTowerCap'], compatibleGrids: ['5x5'] },
+      mathBinding: ['custom.stickyExpandingFrom4Scatters', 'custom.stickyTowerCap', 'custom.fullBoardInstantMaxWin', 'fsReelStrips'],
+      params: {
+        towerCap: 5,
+        fsStrips: 'fsReelStrips (rare wilds, 120-stop, 1 wild/reel = 3x rarer than base) — the FS rolls these, NOT the base strips; a full-wild board is a genuine jackpot',
+        instantMaxWin: '5 full wild reels pay exactly maxWinMultiplier x bet instantly (custom.fullBoardInstantMaxWin) and end the round — the 5000x MAX WIN marquee, in BOTH bonuses',
+        note: '3sc = per-spin expansion (5-simul instant max ~1-in-333k/bonus); 4sc = sticky towers accumulate to cap 5 (max win only ever at 4-5 standing towers, ~0.74%). DISPLAY MUST ROLL fsReelStrips so the shown towers are exactly what settles.',
+      }, compatibleGrids: ['5x5'] },
     { id: 'hot-spins', kind: 'base-feature', enabled: true, affectsMath: true,
       mathBinding: ['custom.hotSpinChance1In', 'custom.hotSpinExpandsWilds'] },
     { id: 'ways-light', kind: 'win-presentation', enabled: true, affectsMath: false,

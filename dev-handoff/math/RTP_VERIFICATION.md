@@ -1,9 +1,22 @@
 # Vice Heat — RTP verification (for the dev)
 
+> **⚠️ RE-CERTIFIED 2026-07-27 — use `simulate_vice_heat_v2.py` (this folder).**
+> The FS math was redesigned: **5 full wild reels = instant 5000× max win** in
+> both bonuses (`custom.fullBoardInstantMaxWin`), the FS rolls its own
+> **rare-wild `fsReelStrips`** (5×120-stop, 1 wild/reel), sticky tower cap **5**,
+> and the old sticky ×2/×10 simul + full-house ×2 doubling is **retired**.
+> `vice_heat_expanding.json` in this folder is the re-synced manifest
+> (`payTable.wild [1243,2034,3616]`, `scatterPay [1164,2260,6780]`, rtpBps 9599).
+> Reproduce with `VH_STICKY_CAP=5 VH_FS_STRIP_LEN=120 VH_STICKY_SPINS=10 VH_FS_SPINS=7 VH_K=1.13 python simulate_vice_heat_v2.py`.
+> Certified: RTP **95.99%**, 4sc max-win **0.74%** (only at 4–5 standing towers),
+> 3sc max-win **~1-in-333k/bonus** (100% via 5-full-board) — reproduce the
+> mechanism breakdown with `sims/vice_maxwin_analysis.py`. The v1 numbers below
+> are the previous certification, kept for history.
+
 This is everything needed to **independently reproduce and check the ~96% RTP**
 and the tiered free-spins math. The certification method is Monte-Carlo (the
-tiered/sticky rules are not closed-form); `simulate_vice_heat.py` is the
-reference model and `vice_heat_expanding.json` is the emitted, certified
+tiered/sticky rules are not closed-form); `simulate_vice_heat_v2.py` is the
+current reference model and `vice_heat_expanding.json` is the emitted, certified
 manifest that the runtime consumes.
 
 ## TL;DR numbers (certified)

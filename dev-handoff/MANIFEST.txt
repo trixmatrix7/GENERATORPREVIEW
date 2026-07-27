@@ -1,10 +1,14 @@
 Vice Heat — dev handoff package · file manifest
-generated 2026-07-16
+generated 2026-07-27 (FS re-certification drop)
 
 ASSET_SPECS.md
 FLOW.md
-MANIFEST.txt
+PRESET_FORMAT.md
 README.md
+VICE_HEAT_DEV_SLACK_MESSAGE.md
+VICE_HEAT_FIXES_FOR_DEV.md
+VICE_HEAT_OUR_SIDE_FIXES.md
+VICE_HEAT_RULES_CONTENT.md
 assets/audio/README.md
 assets/audio/ambient-music.ogg
 assets/audio/coin-chime.ogg
@@ -106,12 +110,14 @@ features/frame/frameIntegration.ts
 features/frame/frameParams.ts
 features/fs-background/README.md
 features/fs-background/fsBackground.ts
+features/paylines/README.md
 features/reel-background/README.md
 features/reel-background/ReelBgTint.ts
 features/reel-background/color.ts
 features/reel-background/reelBackgroundParams.ts
 features/symbol-sheets/README.md
 features/tease-camera/README.md
+features/vice-bonus-buy-ante.md
 features/win-line/README.md
 features/win-line/WaysLightComet.ts
 features/win-line/winLineIntegration.ts
@@ -121,6 +127,21 @@ features/win-marquees/feature.json
 flow/intro-screens/README.md
 math/MATH_MODEL.md
 math/RTP_VERIFICATION.md
+math/sims/README.md
+math/sims/calibrate_buy4_cap4.py
+math/sims/calibrate_vice_buy_fs_strips.py
+math/sims/certify_vice_ante3x.py
+math/sims/certify_vice_buys_ante.py
+math/sims/confirm_buy4_final.py
+math/sims/dist_check_buy_rounds.py
+math/sims/inspect_buy4_caps.py
+math/sims/measure_forced_board_ev.py
+math/sims/retune_buy_tails.py
+math/sims/vice_ante3x_certified.json
+math/sims/vice_buy3_final.json
+math/sims/vice_buy4_final.json
+math/sims/vice_maxwin_analysis.py
 math/simulate_vice_heat.py
+math/simulate_vice_heat_v2.py
 math/vice_heat_expanding.json
-vice-heat.preset.json
+preset/vice-heat.chainwtf-preset.json

@@ -2356,6 +2356,10 @@ export class PixiApp {
       // pays FS-density -> "wild didn't connect" divergence. No-op for games that
       // never called setupFsSwapStrips (Crack Farm). FS-exit restore + spin-start
       // guard rebuild to base. See PixiApp.setupFsSwapStrips.
+      // Point the display at the strips THIS round was settled on first — a
+      // bought round uses its stage's own fsReelStrips, which differ in length
+      // and content from the top-level set.
+      if (viceRound) this.setFsStripsForStage(viceRound.stageCode);
       this.ensureClusterReels('fs');
       // Left rail swaps BUY -> BONUS ACTIVE for the whole round (Noski).
       this.onFsRoundActive?.(true);
@@ -3213,7 +3217,10 @@ export class PixiApp {
   // real base↔FS transition.
   private clusterBaseStrips: number[][] | null = null;
   private clusterFsStrips: number[][] | null = null;
-  private clusterReelMode: 'base' | 'fs' = 'base';
+  /** Which strip set the reels are currently built on. `null` = unknown, which
+   *  forces the next ensureClusterReels() to rebuild (used when the FS strips
+   *  are re-pointed per round — see setFsStripsForStage). */
+  private clusterReelMode: 'base' | 'fs' | null = 'base';
 
   /** Provide the base + FS reel strips (SUSHI_MATH.reelStrips / fsReelStrips).
    *  Called from the App sushi theme branch. */
@@ -3229,6 +3236,28 @@ export class PixiApp {
   setupFsSwapStrips(): void {
     const fs = (this.config as { fsReelStrips?: number[][] }).fsReelStrips;
     if (fs && this.config.reelStrips) this.setClusterStrips(this.config.reelStrips as number[][], fs);
+  }
+
+  /** VICE, per ROUND: point the FS display at the strips THIS round was settled
+   *  on. A BOUGHT round is settled on its stage's own `fsReelStrips`
+   *  (viceBuyStages[n].fsReelStrips) while a natural or ante round uses the
+   *  top-level set — and those differ in length as well as content. Landing the
+   *  settled stop numbers on the wrong strip set produces a board of completely
+   *  unrelated symbols under a correct win amount: the highlight then marks
+   *  cells that do not hold the winning symbol at all ("K connected with the
+   *  high, and the same symbols did not"). Call at FS entry, before
+   *  ensureClusterReels('fs'). Resets clusterReelMode so the swap actually
+   *  rebuilds even if the reels are already flagged as being on FS strips. */
+  setFsStripsForStage(stageCode: number): void {
+    const cfg = this.config as {
+      fsReelStrips?: number[][];
+      viceBuyStages?: Array<{ stage: number; fsReelStrips?: number[][] }>;
+    };
+    const stageStrips = cfg.viceBuyStages?.find(s => s.stage === stageCode)?.fsReelStrips;
+    const fs = stageStrips ?? cfg.fsReelStrips;
+    if (!fs || !this.config.reelStrips) return;
+    this.setClusterStrips(this.config.reelStrips as number[][], fs);
+    this.clusterReelMode = null;   // force the next ensureClusterReels('fs') to rebuild
   }
 
   /** Rebuild the reels onto the base or FS strips if not already there. Meaningful

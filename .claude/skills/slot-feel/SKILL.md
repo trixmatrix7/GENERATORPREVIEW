@@ -176,6 +176,33 @@ pro Spalte; Rohdaten scratchpad/winna_analysis/timings.json). DIE Referenz für 
   byte-gleich, Crack-Farm-Verhalten nur im `'lines'`-Branch.
 - Neue MATH-Profile in BEIDE Registries (mathProfiles.ts + activeMath.ts), sonst Desync.
 - Präsentations-Mathe muss Settlement-Mathe exakt spiegeln (Mock + Sim + Display = eine Regel).
+  - **Konkret (Vice FS re-cert 2026-07-27): auch die REEL-STRIPS gehören dazu.** Wenn das
+    Settlement im Bonus auf andere Strips swappt (Vice: seltene `fsReelStrips`, ein Full-Wild-
+    Board = Jackpot), MUSS der Display dieselben Strips rollen — sonst landen Wilds sichtbar,
+    „connecten aber nicht" (das gezeigte Board ≠ das gesettelte). Fix-Muster: `PixiApp.
+    setupFsSwapStrips()` + `ensureClusterReels('fs')` (recyclet den Sushi-Cluster-Swap),
+    Base-Restore beim FS-Exit + Spin-Start (gated `cluster||ways`). Pro FS-Spin verifizieren,
+    dass ein expandierter Wild auch die Ways bildet, die er soll. Gilt genauso dev-seitig.
+    [[vice-heat-fs-spins-recert]]
+  - **Und die STOPS gehören auch dazu (2026-07-27):** wenn das Settlement die Runde intern
+    durchspielt und nur eine Endsumme liefert, WÜRFELT die Präsentation zwangsläufig neu →
+    zwei RNG-Ströme, ein Einzelspin kann größer sein als die ganze Runde (Noski: 42 vs 32).
+    Es gibt eine echte encode/decode-Grenze, Zusatzfelder am Outcome überleben sie NICHT.
+    Muster (Sushi/Fruit Stacks machen es vor): reiner Kern `deriveXRound(randomness, bet,
+    cfg, stage)` → mockHost `settleX` settelt damit UND die Decode-Fassade re-derived damit
+    → Anzeige und Auszahlung sind dieselbe Funktion desselben Seeds, Divergenz unmöglich.
+    Wer das Skript stattdessen ins gameState schreiben will, scheitert am uint8[5]-Schema.
+- **AUSZAHLUNGS-Bugs verstecken sich im frozen Code (2026-07-27):** `WinEvaluator` seedet die
+  Kandidaten-Symbole nur aus Spalte 0 und klappt ein WILD dort auf HIGH_A → ein voller Wild-Turm
+  auf Reel 0 lässt nur EINE Kombi zahlen. Frozen ⇒ Fix gehört in die `winEval`-Fassade
+  (`viceWays.ts`), nie ins Engine-File. Beweis-Muster: fuzzen und zeigen, dass der Fix dort, wo
+  die alte Abkürzung gültig war, ein exaktes No-op ist. [[ways-evaluator-col0-bug]]
+- **Eine stimmende Gesamt-RTP beweist GAR NICHTS (2026-07-27):** bei Vice hoben sich ein
+  Underpay-Bug, eine unzertifizierte ×10-Regel und ein fehlendes Feature fast auf — Headline
+  96,03% vs behauptete 95,99%, während JEDE Komponente falsch war (base 52,95 statt 29,58).
+  Immer **Komponenten-Attribution** (base/hot/fs/buys/ante) gegen die Zertifizierung prüfen, mit
+  einem Simulator der die RUNTIME spiegelt, und Buy-Stages + Ante SEPARAT messen — die fallen
+  sonst lautlos um (buy3 zahlte 7,3% seines Preises). [[vice-recert-drift]]
 
 ## 3. Crispy-HD-Regeln (Pixi, Reports 11 + 14-Lektionen)
 

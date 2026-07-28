@@ -287,6 +287,33 @@ pro Spalte; Rohdaten scratchpad/winna_analysis/timings.json). DIE Referenz für 
   vertauscht (Hund↔Schaf). Beim Sheet-Adden IMMER Static vs Sheet pro Symbol montieren. Verify:
   PNG in-page fetchen + Opak-Pixel-Sättigung/Luminanz messen (extract.pixels ist auf WebGL schwarz).
   [[sheet-from-mp4-grade-and-identity]]
+- **Land-Sheets: MISS ERST DIE TOTEN FRAMES, dann rede über Tempo (2026-07-28, Crack Farm).**
+  Noski: *„spielt lange nach landing noch spritesheet … wirkt laggy … habe mich mehrere Tage davor
+  gedrückt weil alles was wir gemacht hatten nix gebracht hat."* Grund, warum nichts half: die
+  24-Frame-Clips @16fps (1,500s) waren zu **40-60 % ein STANDBILD**. Per-Frame-Pixel-Delta gemessen:
+  `high_a` hält ZEHN Frames bei Delta 0,1-0,8 BEVOR die Bewegung anfängt, `low_g` sechs; echte
+  Bewegung sind nur 6-8 Frames. fps hochdrehen beschleunigt die tote Luft mit — deshalb wirkte jeder
+  Versuch folgenlos. **Regel: bei „Animation fühlt sich zäh an" IMMER zuerst den Frame-Delta-Verlauf
+  messen (`|frame[i]-frame[i-1]|` über die Alpha-Maske), nicht an fps/Easing drehen.** Ein Clip mit
+  Leerlauf-Strecke ist ein ASSET-Problem, kein Timing-Problem.
+  **Und: Bildrate zuerst ausschließen.** Hier lag sie bei 164 fps Median / 154 im 5. Perzentil, nur
+  4 von 695 Frames unter 50 — „laggy" war reine Wahrnehmung der toten Luft. `document.hidden`
+  vorher prüfen (sonst Phantom-Werte).
+  **Fix-Rezept** (`scripts/recut_crackfarm_land.py`): jedes Sheet auf EINHEITLICH 10 Frames (5×2)
+  neu bauen = `[static, Dissolve-in, 6 echte Bewegungsframes, Dissolve-out, static]`, Frames
+  byte-für-byte kopiert (nichts neu gerendert), Originale nach `_landanim_orig/`. Einheitlich statt
+  „schneide was tot ist", weil reines Schneiden 9-24 Frames ergab = jedes Symbol landet anders
+  schnell. Zu kurze Bewegungsspanne wird in die Nachbarn AUSGEWEITET, nie durch Frame-Wiederholung
+  gefüllt — eine Wiederholung ist genau die tote Luft, die man entfernen wollte.
+  **Ergebnis vermessen:** Schweif nach dem Lock der letzten Walze **1493 ms → 329 ms**; Board
+  komplett still 2108 ms → 933 ms nach dem ersten Walzen-Stop. Stagger unverändert 150 ms.
+  Nahtstellen-Check danach Pflicht (Regel unten): Static vs f0 und vs f(N-1) lagen bei 1,5-1,8
+  mittlerer Kanal-Differenz = Resampling-Rauschen, kein Inhaltssprung.
+  **Verify-Muster:** `AnimatedSymbol.prototype.startLandSheet/stopLandSheet` hooken + Reel-Spinning-
+  Flag samplen → Stagger, Sheet-Start je Reel und der Schweif fallen direkt als Zahlen an.
+  Zusätzlich `iconSprite.width` beim Sheet-Start protokollieren: mehrere verschiedene Werte hieße,
+  der Clip rastet je nach Zell-Zustand auf unterschiedliche Größe ein (hier stabil 126 px).
+
 - **Land-Sheet-NAHTSTELLE: erster UND letzter Frame MÜSSEN exakt der Static sein** (2026-07-20,
   Noski: "buggt beim landing zwischen graue alte Symbol und Spritesheet, nicht sauber grade").
   Ein mp4-Land-Clip startet/endet NICHT in der Ruhepose (Kuh: Static = Zunge raus, Clip = Maul

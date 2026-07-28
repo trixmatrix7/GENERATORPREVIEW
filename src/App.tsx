@@ -254,13 +254,24 @@ export function App() {
       // Per-symbol LANDING clips — play ONCE on the drop, then hand back to the
       // static tile (Noski: "landing einmal"). Wild(0) stays a static pot,
       // scatter(1) keeps its own win clip only.
-      void pixiAppRef.setSymbolLandSheet(2, `${cf}symbol_high_a_landanim.png`, 6, 4, 24, 16);
-      void pixiAppRef.setSymbolLandSheet(3, `${cf}symbol_high_b_landanim.png`, 6, 4, 24, 16);
-      void pixiAppRef.setSymbolLandSheet(4, `${cf}symbol_mid_c_landanim.png`, 6, 4, 24, 16);
-      void pixiAppRef.setSymbolLandSheet(5, `${cf}symbol_mid_d_landanim.png`, 6, 4, 24, 16);
-      void pixiAppRef.setSymbolLandSheet(6, `${cf}symbol_low_e_landanim.png`, 6, 4, 24, 16);
-      void pixiAppRef.setSymbolLandSheet(7, `${cf}symbol_low_f_landanim.png`, 6, 4, 24, 16);
-      void pixiAppRef.setSymbolLandSheet(8, `${cf}symbol_low_g_landanim.png`, 6, 4, 24, 16);
+      //
+      // 10 frames @ 30fps = 333ms. These were 24 @ 16 = 1.500s, and measuring
+      // the per-frame pixel delta showed why that felt broken: most of it was a
+      // FROZEN FRAME. high_a held for ten frames at delta 0.1-0.8 before the
+      // movement even began, low_g for six. So the board was still animating
+      // 1,493ms after the last reel had locked (measured), which reads as lag —
+      // the frame rate was never the problem (164fps median through the whole
+      // landing). Raising the fps had never helped because it sped the dead air
+      // up along with the motion. scripts/recut_crackfarm_land.py rebuilds each
+      // sheet as [static, dissolve-in, 6 real motion frames, dissolve-out,
+      // static], keeping the seam contract byte-for-byte.
+      void pixiAppRef.setSymbolLandSheet(2, `${cf}symbol_high_a_landanim.png`, 5, 2, 10, 30);
+      void pixiAppRef.setSymbolLandSheet(3, `${cf}symbol_high_b_landanim.png`, 5, 2, 10, 30);
+      void pixiAppRef.setSymbolLandSheet(4, `${cf}symbol_mid_c_landanim.png`, 5, 2, 10, 30);
+      void pixiAppRef.setSymbolLandSheet(5, `${cf}symbol_mid_d_landanim.png`, 5, 2, 10, 30);
+      void pixiAppRef.setSymbolLandSheet(6, `${cf}symbol_low_e_landanim.png`, 5, 2, 10, 30);
+      void pixiAppRef.setSymbolLandSheet(7, `${cf}symbol_low_f_landanim.png`, 5, 2, 10, 30);
+      void pixiAppRef.setSymbolLandSheet(8, `${cf}symbol_low_g_landanim.png`, 5, 2, 10, 30);
       // Crack Farm's win clips are full framed tiles → render 1:1 on the static
       // footprint, no soft-mask vignette (fixes the dark zoom-in — Noski).
       // WILD(0) gets NO 1×1 win sheet: the tall-plant connection clip blew the

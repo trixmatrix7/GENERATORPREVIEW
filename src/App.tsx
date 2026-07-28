@@ -112,6 +112,20 @@ export function App() {
   const [bootProgress, setBootProgress] = useState(0.06);
   const [bootFade, setBootFade] = useState(false);
   const [bootGone, setBootGone] = useState(false);
+  // The CHAIN GAMES loader is a 4.0 s one-shot build-in. On a warm cache the
+  // assets are ready in a few hundred ms, so without a floor the boot screen
+  // tore the logo away mid-build — it read as a fast, broken flicker. Hold the
+  // screen until the lockup has actually resolved; the last ~0.6 s of the clip
+  // plays through the fade, so this costs nothing extra on screen.
+  const bootStartRef = useRef(performance.now());
+  const MIN_BOOT_MS = 3400;
+  /** Fade + tear down the boot screen, never earlier than the loader needs. */
+  const finishBoot = useCallback(() => {
+    setBootProgress(1);
+    const wait = Math.max(0, MIN_BOOT_MS - (performance.now() - bootStartRef.current));
+    setTimeout(() => setBootFade(true), wait + 150);
+    setTimeout(() => setBootGone(true), wait + 800);
+  }, []);
   // Preview device: 'mobile' shows the game in a portrait phone frame.
   const [device, setDevice] = useState<'desktop' | 'mobile'>(
     () => (localStorage.getItem('studio-device') === 'mobile' ? 'mobile' : 'desktop'),
@@ -167,9 +181,7 @@ export function App() {
     // BARE BUILD ("Create New Build"): the naked scaffold — NO theme assets,
     // NO spritesheets, no intros. The boot overlay clears immediately.
     if (isBareBuild()) {
-      setBootProgress(1);
-      setTimeout(() => setBootFade(true), 150);
-      setTimeout(() => setBootGone(true), 800);
+      finishBoot();
       return;
     }
     const saved = loadAssets();
@@ -714,9 +726,7 @@ export function App() {
         pixiAppRef.applyVisualParam(pid, pval);
       }
       if (pixiAppRef.showGameIntro(() => setIntroOpen(false))) setIntroOpen(true);
-      setBootProgress(1);
-      setTimeout(() => setBootFade(true), 180);
-      setTimeout(() => setBootGone(true), 180 + 650);
+      finishBoot();
     });
   }, [pixiAppRef]);
 
@@ -747,12 +757,18 @@ export function App() {
         @keyframes boot-loader-y { from { background-position-y: 0%; } to { background-position-y: 100%; } }
         @keyframes boot-bar-idle { 0%,100% { opacity: 0.5; } 50% { opacity: 0.9; } }
       `}</style>
+      {/* jump-none is load-bearing. Plain steps(11) splits 0..100% into ELEVENTHS
+          (0, 9.09, 18.18 …) while the 11 columns sit on TENTHS (0, 10, 20 …), so
+          every "frame" showed two half-frames side by side and drifted — that was
+          the garbled, too-fast look. steps(11, jump-none) yields exactly 11 values
+          including both endpoints, i.e. the column grid, and holds on the last. */}
       <div style={{
         width: 300, height: 300, marginBottom: -22,
         backgroundImage: `url(${import.meta.env.BASE_URL}theme/vice/chain_loader_sheet.webp)`,
         backgroundSize: '1100% 1100%',
         backgroundRepeat: 'no-repeat',
-        animation: 'boot-loader-x 0.3667s steps(11) 11 both, boot-loader-y 4.033s steps(11) 1 both',
+        animation: 'boot-loader-x 0.3667s steps(11, jump-none) 11 both, '
+                 + 'boot-loader-y 4.033s steps(11, jump-none) 1 both',
       }} />
       {/* Ultra-clean bar (Noski): hairline, no glow, no colour ramp — just the
           fill against a barely-there track. */}

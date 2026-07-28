@@ -445,11 +445,56 @@ const ASSET_BUILDERS: Record<GameKey, (o: AssetOverrides) => Record<string, unkn
 };
 
 // ── Flow (stage pipeline as data) ───────────────────────────────────────────
+/** STAGE 1, in EVERY game — the CHAIN GAMES boot loader. This is platform
+ *  branding, not a per-game skin, so it is declared once and shared by all four
+ *  flows below. The dev build has no loading screen at all today, and the stage
+ *  used to export as a single vague line ("bar = real load fraction"), which was
+ *  not enough to rebuild from. Full spec: dev-handoff/features/boot-loader/. */
+const BOOT_STAGE = {
+  id: 'boot',
+  controlBar: false,
+  universal: true,
+  mustBeFirst: true,
+  note: 'PLATFORM BRANDING — identical in every generated game. Currently MISSING from the dev build; it has to run before anything else renders.',
+  params: {
+    mount: 'inside the game-canvas container only (the game iframe) — never over the host/studio chrome; position absolute, inset 0, zIndex 30',
+    background: '#07070c',
+    logo: {
+      sheet: 'theme/vice/chain_loader_sheet.webp',
+      sheetPx: [2000, 2000], grid: [8, 8], framePx: [250, 250],
+      realFrames: 60, padFrames: 4, padContent: 'copies of the last frame',
+      msPerCell: 66.7, totalSeconds: 4.2667,
+      playback: 'ONE-SHOT then HOLD — a logo build-in, never a loop or a spinner',
+      renderScale: '1:1, never upscaled',
+      stepping: 'transform (NOT background-position), steps(8, jump-none) on both axes: row on the wrapper, column on the inner strip',
+      whyTransform: 'background-position re-rasterises the sheet every step and stutters while the real assets decode',
+      whyJumpNone: 'plain steps(n) lands between cells and renders half-frames — it looks garbled and too fast',
+    },
+    bar: {
+      px: [236, 2], borderRadius: 999,
+      fill: 'rgba(255,255,255,0.92)', track: 'rgba(255,255,255,0.10)',
+      idle: 'opacity 0.5<->0.9 over 1.8s', label: null, colourRamp: null,
+      width: '6% + 94% * (settledCriticalJobs / totalCriticalJobs)',
+      cap: 'max-width keyframe 0% -> 100% over 4.2667s linear, fill both',
+      rule: 'shown = min(width, cap) — THE BAR MUST NOT REACH FULL BEFORE THE LOGO HAS FINISHED PLAYING',
+      whyCss: 'a per-frame JS clock competes with the asset decoding this screen exists to cover',
+    },
+    criticalJobs: ['symbol textures', 'static base background', 'title image', 'frame image', 'game layered-intro set'],
+    nonCriticalJobs: 'everything else is fired unawaited and streams in behind the overlay — it must never hold the bar back',
+    exit: {
+      startsAt: 'max(criticalJobsSettled, 4267ms + 280ms hold) measured from boot start',
+      fadeSeconds: 0.55, unmountAfterMs: 650,
+      armsNext: 'showGameIntro() runs before the fade, so the iris-from-black is already in progress',
+      whyFloor: 'on a warm cache the assets settle in a few hundred ms; without the floor the logo is torn away mid-build and reads as a broken flicker',
+    },
+  },
+} as const;
+
 const FLOWS: Record<GameKey, Record<string, unknown>> = {
   vice: {
     iris: { style: 'looney-iris' },
     stages: [
-      { id: 'boot', controlBar: false, params: { overlay: 'game-area only, bar = real load fraction' } },
+      BOOT_STAGE,
       { id: 'game-intro', transitionOut: 'iris-from-black', controlBar: false },
       { id: 'base', controlBar: true },
       { id: 'tease', controlBar: true, params: { preset: 'universal-anticipation', cameraPovDolly: { base: 1.06, perStep: 0.05 } } },
@@ -462,7 +507,7 @@ const FLOWS: Record<GameKey, Record<string, unknown>> = {
   crackfarm: {
     iris: { style: 'looney-iris' },
     stages: [
-      { id: 'boot', controlBar: false },
+      BOOT_STAGE,
       { id: 'game-intro', transitionOut: 'iris-from-black', controlBar: false },
       { id: 'base', controlBar: true },
       { id: 'base-plant-feature', controlBar: false, params: { dim: true, pads: 'green glowing, pulse+jump, lock' } },
@@ -476,7 +521,7 @@ const FLOWS: Record<GameKey, Record<string, unknown>> = {
   fruitstacks: {
     iris: { style: 'none (dark-field badge intro instead)' },
     stages: [
-      { id: 'boot', controlBar: false },
+      BOOT_STAGE,
       { id: 'game-intro', controlBar: false },
       { id: 'base', controlBar: true, params: { spin: 'full-board drop-in, no reel spin' } },
       { id: 'tumble', controlBar: true, params: { chargeSec: 0.22, burst: 'explode + 7 juice droplets', breathBetweenStepsSec: 0.35 } },

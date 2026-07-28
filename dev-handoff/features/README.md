@@ -20,13 +20,14 @@ the named hooks. Both are theme-agnostic and RTP-neutral (purely presentational)
 | [`tease-camera/`](./tease-camera/) | True POV dolly: the whole world (background included) pushes toward the machine centre in gated steps during a scatter tease; bounces out on a miss, locks on a hit. |
 | [`frame-win-flash/`](./frame-win-flash/) | The reel frame lights up via a chroma-matted spritesheet the instant the trigger scatter lands, pixel-aligned to the frame art via a region crop. |
 | [`symbol-sheets/`](./symbol-sheets/) | Per-symbol idle-loop and win spritesheets that render on the cell's exact footprint, with STATIC_LOOK / NO_IDLE opt-out guards. |
-| [`boot-loader/`](./boot-loader/) | In-iframe loading screen that fills a progress bar over the real settle-count of the critical asset loads, then cross-fades into the intro. |
-| [`paylines/`](./paylines/) | Classic 10-line PAYLINES pay model (alternative to ways): leftmost-consecutive, wilds substitute, one clean line per win — plus the Crack Farm roaming-plant / sticky-plant-multiplier free-spins features. |
+| [`boot-loader/`](./boot-loader/) | ⚠️ **MISSING FROM THE DEV BUILD — and it is stage 1 of the flow.** The CHAIN GAMES logo builds in from a spritesheet while a hairline bar tracks the real settle-count of the critical asset loads; the bar **can never top out before the logo has finished**. **Universal platform branding**, identical in every game — not a per-game skin. |
+| [`paylines/`](./paylines/) | Classic 10-line PAYLINES pay model (alternative to ways): leftmost-consecutive, wilds substitute, one clean line per win — plus the Crack Farm roaming-plant / sticky-plant-multiplier free-spins features. *(README only — this one is not part of Vice Heat and carries no `feature.json`.)* |
 
 ## Drop-in code modules (real `.ts` + integration guide)
 
 | Feature | One-liner |
 |---|---|
+| [`round-core/`](./round-core/) | ⭐ **The highest-value file here.** `viceSpin.ts` — the pure, seed-derived function that decides a whole round (board, expansions, sticky towers, ×N badges, free spins, credited total). Settlement, display and the certifying simulator all call **this same function with the same seed**, which is what makes a display/payout mismatch structurally impossible. Also carries the reserved-seed-namespace rule and the exact BigInt max-win test. |
 | [`win-line/`](./win-line/) | The white **ways-light comet** — a light beam shoots through each ways-connection, line-by-line. `WaysLightComet.ts` drops in 1:1 (needs 2 hooks: `cellCentre`, a top container). |
 | [`frame/`](./frame/) | Procedural neon **frame band** (colour-tunable) for when no frame image is supplied — the bare-scaffold frame. |
 | [`cell-backdrop/`](./cell-backdrop/) | Per-cell backing panels behind the symbols (colour + integration params). |

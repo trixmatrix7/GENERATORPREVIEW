@@ -19,6 +19,7 @@ public/theme/<skin>/            e.g. public/theme/vice/
   *_win.webp                    per-symbol win spritesheets
   scatteridle.webp scatterwin.webp   scatter idle + win sheets
   wild_column.webp              expanding-wild tower art
+  wild_multi_sheet.webp         tower-multiplier badges ×1..×5 (5-frame strip)
   frame_neon.webp               reel frame (transparent centre window)
   frame_win_flash_1.webp        frame win-flash spritesheet
   bg_motel.webp                 static base background
@@ -30,9 +31,21 @@ public/theme/<skin>/            e.g. public/theme/vice/
 public/theme/win-tiers/         SKIN-NEUTRAL, shared across all games
   big|mega|epic|max|win|plate.png    win-marquee layers (1920×1080)
   coinrain3_0/1/2.webp          coin-rain spritesheets
+
+PLATFORM-WIDE (not a skin asset — the same file in every game):
+  chain_loader_sheet.webp       CHAIN GAMES boot logo, 2000×2000, 8×8 of 250px
 ```
 
 The generator should treat `public/theme/<skin>/` as the per-game art bundle and `public/theme/win-tiers/` as a shared, theme-neutral bundle reused by every game.
+
+`chain_loader_sheet.webp` ships inside the Vice folder for convenience but is **platform branding**, not skin art — every generated game shows the same file on its boot screen. See `features/boot-loader/`.
+
+### The two sheets added in this drop
+
+| file | px | grid | frames | fps | notes |
+|---|---|---|---|---|---|
+| `chain_loader_sheet.webp` | 2000×2000 | 8×8 | 60 real + 4 pad | 15 | one-shot logo build-in, 66.7 ms/cell = 4.2667 s, then HOLDS. Pad cells are copies of the last frame. Step it on `transform` with `steps(8, jump-none)` — see `features/boot-loader/`. |
+| `wild_multi_sheet.webp` | 2515×323 | 5×1 | 5 | — | tower-multiplier badges ×1…×5, in order. Slice into **individual** textures at load (atlas frames cannot mipmap → bleed). Rendered at `sizeFrac 0.82` of the reel width with the height following the frame's own aspect, seated at `slotYFrac 0.86` so it clears the vertical WILD lettering. See `features/tower-multipliers/`. |
 
 ---
 

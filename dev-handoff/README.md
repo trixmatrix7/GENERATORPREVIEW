@@ -17,17 +17,22 @@ dev-handoff/
 ├─ FLOW.md                   ← the full presentation pipeline + every transition
 ├─ ASSET_SPECS.md            ← spritesheet/symbol dimensions, 5x5 vs 5x3, auto-crop
 ├─ features/                 ← each feature = self-contained, universal, addable
-│  ├─ README.md              ← feature index (13 features, 2 kinds)
+│  ├─ README.md              ← feature index (15 packages, 2 kinds)
 │  │  ── behaviour + asset (README + feature.json) ──
+│  ├─ boot-loader/           ← ⚠️ CHAIN GAMES loading screen — STAGE 1, universal,
+│  │                            and absent from the dev build today
 │  ├─ expanding-wild/        ← "add one image" wild-reel expansion
 │  ├─ expanding-sticky-wild/ ← the sticky variant (towers persist the round)
+│  ├─ tower-multipliers/     ← ×1–×5 badge per full wild reel (carries the FS RTP)
 │  ├─ win-marquees/          ← tiered win celebration (universal, + music)
 │  ├─ coin-rain/             ← coin-rain overlay
 │  ├─ tease-camera/          ← POV-dolly anticipation
 │  ├─ frame-win-flash/       ← frame lights up on trigger
 │  ├─ symbol-sheets/         ← per-symbol idle + win spritesheets
-│  ├─ boot-loader/           ← in-iframe loading screen
+│  ├─ paylines/              ← lines pay-model (Crack Farm; README only)
 │  │  ── drop-in code modules (real .ts + integration) ──
+│  ├─ round-core/            ← ⭐ viceSpin.ts: the pure seed-derived round core
+│  │                            (settlement + display + simulator all call it)
 │  ├─ win-line/              ← ways-light comet (WaysLightComet.ts, 1:1)
 │  ├─ frame/                 ← procedural neon frame band (no-image fallback)
 │  ├─ cell-backdrop/         ← per-cell backing panels

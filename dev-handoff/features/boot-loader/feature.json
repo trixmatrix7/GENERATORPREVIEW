@@ -1,0 +1,84 @@
+{
+  "id": "boot-loader",
+  "title": "CHAIN GAMES boot loader",
+  "type": "flow-stage",
+  "themeAgnostic": true,
+  "universal": true,
+  "mustBeFirst": true,
+  "summary": "The platform's loading screen: the CHAIN GAMES logo builds in from a spritesheet while a hairline bar tracks real asset progress — but the bar can never top out before the logo has finished. First thing on screen in every generated game.",
+  "status": {
+    "devBuild": "ABSENT — the dev build shows no loading screen at all today",
+    "severity": "must exist before anything else renders; it is stage 1 of FLOW.md"
+  },
+  "scope": ["every game"],
+  "notPerGame": "This is platform branding, not a skin. There is no per-game title, no per-game colour ramp and no per-game bar tint — an earlier revision had those and they were removed on purpose. If per-game boot theming is ever wanted again it belongs on the bar colour, never on a title.",
+  "container": {
+    "where": "inside the game-canvas container only (the generator's game iframe) — never over the host/studio chrome",
+    "css": { "position": "absolute", "inset": 0, "zIndex": 30, "background": "#07070c" },
+    "layout": "flex column, centred, gap 18px"
+  },
+  "logo": {
+    "asset": "theme/vice/chain_loader_sheet.webp",
+    "sheetPx": [2000, 2000],
+    "grid": [8, 8],
+    "framePx": [250, 250],
+    "realFrames": 60,
+    "padFrames": 4,
+    "padContent": "copies of the last frame, so the one-shot lands on the finished lockup",
+    "msPerCell": 66.7,
+    "totalSeconds": 4.2667,
+    "playback": "ONE-SHOT then hold — it is a logo build-in, not a spinner and not a cycle",
+    "renderScale": "1:1, a 250px sheet frame in a 250px box; never upscaled",
+    "clip": { "overflow": "hidden", "contain": "strict" },
+    "marginBottom": -108,
+    "marginRationale": "the logo's ink ends at 57.8% of the frame, leaving 105px of transparent tail; 105 dead + 18 flex gap - 108 margin = a ~15px optical gap to the bar",
+    "stepping": {
+      "property": "transform",
+      "notProperty": "background-position",
+      "why": "background-position on a large sheet forces a re-rasterisation every step; it stuttered badly while the real assets were decoding alongside it",
+      "split": "a transform animation cannot drive both axes on one element — the ROW walks on the wrapper, the COLUMN on the strip inside it",
+      "timing": "steps(8, jump-none) on both axes",
+      "whyJumpNone": "plain steps(8) divides into eighths while an 8-column sheet sits on sevenths of the travel — every rendered frame becomes two half-frames drifting further out of register, which looks garbled and too fast",
+      "row": { "keyframe": "translate3d(0,0,0) -> translate3d(0,-1750px,0)", "duration": "4.2667s", "iterations": 1, "fill": "both" },
+      "col": { "keyframe": "translate3d(0,0,0) -> translate3d(-1750px,0,0)", "duration": "0.5333s", "iterations": 8, "fill": "both" }
+    },
+    "sizeBudget": "keep the sheet small. An earlier 4092x4092 bake was 16.7 MP (~67 MB decoded) for a mark that renders at 250px and it visibly lagged; 2000x2000 is 4.0 MP / 228 KB."
+  },
+  "bar": {
+    "look": "ultra-clean: a hairline, no glow, no colour ramp, no LOADING label",
+    "px": [236, 2],
+    "borderRadius": 999,
+    "fillColor": "rgba(255,255,255,0.92)",
+    "trackColor": "rgba(255,255,255,0.10)",
+    "idleAnimation": "opacity 0.5 <-> 0.9 over 1.8s ease-in-out, infinite",
+    "progressFormula": "0.06 + 0.94 * (settledCriticalJobs / totalCriticalJobs)",
+    "clockGate": {
+      "rule": "THE BAR MUST NOT REACH FULL BEFORE THE LOGO HAS FINISHED PLAYING",
+      "implementation": "width = real progress; max-width = a keyframe ramping 0% -> 100% over the loader's own 4.2667s (linear, fill both). A percentage max-width resolves against the track, so the two compose into exactly min(realProgress, playhead).",
+      "behaviour": "whichever is slower wins, in both directions — the bar can never outrun the logo, and a cold cache still holds it back on genuine loading",
+      "whyCss": "a per-frame JS clock would re-render on every frame and compete with the asset decoding this screen exists to cover",
+      "symptomIfIgnored": "on a warm cache the bar snaps to 100% in a few hundred ms and then sits there while the lockup assembles — it reads as if the game were waiting on nothing"
+    }
+  },
+  "progressTracking": {
+    "critical": ["symbol textures", "static base background", "title/logo image", "frame image", "game layered-intro set"],
+    "nonCritical": ["symbol win sheets", "scatter idle/win sheets", "FS background", "win-tier marquee art", "coin rain", "fs3/fs4/outro intro sets"],
+    "rule": "only critical jobs are tracked into the fraction; everything else is fired unawaited so it can never hold the bar back — it streams in behind the intro"
+  },
+  "exit": {
+    "startsAt": "max(criticalJobsSettled, LOADER_MS + BAR_HOLD_MS) measured from boot start",
+    "loaderMs": 4267,
+    "barHoldMs": 280,
+    "holdRationale": "the screen must dwell a beat on 'logo standing, bar full' before it goes",
+    "fade": { "property": "opacity", "seconds": 0.55, "ease": "ease" },
+    "unmountAfterMs": 650,
+    "armsNext": "showGameIntro() is called before the fade, so the game intro's iris-from-black is already in progress when the overlay clears — no flash of empty canvas",
+    "doNotDismissOnAssetsAlone": "without the floor a warm cache tore the logo away mid-build; it read as a broken flicker, not a fast load"
+  },
+  "controlBar": false,
+  "referenceImpl": {
+    "file": "src/App.tsx",
+    "symbols": ["bootScreen", "finishBoot", "LOADER_MS", "BAR_HOLD_MS", "boot-loader-row", "boot-loader-col", "boot-bar-clock"]
+  },
+  "verification": "Sample a fresh boot every ~250 ms and assert two things: (1) every sampled sheet offset is an exact multiple of the frame size on BOTH axes — a non-multiple means the steps() timing is off-grid; (2) the bar first reads 100% no earlier than the sample in which the sheet reaches its last cell. Our production run: bar 94.1% while the sheet was on cell [7,4], 100% on the sample where it reached [7,7]."
+}

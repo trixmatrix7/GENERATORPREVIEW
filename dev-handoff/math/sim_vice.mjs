@@ -1,3 +1,24 @@
+// ⚠️⚠️  SUPERSEDED — DO NOT CERTIFY AGAINST THIS FILE.  ⚠️⚠️
+//
+// Two reasons, both disqualifying as of 2026-07-28:
+//
+//   1. It does NOT model TOWER MULTIPLIERS (x1-x5 on fully-wild free-spin
+//      reels). That mechanic carries the free-spins RTP, so every free-spins
+//      number this file produces is far below the shipped game.
+//   2. Its `--eval=corrected` mode implements the RETRACTED D11 evaluator. A
+//      column-0 wild folding to HIGH_A is the SPEC (SlotGame.sol:341), not a
+//      bug. Anything measured with `--eval=corrected` is void.
+//
+// THE CERTIFYING TOOL IS `sim_vice_core.mjs` IN THIS FOLDER. It drives the live
+// round core (features/round-core/viceSpin.ts) — the same pure function our
+// settlement and our display both call — so what it measures is literally what
+// the game pays. Certified: natural 96.46% / buy3 96.35% / buy4 96.08% /
+// ante 96.00%.
+//
+// This file is kept only as the SECOND-OPINION implementation: it was written
+// independently and cross-checked the base game against the core harness.
+//
+// ── original header ─────────────────────────────────────────────────────────
 // VICE HEAT — RUNTIME-FAITHFUL Monte-Carlo certification simulator.
 //
 // This models what the ACTUAL GAME CODE does, not what simulate_vice_heat_v2.py

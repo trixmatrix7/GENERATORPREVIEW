@@ -52,37 +52,82 @@ exactly — the naive even-odd fill unions in Pixi v8 and produces a grey wash.
 
 ---
 
-## Stage 1 — Boot loading screen (in the game area, real progress)
+## Stage 1 — CHAIN GAMES boot loader (**the first thing on screen, in every game**)
 
-**Source:** `App.tsx` — `bootScreen` node + the asset-load effect.
+> ⚠️ **This stage is missing from the dev build entirely — there is no loading
+> screen today.** It is not optional and it is not Vice-specific: it is
+> **platform branding**, identical in every slot the generator produces, and it
+> must run **before anything else**. A game that cuts straight to its intro has
+> skipped stage 1.
+
+**Source:** `src/App.tsx` — the `bootScreen` node, `finishBoot()`, and the three
+`@keyframes` (`boot-loader-row`, `boot-loader-col`, `boot-bar-clock`).
 
 **What shows:** an opaque DOM overlay rendered **inside the game-canvas
-container only** (never over the studio UI — it mimics the generator's game
-iframe). Solid background `#07070c`, `position:absolute; inset:0; zIndex:30`.
-Contents: a breathing wordmark (per-game title/colors), a 300×5 px progress
-bar, and a breathing "LOADING" label. Bar width = **real completed-jobs
-fraction**: starts at `0.06`, then `0.06 + 0.94 * (done / totalJobs)`.
+container only** (never over the studio/host chrome — it mimics the generator's
+game iframe). Solid `#07070c`, `position:absolute; inset:0; zIndex:30`. Two
+elements, centred, nothing else:
+
+1. **The CHAIN GAMES logo build-in** — a one-shot animation, not a spinner and
+   not a cycle. Asset: `theme/vice/chain_loader_sheet.webp`, **2000×2000, an 8×8
+   grid of 250 px frames**, 60 real frames plus 4 duplicates of the last frame
+   padding the grid out to 64. Played at **66.7 ms per cell = 4.2667 s total**,
+   then it **holds** on the finished lockup.
+2. **An ultra-clean bar** — a **236×2 px hairline**, no glow, no colour ramp, no
+   label: `rgba(255,255,255,0.92)` fill on an `rgba(255,255,255,0.10)` track,
+   both `border-radius: 999px`. It breathes on opacity (0.5↔0.9, 1.8 s) and
+   nothing else.
+
+The frame box is 250×250 shown **1:1** (never scaled) with `overflow:hidden;
+contain:strict`, and carries `marginBottom:-108` — the logo's ink ends at 57.8 %
+of the frame, so 105 px of the box is transparent tail; 105 dead + 18 flex gap −
+108 margin leaves a ~15 px optical gap down to the bar.
+
+**⚠️ THE BAR MAY NOT FINISH BEFORE THE LOGO DOES.** This is the rule, and it is
+the one that is easy to get wrong. Real asset progress alone fills the bar in a
+few hundred ms on a warm cache, so it sits at 100 % while the lockup is still
+assembling — it reads as if the game were waiting on nothing. What is displayed
+is therefore the **minimum of real progress and the clip's own playhead**:
+
+```
+width      = 6% + 94% * (settledCriticalJobs / totalCriticalJobs)   // real progress
+max-width  = keyframe 0% -> 100% over 4.2667s, linear, fill both    // the playhead
+shown      = min(the two)                                           // percentage
+                                                                    // max-width resolves
+                                                                    // against the track
+```
+
+Whichever is slower wins, in **both** directions: the bar can never outrun the
+logo, and on a cold cache the real loading still holds it back. Doing this in
+CSS is deliberate — a per-frame JS clock competes with the asset decoding this
+screen exists to cover, and that is exactly what made an earlier cut of this
+loader stutter.
 
 **Critical vs non-critical loads.** Only the assets that gate the first frame
-are tracked into the progress fraction (`track(...)`): user/base symbol
-textures, the static base background, the title image, the frame image, and the
-`game` layered-intro set. Everything else (win sheets, scatter idle/win sheets,
-FS background, win-tier marquee art, coin rain, fs3/fs4/outro intro sets) loads
-in parallel *behind* the overlay via `void` (non-blocking).
+count toward the fraction (`track(...)`): symbol textures, the static base
+background, the title image, the frame image, and the `game` layered-intro set.
+Everything else (win sheets, scatter idle/win sheets, FS background, win-tier
+marquee art, coin rain, fs3/fs4/outro intro sets) is fired with `void` and
+streams in behind the overlay.
 
 **Transition IN:** none — the overlay is opaque from first paint.
-**Transition OUT:** when `Promise.all(bootJobs)` resolves → `showGameIntro()` is
-called (arming Stage 2 underneath), then `setBootProgress(1)`, then after
-**180 ms** `bootFade=true` (CSS `opacity 0.55s ease` → 0), then at
-**180 + 650 ms** `bootGone=true` (node unmounts). The fade reveals the game
-intro's iris-from-black already in progress — a seamless handoff.
+**Transition OUT:** when the tracked jobs resolve, `finishBoot()` snaps progress
+to 1 and then waits out `LOADER_MS (4267) + BAR_HOLD_MS (280)` **measured from
+boot start**, so the screen always dwells a beat on *finished logo + full bar*
+before it goes. Then `bootFade=true` (CSS `opacity 0.55s ease` → 0) and 650 ms
+later `bootGone=true` (node unmounts). `showGameIntro()` has already armed
+stage 2 underneath, so the fade reveals an iris-from-black already in progress.
 
-**Control bar:** **hidden** — the opaque boot overlay covers the entire game
-area; `showGameIntro()` sets `introOpen=true` at the same tick the fade begins,
-so the bar stays hidden straight through into Stage 2.
+**Do not tear the screen down on asset-ready alone.** Without the floor, a warm
+cache dismissed the loader a few hundred ms in and the logo was ripped away
+mid-build — it read as a broken flicker, not a fast load.
 
-**Bare-build shortcut:** if `isBareBuild()`, no theme assets load — the overlay
-jumps to `progress=1`, fades at 150 ms, unmounts at 800 ms, and no intro shows.
+**Control bar:** **hidden** — the opaque overlay covers the whole game area, and
+`introOpen` is already true when the fade begins, so the bar stays hidden
+straight through into stage 2.
+
+**Bare-build shortcut:** with no theme assets to load the timing is unchanged —
+the loader is branding, so it plays out and fades on the same schedule.
 
 ---
 
@@ -340,11 +385,54 @@ values already resolved).
   "flow": [
     {
       "id": "boot",
-      "shows": "opaque in-game loading overlay with real progress bar",
-      "transitionIn": { "type": "none" },
-      "transitionOut": { "type": "css-fade", "seconds": 0.55, "armsNextAt": "Promise.all(criticalJobs)" },
+      "shows": "CHAIN GAMES logo build-in + hairline progress bar, opaque, inside the game box",
+      "universal": true,
+      "mustBeFirst": true,
+      "note": "PLATFORM BRANDING — identical in every generated game, not a per-game skin. Currently ABSENT from the dev build; it has to exist before anything else renders.",
+      "background": "#07070c",
+      "logo": {
+        "sheet": "theme/vice/chain_loader_sheet.webp",
+        "sheetPx": [2000, 2000],
+        "grid": [8, 8],
+        "framePx": [250, 250],
+        "realFrames": 60,
+        "padFrames": 4,
+        "padContent": "copies of the last frame",
+        "msPerCell": 66.7,
+        "totalSeconds": 4.2667,
+        "playback": "one-shot, then HOLD on the lockup (never loops)",
+        "render": "1:1, never scaled; box overflow:hidden + contain:strict",
+        "stepping": "transform, NOT background-position — steps(8, jump-none) on both axes, row on the wrapper and column on the inner strip",
+        "whyTransform": "background-position on a large sheet re-rasterises every step and stuttered while the real assets were decoding",
+        "marginBottom": -108,
+        "whyMargin": "logo ink ends at 57.8% of the frame; 105px dead tail + 18px flex gap - 108px margin leaves a ~15px optical gap to the bar"
+      },
+      "bar": {
+        "px": [236, 2],
+        "borderRadius": 999,
+        "fill": "rgba(255,255,255,0.92)",
+        "track": "rgba(255,255,255,0.10)",
+        "idle": "opacity 0.5<->0.9 over 1.8s",
+        "label": null,
+        "colourRamp": null,
+        "width": "6% + 94% * (settledCriticalJobs / totalCriticalJobs)",
+        "cap": "max-width keyframe 0% -> 100% over 4.2667s linear, fill both",
+        "shown": "min(width, cap) — the bar MUST NOT reach full before the logo has finished playing",
+        "whyCss": "a per-frame JS clock competes with the asset decoding this screen exists to cover"
+      },
+      "criticalJobs": ["symbol textures", "static base background", "title image", "frame image", "game layered-intro set"],
+      "nonCriticalJobs": "win sheets, scatter idle/win sheets, FS background, win-tier art, coin rain, fs3/fs4/outro intro sets — fired unawaited, they stream in behind the overlay",
+      "transitionIn": { "type": "none", "why": "opaque from first paint" },
+      "transitionOut": {
+        "type": "css-fade",
+        "seconds": 0.55,
+        "startsAt": "max(criticalJobsSettled, LOADER_MS 4267 + BAR_HOLD_MS 280) measured from boot start",
+        "unmountAfter": 0.65,
+        "armsNextAt": "showGameIntro() runs before the fade, so the iris-from-black is already in progress when the overlay clears",
+        "whyFloor": "on a warm cache the assets settle in a few hundred ms; without the floor the logo is torn away mid-build and reads as a broken flicker"
+      },
       "controlBar": false,
-      "addable": true
+      "addable": false
     },
     {
       "id": "game-intro",

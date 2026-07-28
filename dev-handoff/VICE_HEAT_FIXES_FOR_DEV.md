@@ -14,10 +14,12 @@
 > |---|---|---|---|---|
 > | **natural** | 1× | **96.46%** ±1.59pp | 20,000,000 | 96.94% ±2.95pp / 6M, separate seed |
 > | **buy 3-scatter** | 100× | **96.35%** ±0.97pp | 500,000 | — |
-> | **buy 4-scatter** | 200× | **96.08%** ±0.39pp | 4,000,000 | independent simulator |
-> | **ante** | 3.25× | see `simResults.ante` | 20,000,000 | — |
+> | **buy 4-scatter** | 200× | **96.08%** ±0.39pp | 4,000,000 | independent simulator; core harness 96.34% ±1.12pp / 500k on a fresh seed |
+> | **ante** | 3.25× | **96.00%** ±1.16pp | 20,000,000 | trigger promise held: 3sc 1-in-20.5, 4+sc 1-in-172.4, hot 1-in-80.1 |
 >
-> **Zero max-win-cap violations in every run.** `rtpBps` is **9670**.
+> **Zero max-win-cap violations in every run**, and zero violations of the round invariants (credited-sum = totalWin, totalWin ≤ cap, no negative credits, re-derivation deterministic). `rtpBps` is **9670**.
+>
+> ⚠️ **Round counts are not interchangeable across modes** — pick them off the per-round spread, not off habit. The ante carries a per-round std of ~20× stake, so a 4M run gives a ±2.54pp interval: our own 4M pass read 94.3% and that number was pure noise. 20M narrows it to ±1.16pp and lands on 96.00%. If you re-measure the ante, do not conclude anything from a few million rounds.
 >
 > Natural RTP attribution (share of wager): **base 47.9% · hot spins 3.8% · FS 3-scatter 14.2% · FS 4-scatter 30.7%.**
 >

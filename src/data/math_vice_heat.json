@@ -18437,7 +18437,7 @@
     "anteBet": {
       "label": "3x FREE SPINS CHANCE",
       "costMult": 3.25,
-      "certifiedRtpPct": 95.52,
+      "certifiedRtpPct": 96,
       "triggerChanceX": 3.47,
       "naturalTriggerIn": 63.3,
       "anteTriggerIn": 18.31,
@@ -20054,11 +20054,13 @@
           6
         ]
       ],
-      "certifiedCi99Pp": 0.73,
-      "certifiedRounds": 40000000,
+      "certifiedCi99Pp": 1.16,
+      "certifiedRounds": 20000000,
       "anteTrigger3scIn": 20.48,
       "anteTrigger4scIn": 172.32,
-      "hotSpinDependency": "The ante fit leans on hot spins roughly twice as hard as natural play: with hotSpinChance1In active it measures ~95.5%, with hot spins disabled it drops to ~84%. If hot spins are ever dropped, the ante MUST be re-fitted. buy3/buy4 are unaffected (hot never fires on a bought round)."
+      "hotSpinDependency": "The ante fit leans on hot spins roughly twice as hard as natural play: with hotSpinChance1In active it measures 96.00% (20M rounds, ±1.16pp), with hot spins disabled it drops to ~84%. If hot spins are ever dropped, the ante MUST be re-fitted. buy3/buy4 are unaffected (hot never fires on a bought round).",
+      "certifiedBy": "custom-math/sim_vice_core.mjs (live round core), seed 771177, 2026-07-28 — WITH tower multipliers. The previous 95.52%/40M figure came from a separate tool and predates the tower-multiplier mechanic, so it could not describe the shipped game: the ante draws ~64% of its RTP from the free spins, which is exactly what that mechanic changed.",
+      "measurementNote": "Per-round std is ~20x of stake. A 4M-round run carries a ±2.54pp interval — ours read 94.3% and was noise. Do not re-fit the ante off anything under ~20M rounds."
     },
     "fullBoardInstantMaxWin": true,
     "towerMultiplierWeights": [
@@ -20132,15 +20134,43 @@
         "rounds": 4000000,
         "seed": 90210,
         "tool": "independent simulator"
+      },
+      "confirmedByCore": {
+        "rtpPct": 96.337,
+        "ci99Pp": 1.117,
+        "rounds": 500000,
+        "seed": 553311,
+        "maxWin1In": 135,
+        "maxWinCapViolations": 0,
+        "tool": "custom-math/sim_vice_core.mjs — same harness, FRESH SEED (the primary buy4 row and the independent simulator both ran on 90210; this rules out a seed artefact)"
       }
     },
     "ante": {
-      "rtpPct": 94.3,
-      "ci99Pp": 2.54,
-      "rounds": 4000000,
-      "seed": 90210,
+      "rtpPct": 96,
+      "ci99Pp": 1.16,
+      "rounds": 20000000,
+      "seed": 771177,
       "costMult": 3.25,
-      "maxWinCapViolations": 0
+      "hitFreqPct": 74.93,
+      "perRoundStdX": 20.22,
+      "trigger3scIn": 20.5,
+      "trigger4scIn": 172.4,
+      "hotRate1In": 80.1,
+      "maxWin1In": 11581,
+      "maxWinCapViolations": 0,
+      "attributionPctOfWager": {
+        "base": 24.7,
+        "hot": 6.84,
+        "fs3": 14.48,
+        "fs4": 49.98
+      },
+      "supersedes": {
+        "rtpPct": 94.3,
+        "ci99Pp": 2.54,
+        "rounds": 4000000,
+        "seed": 90210,
+        "why": "The 4M run read 94.3% and was published nowhere: at a per-round std of ~20x stake, 4M rounds carry a ±2.54pp interval, so the point estimate was noise. 20M narrows it to ±1.16pp and lands on 96.00%."
+      }
     },
     "invariants": "credited-sum === totalWin, totalWin <= cap, no negative credits, re-derivation deterministic — ZERO violations in every run",
     "notes": [

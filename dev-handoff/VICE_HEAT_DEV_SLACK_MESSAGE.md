@@ -16,9 +16,11 @@ We told you `_evaluateWins` was under-paying because it seeds its candidate symb
 | natural | 1× | **96.46%** ±1.59 | 20,000,000 |
 | buy 3-scatter | 100× | **96.35%** ±0.97 | 500,000 |
 | buy 4-scatter | 200× | **96.08%** ±0.39 | 4,000,000 |
-| ante | 3.25× | see `simResults.ante` in the preset | — |
+| ante | 3.25× | **96.00%** ±1.16 | 20,000,000 |
 
-Prices unchanged (100× / 200× / 3.25×). `payTable` and `scatterPay` unchanged. **`rtpBps` is 9670.** Natural RTP splits as base 47.9% · hot spins 3.8% · FS-3sc 14.2% · FS-4sc 30.7%.
+Prices unchanged (100× / 200× / 3.25×). `payTable` and `scatterPay` unchanged. **`rtpBps` is 9670.** Natural RTP splits as base 47.9% · hot spins 3.8% · FS-3sc 14.2% · FS-4sc 30.7%. Ante trigger promise held: 3sc 1-in-20.5, 4+sc 1-in-172.4, hot spins 1-in-80.1.
+
+One measurement note if you re-run any of this: the ante's per-round spread is ~20× stake, so a few million rounds tells you nothing — our own 4M pass read 94.3% and it was pure noise (±2.54pp). It took 20M to get to ±1.16pp and 96.00%.
 
 **🆕 The RTP came back through a MECHANIC, not the evaluator — two new things to port:**
 

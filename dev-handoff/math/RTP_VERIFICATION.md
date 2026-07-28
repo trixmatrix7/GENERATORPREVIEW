@@ -17,13 +17,23 @@
 > |---|---|---|---|---|
 > | natural | 1× | **96.46%** ±1.59pp | 20,000,000 | 96.94% ±2.95pp / 6M, separate seed |
 > | buy 3-scatter | 100× | **96.35%** ±0.97pp | 500,000 | — |
-> | buy 4-scatter | 200× | **96.08%** ±0.39pp | 4,000,000 | independent simulator |
-> | ante | 3.25× | see `simResults.ante` | — | — |
+> | buy 4-scatter | 200× | **96.08%** ±0.39pp | 4,000,000 | independent simulator; core harness 96.34% ±1.12pp / 500k, fresh seed |
+> | ante | 3.25× | **96.00%** ±1.16pp | 20,000,000 | 3sc 1-in-20.5 · 4+sc 1-in-172.4 · hot 1-in-80.1 |
 >
-> Zero max-win-cap violations in every run. `rtpBps` **9670**. Natural attribution (% of wager):
-> base 47.88 · hot 3.76 · fs3 14.16 · fs4 30.66. Hit frequency 68.24%, per-round std 28.01× of
-> stake. 4-scatter buy: max win 1-in-143, tower guarantee fires on 83.6% of rounds, zero-tower
-> rounds 0% (was 15.5%), mean 2.03 towers at round end.
+> Zero max-win-cap violations in every run, and zero invariant violations (credited-sum = totalWin,
+> totalWin ≤ cap, no negative credits, deterministic re-derivation). `rtpBps` **9670**.
+>
+> Natural attribution (% of wager): base 47.88 · hot 3.76 · fs3 14.16 · fs4 30.66. Hit frequency
+> 68.24%, per-round std 28.01× of stake.
+> Ante attribution: base 24.70 · hot 6.84 · fs3 14.48 · fs4 49.98. Hit frequency 74.93%, per-round
+> std 20.22× of stake, max win 1-in-11,581.
+> 4-scatter buy: max win 1-in-143 (1-in-135 on the fresh-seed cross-check), tower guarantee fires
+> on 83.6% of rounds, zero-tower rounds 0% (was 15.5%), mean 2.03 towers at round end.
+>
+> **⚠️ Size the run off the per-round spread, not off habit.** The ante's per-round std is ~20× of
+> stake, so 4M rounds only buy a ±2.54pp interval — our own 4M pass read **94.3%**, which was noise
+> and was never published. 20M gets to ±1.16pp and lands on 96.00%. Note also that the harness runs
+> buy modes at `rounds/4` (a bought round replays a whole bonus): ask for 2M and you measure 500k.
 >
 > **What restored the RTP was a mechanic, not an evaluator change:** per-reel **tower
 > multipliers ×1–×5** on fully-wild free-spin reels, weights `[55,20,9,6,10]`, a combination

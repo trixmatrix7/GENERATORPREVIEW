@@ -1,5 +1,5 @@
 Vice Heat — dev handoff package · file manifest
-generated 2026-07-28 (certification: natural 96.46% / buy3 96.35% / buy4 96.08%, rtpBps 9670)
+generated 2026-07-28 (certification: natural 96.46% / buy3 96.35% / buy4 96.08% / ante 96.00%, rtpBps 9670)
   ⛔ the 2026-07-27 numbers (95.91 / 95.93 / 96.11 / 96.40) are VOID — they were measured
      with a "corrected" ways evaluator that was itself wrong. D11 is retracted; the contract
      (SlotGame.sol:341) is the spec and nothing in either evaluator should change.

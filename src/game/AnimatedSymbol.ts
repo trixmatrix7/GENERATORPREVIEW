@@ -651,8 +651,9 @@ export class AnimatedSymbol extends Container {
     // Don't fight a richer active state (win / featured / full landing).
     if (this.activeState !== 'static') return;
     // LAND SHEET (Noski's clips) plays on EACH reel's drop for every symbol that
-    // has one. The sheets are now front-trimmed to their MOVEMENT (the static
-    // lead-in was the "delay"), so the motion hits right at the landing.
+    // has one. A skin that wires no land sheet gets this programmatic bounce
+    // instead — which is what Crack Farm now uses (Noski 2026-07-28: "landing
+    // raus und lieber basic landing rein, so ein bounce drunter").
     if (SYMBOL_LAND_SHEETS.has(this.symbolId)) { this.play('landing'); return; }
     this.killTween();
     this.activeState = 'landing';
@@ -664,20 +665,38 @@ export class AnimatedSymbol extends Container {
     const squashY = impactSquash(t.scaleSquashY);
     const stretchY = impactStretch(t.scaleStretchY);
     const snap = landingImpactConfig.enabled ? landingImpactConfig.snapMul : 1;
+
+    // THE FLOOR STAYS PUT. `inner` is anchored at the cell CENTRE, so scaling Y
+    // alone lifts the art's bottom edge by (1-s)*halfHeight — the symbol reads
+    // as shrinking and growing rather than being hit, which is exactly the
+    // "size verkleinerung/vergrößerung" Noski kept seeing. Sinking `inner.y` by
+    // the same amount pins the bottom so only the TOP compresses. Same rule the
+    // Fruit Stacks drop landed on.
+    const baseY = this.inner.y;
+    const halfH = (this.iconSprite?.height ?? SYMBOL_HEIGHT * 0.94) / 2;
+    const floorY = (s: number) => baseY + (1 - s) * halfH;
+
     this.tween = gsap
-      .timeline({ delay })
+      .timeline({
+        delay,
+        onComplete: () => { this.inner.y = baseY; },
+        onInterrupt: () => { this.inner.y = baseY; },
+      })
       .to(this.inner.scale, {
         x: 1 / squashY, y: squashY,
         duration: t.squashDuration * snap, ease: 'power3.in',
-      })
+      }, 0)
+      .to(this.inner, { y: floorY(squashY), duration: t.squashDuration * snap, ease: 'power3.in' }, 0)
       .to(this.inner.scale, {
         x: 1 / stretchY, y: stretchY,
         duration: t.overshootDuration, ease: 'power2.out',
       })
+      .to(this.inner, { y: floorY(stretchY), duration: t.overshootDuration, ease: 'power2.out' }, '<')
       .to(this.inner.scale, {
         x: 1, y: 1,
         duration: t.settleDuration, ease: 'back.out(2.6)',
-      });
+      })
+      .to(this.inner, { y: baseY, duration: t.settleDuration, ease: 'back.out(2.6)' }, '<');
   }
 
   /** Re-render the cell — used when external state the cell reads

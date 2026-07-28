@@ -287,6 +287,23 @@ pro Spalte; Rohdaten scratchpad/winna_analysis/timings.json). DIE Referenz für 
   vertauscht (Hund↔Schaf). Beim Sheet-Adden IMMER Static vs Sheet pro Symbol montieren. Verify:
   PNG in-page fetchen + Opak-Pixel-Sättigung/Luminanz messen (extract.pixels ist auf WebGL schwarz).
   [[sheet-from-mp4-grade-and-identity]]
+- **Landing braucht KEIN Sheet — ein verankerter Squash schlägt den Clip (2026-07-28, Noski-Entscheid).**
+  Nach dem Recut auf 333 ms (Schweif 1493→329 ms, s.u.) war das Timing gelöst, aber Noski wollte den
+  Clip trotzdem weg: *„landing raus und lieber basic landing rein, so ein bounce drunter — win passt
+  aber dann laggt landing vielleicht auch nicht so."* Richtig: ein Land-Clip ist eine ZWEITE
+  Animation, die sich mit dem Drop um denselben Takt streitet, und die Win-Sheets tragen die
+  Charakter-Arbeit schon. Ohne registriertes Sheet fällt `AnimatedSymbol.playLandBounce` durch:
+  Squash → Rebound → Setzen, Crack-Farm-Preset 0,045/0,07/0,18 s bei 0,93/1,06.
+  **DER BODEN MUSS STEHEN.** `inner` ist auf die Zell-MITTE verankert — reines scaleY hebt die
+  Unterkante um `(1-s)·halbeHöhe`, und genau das liest sich als „size verkleinerung/vergrößerung"
+  statt als Aufprall. `inner.y` im selben Timeline-Slot um denselben Betrag mitsenken (und in
+  `onComplete`/`onInterrupt` zurücksetzen). **Vermessen:** Oberkante wandert 15,7 px, Unterkante
+  5,3 px — Verhältnis 3:1, das Symbol staucht von oben. Ohne Kompensation wären es ~17,6 px
+  Boden-Hub. Verify: `iconSprite.getBounds()` pro rAF durch den Bounce sampeln und top-Drift gegen
+  bottom-Drift stellen; `topDrift >> bottomDrift` = korrekt.
+  Gilt für ALLE Skins (kein Spiel verdrahtet noch Land-Sheets); die Crack-Farm-Sheets bleiben im
+  Repo, Originale in `_landanim_orig/`.
+
 - **Land-Sheets: MISS ERST DIE TOTEN FRAMES, dann rede über Tempo (2026-07-28, Crack Farm).**
   Noski: *„spielt lange nach landing noch spritesheet … wirkt laggy … habe mich mehrere Tage davor
   gedrückt weil alles was wir gemacht hatten nix gebracht hat."* Grund, warum nichts half: die

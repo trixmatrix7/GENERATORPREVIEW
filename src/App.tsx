@@ -251,27 +251,19 @@ export function App() {
       void pixiAppRef.setSymbolWinSheet(7, `${cf}symbol_low_f_win.png`, 6, 4, 24, 10); // corn
       void pixiAppRef.setSymbolWinSheet(8, `${cf}symbol_low_g_win.png`, 6, 4, 24, 10); // slime bucket
       void pixiAppRef.setSymbolWinSheet(1, `${cf}symbol_scatter_win.png`, 6, 4, 24, 12); // SCATTER
-      // Per-symbol LANDING clips — play ONCE on the drop, then hand back to the
-      // static tile (Noski: "landing einmal"). Wild(0) stays a static pot,
-      // scatter(1) keeps its own win clip only.
+      // NO landing spritesheets for Crack Farm (Noski 2026-07-28: "landing raus
+      // und lieber basic landing rein, so ein bounce drunter — win passt aber
+      // dann laggt landing vielleicht auch nicht so").
       //
-      // 10 frames @ 30fps = 333ms. These were 24 @ 16 = 1.500s, and measuring
-      // the per-frame pixel delta showed why that felt broken: most of it was a
-      // FROZEN FRAME. high_a held for ten frames at delta 0.1-0.8 before the
-      // movement even began, low_g for six. So the board was still animating
-      // 1,493ms after the last reel had locked (measured), which reads as lag —
-      // the frame rate was never the problem (164fps median through the whole
-      // landing). Raising the fps had never helped because it sped the dead air
-      // up along with the motion. scripts/recut_crackfarm_land.py rebuilds each
-      // sheet as [static, dissolve-in, 6 real motion frames, dissolve-out,
-      // static], keeping the seam contract byte-for-byte.
-      void pixiAppRef.setSymbolLandSheet(2, `${cf}symbol_high_a_landanim.png`, 5, 2, 10, 30);
-      void pixiAppRef.setSymbolLandSheet(3, `${cf}symbol_high_b_landanim.png`, 5, 2, 10, 30);
-      void pixiAppRef.setSymbolLandSheet(4, `${cf}symbol_mid_c_landanim.png`, 5, 2, 10, 30);
-      void pixiAppRef.setSymbolLandSheet(5, `${cf}symbol_mid_d_landanim.png`, 5, 2, 10, 30);
-      void pixiAppRef.setSymbolLandSheet(6, `${cf}symbol_low_e_landanim.png`, 5, 2, 10, 30);
-      void pixiAppRef.setSymbolLandSheet(7, `${cf}symbol_low_f_landanim.png`, 5, 2, 10, 30);
-      void pixiAppRef.setSymbolLandSheet(8, `${cf}symbol_low_g_landanim.png`, 5, 2, 10, 30);
+      // The clips were re-cut to 333ms first and that DID land — tail after the
+      // last reel went 1493ms -> 329ms, measured. But a landing clip is a whole
+      // second animation competing with the drop for the same beat, and the win
+      // sheets already carry the character work. Dropping it entirely leaves the
+      // programmatic squash in AnimatedSymbol.playLandBounce as the landing:
+      // 0.05s squash -> 0.08s rebound -> 0.22s settle = 350ms, with the art's
+      // BOTTOM EDGE PINNED so it reads as an impact and not as a size change.
+      // The sheets stay in the repo (and their originals in _landanim_orig/) if
+      // we ever want them back — nothing was thrown away.
       // Crack Farm's win clips are full framed tiles → render 1:1 on the static
       // footprint, no soft-mask vignette (fixes the dark zoom-in — Noski).
       // WILD(0) gets NO 1×1 win sheet: the tall-plant connection clip blew the

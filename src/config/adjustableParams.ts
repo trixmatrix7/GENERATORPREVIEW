@@ -451,6 +451,49 @@ export const ADJUSTABLE_PARAMS: readonly AdjustableParam[] = [
     description: 'Thickness of the 1×1 wild frame in pixels (0 = no frame). Raise it to add a coloured border around the wild pot.',
     keywords: ['wild', '1x1', 'frame', 'border', 'width', 'thickness'],
   },
+  // ── EXPANDED WILD tower (Vice) — the panel + border behind the full reel ──
+  {
+    id: 'expandWildBackdrop', label: 'Expanded wild — backdrop colour', layer: 'symbols', type: 'color',
+    default: '#0b0d14',
+    description: 'Fill colour of the panel behind the EXPANDED wild (the full-reel tower). Phrases: "change the expanded wild background colour".',
+    keywords: ['wild', 'expanded', 'expand', 'tower', 'turm', 'backdrop', 'background', 'hintergrund', 'panel', 'colour', 'color', 'farbe'],
+  },
+  {
+    id: 'expandWildBackdropAlpha', label: 'Expanded wild — backdrop opacity', layer: 'symbols', type: 'number',
+    min: 0, max: 1, step: 0.05, default: 1,
+    description: 'How opaque the expanded-wild panel is (0 = the reel shows through, 1 = solid).',
+    keywords: ['wild', 'expanded', 'tower', 'backdrop', 'opacity', 'alpha', 'transparent', 'durchsichtig'],
+  },
+  {
+    id: 'expandWildBorder', label: 'Expanded wild — border colour', layer: 'symbols', type: 'color',
+    default: '#ff3ea5',
+    description: 'Border colour around the expanded wild reel. Only visible when the border width is above 0. Phrases: "change the expanded wild border / rand".',
+    keywords: ['wild', 'expanded', 'tower', 'border', 'rand', 'rahmen', 'frame', 'outline', 'colour', 'color', 'farbe'],
+  },
+  {
+    id: 'expandWildBorderWidth', label: 'Expanded wild — border width', layer: 'symbols', type: 'number',
+    min: 0, max: 16, step: 0.5, default: 0,
+    description: 'Thickness of the expanded-wild border in pixels (0 = no border). Raise it to outline the whole wild reel.',
+    keywords: ['wild', 'expanded', 'tower', 'border', 'rand', 'rahmen', 'width', 'breite', 'thickness', 'dicke'],
+  },
+  {
+    id: 'expandWildBorderAlpha', label: 'Expanded wild — border opacity', layer: 'symbols', type: 'number',
+    min: 0, max: 1, step: 0.05, default: 1,
+    description: 'How opaque the expanded-wild border is (0 = invisible, 1 = solid).',
+    keywords: ['wild', 'expanded', 'tower', 'border', 'rand', 'opacity', 'alpha'],
+  },
+  {
+    id: 'expandWildMultiPop', label: 'Expanded wild — multiplier pop', layer: 'symbols', type: 'number',
+    min: 1, max: 2.5, step: 0.05, default: 1.45,
+    description: 'How hard the ×N multiplier badge punches on when it locks onto the expanded wild (1 = no overshoot, higher = bigger pop).',
+    keywords: ['wild', 'expanded', 'tower', 'multi', 'multiplier', 'multiplikator', 'badge', 'pop', 'lock', 'scale', 'overshoot'],
+  },
+  {
+    id: 'expandWildMultiPopTime', label: 'Expanded wild — multiplier pop time', layer: 'symbols', type: 'number',
+    min: 0.1, max: 1.2, step: 0.02, default: 0.42,
+    description: 'Duration of the multiplier pop-on in seconds (lower = snappier).',
+    keywords: ['wild', 'expanded', 'tower', 'multi', 'multiplier', 'badge', 'pop', 'time', 'duration', 'dauer', 'speed'],
+  },
   {
     id: 'fsPlaqueFont', label: 'FS-Plaque — Schrift', layer: 'win-screens', type: 'enum',
     options: ['Poppins', 'Rubik', 'Impact', 'Arial Black', 'Georgia'],

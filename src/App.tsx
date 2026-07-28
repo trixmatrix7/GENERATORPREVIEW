@@ -340,6 +340,12 @@ export function App() {
       pixiAppRef.applyVisualParam('oneWildBackdropAlpha', 1);
       pixiAppRef.applyVisualParam('oneWildFrame', '#7ef23e');
       pixiAppRef.applyVisualParam('oneWildFrameWidth', 0);
+      // Expanded (plant) tower defaults, so a Vice-side tweak never leaks here.
+      pixiAppRef.applyVisualParam('expandWildBackdrop', '#0b0d14');
+      pixiAppRef.applyVisualParam('expandWildBackdropAlpha', 1);
+      pixiAppRef.applyVisualParam('expandWildBorderWidth', 0);
+      pixiAppRef.applyVisualParam('expandWildMultiPop', 1.45);
+      pixiAppRef.applyVisualParam('expandWildMultiPopTime', 0.42);
       // FS-END TOTAL WIN outro: the artist's one-piece night-scene assembly
       // (TOTAL WIN + metal plate + press-to-continue), contain-fit; the
       // count-up amount sits ON the plate (measured centre 958,646).
@@ -663,6 +669,18 @@ export function App() {
     // Noski's real multiplier badges, x1..x5 in one strip. Replaces the
     // procedural plate; x1 is shown too because he supplied art for it.
     void pixiAppRef.setTowerBadgeArt(`${B}wild_multi_sheet.webp`, 5);
+    // EXPANDED wild tower — panel + border + the badge lock-pop. These used to be
+    // hardcoded (opaque #0b0d14 panel, no border at all), which is why Noski
+    // could not find them in the studio. Values below are the CURRENT look, so
+    // nothing changes visually until they are dialled; they ship to the dev as
+    // settings through the preset's visualParams.
+    pixiAppRef.applyVisualParam('expandWildBackdrop', '#0b0d14');
+    pixiAppRef.applyVisualParam('expandWildBackdropAlpha', 1);
+    pixiAppRef.applyVisualParam('expandWildBorder', '#ff3ea5');
+    pixiAppRef.applyVisualParam('expandWildBorderWidth', 0);
+    pixiAppRef.applyVisualParam('expandWildBorderAlpha', 1);
+    pixiAppRef.applyVisualParam('expandWildMultiPop', 1.45);
+    pixiAppRef.applyVisualParam('expandWildMultiPopTime', 0.42);
     // Custom neon frame (palm + marquee arrow). The window rect is the TRUE
     // transparent hole measured from the 1500² art's alpha — mapped onto the
     // frame bounds so the palm/arrow hang over the background, not the reels.

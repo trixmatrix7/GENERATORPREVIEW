@@ -145,6 +145,20 @@ export const oneWildConfig = {
   frameColor: 0x7ef23e, frameWidth: 0,
 };
 
+/** Live-adjustable look of the EXPANDED wild column (the full-reel tower): the
+ *  panel behind the art and the border around the reel. Both were hardcoded
+ *  (an opaque 0x0b0d14 panel, no border at all), which is why they could not be
+ *  found in the studio — the only wild parameters that existed were the 1×1
+ *  ones above. Exposed here so they are tunable AND ship to the dev in the
+ *  preset's visualParams. borderWidth 0 = no border (default). */
+export const expandWildConfig = {
+  backdropColor: 0x0b0d14, backdropAlpha: 1,
+  borderColor: 0xff3ea5, borderWidth: 0, borderAlpha: 1,
+  /** Multiplier badge pop when it locks onto the tower: overshoot scale and
+   *  duration in seconds. 1 = no overshoot. */
+  multiPopScale: 1.45, multiPopDuration: 0.42,
+};
+
 /** Live-adjustable ×N label on the FRUIT GIFT symbols (Noski: font felt off —
  *  it was a mix of Arial and Poppins across the five draw sites; now ONE
  *  config drives them all). Position = anchor on the symbol cell, angle =
@@ -1561,7 +1575,17 @@ export class ReelSet {
         }
       } else {
         clear = new Graphics();
-        clear.roundRect(rr.x, rr.y, rr.w, rr.h, rad).fill({ color: 0x0b0d14, alpha: 1 });
+        // Panel behind the tower art + optional border around the reel. Both are
+        // studio parameters now (expandWild*), not hardcoded values.
+        clear.roundRect(rr.x, rr.y, rr.w, rr.h, rad)
+          .fill({ color: expandWildConfig.backdropColor, alpha: expandWildConfig.backdropAlpha });
+        if (expandWildConfig.borderWidth > 0) {
+          clear.roundRect(rr.x, rr.y, rr.w, rr.h, rad).stroke({
+            color: expandWildConfig.borderColor,
+            width: expandWildConfig.borderWidth,
+            alpha: expandWildConfig.borderAlpha,
+          });
+        }
         clear.alpha = 0;
         clear.eventMode = 'none';
         this.stickyContainer.addChild(clear);
@@ -2426,6 +2450,23 @@ export class ReelSet {
     }
   }
 
+  /** Live-adjustable EXPANDED wild tower: panel colour/opacity, the reel border
+   *  (which did not exist before) and the multiplier lock-pop. Read when the
+   *  next tower grows / the next badge locks on. */
+  setExpandWildParam(id: string, value: string | number): void {
+    const c = expandWildConfig;
+    switch (id) {
+      case 'expandWildBackdrop': c.backdropColor = hexToNum(String(value)); break;
+      case 'expandWildBackdropAlpha': c.backdropAlpha = Number(value); break;
+      case 'expandWildBorder': c.borderColor = hexToNum(String(value)); break;
+      case 'expandWildBorderWidth': c.borderWidth = Number(value); break;
+      case 'expandWildBorderAlpha': c.borderAlpha = Number(value); break;
+      case 'expandWildMultiPop': c.multiPopScale = Number(value); break;
+      case 'expandWildMultiPopTime': c.multiPopDuration = Number(value); break;
+      default: return;
+    }
+  }
+
   /** @param mult  one shared value (Vice Heat), or a per-reel map (Crack Farm
    *   v2, where every plant carries and doubles its OWN multiplier). */
   setTowerMultiplier(mult: number | ReadonlyMap<number, number>): void {
@@ -2474,9 +2515,28 @@ export class ReelSet {
           this.stickyContainer.addChild(root);
           this.stickyRevealObjects.push(root);
           this.towerBadges.set(reelIdx, { root, label });
-          this.stickyRevealTweens.push(
-            gsap.fromTo(root.scale, { x: 0.2, y: 0.2 }, { x: 1, y: 1, duration: 0.38, ease: 'back.out(2.2)' }),
-          );
+          // LOCK POP (Noski): the badge does not just fade in with the tower — it
+          // punches ONTO it. Drops in from slightly above at an overshoot scale,
+          // settles with a back-ease, and the tower flexes once underneath so the
+          // two read as one impact. Strength/among timing are studio parameters.
+          const pop = expandWildConfig.multiPopScale;
+          const dur = expandWildConfig.multiPopDuration;
+          root.alpha = 0;
+          const tl = gsap.timeline();
+          tl.fromTo(root, { alpha: 0, y: slotY - rr.h * 0.10 },
+            { alpha: 1, y: slotY, duration: dur * 0.42, ease: 'power3.out' }, 0)
+            .fromTo(root.scale, { x: 0.35, y: 0.35 },
+              { x: pop, y: pop, duration: dur * 0.42, ease: 'power2.out' }, 0)
+            .to(root.scale, { x: 1, y: 1, duration: dur * 0.58, ease: 'back.out(3)' }, dur * 0.42);
+          this.stickyRevealTweens.push(tl);
+          const twr = this.expandedTowerSprites.get(reelIdx);
+          if (twr) {
+            this.stickyRevealTweens.push(
+              gsap.fromTo(twr.spr.scale,
+                { x: twr.baseScale * 1.05, y: twr.baseScale * 0.95 },
+                { x: twr.baseScale, y: twr.baseScale, duration: dur * 0.7, ease: 'elastic.out(1, 0.45)' }),
+            );
+          }
           return;
         }
         const plate = new Graphics();

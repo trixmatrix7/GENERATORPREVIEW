@@ -4214,6 +4214,16 @@ export class PixiApp {
         this.reelSet.setOneWildParam(id, value as string | number);
         break;
       }
+      case 'expandWildBackdrop':
+      case 'expandWildBackdropAlpha':
+      case 'expandWildBorder':
+      case 'expandWildBorderWidth':
+      case 'expandWildBorderAlpha':
+      case 'expandWildMultiPop':
+      case 'expandWildMultiPopTime': {
+        this.reelSet.setExpandWildParam(id, value as string | number);
+        break;
+      }
       case 'fruitMultiFont':
       case 'fruitMultiColor':
       case 'fruitMultiSize':

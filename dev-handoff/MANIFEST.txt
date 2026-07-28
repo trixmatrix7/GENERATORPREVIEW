@@ -27,10 +27,7 @@ assets/audio/spin-start.ogg
 assets/audio/ui-click.ogg
 assets/audio/ui-open.ogg
 assets/audio/ui-spin.ogg
-assets/audio/win-big.ogg
-assets/audio/win-normal.ogg
 assets/audio/win-screen-music.ogg
-assets/audio/win-small.ogg
 assets/theme/vice/bg_motel.webp
 assets/theme/vice/bg_motel_anim_1.webp
 assets/theme/vice/bg_motel_anim_2.webp

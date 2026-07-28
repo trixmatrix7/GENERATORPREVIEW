@@ -388,10 +388,25 @@
    "expectedArt": "512x2560 px (5x5) / 512x1484 px (5x3) — height-fit to active grid"
   },
   "gameFactor": {
-   "desktop": 0.85,
+   "vice": 0.98,
+   "viceNote": "Vice is a WAYS game. PixiApp.ts:625 picks the factor by pay model: ways 0.98, scatterpays 0.99, lines 0.85, compact (<520px) 0.98. The 0.85 that used to sit here is the LINES branch and made the machine ~13% too small.",
    "compact": 0.98,
-   "scatterpays": 0.97,
-   "rule": "scale = min(scaleX, scaleY, 1.3) * factor — PixiApp.ts:610; extra clamp keeps grid out of the HUD band"
+   "scatterpays": 0.99,
+   "lines": 0.85,
+   "cap": {
+    "ways": 1.7,
+    "scatterpays": 1.85,
+    "lines": 1.3,
+    "note": "the min() cap, also picked by pay model — Vice takes 1.7, not 1.3"
+   },
+   "sceneMargin": {
+    "ways": 14,
+    "scatterpays": 12,
+    "lines": 40,
+    "compact": 8,
+    "note": "PixiApp.ts:613 — Vice subtracts 14px per side, not the 40px SCENE_MARGIN default"
+   },
+   "rule": "scale = min(availW/(totalW+overhang), availH/totalH, cap[payModel]) * factor[payModel]; avail = screen - 2*sceneMargin[payModel] — PixiApp.ts:613,625"
   },
   "renderer": {
    "resolution": "max(2, min(devicePixelRatio, 2)) = always exactly 2 (sharpness floor/cap — PixiApp.ts:328)",

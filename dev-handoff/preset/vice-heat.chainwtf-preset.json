@@ -5,7 +5,7 @@
     "name": "GENERATOR PREVIEW (Noski studio)",
     "version": "2.1.0"
   },
-  "exportedAt": "2026-07-28T05:16:08.578Z",
+  "exportedAt": "2026-07-28T05:46:26.574Z",
   "game": {
     "id": "vice-heat",
     "theme": "vice",
@@ -52138,14 +52138,51 @@
       ]
     },
     {
-      "id": "ways-light",
+      "id": "ways-immersive",
       "kind": "win-presentation",
       "enabled": true,
       "affectsMath": false,
       "params": {
-        "sequential": "line-by-line",
-        "cometHead": "small",
-        "colorPreset": "white"
+        "whatItIs": "the winning SYMBOLS are the presentation — they leap, wiggle, then SLAM back down. Nothing is drawn between them.",
+        "suppresses": "NO comet, NO win-line, NO node dots, NO backlight flash, NO dim. ReelSet kills the comet, the flash and the line/dot decoration whenever this is enabled.",
+        "dimAlpha": 1,
+        "dimNote": "non-winners stay FULLY lit — Vice does not dim. The win sheets are the show; dimming them washed the art out.",
+        "stagger": 0.07,
+        "staggerNote": "per-reel left-to-right leap wave, seconds",
+        "jumpPx": {
+          "intense": 18,
+          "resting": 10
+        },
+        "tiltRad": {
+          "intense": 0.08,
+          "resting": 0.04
+        },
+        "slamPx": {
+          "intense": 5,
+          "resting": 2.5
+        },
+        "timeline": "y -jump 0.15s power3.out @0 · rot -tilt 0.08s sine.inOut @0.04 · rot +tilt 0.12s sine.inOut @0.12 · rot 0 0.12s sine.out @0.24 · y +slam 0.11s power3.in @0.22 · y base 0.30s back.out(3.5) @0.33",
+        "target": "the symbol's OBJECT layer, so it composes with the win sheet; restored on complete AND on interrupt",
+        "amountLabel": "fontSize 34 (not 28) plus an \"N WAYS\" subline when the combo pays more than one way",
+        "reducedMotion": "skipped entirely under prefers-reduced-motion"
+      },
+      "compatibleGrids": [
+        "5x5"
+      ]
+    },
+    {
+      "id": "ways-light",
+      "kind": "win-presentation",
+      "enabled": false,
+      "affectsMath": false,
+      "params": {
+        "suppressedBy": "ways-immersive",
+        "doNotBuild": "Vice draws NO comet and NO win line. This entry is here so the absence is explicit rather than an oversight — features/win-line/ ships the module for games that do use it.",
+        "ifEnabledElsewhere": {
+          "sequential": "line-by-line",
+          "cometHead": "small",
+          "colorPreset": "white"
+        }
       }
     },
     {
@@ -52754,12 +52791,31 @@
         "spritesheetPlayback": "one texture per sheet file, frames cut as sub-rectangles (no per-frame images); advance frames on a ticker at the sheet fps — never re-upload textures per frame"
       },
       "scaleToFit": {
-        "formula": "scale = min(availW/(totalW+frameOverhangL+frameOverhangR), availH/totalH, 1.3) * gameFactor; avail = screen - 2*sceneMargin",
+        "formula": "scale = min(availW/(totalW+frameOverhangL+frameOverhangR), availH/totalH, capForPayModel) * gameFactor; avail = screen - 2*sceneMarginForPayModel",
+        "capForPayModel": {
+          "ways": 1.7,
+          "scatterpays": 1.85,
+          "lines": 1.3,
+          "note": "Vice is WAYS -> 1.7"
+        },
         "gameFactor": {
-          "vice": 0.85,
-          "crackfarm": 0.85,
-          "fruitstacks": 0.97,
-          "compactUnderWidth520": 0.98
+          "ways": 0.98,
+          "scatterpays": 0.99,
+          "lines": 0.85,
+          "compactUnderWidth520": 0.98,
+          "note": "Vice is WAYS -> 0.98"
+        },
+        "sceneMarginForPayModel": {
+          "ways": 14,
+          "scatterpays": 12,
+          "lines": 40,
+          "compactUnderWidth520": 8,
+          "note": "Vice is WAYS -> 14, NOT the 40 in machineBox.sceneMargin (that constant is the lines/default fallback)"
+        },
+        "viceEffective": {
+          "cap": 1.7,
+          "gameFactor": 0.98,
+          "sceneMargin": 14
         },
         "fruitstacksExtra": "scatterpays additionally shifts the scene down by height*0.045"
       },
@@ -53191,10 +53247,25 @@
           "expectedArt": "512x2560 px (5x5) / 512x1484 px (5x3) — height-fit to active grid"
         },
         "gameFactor": {
-          "desktop": 0.85,
+          "vice": 0.98,
+          "viceNote": "Vice is a WAYS game. PixiApp.ts:625 picks the factor by pay model: ways 0.98, scatterpays 0.99, lines 0.85, compact (<520px) 0.98. The 0.85 that used to sit here is the LINES branch and made the machine ~13% too small.",
           "compact": 0.98,
-          "scatterpays": 0.97,
-          "rule": "scale = min(scaleX, scaleY, 1.3) * factor — PixiApp.ts:610; extra clamp keeps grid out of the HUD band"
+          "scatterpays": 0.99,
+          "lines": 0.85,
+          "cap": {
+            "ways": 1.7,
+            "scatterpays": 1.85,
+            "lines": 1.3,
+            "note": "the min() cap, also picked by pay model — Vice takes 1.7, not 1.3"
+          },
+          "sceneMargin": {
+            "ways": 14,
+            "scatterpays": 12,
+            "lines": 40,
+            "compact": 8,
+            "note": "PixiApp.ts:613 — Vice subtracts 14px per side, not the 40px SCENE_MARGIN default"
+          },
+          "rule": "scale = min(availW/(totalW+overhang), availH/totalH, cap[payModel]) * factor[payModel]; avail = screen - 2*sceneMargin[payModel] — PixiApp.ts:613,625"
         },
         "renderer": {
           "resolution": "max(2, min(devicePixelRatio, 2)) = always exactly 2 (sharpness floor/cap — PixiApp.ts:328)",

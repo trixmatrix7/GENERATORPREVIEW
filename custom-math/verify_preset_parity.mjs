@@ -85,6 +85,47 @@ const pass = (group, msg) => passes.push(`${group}: ${msg}`);
   if (!fails.some((f) => f.startsWith(g))) pass(g, 'exporter layout constants match the runtime');
 }
 
+// ── 1b. SIZING IS THE *WAYS* BRANCH, NOT THE LINES DEFAULT ─────────────────
+// PixiApp picks the fit cap, the game factor and the scene margin by PAY MODEL.
+// The export shipped the lines numbers (1.3 / 0.85 / 40) for every game, which
+// renders Vice about 13% too small and, on a height-bound pane, blocks the
+// enlargement outright.
+{
+  const g = 'sizing';
+  const pixi = src('src/game/PixiApp.ts');
+  const grab = (re, what) => { const m = pixi.match(re); if (!m) { fail(g, `could not read ${what} from PixiApp — the gate cannot verify it`); return null; } return Number(m[1]); };
+  const waysMargin = grab(/const margin = compact \? \d+ : spays \? \d+ : ways \? (\d+)/, 'the ways scene margin');
+  const waysCap = grab(/Math\.min\(scaleX, scaleY, spays \? [\d.]+ : ways \? ([\d.]+)/, 'the ways fit cap');
+  const waysFactor = grab(/\(compact \? [\d.]+ : spays \? [\d.]+ : ways \? ([\d.]+)/, 'the ways game factor');
+  const eff = P.extras?.sizing?.scaleToFit?.viceEffective;
+  if (!eff) fail(g, 'extras.sizing.scaleToFit.viceEffective is missing — the dev has to infer which branch Vice takes');
+  else {
+    if (waysMargin != null && eff.sceneMargin !== waysMargin) fail(g, `sceneMargin: preset ${eff.sceneMargin} vs runtime ${waysMargin}`);
+    if (waysCap != null && eff.cap !== waysCap) fail(g, `fit cap: preset ${eff.cap} vs runtime ${waysCap}`);
+    if (waysFactor != null && eff.gameFactor !== waysFactor) fail(g, `gameFactor: preset ${eff.gameFactor} vs runtime ${waysFactor}`);
+  }
+  if (!fails.some((f) => f.startsWith(g))) pass(g, `ways sizing matches the runtime (cap ${waysCap}, factor ${waysFactor}, margin ${waysMargin})`);
+}
+
+// ── 1c. EVERY SHIPPED feature.json PARSES ──────────────────────────────────
+{
+  const g = 'feature-json';
+  const dir = join(HANDOFF, 'features');
+  let n = 0;
+  const walk = (d) => {
+    for (const name of readdirSync(d)) {
+      const p = join(d, name);
+      if (statSync(p).isDirectory()) { walk(p); continue; }
+      if (!name.endsWith('.json')) continue;
+      n++;
+      try { JSON.parse(readFileSync(p, 'utf8')); }
+      catch (e) { fail(g, `${relative(HANDOFF, p).replace(/\\/g, '/')} does not parse — ${String(e.message).slice(0, 80)}`); }
+    }
+  };
+  if (existsSync(dir)) walk(dir);
+  if (!fails.some((f) => f.startsWith(g))) pass(g, `${n} feature.json files parse`);
+}
+
 // ── 2. MATH BINDINGS RESOLVE ────────────────────────────────────────────────
 // A mathBinding naming a key that does not exist tells the dev to implement a
 // mechanic we deleted. custom.simulExpandMultipliers shipped like that.
@@ -267,6 +308,23 @@ const pass = (group, msg) => passes.push(`${group}: ${msg}`);
   const flat = groups.flat();
   for (const id of flat) if (!events[id]) fail(g, `exclusiveGroups names "${id}" which is not an event — the ambient duck would never release`);
   if (!fails.some((f) => f.startsWith(g))) pass(g, `${enabled} events enabled, every file present, duck group resolves`);
+}
+
+// ── 8b. THE SHIPPED .ogg BYTES ARE THE ONES THE LIVE BUILD PLAYS ───────────
+// The filenames were right for months while the BYTES were two mixes stale —
+// the generic dev preset instead of Noski's Vice mix, and a 66 KB sting where
+// the marquee plays an 805 KB track. Every other check passed the whole time.
+{
+  const g = 'audio-bytes';
+  try {
+    execFileSync(process.execPath, [join(HERE, 'stage_vice_audio.mjs'), '--check'], { stdio: 'pipe' });
+    pass(g, 'every shipped .ogg is byte-identical to what the live build resolves');
+  } catch (e) {
+    const out = String(e.stdout ?? '') + String(e.stderr ?? '');
+    const bad = out.split('\n').filter((l) => /DRIFT|ORPHAN|MISSING/.test(l)).map((l) => l.trim());
+    for (const l of bad) fail(g, l);
+    if (!bad.length) fail(g, 'stage_vice_audio.mjs --check failed; run it for detail');
+  }
 }
 
 // ── 9. VISUAL PARAMS ARE REAL STUDIO PARAMETERS ────────────────────────────

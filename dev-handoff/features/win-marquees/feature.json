@@ -21,9 +21,14 @@
     { "index": 0, "id": "big",  "word": "BIG WIN",  "minMultiplier": 15,  "maxMultiplier": 25,   "countDurSec": 2.6, "holdDurSec": 1.0, "tierScale": 1.00, "shakePx": 0,  "shakeRot": 0.000, "art": "big.png" },
     { "index": 1, "id": "mega", "word": "MEGA WIN", "minMultiplier": 25,  "maxMultiplier": 100,  "countDurSec": 3.6, "holdDurSec": 1.2, "tierScale": 1.16, "shakePx": 5,  "shakeRot": 0.006, "art": "mega.png" },
     { "index": 2, "id": "epic", "word": "EPIC WIN", "minMultiplier": 100, "maxMultiplier": "maxWinMultiplier", "countDurSec": 4.6, "holdDurSec": 1.4, "tierScale": 1.34, "shakePx": 8,  "shakeRot": 0.010, "art": "epic.png" },
-    { "index": 3, "id": "max",  "word": "MAX WIN",  "gate": "win >= maxWinMultiplier * 0.999", "countDurSec": 5.6, "holdDurSec": 1.8, "tierScale": 1.60, "shakePx": 12, "shakeRot": 0.016, "art": "max.png" }
+    { "index": 3, "id": "max",  "word": "MAX WIN",  "gate": "EXACT INTEGER: winAmount >= BigInt(maxWinMultiplier) * wager. NOT a float ratio and NOT an epsilon.", "countDurSec": 5.6, "holdDurSec": 1.8, "tierScale": 1.60, "shakePx": 12, "shakeRot": 0.016, "art": "max.png" }
   ],
-  "maxTierCap": { "fromConfig": "maxWinMultiplier", "default": 5000, "epsilon": 0.999 },
+  "maxTierCap": {
+    "fromConfig": "maxWinMultiplier",
+    "default": 5000,
+    "test": "const capAmount = capX > 0 ? BigInt(capX) * wager : 0n; const isMax = capAmount > 0n && winAmount >= capAmount;",
+    "epsilonRETIRED": "An earlier drop specified `win >= maxWinMultiplier * 0.999`. That test is WRONG in both directions: a merely-huge win (4996x against a 5000x cap) fires the MAX WIN ceremony it did not earn, and at large wagers a genuinely capped win can fail the float comparison and lose the ceremony it did. On a real platform a mis-fired or skipped max win is an exploit, not a cosmetic bug. Compare in BigInt."
+  },
   "bands": { "mega": 25, "epic": 100 },
   "livePromotion": {
     "driver": "single count-up counter (0 -> winAmount)",

@@ -253,8 +253,35 @@ const MECHANICS: Record<GameKey, Record<string, unknown>[]> = {
       }, compatibleGrids: ['5x5'] },
     { id: 'hot-spins', kind: 'base-feature', enabled: true, affectsMath: true,
       mathBinding: ['custom.hotSpinChance1In', 'custom.hotSpinExpandsWilds'] },
-    { id: 'ways-light', kind: 'win-presentation', enabled: true, affectsMath: false,
-      params: { sequential: 'line-by-line', cometHead: 'small', colorPreset: 'white' } },
+    // Vice's ENTIRE win presentation, and it was not in this list. The list is
+    // the dev's build sheet, so its absence meant "build nothing for the win
+    // reveal" — which is how his engine ended up drawing its own payline look
+    // over a ways game. Values are verbatim from src/game/effects/WaysImmersive.ts.
+    { id: 'ways-immersive', kind: 'win-presentation', enabled: true, affectsMath: false,
+      params: {
+        whatItIs: 'the winning SYMBOLS are the presentation — they leap, wiggle, then SLAM back down. Nothing is drawn between them.',
+        suppresses: 'NO comet, NO win-line, NO node dots, NO backlight flash, NO dim. ReelSet kills the comet, the flash and the line/dot decoration whenever this is enabled.',
+        dimAlpha: 1.0,
+        dimNote: 'non-winners stay FULLY lit — Vice does not dim. The win sheets are the show; dimming them washed the art out.',
+        stagger: 0.07,
+        staggerNote: 'per-reel left-to-right leap wave, seconds',
+        jumpPx: { intense: 18, resting: 10 },
+        tiltRad: { intense: 0.08, resting: 0.04 },
+        slamPx: { intense: 5, resting: 2.5 },
+        timeline: 'y -jump 0.15s power3.out @0 · rot -tilt 0.08s sine.inOut @0.04 · rot +tilt 0.12s sine.inOut @0.12 · rot 0 0.12s sine.out @0.24 · y +slam 0.11s power3.in @0.22 · y base 0.30s back.out(3.5) @0.33',
+        target: "the symbol's OBJECT layer, so it composes with the win sheet; restored on complete AND on interrupt",
+        amountLabel: 'fontSize 34 (not 28) plus an "N WAYS" subline when the combo pays more than one way',
+        reducedMotion: 'skipped entirely under prefers-reduced-motion',
+      }, compatibleGrids: ['5x5'] },
+    // Kept ONLY as an explicit negative: the comet exists in the codebase and
+    // ships as a drop-in module, but Vice suppresses it. Declaring it disabled
+    // is louder than omitting it.
+    { id: 'ways-light', kind: 'win-presentation', enabled: false, affectsMath: false,
+      params: {
+        suppressedBy: 'ways-immersive',
+        doNotBuild: 'Vice draws NO comet and NO win line. This entry is here so the absence is explicit rather than an oversight — features/win-line/ ships the module for games that do use it.',
+        ifEnabledElsewhere: { sequential: 'line-by-line', cometHead: 'small', colorPreset: 'white' },
+      } },
     { id: 'win-marquees', kind: 'win-presentation', enabled: true, affectsMath: false,
       params: { tiers: ['win', 'big', 'mega', 'epic', 'max'], coinRain: true, tallyTicks: true, marqueeDucksAmbient: true } },
     { id: 'universal-anticipation', kind: 'presentation', enabled: true, affectsMath: false,
@@ -612,9 +639,17 @@ function sizingPackage(game: GameKey, gridId: string): Record<string, unknown> {
       filterResolution: "'inherit' — filters MUST inherit the floor-2 resolution or they render pixelated",
       spritesheetPlayback: 'one texture per sheet file, frames cut as sub-rectangles (no per-frame images); advance frames on a ticker at the sheet fps — never re-upload textures per frame',
     },
+    // ⚠️ These were the LINES branch's numbers, exported for every game. Vice is
+    // 'ways' and takes a different cap AND a different margin — shipping 1.3/0.85/40
+    // instead of 1.7/0.98/14 renders the machine roughly 13% too small before the
+    // cap even binds, and on a height-bound pane the 1.3 cap blocks the enlargement
+    // entirely. Read off src/game/PixiApp.ts:613 and :625.
     scaleToFit: {
-      formula: 'scale = min(availW/(totalW+frameOverhangL+frameOverhangR), availH/totalH, 1.3) * gameFactor; avail = screen - 2*sceneMargin',
-      gameFactor: { vice: 0.85, crackfarm: 0.85, fruitstacks: 0.97, compactUnderWidth520: 0.98 },
+      formula: 'scale = min(availW/(totalW+frameOverhangL+frameOverhangR), availH/totalH, capForPayModel) * gameFactor; avail = screen - 2*sceneMarginForPayModel',
+      capForPayModel: { ways: 1.7, scatterpays: 1.85, lines: 1.3, note: 'Vice is WAYS -> 1.7' },
+      gameFactor: { ways: 0.98, scatterpays: 0.99, lines: 0.85, compactUnderWidth520: 0.98, note: 'Vice is WAYS -> 0.98' },
+      sceneMarginForPayModel: { ways: 14, scatterpays: 12, lines: 40, compactUnderWidth520: 8, note: 'Vice is WAYS -> 14, NOT the 40 in machineBox.sceneMargin (that constant is the lines/default fallback)' },
+      viceEffective: { cap: 1.7, gameFactor: 0.98, sceneMargin: 14 },
       fruitstacksExtra: 'scatterpays additionally shifts the scene down by height*0.045',
     },
     iframeShell: {

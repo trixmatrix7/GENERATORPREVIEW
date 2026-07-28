@@ -233,6 +233,11 @@ export class ReelSet {
   /** Per-game tower-badge styling (colours + where the plate sits on the reel).
    *  null = the Crack Farm defaults in multiBadgeConfig. */
   public towerBadgeStyle: TowerBadgeStyle | null = null;
+  /** STICKY ROUND: while true, startSpin() does NOT tear the standing towers
+   *  down, so a tower stays on screen from the spin it lands until the round
+   *  ends — through every roll in between. Set for the duration of a Vice
+   *  4-scatter round and cleared on exit (the exit clear then removes them). */
+  public preserveStandingTowers = false;
   /** Badge ART, one frame per multiplier value: index 0 = x1 … index 4 = x5.
    *  When set, the badge is drawn as a sprite instead of the procedural plate and
    *  x1 IS shown (Vice ships art for it). null = procedural plate, x1 hidden. */
@@ -508,7 +513,14 @@ export class ReelSet {
     // the previous one.
     this.clearScheduledCallbacks();
     this.killThud();
-    this.clearStickyWilds();
+    // STICKY ROUND: a standing tower must not be torn down between spins. It is
+    // stuck from the moment it lands until the round ends — INCLUDING while the
+    // other reels are rolling (Noski: "jeden spin verschwinden die kurz, die
+    // sollen bis ende dort haften auch während spin vorgang"). Rebuilding it
+    // after the board settled, as an earlier pass did, still left a visible gap
+    // for the whole roll. The reel underneath keeps spinning and stopping
+    // normally — it is simply covered by the tower's opaque panel.
+    if (!this.preserveStandingTowers) this.clearStickyWilds();
     // Full win-presentation teardown — kills motion tweens, un-lifts objects
     // (they must never float over rolling reels), clears amounts/comets/dims.
     // Matters for the showcase paths (expanding/sticky tests, FS loop) that
@@ -996,18 +1008,23 @@ export class ReelSet {
       // the reels it expanded — no Math.random() anywhere on this path. Reels
       // already standing as towers are filtered out so only the tower that JOINS
       // this spin plays its grow animation; the rest simply stay up.
-      // Snapshot the standing towers BEFORE startSpin() wipes them (it calls
-      // clearStickyWilds, which empties expandedReels and kills the sprites).
+      // Snapshot the standing towers before the roll. With preserveStandingTowers
+      // they simply survive startSpin() and stay on screen throughout — nothing
+      // to restore. Without it (a 3-scatter round re-expands from scratch every
+      // spin) startSpin wipes them and the ones the script still wants back are
+      // re-seated preGrown the moment the board lands.
       const standingBefore = opts.sticky ? new Set(this.expandedReels) : new Set<number>();
       this.startSpin();
       gen = this.stickyRevealGen;
       for (let r = 0; r < displayStops.length; r++) {
         if (opts.script.stops[r] !== undefined) displayStops[r] = opts.script.stops[r];
       }
-      // A tower that was already up is RESTORED (it never left, as far as the
-      // player is concerned); only a tower joining THIS spin grows on screen.
-      scriptRestore = opts.script.expandReels.filter(r => standingBefore.has(r)).sort((a, b) => a - b);
-      chosen = opts.script.expandReels.filter(r => !standingBefore.has(r)).sort((a, b) => a - b);
+      const kept = this.preserveStandingTowers;
+      scriptRestore = kept ? [] : opts.script.expandReels.filter(r => standingBefore.has(r)).sort((a, b) => a - b);
+      // Only a tower that is not already on screen grows this spin.
+      chosen = opts.script.expandReels
+        .filter(r => !standingBefore.has(r) && !this.expandedReels.has(r))
+        .sort((a, b) => a - b);
       // Grow from the cell where the wild actually landed; a scripted reel can
       // legitimately show no wild in-window (settlement expands the whole reel),
       // in which case start from the middle row.

@@ -2223,6 +2223,8 @@ export class PixiApp {
     // Safety: the FS covered-scatter mode must never leak into base spins
     // (base-game wilds don't expand — scatters beside them DO count).
     this.reelSet.fsExpandMode = null;
+    // Round over: towers may be torn down again (the exit clear removes them).
+    this.reelSet.preserveStandingTowers = false;
     this._winRevealId++; // cancel any in-flight win reveal from the prior spin
     gsap.killTweensOf(this.winBanner);
     gsap.killTweensOf(this.winBanner.scale);
@@ -2355,6 +2357,9 @@ export class PixiApp {
       const stickyMode = viceRound ? viceRound.sticky : outcome.scatterCount >= 4;
       // Covered-scatter rule for the whole round (see ReelSet.fsExpandMode).
       this.reelSet.fsExpandMode = stickyMode ? 'sticky' : 'perSpin';
+      // A 4-scatter tower is stuck from the spin it lands until the round ends —
+      // it must survive every roll in between, not be rebuilt after each landing.
+      this.reelSet.preserveStandingTowers = stickyMode;
       // VICE re-cert: swap the DISPLAYED reels onto the RARE-wild fsReelStrips so
       // the shown wilds/towers match the settlement (mockHost swaps to the same
       // strips). Without this the display rolls base-density wilds while the mock
@@ -2677,6 +2682,8 @@ export class PixiApp {
           '+ spins', viceRound.fsSpins.map(s => s.credited.toString()).join('+'), ')');
       }
       this.reelSet.fsExpandMode = null;
+    // Round over: towers may be torn down again (the exit clear removes them).
+    this.reelSet.preserveStandingTowers = false;
       this.onFsRoundActive?.(false);
       await this.playFreeSpinsOutro(authoritativeTotal, decimals, () => {
         this.hideFreeSpinOverlay(overlay);

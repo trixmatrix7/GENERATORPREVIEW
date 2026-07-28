@@ -5,7 +5,7 @@
     "name": "GENERATOR PREVIEW (Noski studio)",
     "version": "2.1.0"
   },
-  "exportedAt": "2026-07-28T04:25:57.981Z",
+  "exportedAt": "2026-07-28T05:16:08.578Z",
   "game": {
     "id": "vice-heat",
     "theme": "vice",
@@ -312,7 +312,7 @@
             "stage": 1,
             "scatters": 3,
             "costMult": 100,
-            "certifiedRtpPct": 96.17,
+            "certifiedRtpPct": 96.2,
             "fsStripsRule": "buy3 BOUGHT round: its own 1215-stop FS strips, 42 wilds per reel. Re-fitted together with the tower multipliers. Ship the stop arrays VERBATIM — at this wild density the arrangement is a first-order lever (same multiset, different shuffle measured 96.19 / 92.47 / 90.56 / 92.61).",
             "fsReelStrips": [
               [
@@ -6403,15 +6403,17 @@
             ],
             "note": "Forced 3-scatter trigger, then a per-spin-expansion free-spins round on the strips above. 1-4 wilds pay natural ways; 5 full wild reels = INSTANT MAX WIN (custom.fullBoardInstantMaxWin). No simultaneous-expansion multipliers and no full-house multiplier exist any more. Hot spins never fire on a bought round (expansion would erase the scatters the player paid for).",
             "stickyTowerCap": 5,
-            "certifiedCi99Pp": 0.23,
-            "certifiedRounds": 8000000,
+            "certifiedCi99Pp": 0.49,
+            "certifiedRounds": 2000000,
+            "certifiedSeed": 90210,
+            "certifiedBy": "custom-math/sim_vice_core.mjs (live round core), 2026-07-28 — the same run recorded in simResults.buy3. An earlier record claimed 8,000,000 rounds; no such run exists.",
             "label": "100X BET"
           },
           {
             "stage": 2,
             "scatters": 4,
             "costMult": 200,
-            "certifiedRtpPct": 96.08,
+            "certifiedRtpPct": 95.97,
             "stickyTowerCap": 5,
             "fsStripsRule": "buy4 BOUGHT round, stage 2: its own 2406-stop FS strips, 24/16/16/16/15 wilds and 18 scatters per reel, re-fitted together with the first-spin reel-0 tower guarantee and the tower multipliers. Ship the stop arrays VERBATIM — at this wild density the ARRANGEMENT is a first-order lever (the same 22/16/16/16/15 multiset measured 95.88% in one shuffle and 99.21% in another), so they cannot be regenerated from the wild counts.",
             "fsReelStrips": [
@@ -18457,10 +18459,12 @@
               ]
             ],
             "note": "Forced 4-scatter trigger, then a STICKY round to towerCap 5. GUARANTEED TOWER: if the FIRST free spin would land none, reel 0 slides forward onto a wild (fires in 83.6% of rounds) — the round is sold as a tower round, so it always shows one. Reel 0 because the engine folds a column-0 wild to HIGH_A, making that tower ~10x cheaper than any other. Tower multipliers 1x-5x apply as everywhere; hot spins never fire on a bought round.",
-            "certifiedCi99Pp": 0.26,
-            "certifiedRounds": 8000000,
+            "certifiedCi99Pp": 0.56,
+            "certifiedRounds": 2000000,
             "guaranteedTowerOnFirstSpin": true,
             "guaranteedTowerReel": 0,
+            "certifiedSeed": 90210,
+            "certifiedBy": "custom-math/sim_vice_core.mjs (live round core), 2026-07-28 — the same run recorded in simResults.buy4. An earlier record claimed 8,000,000 rounds; no such run exists.",
             "label": "200X BET"
           }
         ],
@@ -20105,20 +20109,14 @@
         "towerMultiplierOnHotSpins": false
       },
       "simResults": {
-        "certifiedAt": "2026-07-27",
-        "tool": "custom-math/sim_vice_core.mjs — drives the LIVE round core (src/game/viceSpin.ts), i.e. exactly what the game pays",
+        "certifiedAt": "2026-07-28",
+        "tool": "custom-math/sim_vice_core.mjs — drives the LIVE round core (src/game/viceSpin.ts), i.e. exactly what the game pays. Each mode carries its own seed and round count; reproduce a row with ITS seed.",
         "ruleSet": "ENGINE ways evaluator (= SlotGame.sol:341, a column-0 wild folds to HIGH_A) · TOWER MULTIPLIERS 1x-5x, HIGHEST crossed badge · no simulExpandMultipliers · hot spins on (no badge)",
         "natural": {
-          "rtpPct": 96.94,
-          "ci99Pp": 2.95,
-          "rounds": 6000000,
-          "seed": 90210,
-          "confirmedBy": {
-            "rtpPct": 96.46,
-            "ci99Pp": 1.59,
-            "rounds": 20000000,
-            "seed": 4242424
-          },
+          "rtpPct": 96.46,
+          "ci99Pp": 1.59,
+          "rounds": 20000000,
+          "seed": 4242424,
           "attributionPctOfWager": {
             "base": 47.88,
             "hot": 3.76,
@@ -20127,26 +20125,70 @@
           },
           "hitFreqPct": 68.24,
           "perRoundStdX": 28.01,
-          "maxWinCapViolations": 0
+          "maxWinCapViolations": 0,
+          "confirmedBy": {
+            "rtpPct": 96.94,
+            "ci99Pp": 2.95,
+            "rounds": 6000000,
+            "seed": 90210,
+            "note": "earlier, smaller pass on a different seed — kept as an independent-seed cross-check"
+          },
+          "note": "The 20M run is the headline: at a per-round std of 28x stake the 6M pass carries a ±2.95pp interval. Reproduce with THIS seed — running 20M on 90210 measures a different sample."
         },
         "buy3": {
-          "rtpPct": 96.35,
-          "ci99Pp": 0.97,
-          "rounds": 500000,
+          "rtpPct": 96.2,
+          "ci99Pp": 0.49,
+          "rounds": 2000000,
           "seed": 90210,
           "costMult": 100,
-          "maxWinCapViolations": 0
+          "hitFreqPct": 100,
+          "perRoundStdX": 2.66,
+          "maxWin1In": 1278,
+          "maxWinRatePct": 0.0783,
+          "maxWinCapViolations": 0,
+          "supersedes": {
+            "rtpPct": 96.35,
+            "rounds": 500000,
+            "why": "smaller earlier pass; 2M narrows the interval to ±0.49pp"
+          }
         },
         "buy4": {
-          "rtpPct": 95.85,
-          "ci99Pp": 2.47,
-          "rounds": 100000,
+          "rtpPct": 95.97,
+          "ci99Pp": 0.56,
+          "rounds": 2000000,
           "seed": 90210,
           "costMult": 200,
+          "hitFreqPct": 100,
+          "perRoundStdX": 3.05,
+          "maxWin1In": 138,
+          "maxWinRatePct": 0.7221,
+          "maxWinCapViolations": 0,
           "guaranteedTowerOnFirstSpin": true,
+          "supersedes": {
+            "rtpPct": 95.85,
+            "rounds": 100000,
+            "confirmedBy": {
+              "rtpPct": 96.075,
+              "ci99Pp": 0.394,
+              "rounds": 4000000,
+              "seed": 90210,
+              "tool": "independent simulator"
+            },
+            "confirmedByCore": {
+              "rtpPct": 96.337,
+              "ci99Pp": 1.117,
+              "rounds": 500000,
+              "seed": 553311,
+              "maxWin1In": 135,
+              "maxWinCapViolations": 0,
+              "tool": "custom-math/sim_vice_core.mjs — same harness, FRESH SEED (the primary buy4 row and the independent simulator both ran on 90210; this rules out a seed artefact)"
+            },
+            "why": "the 100k primary carried ±2.47pp; 2M narrows it to ±0.56pp. The 4M independent-simulator run (96.075) and the 500k fresh-seed core run (96.337) remain as cross-checks."
+          },
           "guaranteeFireRatePct": 83.56,
           "zeroTowerRoundsPct": 0,
           "zeroTowerRoundsPctBefore": 15.49,
+          "meanTowersAtRoundEnd": 2.028,
           "towerCountAtRoundEndPct": [
             0,
             30.49,
@@ -20154,26 +20196,7 @@
             21.88,
             5.06,
             0.42
-          ],
-          "meanTowersAtRoundEnd": 2.028,
-          "maxWin1In": 143,
-          "maxWinCapViolations": 0,
-          "confirmedBy": {
-            "rtpPct": 96.075,
-            "ci99Pp": 0.394,
-            "rounds": 4000000,
-            "seed": 90210,
-            "tool": "independent simulator"
-          },
-          "confirmedByCore": {
-            "rtpPct": 96.337,
-            "ci99Pp": 1.117,
-            "rounds": 500000,
-            "seed": 553311,
-            "maxWin1In": 135,
-            "maxWinCapViolations": 0,
-            "tool": "custom-math/sim_vice_core.mjs — same harness, FRESH SEED (the primary buy4 row and the independent simulator both ran on 90210; this rules out a seed artefact)"
-          }
+          ]
         },
         "ante": {
           "rtpPct": 96,
@@ -26072,7 +26095,7 @@
         ]
       ],
       "expectedMetrics": {
-        "rtpPct": 96
+        "rtpPct": 96.7
       }
     }
   },
@@ -26344,7 +26367,7 @@
   "minWager": 10000,
   "rtpBps": 9670,
   "expectedMetrics": {
-    "rtpPct": 96
+    "rtpPct": 96.7
   },
   "custom": {
     "expandingWildsInFreeSpins": true,
@@ -26362,7 +26385,7 @@
         "stage": 1,
         "scatters": 3,
         "costMult": 100,
-        "certifiedRtpPct": 96.17,
+        "certifiedRtpPct": 96.2,
         "fsStripsRule": "buy3 BOUGHT round: its own 1215-stop FS strips, 42 wilds per reel. Re-fitted together with the tower multipliers. Ship the stop arrays VERBATIM — at this wild density the arrangement is a first-order lever (same multiset, different shuffle measured 96.19 / 92.47 / 90.56 / 92.61).",
         "fsReelStrips": [
           [
@@ -32453,15 +32476,17 @@
         ],
         "note": "Forced 3-scatter trigger, then a per-spin-expansion free-spins round on the strips above. 1-4 wilds pay natural ways; 5 full wild reels = INSTANT MAX WIN (custom.fullBoardInstantMaxWin). No simultaneous-expansion multipliers and no full-house multiplier exist any more. Hot spins never fire on a bought round (expansion would erase the scatters the player paid for).",
         "stickyTowerCap": 5,
-        "certifiedCi99Pp": 0.23,
-        "certifiedRounds": 8000000,
+        "certifiedCi99Pp": 0.49,
+        "certifiedRounds": 2000000,
+        "certifiedSeed": 90210,
+        "certifiedBy": "custom-math/sim_vice_core.mjs (live round core), 2026-07-28 — the same run recorded in simResults.buy3. An earlier record claimed 8,000,000 rounds; no such run exists.",
         "label": "100X BET"
       },
       {
         "stage": 2,
         "scatters": 4,
         "costMult": 200,
-        "certifiedRtpPct": 96.08,
+        "certifiedRtpPct": 95.97,
         "stickyTowerCap": 5,
         "fsStripsRule": "buy4 BOUGHT round, stage 2: its own 2406-stop FS strips, 24/16/16/16/15 wilds and 18 scatters per reel, re-fitted together with the first-spin reel-0 tower guarantee and the tower multipliers. Ship the stop arrays VERBATIM — at this wild density the ARRANGEMENT is a first-order lever (the same 22/16/16/16/15 multiset measured 95.88% in one shuffle and 99.21% in another), so they cannot be regenerated from the wild counts.",
         "fsReelStrips": [
@@ -44507,10 +44532,12 @@
           ]
         ],
         "note": "Forced 4-scatter trigger, then a STICKY round to towerCap 5. GUARANTEED TOWER: if the FIRST free spin would land none, reel 0 slides forward onto a wild (fires in 83.6% of rounds) — the round is sold as a tower round, so it always shows one. Reel 0 because the engine folds a column-0 wild to HIGH_A, making that tower ~10x cheaper than any other. Tower multipliers 1x-5x apply as everywhere; hot spins never fire on a bought round.",
-        "certifiedCi99Pp": 0.26,
-        "certifiedRounds": 8000000,
+        "certifiedCi99Pp": 0.56,
+        "certifiedRounds": 2000000,
         "guaranteedTowerOnFirstSpin": true,
         "guaranteedTowerReel": 0,
+        "certifiedSeed": 90210,
+        "certifiedBy": "custom-math/sim_vice_core.mjs (live round core), 2026-07-28 — the same run recorded in simResults.buy4. An earlier record claimed 8,000,000 rounds; no such run exists.",
         "label": "200X BET"
       }
     ],
@@ -52044,7 +52071,8 @@
       "affectsMath": true,
       "mathBinding": [
         "custom.expandingWildsInFreeSpins",
-        "custom.simulExpandMultipliers"
+        "custom.fullBoardInstantMaxWin",
+        "fsReelStrips"
       ],
       "params": {
         "towerArt": "theme/vice/wild_column.webp",
@@ -52229,7 +52257,33 @@
         }
       },
       "fsPlaque": "theme/vice/free_spins_counter.png",
-      "totalWinPlaque": "theme/vice/total_win_counter.png"
+      "totalWinPlaque": "theme/vice/total_win_counter.png",
+      "towerMultiplierBadges": {
+        "file": "theme/vice/wild_multi_sheet.webp",
+        "frames": 5,
+        "order": [
+          "x1",
+          "x2",
+          "x3",
+          "x4",
+          "x5"
+        ]
+      },
+      "bootLoaderSheet": {
+        "file": "theme/vice/chain_loader_sheet.webp",
+        "grid": [
+          8,
+          8
+        ],
+        "framePx": [
+          250,
+          250
+        ],
+        "realFrames": 60,
+        "padFrames": 4,
+        "msPerCell": 66.7,
+        "platformWide": true
+      }
     },
     "symbols": {
       "wild": {
@@ -52471,25 +52525,25 @@
         "enabled": true
       },
       "win-small": {
-        "file": "/audio/win-small.ogg",
+        "file": null,
         "volume": 0,
         "role": "sfx",
         "enabled": false
       },
       "win-normal": {
-        "file": "/audio/win-normal.ogg",
+        "file": null,
         "volume": 0,
         "role": "sfx",
         "enabled": false
       },
       "win-big": {
-        "file": "/audio/win-big.ogg",
+        "file": null,
         "volume": 0,
         "role": "sfx",
         "enabled": false
       },
       "win-mega": {
-        "file": "/audio/win-mega.ogg",
+        "file": null,
         "volume": 0,
         "role": "sfx",
         "enabled": false
@@ -52507,7 +52561,23 @@
   },
   "flow": {
     "iris": {
-      "style": "looney-iris"
+      "style": "looney-iris",
+      "technique": "oversized black field rect + a circular hole punched with circle(cx,cy,r).cut()",
+      "surface": "one Graphics on a SCREEN-SPACE overlay added LAST to app.stage — raw screen pixels, above the letterboxed scene root, immune to scene scaling",
+      "redraw": "clear() -> draw the opaque black field (alpha 1) -> cut the circle",
+      "rDiag": "0.5 * hypot(screenW, screenH)  — the half-diagonal, so the hole clears all four corners on any aspect",
+      "fieldSize": "rDiag * 2.4, positioned at (cx - size/2, cy - size/2)",
+      "whyOversized": "v8 cut() FAILS if the hole touches an edge of the shape it cuts — the oversize keeps the circle strictly inside even at r = rDiag",
+      "drawCircleWhen": "r > 0.5  (radius 0 = full black, draw no circle at all)",
+      "animation": "tween a plain { r } proxy with GSAP and call redraw() on onUpdate — one proxy means one killTweensOf target for a clean teardown",
+      "blink": {
+        "shape": "CLOSE r: full -> 0 (power3.in, the suck-in) -> a full-black beat where the scene behind is swapped -> OPEN r: 0 -> full (power2.out)",
+        "gameIntro": "half blink — open only",
+        "fsIntroAndOutro": "full blinks, bookended on both ends"
+      },
+      "tempoMultiplierS": 1.3,
+      "fallback": "playExitIris (no art loaded): close r->0 over 0.45s power2.in, midAction() at black, open 0->r over 0.5s power2.out",
+      "perStageTimings": "each stage carries its own transitionIn/transitionOut seconds — see FLOW.md"
     },
     "stages": [
       {
@@ -53138,14 +53208,9 @@
           "outro": "3 layers — fsbg_beachclub.webp bg, totalwin.webp tw640@(960,355), press.webp tw360@(960,962)"
         },
         "bootScreen": {
-          "title": "VICE HEAT",
-          "gradient": "#ff64c8 -> #ffd23f",
-          "barGradient": "#ff64c8 -> #7de3ff",
-          "bg": "#07070c",
-          "fadeMs": {
-            "hold": 180,
-            "fade": 650
-          }
+          "RETIRED": "The per-game boot screen described here (a VICE HEAT wordmark, a pink->gold title gradient and a pink->cyan bar ramp) NO LONGER EXISTS. It was replaced by the universal CHAIN GAMES loader, which is platform branding and carries no per-game title, colour ramp or LOADING label. Building from the old values would reproduce a screen we deliberately removed.",
+          "seeInstead": "the boot stage is fully specified in the preset at flow.stages[0] (universal:true, mustBeFirst:true), and long-form in dev-handoff/features/boot-loader/",
+          "bg": "#07070c"
         }
       },
       "audio": {
@@ -53256,15 +53321,15 @@
         "viceNote": "vice makes ZERO replaceSource calls — the defaultSoundConfig map above IS the vice mix verbatim",
         "uiSfx": {
           "click": {
-            "file": "audio/library/reel-stop/modern-technology-select-fa3707.ogg",
+            "file": "audio/ui-click.ogg",
             "volume": 0.22
           },
           "spin": {
-            "file": "audio/library/reel-stop/cool-interface-click-tone-adc015.ogg",
+            "file": "audio/ui-spin.ogg",
             "volume": 0.3
           },
           "open": {
-            "file": "audio/library/reel-stop/opening-software-interface-7bf9ce.ogg",
+            "file": "audio/ui-open.ogg",
             "volume": 0.28
           },
           "rule": "HTMLAudio, follows master mute + volume (effective = vol * sm.volume)"

@@ -14,8 +14,8 @@ We told you `_evaluateWins` was under-paying because it seeds its candidate symb
 | mode | cost | certified RTP | rounds |
 |---|---|---|---|
 | natural | 1× | **96.46%** ±1.59 | 20,000,000 |
-| buy 3-scatter | 100× | **96.35%** ±0.97 | 500,000 |
-| buy 4-scatter | 200× | **96.08%** ±0.39 | 4,000,000 |
+| buy 3-scatter | 100× | **96.20%** ±0.49 | 2,000,000 |
+| buy 4-scatter | 200× | **95.97%** ±0.56 | 2,000,000 |
 | ante | 3.25× | **96.00%** ±1.16 | 20,000,000 |
 
 Prices unchanged (100× / 200× / 3.25×). `payTable` and `scatterPay` unchanged. **`rtpBps` is 9670.** Natural RTP splits as base 47.9% · hot spins 3.8% · FS-3sc 14.2% · FS-4sc 30.7%. Ante trigger promise held: 3sc 1-in-20.5, 4+sc 1-in-172.4, hot spins 1-in-80.1.
@@ -51,7 +51,7 @@ The generator ingests Vice as **math-only + theme art** — it silently drops ou
 - Buy-4 card showed **300×** → correct is **200×** (read from `costMult`, don't hardcode)
 - Retrigger added **+7** → correct is **+3**
 - FS counter + total-win = bottom text on your side → we ship neon **FREE SPINS + TOTAL WIN** plaques
-- Win marquee = procedural gold "BIG WIN!" → needs our tier art (`extras.presentationTuning.marquee.tierArt`)
+- Win marquee = procedural gold "BIG WIN!" → needs our tier art (`extras.presentationTuning.winPresentation.marquee.tierArt` — note the `winPresentation` level; there is no `extras.presentationTuning.marquee`)
 - Wins played **no sound** (`connect-symbol` was silent) + `win-screen-music` silent
 
 **AUDIO — Noski's FINAL mix is baked into the preset (12 events, his exact levels).**
@@ -62,7 +62,7 @@ The generator ingests Vice as **math-only + theme art** — it silently drops ou
 - Design box **688×708** (aspect 0.972), 5×5 grid **632×580**. Bottom control bar = **12.5%** of box width; the ways grid keeps a `height×0.12` bottom reserve so its bottom row clears the bar.
 - Keep the grid **CENTRED horizontally** — do NOT let the right-hand palm/marquee overhang push it left (palm may clip at the right edge). That leaves a LEFT letterbox where the **VICE HEAT logo** sits centred, **bonus-buy button symmetric under it**. Your implemented control is the left sidebar; production skin needs the **bottom bar**.
 
-**EXPANDED-WILD LOOK — now exposed as settings** (`extras.visualParams`, so you don't have to hardcode them like we did):
+**EXPANDED-WILD LOOK — now exposed as settings** (`visualParams` **at the preset ROOT**, a sibling of `math`/`assets`/`extras` — *not* under `extras`; seven keys, so you don't have to hardcode them like we did):
 `expandWildBackdrop` / `expandWildBackdropAlpha` (the panel behind the tower), `expandWildBorder` / `expandWildBorderWidth` / `expandWildBorderAlpha` (border around the wild reel — width 0 = off, which is the shipped look), and `expandWildMultiPop` / `expandWildMultiPopTime` (how hard the ×N badge punches on when it locks). The multiplier badge art is a 5-frame strip (`wild_multi_sheet.webp`, ×1…×5) seated in the lower third of the column so it clears the "WILD" lettering on the board.
 
 **Two asks from us:**

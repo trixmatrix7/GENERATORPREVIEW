@@ -1,0 +1,55 @@
+{
+  "id": "hot-spins",
+  "title": "Hot Spins",
+  "type": "base-feature",
+  "themeAgnostic": true,
+  "affectsMath": true,
+  "summary": "A 1-in-80 base spin runs HOT: every reel holding a wild expands to a full wild reel and the spin pays its natural ways win. The base game's own feature — and the ante depends on it.",
+  "scope": ["base-game", "ante"],
+  "rule": {
+    "chance1In": 80,
+    "chanceKey": "custom.hotSpinChance1In",
+    "expands": "every reel that has a wild ANYWHERE in its settled window becomes a fully wild reel",
+    "pays": "its ordinary ways win on the expanded board — no multiplier of any kind",
+    "onBoughtRounds": false,
+    "whyNotOnBoughtRounds": "the expansion would run over the FORCED scatters and erase the trigger the player paid 100x or 200x for — gate on 'not a bought stage', not on 'not in free spins'",
+    "carriesTowerBadge": false,
+    "whyNoBadge": "tower multipliers are a free-spins mechanic; with badges on hot spins the same fit measures 103.09% instead of 96.36%"
+  },
+  "triggerSuppression": {
+    "canSuppressAScatterTrigger": true,
+    "certified": true,
+    "detail": "if the expansion covers the cells the scatters landed on, the trigger is lost. This is fitted into the RTP — do NOT add a guard protecting scatters from the expansion.",
+    "measured": "10,962 suppressed triggers in a 20,000,000-round ante run"
+  },
+  "baseGameMaxWin": {
+    "possible": true,
+    "rule": "all five reels hot at once + custom.fullBoardInstantMaxWin = the round pays maxWinMultiplier x bet immediately, in the BASE game",
+    "measured": "286 occurrences in 20,000,000 ante rounds",
+    "note": "the max-win ceremony must fire here too, not only out of the bonus"
+  },
+  "randomness": {
+    "reservedNamespace": true,
+    "namespace": "keccak(seed, 1 << 64)",
+    "why": "the hot roll must not consume words from the reel-stop stream — reels must land identically with the feature on or off, or toggling it invalidates every certified figure",
+    "siblingNamespaces": { "towerMultipliers": "1 << 200", "freeSpinSeeds": "spinIndex (<= 13)" }
+  },
+  "contribution": {
+    "naturalPctOfWager": 3.76,
+    "antePctOfWager": 6.84,
+    "anteDependency": "the ante measures ~84% with hot spins disabled — if they are ever dropped the ante MUST be re-fitted. buy3/buy4 are unaffected (hot never fires on a bought round)."
+  },
+  "presetKeys": {
+    "custom": ["hotSpinChance1In", "hotSpinExpandsWilds", "towerMultiplierOnHotSpins", "fullBoardInstantMaxWin"]
+  },
+  "mechanic": { "id": "hot-spins", "kind": "base-feature", "affectsMath": true },
+  "referenceImpl": {
+    "file": "features/round-core/viceSpin.ts",
+    "where": "top of deriveViceRound — after the stops are derived, before the board is evaluated",
+    "symbols": ["HOT_SEED_INDEX", "reelHasWild", "makeFullWild", "baseInstantMax"]
+  },
+  "presentation": {
+    "reveal": "the same tower reveal the free spins use (playExpandingWildReveal)",
+    "order": "the reels land first, THEN the wild reels expand — the player must see the wilds arrive and grow, not find them already grown"
+  }
+}

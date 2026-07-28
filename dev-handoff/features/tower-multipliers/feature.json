@@ -53,9 +53,9 @@
   },
   "certification": {
     "tool": "custom-math/sim_vice_core.mjs",
-    "natural": { "rtpPct": 96.46, "ci99Pp": 1.59, "rounds": 20000000 },
-    "buy3": { "rtpPct": 96.35, "ci99Pp": 0.97, "rounds": 500000 },
-    "buy4": { "rtpPct": 96.08, "ci99Pp": 0.39, "rounds": 4000000 },
+    "natural": { "rtpPct": 96.46, "ci99Pp": 1.59, "rounds": 20000000, "seed": 4242424 },
+    "buy3": { "rtpPct": 96.20, "ci99Pp": 0.49, "rounds": 2000000, "seed": 90210 },
+    "buy4": { "rtpPct": 95.97, "ci99Pp": 0.56, "rounds": 2000000, "seed": 90210 },
     "maxWinCapViolations": 0,
     "x5OnBoardPctOfNaturalRounds": 0.22
   }

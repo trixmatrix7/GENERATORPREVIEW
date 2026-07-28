@@ -1,5 +1,5 @@
 Vice Heat — dev handoff package · file manifest
-generated 2026-07-28 (certification: natural 96.46% / buy3 96.35% / buy4 96.08% / ante 96.00%, rtpBps 9670)
+generated 2026-07-28 (certification: natural 96.46% / buy3 96.20% / buy4 95.97% / ante 96.00%, rtpBps 9670)
   ⛔ the 2026-07-27 numbers (95.91 / 95.93 / 96.11 / 96.40) are VOID — they were measured
      with a "corrected" ways evaluator that was itself wrong. D11 is retracted; the contract
      (SlotGame.sol:341) is the spec and nothing in either evaluator should change.
@@ -7,6 +7,7 @@ generated 2026-07-28 (certification: natural 96.46% / buy3 96.35% / buy4 96.08% 
      4-scatter buy (D13), expanded-wild backdrop/border/badge-pop as visualParams.
 
 ASSET_SPECS.md
+CONFORMANCE.md
 FLOW.md
 PRESET_FORMAT.md
 README.md
@@ -23,6 +24,9 @@ assets/audio/free-spin-trigger.ogg
 assets/audio/reel-stop.ogg
 assets/audio/scatter-land.ogg
 assets/audio/spin-start.ogg
+assets/audio/ui-click.ogg
+assets/audio/ui-open.ogg
+assets/audio/ui-spin.ogg
 assets/audio/win-big.ogg
 assets/audio/win-normal.ogg
 assets/audio/win-screen-music.ogg
@@ -119,6 +123,8 @@ features/frame/frameParams.ts
 features/frame-win-flash/README.md
 features/fs-background/README.md
 features/fs-background/fsBackground.ts
+features/hot-spins/README.md
+features/hot-spins/feature.json
 features/paylines/README.md
 features/reel-background/README.md
 features/reel-background/ReelBgTint.ts

@@ -21,7 +21,9 @@ export interface AssetOverrides {
 }
 
 export interface ResolvedAudioEvent {
-  file: string;
+  /** null when the event ships deliberately OFF — a disabled tier carries no
+   *  file, so a preloader never chases a path that was never bound. */
+  file: string | null;
   volume: number;
   loop?: boolean;
   exclusive?: boolean;
@@ -121,9 +123,18 @@ function normalizeManifest(game: GameKey, m: Record<string, unknown>): Record<st
     // expectedMetrics it recomputes RTP_BPS from `rtpPct ?? 96`, stamping
     // 9600 / 96.0 over our certified 9599 / 95.99. Cosmetic (risk-reserve
     // quote) but removes the 1-bps drift.
+    // Derive it from rtpBps, NOT from targetRtpPct. targetRtpPct is the DESIGN
+    // target (96) while rtpBps is the certified operative value (9670), and the
+    // partner assembler recomputes RTP_BPS as `expectedMetrics.rtpPct * 100`.
+    // Seeding it from the design target stamped 9600 straight over our certified
+    // 9670 — the exact drift D10 was supposed to remove, reintroduced one field
+    // later. rtpBps is the only number here that was measured.
     if (out.expectedMetrics == null) {
+      const bps = Number(out.rtpBps);
       const target = Number((m as { targetRtpPct?: number }).targetRtpPct);
-      out.expectedMetrics = { rtpPct: Number.isFinite(target) && target > 0 ? target : (out.rtpBps as number) / 100 };
+      out.expectedMetrics = {
+        rtpPct: Number.isFinite(bps) && bps > 0 ? bps / 100 : target,
+      };
     }
     // 4b: stamp an explicit cost label on each buy stage so the engine renders
     // the certified cost verbatim (100X / 200X BET) instead of inventing
@@ -169,8 +180,15 @@ function viceAudioEvents(src: Record<string, ResolvedAudioEvent>): Record<string
   for (const { devId, sourceId } of VICE_AUDIO_CONTRACT) {
     const s = src[sourceId];
     if (!s) continue;
+    // A deliberately-OFF tier carries NO file. The registry synthesises a
+    // /audio/<id>.ogg path for every event whether or not a sound was ever
+    // bound, so exporting it unconditionally shipped a dangling reference
+    // (win-mega had no file anywhere) that a preloader would 404 on. The four
+    // win-* tiers are off on purpose — the marquee music covers them — so the
+    // preset says so instead of pointing at something that is not there.
+    // Enabling one later means binding a file at the same time.
     out[devId] = {
-      file: `/audio/${devId}.ogg`,
+      file: s.volume > 0 ? `/audio/${devId}.ogg` : null,
       volume: s.volume,
       loop: s.loop,
       exclusive: s.exclusive,
@@ -209,7 +227,11 @@ const MECHANICS: Record<GameKey, Record<string, unknown>[]> = {
       mathBinding: ['freeSpinsCount', 'freeSpinsCap', 'retriggerSpins', 'custom.stickyRoundSpins', 'custom.stickyRoundCap'],
       params: { trigger3sc: '7 expanding-wild spins', trigger4sc: '10 sticky-tower spins' }, compatibleGrids: ['5x5'] },
     { id: 'expanding-wild', kind: 'grid-effect', enabled: true, affectsMath: true,
-      mathBinding: ['custom.expandingWildsInFreeSpins', 'custom.simulExpandMultipliers'],
+      // custom.simulExpandMultipliers was bound here and is DELETED from the
+      // manifest — a mathBinding pointing at a key that does not exist tells the
+      // dev to implement a retired ladder. 1-4 wild reels pay natural ways; only
+      // 5 full wild reels pay the instant max win.
+      mathBinding: ['custom.expandingWildsInFreeSpins', 'custom.fullBoardInstantMaxWin', 'fsReelStrips'],
       params: { towerArt: 'theme/vice/wild_column.webp', racesOutOfLandingCell: true, locksReel: true }, compatibleGrids: ['5x5'] },
     { id: 'sticky-expanding-towers', kind: 'grid-effect', enabled: true, affectsMath: true,
       mathBinding: ['custom.stickyExpandingFrom4Scatters', 'custom.stickyTowerCap', 'custom.fullBoardInstantMaxWin', 'fsReelStrips'],
@@ -340,6 +362,13 @@ function viceAssets(o: AssetOverrides): Record<string, unknown> {
       // TOTAL WIN art; the value is drawn in each plaque's dark inset box.
       fsPlaque: `${B}free_spins_counter.png`,
       totalWinPlaque: `${B}total_win_counter.png`,
+      // TOWER MULTIPLIER badges x1..x5 in one 5-frame strip. Slice into
+      // INDIVIDUAL textures at load — atlas frames cannot mipmap, so a shared
+      // sheet bleeds when the badge is minified.
+      towerMultiplierBadges: { file: `${B}wild_multi_sheet.webp`, frames: 5, order: ['x1', 'x2', 'x3', 'x4', 'x5'] },
+      // PLATFORM branding, not skin art — the same file in every generated
+      // game. It lives in the vice folder only for delivery convenience.
+      bootLoaderSheet: { file: `${B}chain_loader_sheet.webp`, grid: [8, 8], framePx: [250, 250], realFrames: 60, padFrames: 4, msPerCell: 66.7, platformWide: true },
     },
     symbols: {
       wild: sym('wild'),
@@ -450,6 +479,31 @@ const ASSET_BUILDERS: Record<GameKey, (o: AssetOverrides) => Record<string, unkn
  *  flows below. The dev build has no loading screen at all today, and the stage
  *  used to export as a single vague line ("bar = real load fraction"), which was
  *  not enough to rebuild from. Full spec: dev-handoff/features/boot-loader/. */
+/** The transition system, shared by every black-bookended stage change. It used
+ *  to export as `{ style: 'looney-iris' }`, which is a name, not a spec — and
+ *  the dev build ships NO transitions at all, so a name was never going to be
+ *  enough. The naive even-odd fill unions in Pixi v8 and produces a grey wash;
+ *  these are the exact steps that avoid it. Prose version: FLOW.md. */
+const IRIS = {
+  style: 'looney-iris',
+  technique: 'oversized black field rect + a circular hole punched with circle(cx,cy,r).cut()',
+  surface: 'one Graphics on a SCREEN-SPACE overlay added LAST to app.stage — raw screen pixels, above the letterboxed scene root, immune to scene scaling',
+  redraw: 'clear() -> draw the opaque black field (alpha 1) -> cut the circle',
+  rDiag: '0.5 * hypot(screenW, screenH)  — the half-diagonal, so the hole clears all four corners on any aspect',
+  fieldSize: 'rDiag * 2.4, positioned at (cx - size/2, cy - size/2)',
+  whyOversized: 'v8 cut() FAILS if the hole touches an edge of the shape it cuts — the oversize keeps the circle strictly inside even at r = rDiag',
+  drawCircleWhen: 'r > 0.5  (radius 0 = full black, draw no circle at all)',
+  animation: 'tween a plain { r } proxy with GSAP and call redraw() on onUpdate — one proxy means one killTweensOf target for a clean teardown',
+  blink: {
+    shape: 'CLOSE r: full -> 0 (power3.in, the suck-in) -> a full-black beat where the scene behind is swapped -> OPEN r: 0 -> full (power2.out)',
+    gameIntro: 'half blink — open only',
+    fsIntroAndOutro: 'full blinks, bookended on both ends',
+  },
+  tempoMultiplierS: 1.3,
+  fallback: 'playExitIris (no art loaded): close r->0 over 0.45s power2.in, midAction() at black, open 0->r over 0.5s power2.out',
+  perStageTimings: 'each stage carries its own transitionIn/transitionOut seconds — see FLOW.md',
+} as const;
+
 const BOOT_STAGE = {
   id: 'boot',
   controlBar: false,
@@ -492,7 +546,7 @@ const BOOT_STAGE = {
 
 const FLOWS: Record<GameKey, Record<string, unknown>> = {
   vice: {
-    iris: { style: 'looney-iris' },
+    iris: IRIS,
     stages: [
       BOOT_STAGE,
       { id: 'game-intro', transitionOut: 'iris-from-black', controlBar: false },
@@ -505,7 +559,7 @@ const FLOWS: Record<GameKey, Record<string, unknown>> = {
     ],
   },
   crackfarm: {
-    iris: { style: 'looney-iris' },
+    iris: IRIS,
     stages: [
       BOOT_STAGE,
       { id: 'game-intro', transitionOut: 'iris-from-black', controlBar: false },

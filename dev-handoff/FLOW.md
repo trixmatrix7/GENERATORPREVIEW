@@ -60,8 +60,9 @@ exactly — the naive even-odd fill unions in Pixi v8 and produces a grey wash.
 > must run **before anything else**. A game that cuts straight to its intro has
 > skipped stage 1.
 
-**Source:** `src/App.tsx` — the `bootScreen` node, `finishBoot()`, and the three
-`@keyframes` (`boot-loader-row`, `boot-loader-col`, `boot-bar-clock`).
+**Source:** `src/App.tsx` — the `bootScreen` node, `finishBoot()`, and four
+`@keyframes`: `boot-loader-row` + `boot-loader-col` (the sheet), `boot-bar-clock`
+(the bar's gate) and `boot-bar-idle` (the bar's breathing opacity).
 
 **What shows:** an opaque DOM overlay rendered **inside the game-canvas
 container only** (never over the studio/host chrome — it mimics the generator's
@@ -83,6 +84,21 @@ contain:strict`, and carries `marginBottom:-108` — the logo's ink ends at 57.8
 of the frame, so 105 px of the box is transparent tail; 105 dead + 18 flex gap −
 108 margin leaves a ~15 px optical gap down to the bar.
 
+⚠️ **The travel is −1750 px per axis, not −2000 px.** `jump-none` includes both
+endpoints, so an 8-cell axis moves in **7** steps of 250 px. The two axes also
+run at different durations and iteration counts — they are not one shared
+animation:
+
+| | element | keyframe | duration | iterations |
+|---|---|---|---|---|
+| row | the 250×250 wrapper inside the clip box | `translate3d(0,0,0)` → `translate3d(0,-1750px,0)` | `4.2667s` | `1`, `both` |
+| column | a 2000×2000 strip inside that wrapper (`background-size: 2000px 2000px`, `no-repeat`, `will-change: transform`) | `translate3d(0,0,0)` → `translate3d(-1750px,0,0)` | `0.5333s` | `8`, `both` |
+
+The column completes one pass per row, so the row advances exactly as the column
+wraps. Guess −2000 px or a single shared duration and the logo lands a cell off
+and shows blank frames. Machine-readable copy: `features/boot-loader/feature.json`
+→ `logo.stepping`.
+
 **⚠️ THE BAR MAY NOT FINISH BEFORE THE LOGO DOES.** This is the rule, and it is
 the one that is easy to get wrong. Real asset progress alone fills the bar in a
 few hundred ms on a warm cache, so it sits at 100 % while the lockup is still
@@ -91,6 +107,8 @@ is therefore the **minimum of real progress and the clip's own playhead**:
 
 ```
 width      = 6% + 94% * (settledCriticalJobs / totalCriticalJobs)   // real progress
+             transition: width 0.35s ease                          // else it hard-jumps
+                                                                   // ~18.8pp per job
 max-width  = keyframe 0% -> 100% over 4.2667s, linear, fill both    // the playhead
 shown      = min(the two)                                           // percentage
                                                                     // max-width resolves
@@ -293,13 +311,66 @@ in `showFreeSpinOverlay`:
 On a portrait phone (`screen.width < 520`) the plaques move into the top-left
 header band (scaled 0.66) and the dancers are dropped.
 
-**Per-spin loop:** counter pop → `playExpandingWildReveal` (**sticky** when
-`scatterCount ≥ 4`: towers persist and accumulate; else per-spin towers clear) →
-evaluate the displayed board with every standing tower fully wild → per-win
-`playWinSequence` (its own tiered marquee) → roll into the TOTAL WIN plaque.
-**Hard cap:** when the running total would reach `maxWinMultiplier × wager`
-(default 5000), the plaque locks at the cap, the MAX WIN marquee takes over, and
-the round **stops on that spin**.
+**The plaques are BAKED-TITLE SPRITES, not drawn.** `setFsPlaquePair(freeUrl,
+totalUrl)` takes two art files — `free_spins_counter.png` and
+`total_win_counter.png` — and the value is drawn into each plaque's dark inset
+box. The procedural neon plate is only the fallback for a skin that ships no
+plaque art; Vice ships both, so a build that draws the plate is not matching the
+reference.
+
+**⚠️ Swap the reel strips before the round rolls.** The free spins roll their own
+**rare-wild `fsReelStrips`**, and a *bought* round rolls its stage's strips —
+`setFsStripsForStage(viceRound.stageCode)`. Whatever the settlement evaluates,
+the display must roll. We shipped this half-wired once: settlement swapped, the
+display kept the base strips, and wilds appeared on screen that "didn't connect
+with Q/J" because the shown board was not the settled board. **Swap
+`reelLengths` with the strips** — we also shipped a bought round where those
+desynced (1170-stop display against 405-stop settlement) and wins highlighted the
+wrong cells.
+
+**Per-spin loop:**
+
+1. counter pop
+2. `playExpandingWildReveal` — **sticky** when `scatterCount ≥ 4`: towers persist
+   and accumulate up to `custom.stickyTowerCap` = **5**; otherwise per-spin
+   towers clear. A sticky tower must stay standing **while the other reels roll**,
+   not be rebuilt after the board lands.
+3. evaluate the displayed board with every standing tower fully wild
+4. **→ TOWER MULTIPLIER badges ←** — see below. This step sits **between the
+   evaluate and the win presentation**, and it is missing from a naive port.
+5. per-win `playWinSequence` (its own tiered marquee)
+6. roll into the TOTAL WIN plaque
+
+**The badge beat (step 4).** Every reel standing fully wild in a free spin
+carries a **×1–×5** badge. Show it *after* the board evaluates and *before* the
+win presentation, so the player reads the ×N that is about to be applied
+(`reelSet.setTowerMultiplier`). The values are **dealt at settlement and merely
+replayed** — the display never rolls them. Vice ships art for all five values, so
+a ×1 tower shows its plate too. A 4-scatter **sticky** tower keeps the badge it
+was dealt when it *joined*; a 3-scatter round re-expands from scratch and redraws
+every spin. The badge drops in and locks with the tower as **one** impact
+(`expandWildMultiPop` 1.45 overshoot over `expandWildMultiPopTime` 0.42 s,
+`back.out(3)`, with the tower flexing scaleX 1.05 / scaleY 0.95 on
+`elastic.out(1, 0.45)`) — two separate fades read as no impact at all. Weights
+`[55,20,9,6,10]`; a win pays × the **highest** badge it crosses, never the
+product. Full spec: `features/tower-multipliers/`.
+
+> Omit the badges and the game still runs — it just pays the **no-tower floor of
+> 71.6 %** against a certified 96.46 %.
+
+**Two routes into MAX WIN, not one:**
+
+- **Full board** — 5 fully wild reels pay exactly `maxWinMultiplier × bet`
+  **instantly** and end the round (`custom.fullBoardInstantMaxWin`), in **both**
+  bonuses. Nothing is multiplied on top of it. This is the visible, celebrated
+  route and the only one a 3-scatter round realistically reaches.
+- **Running-total cap** — when the accumulated total would reach
+  `maxWinMultiplier × wager` (default 5000), the plaque locks at the cap, the MAX
+  WIN marquee takes over, and the round **stops on that spin**.
+
+Test the cap in **exact integer arithmetic** (`winAmount >= BigInt(capX) * wager`).
+A float comparison with a tolerance can skip the ceremony on a round that was
+actually paid the cap.
 
 **Transition IN:** revealed as Stage 6's iris opens.
 **Transition OUT:** into Stage 8's iris after the last spin (or the cap spin).
@@ -488,13 +559,59 @@ values already resolved).
     },
     {
       "id": "fs-round",
-      "shows": "animated FS bg + FREE SPINS/TOTAL WIN plaques + expanding/sticky wilds",
+      "shows": "animated FS bg + FREE SPINS/TOTAL WIN plaques + expanding/sticky wilds + tower multiplier badges",
+      "plaques": "TWO BAKED-TITLE sprites (free_spins_counter.png + total_win_counter.png) via setFsPlaquePair — the value is drawn into each plaque's dark inset box. The drawn neon plate is only the fallback when a skin ships no plaque art.",
+      "stripSwap": {
+        "rule": "swap the DISPLAY reels to the strips the SETTLEMENT evaluates before the round rolls",
+        "natural": "fsReelStrips (rare wilds)",
+        "bought": "the stage's own strips — setFsStripsForStage(stageCode)",
+        "alsoSwap": "reelLengths, together with the strips",
+        "symptomIfMissed": "wilds appear on screen but 'do not connect' (display board != settled board), or wins highlight the wrong cells (1170-stop display against 405-stop settlement)"
+      },
       "stickyWhenScattersGte": 4,
-      "hardCap": "maxWinMultiplier * wager (default 5000)",
+      "stickyTowerCap": 5,
+      "stickyFromLanding": "a standing tower must remain on screen WHILE the other reels roll — do not tear it down at spin start and rebuild it after the board lands",
+      "towerMultipliers": {
+        "see": "features/tower-multipliers/",
+        "values": "x1..x5",
+        "weights": [55, 20, 9, 6, 10],
+        "weightsMeaning": "index 0 = x1 … 4 = x5; relative weights, not percentages",
+        "dealtTo": "every reel standing FULLY WILD in a free spin",
+        "dealtBy": "SETTLEMENT, from a reserved seed namespace keccak(seed, 1 << 200) — the badge draw must NOT consume words from the reel-stop stream or every certified RTP figure is void",
+        "rule": "a combination pays x the HIGHEST badge among the expanded reels it crosses (a ways combo starts on reel 0 and runs matchCount reels, so it crosses reels 0..matchCount-1) — NOT the product, NOT the sum",
+        "scatterPayMultiplied": false,
+        "appliedOnInstantMaxWin": false,
+        "onHotSpins": false,
+        "stickyRule": "a 4-scatter sticky tower keeps the badge it was dealt when it JOINED; a 3-scatter round redraws every spin",
+        "present": "shown AFTER the board evaluates and BEFORE the win presentation, so the player reads the xN about to be applied; values are replayed from the settled spin and never rolled by the display; x1 DOES show a plate wherever the badge sheet ships an x1 frame (Vice does)",
+        "art": { "file": "theme/vice/wild_multi_sheet.webp", "frames": 5, "slotYFrac": 0.86, "sizeFrac": 0.82 },
+        "lockPop": { "dropFromFracOfReelHeight": 0.10, "overshootScaleParam": "expandWildMultiPop", "durationParam": "expandWildMultiPopTime", "settleEase": "back.out(3)", "towerFlex": { "scaleX": 1.05, "scaleY": 0.95, "ease": "elastic.out(1, 0.45)" } },
+        "ifOmitted": "the free-spins RTP collapses to the no-badge floor of 71.6% against the certified 96.46% natural"
+      },
+      "maxWinRoutes": [
+        { "id": "full-board", "rule": "5 fully wild reels pay exactly maxWinMultiplier * bet INSTANTLY and end the round (custom.fullBoardInstantMaxWin), in BOTH bonuses; nothing is multiplied on top" },
+        { "id": "running-total-cap", "rule": "when the accumulated total would reach maxWinMultiplier * wager (default 5000) the plaque locks at the cap, the MAX WIN marquee takes over, and the round stops on that spin" }
+      ],
+      "capTest": "exact integer arithmetic — winAmount >= BigInt(capX) * wager. A float comparison with a tolerance can skip the ceremony on a round that WAS paid the cap.",
       "transitionIn": { "type": "revealed-at-fs-iris-open" },
       "transitionOut": { "type": "into-outro-iris" },
       "controlBar": true,
       "addable": false
+    },
+    {
+      "id": "bonus-buy",
+      "shows": "buy menu: two priced cards (3-scatter / 4-scatter) + the ante toggle, over a dimmed board",
+      "note": "AN ALTERNATIVE ENTRY POINT, not a step in the linear path. It replaces the tease+trigger stages: base-game -> bonus-buy -> fs-intro -> fs-round. The array above models one linear run and has no way to express a branch, so it is declared here explicitly.",
+      "cards": [
+        { "id": "buy3", "scatters": 3, "costMult": 100, "label": "read verbatim from custom.viceBuyStages[].costMult — do NOT compute it (that produced the '300x' bug)" },
+        { "id": "buy4", "scatters": 4, "costMult": 200, "label": "read verbatim from costMult" }
+      ],
+      "ante": { "costMult": 3.25, "label": "3x FREE SPINS CHANCE", "effect": "every spin costs bet * costMult and runs on custom.anteBet.reelStrips", "note": "a TOGGLE on the base game, not a stage — it changes the strips of every subsequent base spin until it is switched off" },
+      "boughtRoundPresentation": "the forced stops carry the bought scatter count: 2 land, the tease arms, the rest drop like a natural trigger; the board is then evaluated in full so display == payout",
+      "hotSpinsSuppressed": "a bought round NEVER goes hot — the expansion would erase the scatters the player just paid for",
+      "guaranteedTower": "4-scatter buy only: if the first free spin would land with NO fully-wild reel, guaranteedTowerReel advances to the next stop whose window holds a wild (custom.viceBuyStages[].guaranteedTowerOnFirstSpin). Without it 15.5% of bought rounds showed no tower at all on a buy sold as '10 sticky tower spins'.",
+      "controlBar": true,
+      "addable": true
     },
     {
       "id": "total-win-outro",

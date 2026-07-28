@@ -139,12 +139,12 @@ Zero violations in every certified run. Point it at your port and you have an
 apples-to-apples check against our numbers:
 
 ```
-node sim_vice_core.mjs 20000000 --mode=natural --seed=90210
+node sim_vice_core.mjs 20000000 --mode=natural --seed=4242424
 node sim_vice_core.mjs 20000000 --mode=ante    --seed=771177
 node sim_vice_core.mjs  2000000 --mode=buy4    --seed=553311   # buys run rounds/4
 ```
 
-Expected: natural **96.46 %** ±1.59pp · buy3 **96.35 %** · buy4 **96.08 %** ·
+Expected: natural **96.46 %** ±1.59pp · buy3 **96.20%** · buy4 **95.97%** ·
 ante **96.00 %** ±1.16pp.
 
 ⚠️ `../math/sim_vice.mjs` is the *older, independent* re-implementation. It does

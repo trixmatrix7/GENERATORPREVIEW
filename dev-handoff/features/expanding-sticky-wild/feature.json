@@ -42,8 +42,11 @@
   "multipliers": {
     "stickyFullBoardMultiplier": 1,
     "stickyFullBoardMultiplierEnabled": false,
-    "appliesWhen": "all stickyTowerCap towers stand simultaneously",
-    "note": "Field retained in contract; set to 1 (off) because the 10-spin round forms the full board too often — a >1 value pushes RTP past 105%."
+    "status": "RETIRED",
+    "appliesWhen": "never — see supersededBy",
+    "supersededBy": "custom.fullBoardInstantMaxWin",
+    "note": "RETIRED, ships as 1 (implement as a no-op ×1). With stickyTowerCap 5 on a 5-reel grid, 'all towers standing' IS the full board, and the full board is already the INSTANT MAX WIN (maxWinMultiplier × bet, nothing multiplied on top, round ends). There is no payout left to double. A >1 value either does nothing or, applied before the max-win clamp, fabricates wins the certified model never paid. HISTORY: the old '>1 pushes RTP past 105%' rationale was written when the cap was 3 and there was no instant max win — at cap 3 the full board was an ordinary paying board that recurred nearly every 10-spin round. That reasoning no longer applies and must not be used to re-enable the field.",
+    "towerBadgesAreTheMultiplier": "The free-spins multiplier in this game is the per-tower ×1–×5 badge (custom.towerMultiplierWeights, highest-crossed rule). See features/tower-multipliers/."
   },
   "sounds": {
     "onLand": "wild-land",

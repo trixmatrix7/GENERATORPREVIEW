@@ -90,5 +90,5 @@ same seed by construction.
 ## Certified numbers with this mechanic live
 
 `custom-math/sim_vice_core.mjs` (drives the live round core):
-natural **96.46%** ±1.59pp / 20M · buy3 **96.35%** ±0.97pp · buy4 **96.08%** ±0.39pp / 4M,
+natural **96.46%** ±1.59pp / 20M · buy3 **96.20%** ±0.49pp / 2M · buy4 **95.97%** ±0.56pp / 2M,
 zero max-win-cap violations. A ×5 badge reaches the board in **0.22%** of natural rounds.

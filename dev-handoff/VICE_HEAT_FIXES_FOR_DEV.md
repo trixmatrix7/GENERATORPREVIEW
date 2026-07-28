@@ -13,8 +13,8 @@
 > | mode | cost | certified RTP | rounds | confirmed by |
 > |---|---|---|---|---|
 > | **natural** | 1× | **96.46%** ±1.59pp | 20,000,000 | 96.94% ±2.95pp / 6M, separate seed |
-> | **buy 3-scatter** | 100× | **96.35%** ±0.97pp | 500,000 | — |
-> | **buy 4-scatter** | 200× | **96.08%** ±0.39pp | 4,000,000 | independent simulator; core harness 96.34% ±1.12pp / 500k on a fresh seed |
+> | **buy 3-scatter** | 100× | **96.20%** ±0.49pp | 2,000,000 | — |
+> | **buy 4-scatter** | 200× | **95.97%** ±0.56pp | 2,000,000 | independent simulator; core harness 96.34% ±1.12pp / 500k on a fresh seed |
 > | **ante** | 3.25× | **96.00%** ±1.16pp | 20,000,000 | trigger promise held: 3sc 1-in-20.5, 4+sc 1-in-172.4, hot 1-in-80.1 |
 >
 > **Zero max-win-cap violations in every run**, and zero violations of the round invariants (credited-sum = totalWin, totalWin ≤ cap, no negative credits, re-derivation deterministic). `rtpBps` is **9670**.
@@ -32,7 +32,16 @@
 > - **The buy stages carry their own strips.** buy3 a 405-stop / 15-wild FS set, buy4 its own calibrated set with the tower guarantee. **Prices unchanged at 100× and 200×.** ⚠️ When you swap strips you must swap **`reelLengths` with them** — we shipped a round where they desynced and the display rolled a different board than the settlement scored.
 > - Top-level `fsReelStrips` are **1170 stops with 10 wilds**; buy3/buy4 carry their own.
 >
-> Reproduce any row: `node custom-math/sim_vice_core.mjs <rounds> --mode=<natural|buy3|buy4|ante> --seed=90210`.
+> **Reproduce a row — use ITS seed, not one shared seed.** Each row was measured on its own seed and
+> its own round count; running a different seed measures a different sample and will not land on the
+> published figure. Every row's seed and round count is in `math.manifest.simResults`.
+>
+> ```
+> node custom-math/sim_vice_core.mjs 20000000 --mode=natural --seed=4242424
+> node custom-math/sim_vice_core.mjs 20000000 --mode=ante    --seed=771177
+> node custom-math/sim_vice_core.mjs  8000000 --mode=buy3    --seed=90210    # buys run rounds/4
+> node custom-math/sim_vice_core.mjs  8000000 --mode=buy4    --seed=90210
+> ```
 > The full machine-readable record — per-mode RTP, CI, attribution, tower-count distribution, guarantee fire rate, max-win frequency, invariant violations — is `math.manifest.simResults` in the preset.
 
 > **UPDATE 2026-07-27 — FREE-SPINS RE-CERTIFICATION (supersedes the D2 numbers and the §E scatterPay below):**
@@ -52,7 +61,7 @@
 > - **Sizing/layout final** (grid centred, left-letterbox logo, bonus button under it) — see §Sizing; the `machineBox` block is authoritative.
 > - **This preset carries ONLY the current Vice state** — no stale sounds, tease, mechanics, or old math. Verified against the repo.
 
-**Reference implementation for ALL math:** our settlement engine `src/dev/mockHost.ts:407-548` reads the exact `custom{}` keys the preset already ships — port from there.
+**Reference implementation for ALL math:** the live round core **`src/game/viceSpin.ts`**, shipped verbatim in this package as **`dev-handoff/features/round-core/viceSpin.ts`** — pure, seed-deterministic, reads the exact `custom{}` keys the preset ships, and is the function `sim_vice_core.mjs` certified. **Port from there.** `src/dev/mockHost.ts` is our multi-game settlement harness — for Vice it **delegates to `deriveViceRound()`** (`:236`, `:727`); the older in-file FS blocks below that are the other games' path and still carry retired Vice branches (see D2), so they are not a reference for this build.
 
 ---
 
@@ -60,7 +69,9 @@
 
 Vice Heat was built and certified in our preview studio (`C:/Users/noski/Downloads/GENERATOR PREVIEW/src`). We export a preset JSON; your generator (`devgen/slots_game-main`, live on CloudFront) compiles it. **Your ingestion channel is math-only + theme colors/asset art.** It silently drops (a) our preset's entire `math.manifest.custom{}` block and (b) our entire presentation config (`flow`, `assets`, `extras.presentationTuning`, our `mechanics[]`). All rich presentation — marquee, win-lines, FS counters, intro, control bar — is drawn **hardcoded / from fixed registries / procedurally** in your engine, so it overrides ours.
 
-**The single most important number: ~65% of the certified RTP is missing.** Vice's 95.99% RTP is produced almost entirely by a free-spins engine that **expands wilds into full-reel walls** (plus simultaneous-expansion multipliers, sticky towers, a full-house multiplier, staged buys, an ante). All of that lives in `custom{}`, which every dev-side consumer drops. Our own `simResults` (`math_vice_heat.json:3232-3260`) attribute RTP as base ≈29.6%, hot-spins ≈4.2%, FS-3sc ≈32.5%, FS-4sc ≈30.0%. Your build keeps only the base ways + an unmultiplied (`freeSpinMultiplier=1`) plain FS → **live RTP lands around a third of target.** That is the "math majorly wrong," and it is why the base game "feels dead" (base alone ≈28% RTP; the game was designed to live in the bonus).
+**The single most important number: half the certified RTP lives in `custom{}`.** Vice's certified **96.46%** (natural) is produced by a free-spins engine that **expands wilds into full-reel walls**, deals every fully-wild reel a **TOWER MULTIPLIER ×1–×5** (D12), stacks those towers **sticky to a cap of 5** on a 4-scatter trigger, and pays an **instant 5000× on a full board** — plus hot spins, two staged buys and an ante. All of that lives in `math.manifest.custom{}`, which every dev-side consumer drops. Our `simResults` (`preset.math.manifest.simResults.natural.attributionPctOfWager`, preset lines 20122-20127) attribute the natural RTP as **base 47.9 · hot spins 3.8 · FS-3sc 14.2 · FS-4sc 30.7** points of wager — i.e. **48.6 of the 96.46 points come from `custom{}` mechanics your build does not have.** Your build keeps only the base ways + an unmultiplied (`freeSpinMultiplier=1`) plain FS on the base strips → **live RTP lands near half of target.** That is the "math majorly wrong," and it is why the base game "feels dead": the base ways alone are 47.9 points, the game was designed to live in the bonus. Scale check: keep everything and drop **only** the tower multipliers and the whole game still floors at **71.6%** — this gap is not a rounding error.
+
+> ⛔ **Two mechanics an earlier revision of this summary listed here are RETIRED — do not build them.** `custom.simulExpandMultipliers` (the simultaneous-expansion ladder) is **deleted from the preset**, and the full-house `stickyFullBoardMultiplier` is present but set to **`1` = OFF**. See D2. The "95.99% / base ≈29.6 · hot ≈4.2 · FS-3sc ≈32.5 · FS-4sc ≈30.0" split this paragraph used to carry was measured against the retracted evaluator (D11) and is **void**; the certification block at the top of this document is the only live table.
 
 **VERIFY D8 FIRST.** Before implementing anything, confirm which object you passed into `buildGameConfigFromMathProfile` / `configFromMathProfile`. Our math is nested under `preset.math.manifest`; your loaders read those keys at the **profile root**. If you fed `preset` or `preset.math` instead of `preset.math.manifest`, `reelStrips` is `undefined` and the game **silently falls back to the Fantasy 5×3 default** — which alone would explain "fundamentally wrong." This is a five-minute check that could be the whole story.
 
@@ -70,7 +81,7 @@ Vice Heat was built and certified in our preview studio (`C:/Users/noski/Downloa
 
 # SECTION A — MATH / MECHANICS (highest priority)
 
-All "our spec" lines are `src/data/math_vice_heat.json` unless noted; the same values appear in the preset under `math.manifest` / `math.manifest.custom`. All "reference impl" lines are our engine `src/dev/mockHost.ts`. All "dev gap" lines are under `devgen/slots_game-main/`.
+All "our spec" lines are `src/data/math_vice_heat.json` unless noted; the same values appear in the preset under `math.manifest` / `math.manifest.custom`. All "reference impl" lines are the live round core `src/game/viceSpin.ts` (= `dev-handoff/features/round-core/viceSpin.ts`) unless a settlement/host seam is meant, in which case `src/dev/mockHost.ts` is cited explicitly. All "dev gap" lines are under `devgen/slots_game-main/`.
 
 | ID | Mechanic | Severity | Owner |
 |----|----------|----------|-------|
@@ -79,7 +90,7 @@ All "our spec" lines are `src/data/math_vice_heat.json` unless noted; the same v
 | **D13** | **Guaranteed tower on the 4-scatter buy (NEW)** | High (the buy's promise) | DEV |
 | D8 | Ingestion object (nested vs flat root) | **VERIFY FIRST** | Coordinate |
 | D1 | Expanding wilds in FS | Launch-blocking | DEV |
-| D2 | Sticky towers / simul-multipliers / full-house | Launch-blocking | DEV |
+| D2 | Sticky expanding towers (cap **5**) + full-board instant max win | Launch-blocking | DEV |
 | D3 | Staged bonus buys (3sc@100×, 4sc@200×) | Launch-blocking (if buys ship) | DEV |
 | D4 | Ante bet (3× FS chance, 3.25× cost) | Launch-blocking (if ante ships) | DEV |
 | D5 | `freeSpinMultiplier=1` model mismatch | Design note | DEV (do NOT bump) |
@@ -99,35 +110,39 @@ All "our spec" lines are `src/data/math_vice_heat.json` unless noted; the same v
 
 ## D1 — Expanding wilds in free spins (not implemented dev-side)
 - **Symptom:** "math majorly wrong"; FS pays a fraction of spec; base game feels dead.
-- **Our spec:** `math_vice_heat.json:272` `"expandingWildsInFreeSpins": true`. **Reference impl:** `src/dev/mockHost.ts:458-478` — before ways eval, every wild-carrying reel is overwritten to full wild (`fsBoard[row][reel] = 0`). Config mapping: `src/config/mathProfiles.ts:60` (`custom.expandingWildsInFreeSpins → config.expandingWildsInFS`).
+- **Our spec:** `math_vice_heat.json:272` `"expandingWildsInFreeSpins": true`. **Reference impl:** `src/game/viceSpin.ts:447-462` (= `features/round-core/viceSpin.ts`) — before ways eval, every wild-carrying reel is overwritten to full wild (`makeFullWild`, i.e. `board[row][reel] = 0`); the `else` branch `:457-461` is the per-spin (3-scatter) case, the `if` branch above it the sticky one (D2). Config mapping: `src/config/mathProfiles.ts:60` (`custom.expandingWildsInFreeSpins → config.expandingWildsInFS`). ⚠️ Ignore the old `src/dev/mockHost.ts:458-478` pointer that used to sit here — those lines are now **Crack Farm's roaming-plant** code, not Vice expansion.
 - **Dev gap (no expansion anywhere):**
   - Contract `contract/src/SlotGame.sol:227-246` — FS loop just re-evaluates the raw board × flat `FREE_SPIN_MULTIPLIER`.
   - Dev harness `src/dev/mockHost.ts:140-158` — `fsWin = rawFsWin * freeSpinsMultiplier`.
   - Validator sim `src/generator/validator/simulator.ts:256-277` — same.
   - `GameConfig` interface (`src/engine/GameConfig.ts:77-99`) has no expanding-wild field; `contractRenderer.ts:16-43` and `assembler.ts:15-56` never read `custom`.
 - **Who fixes:** DEV. No preset key can enable this; the mechanic must be built.
-- **Concrete fix:** In the FS loop, before `_evaluateWins`, port `src/dev/mockHost.ts:458-478`: for each reel where any visible cell == 0, set the whole reel column to 0 (WILD). Gate on a new config flag read from `custom.expandingWildsInFreeSpins`.
+- **Concrete fix:** In the FS loop, before `_evaluateWins`, port `features/round-core/viceSpin.ts:447-462`: for each reel where any visible cell == 0, set the whole reel column to 0 (WILD). Gate on a new config flag read from `custom.expandingWildsInFreeSpins`. Expand on a **copy** of the board (`evalBoard`) — the landed board is what the display animates from.
 
-## D2 — Sticky towers / simul-expand multipliers / full-house (not implemented)
+## D2 — Sticky expanding towers (cap 5) + full-board instant max win (not implemented)
 - **Symptom:** "mechanics fundamentally wrong, many things missing"; the entire 4-scatter max-win route is absent; volatility and top-end wrong.
-- **Our spec:** `math_vice_heat.json:273-282` — `stickyExpandingFrom4Scatters`, `stickyTowerCap:3`, `stickyRoundSpins:10`, `stickyRoundCap:13`, `simulExpandMultipliers:{3:2,4:10}`, `stickyFullBoardMultiplier:1`. **Reference impl:** `src/dev/mockHost.ts:459-469` (sticky towers), `:510-516` (simul-expand table), `:517-527` (full house); FS win line `:527` `rawFsWin * simulMult * fullMult * freeSpinsMultiplier`.
-- **Dev gap:** none of `stickyTowerCap`, `simulExpandMultipliers`, `stickyFullBoardMultiplier`, `stickyRoundSpins/Cap` exist in any dev file (grep across `devgen/.../src` = zero engine/settlement hits). Bonus registry `src/registries/bonusMechanics.ts:9-48` offers only `free-spins-multiplier`, `bonus-buy`, `hold-and-win`.
+- **Our spec** (`preset.math.manifest.custom`, scalars at preset lines 299-309; mirrored in `src/data/math_vice_heat.json`): `expandingWildsInFreeSpins:true`, `stickyExpandingFrom4Scatters:true`, **`stickyTowerCap: 5`** (`:302`), `stickyRoundSpins:10`, `stickyRoundCap:13`, `retriggerSpins:3`, **`fullBoardInstantMaxWin: true`** (`:20095`, flat root `:46145`), `stickyFullBoardMultiplier: 1` (`:306`). **Both** `viceBuyStages` carry `stickyTowerCap: 5` as well, so a bought round uses the same cap.
+- **The shipped model in one paragraph.** A **3-scatter** round expands per spin (7 spins; wilds expand for that spin only, then clear). A **4-scatter** round is **STICKY**: wild-landing reels become permanent full-wild towers, leftmost joins first, **up to 5**; later wilds play as ordinary 1:1 wilds. Every standing tower carries a **×1–×5 badge (D12)** and a combination pays × the **highest** badge it crosses. **5 towers standing = the whole board is wild = instantly `maxWinMultiplier × bet`, round over** (`fullBoardInstantMaxWin`) — that, plus the running-total cap, is the entire max-win route. There is no per-spin ×N ladder anywhere in it. Retrigger adds **+3** spins (not +7); `stickyRoundCap 13` bounds the round.
+- ⛔ **Do NOT build a simul ladder and do NOT build a full-house doubling.** `custom.simulExpandMultipliers` **does not exist in `math.manifest.custom`** — the only mention left in the preset is the note in `simResults.ruleSet` recording that it is retired. (An earlier export also carried a dangling `mathBinding` entry for it on the `expanding-wild` mechanic; that binding has been removed, and `custom-math/verify_preset_parity.mjs` now fails the export if any `mathBinding` names a key the manifest does not have.) `stickyFullBoardMultiplier` is **`1` = OFF** (preset `:306`, flat root `:26356`). If you implement either, you are building a model we retired *and* invalidating the certification — the multiplicative route measured **187% RTP** on the 4-scatter buy, which is why it was cut.
+  > **HISTORY — do not re-derive.** An earlier drop of this document specified `stickyTowerCap: 3` (4 on the bought stage), `simulExpandMultipliers {3:2, 4:10}` and `stickyFullBoardMultiplier: 2` while all towers stood, with the max win coming out of that doubling. That whole model is retired; it was replaced by tower multipliers (D12) + the full-board instant max win, and every RTP figure measured against it is void.
+- **Reference impl:** `src/game/viceSpin.ts:405-520` — the live round core, shipped verbatim in this package as **`dev-handoff/features/round-core/viceSpin.ts`** (same line numbers): sticky join loop `:447-462` (cap check `:452`), badge deal `:464-479` (D12), full-board instant max win `:481-489`, retrigger `:515-518`. ⚠️ **Do not port the FS blocks out of `src/dev/mockHost.ts`.** For Vice that harness delegates to `deriveViceRound()` (`:236`, `:727`); the in-file FS loop that follows is the other games' path and still carries the retired `simulExpandMultipliers` / full-house branches with stale comments (`:547-563`, "cap 3", "×2 while all 4 towers stand"). They are inert only because the Vice config keys are gone or `1` — porting them reintroduces the retired model.
+- **Dev gap:** none of `stickyTowerCap`, `stickyRoundSpins/Cap`, `retriggerSpins`, `fullBoardInstantMaxWin`, `towerMultiplierWeights` exist in any dev file (grep across `devgen/.../src` = zero engine/settlement hits). Bonus registry `src/registries/bonusMechanics.ts:9-48` offers only `free-spins-multiplier`, `bonus-buy`, `hold-and-win`.
 - **Who fixes:** DEV.
-- **Concrete fix:** Port the sticky/simul/full-house blocks from `src/dev/mockHost.ts:459-527`, reading the same `custom` keys.
+- **Concrete fix:** Port the FS block of `features/round-core/viceSpin.ts` (`:405-520`) reading the same `custom` keys. D12 (badges) and D13 (guaranteed tower) plug into that same loop — build them together, or the free spins land at the 71.6% floor.
 
 ## D3 — Staged bonus buys (buy-3sc @100×, buy-4sc @200×) (not implemented)
 - **Symptom:** buy feature missing or paying the wrong round.
-- **Our spec:** `math_vice_heat.json` `custom.viceBuyStages[]` (from ~`:286`; stage1 100×, stage2 200×, each with its own certified `fsReelStrips`, `simulExpandMultipliers`, `stickyTowerCap`, `stickyFullBoardMultiplier`). In the preset: `math.manifest.custom.viceBuyStages` stage1 = 3sc/costMult 100 (preset lines 316-318), stage2 = 4sc/costMult 200 (preset lines 568-570). **Reference impl:** `src/dev/mockHost.ts:232-243, 274, 327-349, 514-525`.
+- **Our spec:** `custom.viceBuyStages[]` — stage1 = 3sc / `costMult 100`, stage2 = 4sc / `costMult 200`. Each stage carries its own certified `fsReelStrips` (+ `fsStripsRule`: ship the stop arrays **verbatim**, the arrangement is a first-order lever) and `stickyTowerCap: 5`; stage2 additionally carries `guaranteedTowerOnFirstSpin` + `guaranteedTowerReel` (D13). **No stage carries `simulExpandMultipliers` or `stickyFullBoardMultiplier`** — those keys are retired (D2). In the preset: `math.manifest.custom.viceBuyStages` opens at `:310`, stage1 `costMult 100` at `:314`, stage2 `costMult 200` at `:6413`, `guaranteedTowerOnFirstSpin` at `:18462`. **Reference impl:** `src/game/viceSpin.ts` (`buyStage` overrides: strips `:414-415`, spins/cap `:416-420`, tower cap `:408`, guarantee `:437-442`).
 - **Dev gap:** only a single scalar `bonusBuyCost` / `BONUS_BUY_COST_X100` (`SlotGame.sol:28,209-224`; `buildGameConfig.ts:71-73`; `bonusMechanics.ts:24-35`). No concept of multiple stages, per-stage strips, or per-stage multiplier overrides. `assembler.ts:25-29` wires only a single buy cost, and only if the `bonus-buy` flag is set.
 - **Who fixes:** DEV (multi-stage buy) — or descope to a single buy for launch.
-- **Concrete fix:** Implement a staged-buy path keyed on `gameData = abi.encode(uint8 stage)` reading `custom.viceBuyStages`, mirroring `src/dev/mockHost.ts:232-349`.
+- **Concrete fix:** Implement a staged-buy path keyed on `gameData = abi.encode(uint8 stage)` reading `custom.viceBuyStages` — host seam `src/dev/mockHost.ts:236-244` (stage decode) + `:718-730` (`settleVice`: the COST is the wager, the round plays at the base bet `wager / costMult`, then `deriveViceRound(randomness, bet, config, stage)`). Round rules: `features/round-core/viceSpin.ts`.
 
 ## D4 — Ante bet ("3× FS chance", 3.25× cost) (not implemented)
 - **Symptom:** ante toggle missing / no strip swap.
-- **Our spec:** `math_vice_heat.json` `custom.anteBet{ costMult:3.25, reelStrips[] }` (from ~`:3008`); preset label `"3x FREE SPINS CHANCE"`, `costMult 3.25`, `certifiedRtpPct 94.92` (preset lines 3036-3257). **Reference impl:** `src/dev/mockHost.ts:233,239,261` (swaps to the ante reel strips for the ante spin).
+- **Our spec:** `custom.anteBet{ costMult: 3.25, reelStrips[] }` — preset block opens at `:18467`, label `"3x FREE SPINS CHANCE"`, `costMult 3.25` at `:18469`, **`certifiedRtpPct 96.00`** (20,000,000 rounds, ±1.16pp — see the certification block at the top). The ante rolls its own base strips (8× symbol mix, 320 stops, raised wild density) and **still rolls the shared top-level `fsReelStrips` in the bonus**; ⚠️ its value depends on **hot spins** (D7) — ante attribution is base 24.7 · hot 6.8 · FS-3sc 14.5 · FS-4sc 50.0 points of wager, so an ante shipped without hot spins is under-priced. **Reference impl:** `src/game/viceSpin.ts:355-361` (`stageCode 3` → swap to `config.anteBet.reelStrips` for that base spin only; `stageCode` 0 = natural, 1 = bought 3sc, 2 = bought 4sc, 3 = ante — `:138-139, 343-355`); host seam `src/dev/mockHost.ts:236-244` (stage decode) + `:721-726` (ante price → base bet: `wager × 100 / round(costMult × 100)`).
 - **Dev gap:** no `anteBet` anywhere; no strip-swap mechanism in `SlotGame.sol` / dev `mockHost.ts` (single fixed `REEL_STRIPS`).
 - **Who fixes:** DEV.
-- **Concrete fix:** Add an ante code path (stage 3) that swaps to `custom.anteBet.reelStrips` for the triggering spin, per `src/dev/mockHost.ts:239,261`.
+- **Concrete fix:** Add an ante code path (stage 3) that swaps to `custom.anteBet.reelStrips` for that base spin only — the free spins keep rolling the shared `fsReelStrips` — per `features/round-core/viceSpin.ts:355-361`.
 
 ## D5 — `freeSpinMultiplier = 1` is meaningless without expansion (model mismatch)
 - **Symptom:** even the FS that DOES run pays almost nothing.
@@ -140,19 +155,20 @@ All "our spec" lines are `src/data/math_vice_heat.json` unless noted; the same v
   - Scatter skipped as a ways seed: `WinEvaluator.ts:117` / `SlotGame.sol:340`.
   - Ways count is `cell === effectiveSym || cell === WILD` only (`WinEvaluator.ts:138` / `SlotGame.sol:351`); wild→HIGH_A (`:120` / `:341`). This is byte-identical to our own `src/game/winEval.ts` → `src/engine/WinEvaluator.ts`. **No literal scatter-substitution bug exists.**
 - **What the owner is actually seeing:** in the certified game, FS wild reels expand into solid wild walls that **overwrite the scatters sitting on those reels** ("Fully wild reels contribute no scatters" — `math_vice_heat.json:285` note). Because the dev build never expands (D1), scatters stay interleaved with the lone wilds on reels 1-4, wins thread past them, and those persistent scatters keep re-triggering FS far more often than intended. That reads on screen as "scatters connecting through the wilds." **Fix = D1** (expansion overwrites the scatters), not a change to the evaluator.
-- **Secondary — retrigger AMOUNT is also wrong:** dev adds a full `FREE_SPINS_COUNT` (7) per retrigger (`SlotGame.sol:243` `remaining += FREE_SPINS_COUNT`); our spec is `retriggerSpins:3` (`math_vice_heat.json:267`), which the dev engine has no field for. **Fix:** DEV reads `custom.retriggerSpins` (see our `mockHost.ts:537-539`).
+- **Secondary — retrigger AMOUNT is also wrong:** dev adds a full `FREE_SPINS_COUNT` (7) per retrigger (`SlotGame.sol:243` `remaining += FREE_SPINS_COUNT`); our spec is `retriggerSpins: 3` (`math_vice_heat.json:267` top level, `:275` inside `custom`), which the dev engine has no field for. **Fix:** DEV reads `custom.retriggerSpins` (`features/round-core/viceSpin.ts:420` reads it, `:515` applies it — `+3`, and the round still stops at `stickyRoundCap 13`).
 
 ## D7 — "Hot spins" base-game feature (1-in-80 wild expansion, ~4% RTP) (not implemented)
 - **Symptom:** base game "a bit broken" / flat.
-- **Our spec:** `math_vice_heat.json:283-284` `hotSpinChance1In:80`, `hotSpinExpandsWilds:true`; contributes `hot_pct ≈4.15%` (`:3258`).
+- **Our spec:** `math_vice_heat.json:279-280` `hotSpinChance1In: 80`, `hotSpinExpandsWilds: true`. **Rule:** on a 1-in-80 **natural or ante BASE** spin, every reel with a wild in its window expands to a full wild reel and the spin pays its **natural ways win with no multiplier** (`custom.towerMultiplierOnHotSpins: false` — hot reels carry **no** badge). **NEVER on a bought round** (expansion would erase the scatters the player paid for). A hot spin **can suppress a scatter trigger** — certified behaviour, do not "fix" it. All 5 reels hot + `fullBoardInstantMaxWin` = an **instant max win in the BASE game** (`viceSpin.ts:380`).
+- **Certified contribution:** **3.76** points of wager on the natural game, **6.84** on the ante (`simResults.*.attributionPctOfWager`). ⚠️ The ante is priced on hot spins existing — see D4.
 - **Dev gap:** absent.
-- **Who fixes:** DEV (or accept the ~4% RTP loss).
+- **Who fixes:** DEV (or accept the loss — ~3.8pp natural, and an under-priced ante).
 
 ## D9 — Phantom Hold & Win baked into the dev build (cleanup)
 - The dev engine ships a COIN(id 9) Hold & Win bonus that triggers on 6+ coins (`SlotGame.sol:249-266,410-456`; dev `mockHost.ts:161-183`; `bonusMechanics.ts:36-47`). Our reels contain no id 9, so it never fires — harmless, but it is an unintended mechanic in the contract and should be disabled/removed for a clean Vice build.
 
 ## D10 — rtpBps/targetRtp overwritten at compile (cosmetic)
-- Our preset carries `rtpBps:9599 / targetRtpPct:95.99` (`math_vice_heat.json:3-4`). `assembler.ts:52-53` recomputes from `expectedMetrics.rtpPct ?? 96`, which our manifest lacks, so it stamps `RTP_BPS=9600 / 96.0`. Affects only the contract's risk-reserve quote (`SlotGame.sol:156`), not payouts. **Fix:** US adds `expectedMetrics.rtpPct` to the manifest (see our-side doc), or DEV reads `rtpBps` directly.
+- Our preset carries **`rtpBps: 9670 / targetRtpPct: 96`** (`math_vice_heat.json:3-4`; preset `math.manifest` lines 31-32 — the older `9599 / 95.99` is void, see the certification block). `assembler.ts:52-53` recomputes from `expectedMetrics.rtpPct ?? 96`, which our manifest lacks, so it stamps `RTP_BPS=9600 / 96.0`. Affects only the contract's risk-reserve quote (`SlotGame.sol:156`), not payouts. **Fix:** US adds `expectedMetrics.rtpPct` to the manifest (see our-side doc), or DEV reads `rtpBps` directly.
 
 ## D11 — ~~WAYS EVALUATOR: a wild on reel 0 collapses the paytable to HIGH_A~~ — ❌ **RETRACTED. DO NOT IMPLEMENT.**
 
@@ -205,7 +221,7 @@ The runtime `GameConfig` carries **no presentation at all**. `buildGameConfigFro
 - **Root cause:** the marquee is drawn **100% procedurally**. `buildWinBanner()` (`src/game/PixiApp.ts:1060-1116`) is all `Graphics` draw calls; the yellow is one constant `const gold = this.winBannerColorOverride ?? 0xFFD23F;` (`PixiApp.ts:1068`). The label is hardcoded: `const label = isMegaPlus ? 'MEGA WIN!' : isBigPlus ? 'BIG WIN!' : '';` (`PixiApp.ts:1132`). No `Sprite`/`Texture`/PNG is ever used.
 - **Only knob is a single accent color** (`winBannerColorOverride`, set from chat param `winBannerColor` → `ACCENT_PRESETS`, `PixiApp.ts:1347-1350`, `adjustableParams.ts:35-43`) — no vice/neon option, and it only recolors the procedural plaque. **Do NOT treat `winBannerColor` as a workaround.**
 - **Schema gap:** `GameTheme` (`src/engine/GameConfig.ts:49-99`) has no `winMarquee`/`tierArt`/`marqueeStyle` field. Note even the existing `theme.winBanner` token is unused by the marquee (only consumed as a CSS glow in `src/ui/generator/PixiPreviewPanel.tsx:178`).
-- **Our preset already carries everything** (in a vocabulary you don't parse): mechanic `win-marquees` (preset lines 3366-3382); `assets.winTiers` (preset lines 3620-3630, `dir:"theme/win-tiers/"`, layers `big/mega/epic/max/win/plate`); and the load-bearing block **`extras.presentationTuning.marquee.tierArt`** (preset lines 4085-4092) mapping each tier to `theme/win-tiers/<tier>.png` + bands (`minBigWin:15`, `mega:25`, `epic:100`) + geometry (preset lines 4041-4104).
+- **Our preset already carries everything** (in a vocabulary you don't parse): mechanic `win-marquees` (preset line 52124); `assets.winTiers` (preset lines 52393-52403, `dir:"theme/win-tiers/"`, layers `big/mega/epic/max/win/plate`); and the load-bearing block **`extras.presentationTuning.winPresentation.marquee.tierArt`** (preset lines 52969-52976) mapping each tier to `theme/win-tiers/<tier>.png`, inside the `marquee` block (52925-52988) that also carries the bands (`minBigWin:15`, `mega:25`, `epic:100` — `:52930-52968`), the geometry, and the `coinRain` sheets (`:52977-52987`). ⚠️ **The path is `extras.presentationTuning.winPresentation.marquee`, not `extras.presentationTuning.marquee`** — an importer reading the shorter path gets `undefined` and silently falls back to the procedural yellow plaque, which is exactly the symptom above.
 - **Concrete dev fix (two coupled changes):**
   1. Add an art field to `GameTheme` (`src/engine/GameConfig.ts`, after `winBanner` ~:57):
      ```ts
@@ -215,7 +231,7 @@ The runtime `GameConfig` carries **no presentation at all**. `buildGameConfigFro
        tierScale?: number[];
      };
      ```
-     Populate it in the preset-importer from `preset.extras.presentationTuning.marquee.tierArt` (explicit per-tier file map + bands/geometry — **wire this one**, not `assets.winTiers` which is just the bundling manifest).
+     Populate it in the preset-importer from `preset.extras.presentationTuning.winPresentation.marquee` — `.tierArt` for the per-tier file map, `.config` for bands/geometry (**wire this one**, not `assets.winTiers`, which is just the bundling manifest).
   2. Branch `buildWinBanner()` (`PixiApp.ts:1060`): if `theme.winMarquee?.tierArt` present, blit `plate` as backing + the tier wordmark (win|big|mega|epic|max) selected via `resolveWinTier`/the preset bands as **Sprites**, and suppress the hardcoded `'BIG WIN!'/'MEGA WIN!'` text at `PixiApp.ts:1132`.
 
 ## B2 — Win-lines / win-presentation (hardcoded gold "Fruit-Fortune" look)
@@ -232,10 +248,11 @@ The runtime `GameConfig` carries **no presentation at all**. `buildGameConfigFro
 
 ## B4 — Intro / bg-transition (instant jump, no transition)
 - **Symptom:** the game "jumps INSTANTLY to the slot" with no boot/intro/background transition.
-- **Confirmed again on your latest preview (Noski, 2026-07-27):** the intro cards render **directly on top of the reel grid** the moment the slot opens — no loading screen, no boot background, no iris. On our build the same cards sit on the game-intro BACKGROUND and only reveal the reels after `transitionOut: "iris-from-black"`. So the assets are arriving and drawing; what is missing is the **flow that owns them**. Because no boot/intro stage exists, the cards have nowhere to live and land over the grid. **This is a flow bug, not an asset bug — do not re-cut the art.** Implement `flow.stages` (`boot` → `game-intro` → `base`) and the cards will sit where they belong. `flow` is carried in the preset (`flow.iris`, `flow.stages[]`, `assets.introLayers`, `extras.layout.introScreens`, `extras.layout.bootScreen`) and is currently read by nothing on your side.
+- **Confirmed again on your latest preview (Noski, 2026-07-27):** the intro cards render **directly on top of the reel grid** the moment the slot opens — no loading screen, no boot background, no iris. On our build the same cards sit on the game-intro BACKGROUND and only reveal the reels after `transitionOut: "iris-from-black"`. So the assets are arriving and drawing; what is missing is the **flow that owns them**. Because no boot/intro stage exists, the cards have nowhere to live and land over the grid. **This is a flow bug, not an asset bug — do not re-cut the art.** Implement `flow.stages` (`boot` → `game-intro` → `base`) and the cards will sit where they belong. `flow` is carried in the preset (`flow.iris` `:52509`, `flow.stages[]` `:52512`, `assets.introLayers` `:52404`, `extras.presentationTuning.layout.introScreens` `:53133`) and is currently read by nothing on your side.
 - **Root cause:** there is **no intro/boot/iris system** in the engine. `grep intro|boot|splash|iris` across the dev runtime (`App.tsx`, `PixiApp.ts`, `useGameState.ts`, `GameCanvas.tsx`) returns nothing. `src/App.tsx:14-60` mounts `GameCanvas` straight to the base reels. The only "transition" is `PixiApp.playTransitionCard()` (`PixiApp.ts:985`, called :849/:912) — a FS-entry/total dim-plaque, not a boot→game transition. `transitionAnimations.ts`'s only intro-ish entry `base-to-fs-intro` (:28-37) is `implemented:false` and FS-scoped. Background is a procedural gradient from theme colors (`PixiApp.ts:287-330, 517-534`); a real bg image can only come via `setBackgroundImage(dataUrl)` (`PixiApp.ts:683-723`), a **wizard-only** upload path — not a deploy/preset channel and not in `GameConfig`.
-- **Our preset fully specifies the intro** (all unread): `flow.iris.style="looney-iris"` (preset :3697-3699); `flow.stages[]` `boot`/`game-intro` with `transitionOut:"iris-from-black"` (:3701-3712), `fs-intro` with `transitionIn:"iris"` (:3729-3731); `assets.introLayers` → `data/introLayers.json` + `theme/vice/intro/` (:3631-3634); `extras.layout.introScreens` (18-layer game intro + fs3/fs4/outro, :4249-4255) + `bootScreen` (:4256-4265) + `background.fsIntroImage` (:4233).
-- **Concrete dev fix (minimum):** add a `boot → game-intro → base` phase that (1) reads `flow.stages`, (2) renders `assets.introLayers` (manifest `data/introLayers.json`, dir `theme/vice/intro/`) over the `bootScreen` gradient, (3) plays `transitionOut = "iris-from-black"` before revealing the base reels. Make `flow.iris:"looney-iris"` a real `implemented:true` transition. If a full intro is out of scope for Thursday, the smallest acceptable fix is a boot→base **crossfade** honoring `transitionOut`, so the game stops hard-cutting into the reels.
+- **Our preset fully specifies the intro** (all unread): `flow.iris.style="looney-iris"` (preset :52509-52511); `flow.stages[]` — `boot` (:52513-52579), `game-intro` with `transitionOut:"iris-from-black"` (:52580-52584), `base` (:52585-52588), `fs-intro` with `transitionIn:"iris"` (:52601-52602); `assets.introLayers` → `data/introLayers.json` + `theme/vice/intro/` (:52404-52407); **`extras.presentationTuning.layout.introScreens`** (18-layer game intro + fs3/fs4/outro, :53133-53139) + `layout.background.fsIntroImage` (:53117). ⚠️ These live under **`extras.presentationTuning.layout`** — there is no `extras.layout` key in the preset; an importer reading `extras.layout.*` gets `undefined` and you ship the hard cut you have today.
+- ⛔ **The `boot` stage is the universal CHAIN GAMES loader, not a Vice screen.** `flow.stages[0]` (:52513-52579) is platform branding — the `chain_loader_sheet.webp` logo build-in (8×8 grid of 250px frames) + a hairline progress bar on `#07070c`, mounted **inside the game iframe only**, identical in every game the generator produces. Full spec: `dev-handoff/features/boot-loader/README.md` and **FLOW.md Stage 1**. The `extras.presentationTuning.layout.bootScreen` block (:53140-53149, "VICE HEAT" title + pink→amber gradient) is the **retired per-game boot screen it replaced** — kept only as history. **Do not build a per-game boot screen, title or colour ramp from it.**
+- **Concrete dev fix (minimum):** add a `boot → game-intro → base` phase that (1) reads `flow.stages`, (2) renders the universal CHAIN GAMES loader per `flow.stages[0].params` / `features/boot-loader/`, (3) cross-fades into `assets.introLayers` (manifest `data/introLayers.json`, dir `theme/vice/intro/`) laid out per `layout.introScreens`, (4) plays `transitionOut = "iris-from-black"` before revealing the base reels. Make `flow.iris:"looney-iris"` a real `implemented:true` transition. If the full intro is out of scope for Thursday, the smallest acceptable fix is loader→base **crossfade** honoring `transitionOut`, so the game stops hard-cutting into the reels.
 
 **Broader presentation root cause (features "override so it doesn't fit"):** `theme:"vice"` (preset :12) is not one of the six hardcoded themes (`themes.ts:122-129`), so `getThemeByName("vice")` → `DEFAULT_GAME_THEME` (chain.wtf blue, `themes.ts:133-142`). `GameTheme` (`GameConfig.ts:49-75`) is colors/labels/icons only — no background/frame/logo/atlas fields — so none of our Vice art can attach; the deployed path only loads art via the wizard `setBackgroundImage` upload (`PixiApp.ts:683-723`), never from the preset. **DEV must add a per-game art channel:** register a `vice` `GameTheme`, or (better) extend `GameConfig`/`renderGameConfig` with `assets.images.{background,logo,frame}`, `assets.symbols.*` atlases, `assets.spritesheets.backgroundLoop`, and load them in `PixiApp.init()` for the **deployed** path.
 
@@ -308,12 +325,22 @@ Dev sidebar currently has (for parity reference, `Sidebar.tsx:86-251`): Manual/A
 
 # SECTION E — GAME RULES / INFO SCREEN
 
-The dev's rules/info screen needs Vice-specific content. **WE supply the copy/values** (see `VICE_HEAT_OUR_SIDE_FIXES.md` for the authoritative source). Required content:
-- **Paytable:** wild/highA…lowG symbol pays + `scatterPay [768, 1490, 4471]` (3/4/5 scatters), from `math.manifest.payTable` / `scatterPay`.
+The dev's rules/info screen needs Vice-specific content. **WE supply the copy/values** — the authoritative page-by-page copy is `dev-handoff/VICE_HEAT_RULES_CONTENT.md`; the values below must match it. Required content:
+- **Paytable — the SHIPPED values**, read verbatim from `math.manifest.payTable` / `scatterPay` (preset lines 246-292; flat root copy at 26292-26338). All figures in **bps — divide by 10000 for × bet**; the three entries are **3-of-a-kind / 4-of-a-kind / 5-of-a-kind**:
+
+  | symbol | 3 | 4 | 5 | | symbol | 3 | 4 | 5 |
+  |---|---|---|---|---|---|---|---|---|
+  | `wild` | 1243 | 2034 | 3616 | | `lowE` | 1164 | 1356 | 1808 |
+  | `highA` | 1243 | 2034 | 3616 | | `lowF` | 1164 | 1299 | 1638 |
+  | `highB` | 1198 | 1808 | 2938 | | `lowG` | 1164 | 1243 | 1469 |
+  | `midC` | 1164 | 1582 | 2373 | | **`scatterPay`** | **1164** | **2260** | **6780** |
+  | `midD` | 1164 | 1469 | 2147 | | | | | |
+
+  The pay **floor is 1164 bps = 0.1164× bet**. ⛔ The old `scatterPay [768, 1490, 4471]` / 768-bps (0.0768×) floor this section used to print is **void** — a build shipped on it under-pays every low-symbol line and every scatter award. `minWager 10000`.
 - **Ways count:** 5×5 ways-pays, left-to-right, `MIN_MATCHING_REELS 3` → **3125 ways**. Ensure the compiled contract is 5×5 (3125 ways), **not** the engine default 5×3/243.
-- **RTP: 95.99%** (certified; note contract `RTP_BPS` compiles to 9600 unless D10 fixed).
-- **Max win: 5000×** (`maxWinMultiplier 5000`, matches dev hard cap).
-- **Feature descriptions:** tiered free spins (3sc→7 spins / 4sc→10 spins), expanding wilds in FS, sticky expanding towers, hot spins, staged bonus buys (100×/200×), ante bet (3.25× for 3× FS chance).
+- **RTP: 96.46%** natural (certified — see the certification block at the top; buy-3sc 96.20%, buy-4sc 95.97%, ante 96.00%). `rtpBps 9670`; note the contract `RTP_BPS` compiles to 9600 unless D10 is fixed. **95.99% is void — do not print it on the info screen.**
+- **Max win: 5000×** (`maxWinMultiplier 5000`, matches dev hard cap). Two routes only: 5 fully-wild reels pay it **instantly** and end the round, in either bonus; otherwise the running total is capped at it.
+- **Feature descriptions:** tiered free spins (**3sc → 7 spins**, wilds expand per spin / **4sc → 10 spins**, STICKY towers to **cap 5**), **tower multipliers ×1–×5** on every fully-wild reel — a win pays × the **highest** badge it crosses, scatter pay never multiplied — retrigger **+3** spins, hot spins (1-in-80 base spins, all wild-carrying reels expand, no multiplier, never on a bought round), staged bonus buys (100× / 200×, the 200× buy **guarantees a tower**), ante bet (3.25× for ~3× FS chance). ⛔ **Do not describe simultaneous-expansion multipliers or a full-house ×2** — both retired (D2).
 
 Cross-reference: the paytable/feature copy is maintained on our side and delivered with the preset — coordinate on the exact strings before wiring the info modal (the dev's Recent-Bets fairness modal exists, but no paytable modal is currently wired — `winPresentation`/UI notes above).
 
@@ -323,7 +350,7 @@ Cross-reference: the paytable/feature copy is maintained on our side and deliver
 
 1. **D8 — verify the ingestion object first** (could be the whole story; ~5 min). Confirm `preset.math.manifest` (not `preset`/`preset.math`) reaches `configFromMathProfile`.
 2. ~~D11 — the ways-evaluator wild-on-reel-0 bug.~~ ❌ **RETRACTED — do nothing.** If a previous revision of this list had you editing `_evaluateWins` or `SlotGame.sol`, revert it. See D11.
-3. **D1 + D2 — expanding wilds + sticky/simul/full-house FS** (restores ~65% of RTP). Reference: `src/dev/mockHost.ts:407-548` reads the exact `custom{}` keys the preset already ships.
+3. **D1 + D2 — expanding wilds + sticky towers (cap 5) + the full-board instant max win** (with 3b below, this is the ~48pp of RTP that lives in `custom{}`). Reference: **`dev-handoff/features/round-core/viceSpin.ts:405-520`** (= `src/game/viceSpin.ts`), which reads the exact `custom{}` keys the preset ships. ⛔ **No simul ladder, no full-house ×2** — both retired; see D2.
 3b. **D12 — tower multipliers ×1–×5.** Port with D1/D2; without it the free spins land well under the certified RTP. Draw the badges from a **reserved seed namespace** so reel stops are unaffected.
 3c. **D13 — guaranteed tower on the 4-scatter buy.** Small, and it is what the 200× buy promises.
 4. **D3, D4 — staged buys + ante** (only if those buttons ship at launch).

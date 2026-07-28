@@ -405,14 +405,9 @@
    "outro": "3 layers — fsbg_beachclub.webp bg, totalwin.webp tw640@(960,355), press.webp tw360@(960,962)"
   },
   "bootScreen": {
-   "title": "VICE HEAT",
-   "gradient": "#ff64c8 -> #ffd23f",
-   "barGradient": "#ff64c8 -> #7de3ff",
-   "bg": "#07070c",
-   "fadeMs": {
-    "hold": 180,
-    "fade": 650
-   }
+   "RETIRED": "The per-game boot screen described here (a VICE HEAT wordmark, a pink->gold title gradient and a pink->cyan bar ramp) NO LONGER EXISTS. It was replaced by the universal CHAIN GAMES loader, which is platform branding and carries no per-game title, colour ramp or LOADING label. Building from the old values would reproduce a screen we deliberately removed.",
+   "seeInstead": "the boot stage is fully specified in the preset at flow.stages[0] (universal:true, mustBeFirst:true), and long-form in dev-handoff/features/boot-loader/",
+   "bg": "#07070c"
   }
  },
  "audio": {
@@ -523,15 +518,15 @@
   "viceNote": "vice makes ZERO replaceSource calls — the defaultSoundConfig map above IS the vice mix verbatim",
   "uiSfx": {
    "click": {
-    "file": "audio/library/reel-stop/modern-technology-select-fa3707.ogg",
+    "file": "audio/ui-click.ogg",
     "volume": 0.22
    },
    "spin": {
-    "file": "audio/library/reel-stop/cool-interface-click-tone-adc015.ogg",
+    "file": "audio/ui-spin.ogg",
     "volume": 0.3
    },
    "open": {
-    "file": "audio/library/reel-stop/opening-software-interface-7bf9ce.ogg",
+    "file": "audio/ui-open.ogg",
     "volume": 0.28
    },
    "rule": "HTMLAudio, follows master mute + volume (effective = vol * sm.volume)"

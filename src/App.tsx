@@ -234,7 +234,12 @@ export function App() {
       track(pixiAppRef.setBackgroundImage(saved.bg ?? CRACKFARM.bgBase));
       // BASE background is STATIC (Noski) — the still barn scene, no loop. The
       // animated bg_base_anim sheets are kept in /theme/crackfarm/ but not wired.
-      track(pixiAppRef.setTitleImage(CRACKFARM.logo));
+      // Logo keeps its ON-SCREEN size while the machine grows (Noski: "logo
+      // gleich bleiben"). The title lives in sceneRoot, so it would otherwise
+      // scale with the scene: measured 0.686 -> 0.840 is a 1.225x gain, so the
+      // 150 cap drops to 150/1.225 = 122 and the wordmark lands back where it
+      // was (103 on-screen px on the reference pane).
+      track(pixiAppRef.setTitleImage(CRACKFARM.logo, 'top', { maxHeight: 122 }));
       STATIC_LOOK_SYMBOLS.add(1);
       NO_IDLE_SYMBOLS.add(0);
       // Per-symbol WIN animations (Noski's connection clips, magenta-keyed →
@@ -278,9 +283,14 @@ export function App() {
       // pass cols/rows/count/fps in the opts).
       // Pig idle animation ALWAYS loops (Noski's mp4 → 6×5 = 30 frames @12fps,
       // magenta-keyed). Win-state pig clips will swap in when Noski ships them.
+      // Pig 30% SMALLER and nudged left + up (Noski). heightFrac is a fraction
+      // of the machine height, which did NOT change — but the SCENE scale did
+      // (0.686 -> 0.840), so the fraction has to absorb both: the pig measured
+      // 183 on-screen px, wants 128 (= -30%), which at the new scale needs
+      // 0.377 of the machine height instead of 0.66.
       void pixiAppRef.setSideMascot(`${cf}pig_idle.png`, {
         cols: 6, rows: 5, count: 30, fps: 9, // 25% slower idle-fly tempo (Noski)
-        side: 'left', centerYFrac: 0.4, heightFrac: 0.66, marginX: 70,
+        side: 'left', centerYFrac: 0.32, heightFrac: 0.377, marginX: 96,
       });
       // The tall 1×3 mutant plant fills a reel on expansion — and it GROWS:
       // the wild slides down to the reel floor and the plant rises out of it.

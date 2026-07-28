@@ -206,6 +206,9 @@ export class PixiApp {
   private titleText!: Text;
   /** Optional logo image replacing the text title (see setTitleImage). */
   private titleSprite: Sprite | null = null;
+  /** Authored local Y of a 'top' title — the clamp in onResize slides DOWN from
+   *  here and must never accumulate, so the base is kept separately. */
+  private titleBaseY: number | null = null;
   private titleTexture: Texture | null = null;
   /** Bottom band reserved for the DOM control-bar overlay, as a fraction of
    *  the canvas WIDTH (the bar strip is 150/1200 of the design width). 0 = off. */
@@ -610,7 +613,14 @@ export class PixiApp {
     // wants it 20-30% bigger; on a short/wide pane it is height-bound, so the
     // big SCENE_MARGIN was the main thing shrinking it. scaleY still caps the
     // height (never over the top edge).
-    const margin = compact ? 8 : spays ? 12 : ways ? 14 : SCENE_MARGIN;
+    // LINES (Crack Farm) used to take the SCENE_MARGIN default of 40 — 80px off
+    // each axis — while ways takes 14. Measured on an 824x464 pane that left the
+    // grid at scale 0.686, filling 52.6% of the width and 51.4% of the height:
+    // half the canvas empty. Same complaint, same cause and same fix as Vice
+    // (Noski: "war auch bei vice heat so dass es zu klein war"). The frame art
+    // grows with it and may ride over the top edge — that is wanted
+    // ("rahmen machst auch einfach mit, egal ob oben bissl drüber ist").
+    const margin = compact ? 8 : spays ? 12 : 14;
     const availW = width - margin * 2;
     const availH = height - margin * 2;
     const scaleX = availW / (totalW + ovL + ovR);
@@ -622,7 +632,10 @@ export class PixiApp {
     // BIGGER ("locker 20-30% größer"), filling the space. The 1.3 cap was what
     // left the empty margin; lift it to 1.85 for scatterpays so the board grows
     // until scaleX/scaleY bind (scaleY still caps the height → never over the top).
-    let scale = Math.min(scaleX, scaleY, spays ? 1.85 : ways ? 1.7 : 1.3) * (compact ? 0.98 : spays ? 0.99 : ways ? 0.98 : 0.85);
+    // The 1.3 cap and the 0.85 factor are also the LINES leftovers — a ~13%
+    // shrink applied before the cap even binds. Lines now takes the ways pair
+    // (1.7 / 0.98); on the measured pane that lifts the scale 0.686 -> ~0.84.
+    let scale = Math.min(scaleX, scaleY, spays ? 1.85 : 1.7) * (compact ? 0.98 : spays ? 0.99 : 0.98);
     // VICE ('ways'): the bottom control bar layers over the canvas with NO hud
     // reserve (bottomHudFraction 0), so an enlarged grid drops its bottom row
     // behind the bar (Noski: "symbole hinter control bar"). Reserve a bottom band
@@ -632,7 +645,10 @@ export class PixiApp {
     // add the legacy approximate height×0.12 (they must not stack). Callers
     // that leave bottomHudFraction at its default 0 keep the legacy reserve
     // unchanged, so this is a no-op for every existing path.
-    const bottomReserve = (ways && !compact) ? Math.round(height * 0.12) : 0;
+    // LINES needs the same band: at the new scale the machine is 427px tall on
+    // a 464px pane, so without a reserve the bottom row lands behind the
+    // control bar. With it the grid is sized and centred ABOVE the bar.
+    const bottomReserve = (!compact && !spays) ? Math.round(height * 0.12) : 0;
     // Only-if-needed clamp: never let the grid extend into the bar band.
     if (hud + bottomReserve > 0 && totalH * scale > height - hud - bottomReserve - 8) {
       scale = (height - hud - bottomReserve - 8) / totalH;
@@ -651,6 +667,20 @@ export class PixiApp {
     this.sceneRoot.x = sx;
     this.sceneRoot.y = Math.round((height - hud - bottomReserve - totalH * scale) / 2)
       - (spays && !compact ? Math.round(height * 0.045) : 0);
+    // A 'top' title hangs ABOVE the scene origin (anchor bottom at HEADER_H-2),
+    // so it is not part of totalH and the enlarged machine pushed it off the
+    // canvas — 57px of "CRACK" was gone. Reserving that band was the obvious fix
+    // and the wrong one: it shrank the machine straight back (0.840 -> 0.730),
+    // undoing the enlargement this change exists for. Instead the machine stays
+    // big and the WORDMARK slides down until it fits, riding a little further
+    // over the frame's top edge — which is exactly what Noski allowed
+    // ("egal ob oben bissl drüber ist") while the logo keeps its size.
+    if (this.titleSprite && !this.titleLeftLayout && this.titleBaseY != null) {
+      const t = this.titleSprite;
+      const minY = (4 - this.sceneRoot.y) / scale + t.height;   // top edge lands at 4px
+      t.y = Math.max(this.titleBaseY, minY);
+    }
+
     // Side actors: keep beside the frame, clamped onto the canvas.
     this.layoutSideActors();
     // Re-place the left-rail logo + re-broadcast its centre every layout, so the
@@ -727,7 +757,7 @@ export class PixiApp {
    *  grid: height-capped so it stays inside the box's top padding, width-capped
    *  at 60% of the reel width; bottom-anchored just above the frame. Pass null
    *  to restore the text title. */
-  async setTitleImage(url: string | null, layout: 'top' | 'left' = 'top'): Promise<void> {
+  async setTitleImage(url: string | null, layout: 'top' | 'left' = 'top', opts: { maxHeight?: number } = {}): Promise<void> {
     if (!this._initialized || this._aborted) return;
     if (this.titleSprite) {
       this.titleSprite.parent?.removeChild(this.titleSprite);
@@ -761,19 +791,31 @@ export class PixiApp {
       this.titleSprite.scale.set(s);
       this.titleSprite.x = -(FRAME_PAD + 6 + (tex.width * s) / 2); // provisional — aligned below
       this.titleSprite.y = HEADER_H + rh * 0.24;
+      this.titleBaseY = null;
       this.titleLeftLayout = true;
       this.alignLeftRailLogo();
     } else {
       this.titleLeftLayout = false;
-      // Fit: ≤60% of grid width AND ≤150 scene-px tall (clears the box top even
-      // after the 60vh height cap), preserving the logo's aspect ratio.
-      const s = Math.min((rw * 0.6) / tex.width, 150 / tex.height);
+      // Fit: ≤60% of grid width AND ≤maxHeight scene-px tall (clears the box top
+      // even after the 60vh height cap), preserving the logo's aspect ratio.
+      //
+      // maxHeight exists so a skin can hold the wordmark's ON-SCREEN size while
+      // the machine around it grows. The title lives in sceneRoot, so it scales
+      // with the scene — enlarging the grid would enlarge the logo with it, and
+      // Crack Farm wants the logo left alone ("logo gleich bleiben"). Lowering
+      // the cap by the same ratio the scene gained cancels it out exactly.
+      const s = Math.min((rw * 0.6) / tex.width, (opts.maxHeight ?? 150) / tex.height);
       this.titleSprite.anchor.set(0.5, 1);
       this.titleSprite.scale.set(s);
       this.titleSprite.x = rw / 2;
       this.titleSprite.y = HEADER_H - 2; // bottom edge sits just above the frame
+      this.titleBaseY = HEADER_H - 2;
     }
     this.sceneRoot.addChild(this.titleSprite);
+    // The title loads AFTER the first layout, and a 'top' title changes how much
+    // vertical room the machine has (its overhang is reserved in onResize). Re-fit
+    // now, or the reserve only takes effect on the next window resize.
+    if (!this.titleLeftLayout) this.onResize();
   }
 
   /** True while the title is the Fruit-Stacks LEFT-RAIL logo (drives the

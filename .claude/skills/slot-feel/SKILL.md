@@ -237,6 +237,32 @@ pro Spalte; Rohdaten scratchpad/winna_analysis/timings.json). DIE Referenz für 
   'symbol' (nur Y-Float, kein In-Place-Scale = bleibt scharf), Logo = 'logo' (Hero), CTA = 'press',
   Bokeh-Vollbild = 'coverbg'. Verify: Aspekt Quell-Crop ≈ Komposit-Box (±2%), dann 2×-Sample der
   Live-Sprites (dy/dsx/drot/da) — Cards müssen 0-Diff zeigen. Script: scratchpad/bake_fruit_intro.py.
+- **„Grid zu klein" ist fast immer der PAY-MODEL-ZWEIG, nicht das Asset (2026-07-28, Crack Farm —
+  identisch zu Vice davor).** `PixiApp.onResize` wählt Rand, Fit-Cap UND Game-Faktor nach Pay-Model.
+  Vice (ways) bekam irgendwann 14 / 1,7 / 0,98; `lines` und `cluster` hingen weiter am Default
+  40 / 1,3 / 0,85 — also **80 px Rand pro Achse** plus 15 % Vorab-Schrumpfung. Vermessen auf 824×464:
+  Scene-Skala 0,686, Grid füllt **52,6 % Breite / 51,4 % Höhe** — die halbe Fläche leer. Nach dem
+  Angleich 0,840 → **64,5 % / 63 %**. Merke: bei „X ist zu klein" ZUERST `activePayModel()` gegen die
+  Ternaries in onResize halten, bevor irgendwer an Assets oder Zell-Größen dreht.
+  **Bottom-Reserve gehört dazu:** der Reserve-Band (`height*0.12`) war ways-only. Ohne ihn fällt die
+  untere Reihe des vergrößerten Grids hinter die Control-Bar. Jetzt für alles außer scatterpays.
+- **Ein 'top'-Logo hängt ÜBER dem Scene-Origin und ist NICHT in `totalH` (2026-07-28).** Beim
+  Vergrößern rutschte es vom Canvas — 57 px „CRACK" weg. **Den Überstand zu reservieren ist der
+  falsche Fix:** das schrumpft die Maschine sofort wieder (0,840 → 0,730) und macht die Vergrößerung
+  zunichte. Richtig: Maschine groß lassen und das WORDMARK nach unten klemmen, bis es passt
+  (`t.y = max(authoredY, (4 - sceneY)/scale + t.height)`) — es reitet dann etwas weiter über die
+  Rahmenkante, was Noski ausdrücklich erlaubt hat. Den authored-Y separat merken, sonst wandert die
+  Klemmung über mehrere Resizes nach unten.
+  **Logo-Größe halten während das Board wächst:** der Titel lebt in `sceneRoot`, skaliert also mit.
+  `setTitleImage(url, 'top', { maxHeight })` — die Höhen-Kappe um denselben Faktor senken, den die
+  Szene gewinnt (150 → 122 bei 1,225×), dann bleibt die Bildschirmgröße exakt gleich (103 px hier).
+  Und `onResize()` am Ende von `setTitleImage` aufrufen: der Titel lädt NACH dem ersten Layout.
+- **Seiten-Maskottchen: `heightFrac` ist eine Fraktion der MASCHINEN-Höhe, nicht der Bildschirm-Höhe
+  (2026-07-28).** Wächst die Szene, wächst das Maskottchen mit, obwohl die Fraktion gleich blieb.
+  Für „30 % kleiner" also BEIDE Effekte einrechnen: gemessene Bildschirmhöhe × 0,7, geteilt durch die
+  NEUE Scene-Skala, geteilt durch die Maschinen-Höhe (Crack-Farm-Schwein: 0,66 → 0,377, 183 → 128 px).
+  `side:'left'` heißt: größeres `marginX` schiebt weiter nach links, geklemmt auf den Canvas-Rand.
+
 - **Renderer-Resolution FLOOR 2, nicht nur Cap (2026-07-20, DER Crispiness-Durchbruch):** DPR-1-
   Monitore (Preview-Pane meldet `devicePixelRatio===1`) samplen sonst die weiche **128²-Mip** von
   512²-Art in ~110-126px-Zellen (≈4× Minification) → matt/blurry; das Maskottchen wirkt nur scharf,

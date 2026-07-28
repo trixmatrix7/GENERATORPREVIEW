@@ -3248,6 +3248,38 @@ export class PixiApp {
    *  displayed board matches the settlement (which swaps to the same strips).
    *  Reuses the cluster swap mechanism above. No-op when the config has no
    *  fsReelStrips (non-Vice games). Call once after the game config is set. */
+  /** Tower-badge ART: one horizontal strip of `count` frames, index 0 = x1 …
+   *  index count-1 = xN. Sliced into individual mipmapped textures (an atlas
+   *  frame cannot mipmap — it bleeds — so heavy downscales alias without this). */
+  async setTowerBadgeArt(url: string, count = 5): Promise<void> {
+    try {
+      const tex = await Assets.load<Texture>(url);
+      if (this._aborted || !this.reelSet) return;
+      const src = tex.source;
+      const fw = Math.round(tex.width / count);
+      const fh = tex.height;
+      const frames: Texture[] = [];
+      for (let i = 0; i < count; i++) {
+        const c = document.createElement('canvas');
+        c.width = fw; c.height = fh;
+        const ctx = c.getContext('2d');
+        if (!ctx) return;
+        ctx.drawImage(
+          (src as unknown as { resource: CanvasImageSource }).resource,
+          i * fw, 0, fw, fh, 0, 0, fw, fh,
+        );
+        const t = Texture.from(c);
+        t.source.autoGenerateMipmaps = true;
+        t.source.scaleMode = 'linear';
+        t.source.update();
+        frames.push(t);
+      }
+      this.reelSet.towerBadgeFrames = frames;
+    } catch (err) {
+      console.warn('[PixiApp] tower badge art failed:', err);
+    }
+  }
+
   /** Per-game tower-badge styling (colours + where the plate sits on the reel). */
   setTowerBadgeStyle(style: TowerBadgeStyle): void {
     if (this.reelSet) this.reelSet.towerBadgeStyle = style;

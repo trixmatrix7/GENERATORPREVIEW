@@ -233,6 +233,10 @@ export class ReelSet {
   /** Per-game tower-badge styling (colours + where the plate sits on the reel).
    *  null = the Crack Farm defaults in multiBadgeConfig. */
   public towerBadgeStyle: TowerBadgeStyle | null = null;
+  /** Badge ART, one frame per multiplier value: index 0 = x1 … index 4 = x5.
+   *  When set, the badge is drawn as a sprite instead of the procedural plate and
+   *  x1 IS shown (Vice ships art for it). null = procedural plate, x1 hidden. */
+  public towerBadgeFrames: Texture[] | null = null;
   /** Each expanded reel's tower sprite + rest pose — the win presentation
    *  THUMPS the column (physical motion, no overlay flash) when it pays. */
   private readonly expandedTowerSprites = new Map<number, { spr: Sprite; baseY: number; baseScale: number }>();
@@ -2416,7 +2420,12 @@ export class ReelSet {
   }
 
   private setOneTowerMultiplier(reelIdx: number, mult: number): void {
-    if (mult <= 1) return; // debut rule: 1x carries no badge
+    // Vice ships real badge ART, one frame per value including x1, so every tower
+    // carries its multiplier. Crack Farm has no art and keeps the debut rule
+    // (a 1x plant shows nothing).
+    const art = this.towerBadgeFrames;
+    const artFrame = art && art[mult - 1] ? art[mult - 1] : null;
+    if (mult <= 1 && !artFrame) return;
     const text = `x${mult}`;
     {
       let badge = this.towerBadges.get(reelIdx);
@@ -2432,6 +2441,27 @@ export class ReelSet {
       if (!badge) {
         const root = new Container();
         root.eventMode = 'none';
+        if (artFrame) {
+          // Art badge: width off the reel, height from the frame's own aspect so
+          // the plate never distorts. The label is kept (invisible) purely as the
+          // value the upgrade path compares against.
+          const sp = new Sprite(artFrame);
+          sp.anchor.set(0.5);
+          sp.width = Math.round(rr.w * cfg.sizeFrac);
+          sp.height = Math.round(sp.width * (artFrame.height / artFrame.width));
+          root.addChild(sp);
+          const label = new Text({ text, style: new TextStyle({ fontSize: 1, fill: 0xffffff }) });
+          label.alpha = 0;
+          root.addChild(label);
+          root.position.set(rr.x + rr.w / 2, slotY);
+          this.stickyContainer.addChild(root);
+          this.stickyRevealObjects.push(root);
+          this.towerBadges.set(reelIdx, { root, label });
+          this.stickyRevealTweens.push(
+            gsap.fromTo(root.scale, { x: 0.2, y: 0.2 }, { x: 1, y: 1, duration: 0.38, ease: 'back.out(2.2)' }),
+          );
+          return;
+        }
         const plate = new Graphics();
         plate.roundRect(-side / 2, -side / 2, side, side, cfg.corner).fill({ color: cfg.bgColor, alpha: cfg.bgAlpha });
         plate.roundRect(-side / 2, -side / 2, side, side, cfg.corner).stroke({ color: cfg.borderColor, width: cfg.borderWidth, alpha: 0.98 });
@@ -2462,6 +2492,16 @@ export class ReelSet {
         gsap.killTweensOf(root);
         gsap.killTweensOf(root.scale);
         label.text = text;
+        // Art badge: swap the frame to the new value (a Vice sticky tower keeps
+        // its badge for the round, so this only fires if a value ever changes).
+        if (artFrame) {
+          const sp = root.children.find(c => c instanceof Sprite) as Sprite | undefined;
+          if (sp) {
+            sp.texture = artFrame;
+            sp.width = Math.round(rr.w * cfg.sizeFrac);
+            sp.height = Math.round(sp.width * (artFrame.height / artFrame.width));
+          }
+        }
         root.alpha = 0.7;
         root.position.set(rr.x + rr.w / 2, slotY - 52);
         root.scale.set(0.55);

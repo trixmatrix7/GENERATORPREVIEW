@@ -644,8 +644,13 @@ export function App() {
       // of the vertical "WILD" lettering on the surfboard. 0.86 seats it below
       // the type, just above the board's tail.
       slotYFrac: 0.86,
-      sizeFrac: 0.52,
+      // Noski's badge art is 503x323 (aspect 1.56) — sized off the reel WIDTH, the
+      // height follows the frame so the plate never distorts.
+      sizeFrac: 0.82,
     });
+    // Noski's real multiplier badges, x1..x5 in one strip. Replaces the
+    // procedural plate; x1 is shown too because he supplied art for it.
+    void pixiAppRef.setTowerBadgeArt(`${B}wild_multi_sheet.webp`, 5);
     // Custom neon frame (palm + marquee arrow). The window rect is the TRUE
     // transparent hole measured from the 1500² art's alpha — mapped onto the
     // frame bounds so the palm/arrow hang over the background, not the reels.

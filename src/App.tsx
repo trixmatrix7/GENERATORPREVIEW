@@ -722,13 +722,11 @@ export function App() {
 
   // Boot overlay node — rendered INSIDE the game-canvas container (like the
   // generator's iframe). Per-game customization point: title + colors.
-  // Boot-Titel + Farben PRO GAME (Noski: "nicht bei jeder Slot VICE HEAT")
-  const bootTheme = {
-    vice: { title: 'VICE HEAT', grad: 'linear-gradient(180deg, #ff64c8 0%, #ffd23f 100%)', bar: 'linear-gradient(90deg, #ff64c8, #7de3ff)', glow: 'rgba(255,100,200,0.55)' },
-    crackfarm: { title: 'CRACK FARM', grad: 'linear-gradient(180deg, #a6ff6e 0%, #ffd23f 100%)', bar: 'linear-gradient(90deg, #7ef23e, #ffd75e)', glow: 'rgba(126,242,62,0.55)' },
-    fruitstacks: { title: 'FRUIT STACKS', grad: 'linear-gradient(180deg, #ff9ad0 0%, #ffd23f 100%)', bar: 'linear-gradient(90deg, #b06cf5, #ffd75e)', glow: 'rgba(176,108,245,0.55)' },
-    sushi: { title: 'SUSHI PARTY', grad: 'linear-gradient(180deg, #ff6f91 0%, #4fd1c5 100%)', bar: 'linear-gradient(90deg, #ff6f91, #4fd1c5)', glow: 'rgba(255,111,145,0.55)' },
-  }[loadActiveGame() as 'vice' | 'crackfarm' | 'fruitstacks' | 'sushi'] ?? { title: 'LOADING', grad: 'linear-gradient(180deg, #fff 0%, #aaa 100%)', bar: 'linear-gradient(90deg, #888, #ccc)', glow: 'rgba(255,255,255,0.3)' };
+  // generator's iframe). The per-game title + colour ramp that used to live
+  // here is GONE: the boot screen now shows the CHAIN GAMES loader, which is
+  // platform branding and identical for every slot (Noski: put it "da wo slot
+  // name am anfang ist"). If per-game boot theming is ever wanted again it
+  // belongs on the bar colour, not on a title.
   const bootScreen = bootGone ? null : (
     <div style={{
       position: 'absolute', inset: 0, zIndex: 30,
@@ -738,24 +736,34 @@ export function App() {
       pointerEvents: bootFade ? 'none' : 'auto',
       fontFamily: 'ui-sans-serif, system-ui, sans-serif',
     }}>
-      <style>{'@keyframes boot-breathe { 0%, 100% { opacity: 1; } 50% { opacity: 0.55; } }'}</style>
+      {/* CHAIN GAMES loader (Noski's chain_loader_alpha.mov, baked to an 11x11
+          sheet of 120 frames at 372px). Played in CSS, not Pixi, so it runs
+          while the renderer is still booting. It is a ONE-SHOT logo build-in,
+          not a cycle — the wrap frame 120 -> 1 is 53x a normal frame step — so
+          it runs once and holds. The 121st cell is a copy of frame 120, which is
+          exactly what the animation lands on. */}
+      <style>{`
+        @keyframes boot-loader-x { from { background-position-x: 0%; } to { background-position-x: 100%; } }
+        @keyframes boot-loader-y { from { background-position-y: 0%; } to { background-position-y: 100%; } }
+        @keyframes boot-bar-idle { 0%,100% { opacity: 0.5; } 50% { opacity: 0.9; } }
+      `}</style>
       <div style={{
-        fontSize: 34, fontWeight: 900, fontStyle: 'italic', letterSpacing: 6,
-        background: bootTheme.grad,
-        WebkitBackgroundClip: 'text', backgroundClip: 'text', color: 'transparent',
-        animation: 'boot-breathe 2.2s ease-in-out infinite',
-      }}>{bootTheme.title}</div>
-      <div style={{ width: 300, height: 5, borderRadius: 999, background: 'rgba(255,255,255,0.08)', overflow: 'hidden' }}>
+        width: 300, height: 300, marginBottom: -22,
+        backgroundImage: `url(${import.meta.env.BASE_URL}theme/vice/chain_loader_sheet.webp)`,
+        backgroundSize: '1100% 1100%',
+        backgroundRepeat: 'no-repeat',
+        animation: 'boot-loader-x 0.3667s steps(11) 11 both, boot-loader-y 4.033s steps(11) 1 both',
+      }} />
+      {/* Ultra-clean bar (Noski): hairline, no glow, no colour ramp — just the
+          fill against a barely-there track. */}
+      <div style={{ width: 236, height: 2, borderRadius: 999, background: 'rgba(255,255,255,0.10)', overflow: 'hidden' }}>
         <div style={{
           width: `${Math.round(bootProgress * 100)}%`, height: '100%', borderRadius: 999,
-          background: bootTheme.bar,
-          boxShadow: `0 0 12px ${bootTheme.glow}`, transition: 'width 0.35s ease',
+          background: 'rgba(255,255,255,0.92)',
+          transition: 'width 0.35s ease',
+          animation: 'boot-bar-idle 1.8s ease-in-out infinite',
         }} />
       </div>
-      <div style={{
-        fontSize: 11, fontWeight: 700, letterSpacing: 5, color: 'rgba(255,255,255,0.35)',
-        animation: 'boot-breathe 2.2s ease-in-out infinite',
-      }}>LOADING</div>
     </div>
   );
 

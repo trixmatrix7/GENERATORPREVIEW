@@ -11,7 +11,7 @@
 // live inputs (active game, profile manifest, asset overrides, sound picks)
 // and drift-asserts the constants below against the real runtime values.
 
-export type GameKey = 'vice' | 'crackfarm' | 'fruitstacks';
+export type GameKey = 'vice' | 'crackfarm' | 'fruitstacks' | 'sushi';
 
 export interface AssetOverrides {
   bg?: string | null;
@@ -37,7 +37,7 @@ export interface ResolvedAudioEvent {
 export interface PresetInputs {
   name: string;
   game: GameKey;
-  gridId: '5x3' | '5x5' | '6x5';
+  gridId: '5x3' | '5x5' | '6x5' | '6x6';
   profileId: string;
   /** Raw math manifest JSON for profileId (the CURRENT certified one). */
   manifest: Record<string, unknown> | null;
@@ -65,6 +65,7 @@ const GRIDS: Record<string, { reels: number; rows: number; stripLength: number }
   '5x3': { reels: 5, rows: 3, stripLength: 40 },
   '5x5': { reels: 5, rows: 5, stripLength: 40 },
   '6x5': { reels: 6, rows: 5, stripLength: 60 },
+  '6x6': { reels: 6, rows: 6, stripLength: 60 },
 };
 
 function gridBlock(id: string): Record<string, unknown> {
@@ -92,6 +93,7 @@ const GAME_META: Record<GameKey, { id: string; theme: string; label: string; def
   vice: { id: 'vice-heat', theme: 'vice', label: 'Vice Heat', defaultProfile: 'vice-heat-custom' },
   crackfarm: { id: 'crack-farm', theme: 'crackfarm', label: 'Crack Farm', defaultProfile: 'crack-farm-lines' },
   fruitstacks: { id: 'fruit-stacks', theme: 'fruitstacks', label: 'Fruit Stacks', defaultProfile: 'fruit-stacks-tumble' },
+  sushi: { id: 'sushi-party', theme: 'sushiparty', label: 'Sushi Party', defaultProfile: 'sushi-cluster' },
 };
 
 // ── Math normalization ──────────────────────────────────────────────────────
@@ -118,24 +120,23 @@ function normalizeManifest(game: GameKey, m: Record<string, unknown>): Record<st
     ];
     if (out.retriggerSpins == null && custom.retriggerSpins != null) out.retriggerSpins = custom.retriggerSpins;
   }
+  // D10, for EVERY game: hand the partner assembler the certified RTP. Without
+  // expectedMetrics it recomputes RTP_BPS from `rtpPct ?? 96` and stamps 9600
+  // over whatever we certified — which is silently correct for a 96.00% game and
+  // silently wrong for every other one (Fruit Stacks is 9689). This was
+  // Vice-gated too; the same drift was live for the other three.
+  //
+  // Derive it from rtpBps, NOT from targetRtpPct: targetRtpPct is the DESIGN
+  // target while rtpBps is the certified operative value, and seeding from the
+  // design target is what re-introduced the drift D10 was meant to remove.
+  if (out.expectedMetrics == null) {
+    const bps = Number(out.rtpBps);
+    const target = Number((m as { targetRtpPct?: number }).targetRtpPct);
+    out.expectedMetrics = {
+      rtpPct: Number.isFinite(bps) && bps > 0 ? bps / 100 : target,
+    };
+  }
   if (game === 'vice') {
-    // D10: hand the partner assembler the certified RTP. Without
-    // expectedMetrics it recomputes RTP_BPS from `rtpPct ?? 96`, stamping
-    // 9600 / 96.0 over our certified 9599 / 95.99. Cosmetic (risk-reserve
-    // quote) but removes the 1-bps drift.
-    // Derive it from rtpBps, NOT from targetRtpPct. targetRtpPct is the DESIGN
-    // target (96) while rtpBps is the certified operative value (9670), and the
-    // partner assembler recomputes RTP_BPS as `expectedMetrics.rtpPct * 100`.
-    // Seeding it from the design target stamped 9600 straight over our certified
-    // 9670 — the exact drift D10 was supposed to remove, reintroduced one field
-    // later. rtpBps is the only number here that was measured.
-    if (out.expectedMetrics == null) {
-      const bps = Number(out.rtpBps);
-      const target = Number((m as { targetRtpPct?: number }).targetRtpPct);
-      out.expectedMetrics = {
-        rtpPct: Number.isFinite(bps) && bps > 0 ? bps / 100 : target,
-      };
-    }
     // 4b: stamp an explicit cost label on each buy stage so the engine renders
     // the certified cost verbatim (100X / 200X BET) instead of inventing
     // "300x" from `100×(scatters−1)`. Copies each stage (never mutates the
@@ -205,7 +206,7 @@ function viceAudioEvents(src: Record<string, ResolvedAudioEvent>): Record<string
 // math.manifest; surface a flat copy at the export root too (belt-and-braces —
 // the nested math.manifest stays for our own tooling). Vice-gated at the call
 // site so other games' export bytes are untouched.
-const VICE_MATH_ROOT_KEYS = [
+const MATH_ROOT_KEYS = [
   'gridId', 'reelStrips', 'reelLengths', 'payTable', 'scatterPay',
   'freeSpinsCount', 'freeSpinsCap', 'freeSpinMultiplier', 'retriggerSpins',
   'maxWinMultiplier', 'minWager', 'rtpBps', 'expectedMetrics', 'custom',
@@ -216,7 +217,7 @@ const VICE_MATH_ROOT_KEYS = [
 ];
 function flattenMathRoot(m: Record<string, unknown>): Record<string, unknown> {
   const out: Record<string, unknown> = {};
-  for (const k of VICE_MATH_ROOT_KEYS) if (m[k] !== undefined) out[k] = m[k];
+  for (const k of MATH_ROOT_KEYS) if (m[k] !== undefined) out[k] = m[k];
   return out;
 }
 
@@ -360,6 +361,33 @@ const MECHANICS: Record<GameKey, Record<string, unknown>[]> = {
         source: 'audio.events (complete: every registry event with file + volume + loop/exclusive flags)',
       } },
   ],
+
+  sushi: [
+    { id: 'cluster-pays', kind: 'win-presentation', enabled: true, affectsMath: true,
+      mathBinding: ['payModel', 'minCluster', 'payTable'],
+      params: { model: 'CLUSTER — a win is N+ of the same symbol orthogonally connected anywhere on the 6x6 board; there are no lines and no ways', minCluster: 'read from math.manifest.minCluster' },
+      compatibleGrids: ['6x6'] },
+    { id: 'power-nudge', kind: 'base-feature', enabled: true, affectsMath: true,
+      mathBinding: ['custom.powerNudge', 'custom.mechanic'],
+      params: { rule: 'nudge-pay-once — a nudged reel pays its cluster ONCE; it does not re-pay on the following tumble', warning: 'a nudge is NOT a tumble: the reel walks by whole cells and the board is re-scored, it does not collapse and refill' },
+      compatibleGrids: ['6x6'] },
+    { id: 'cell-multipliers', kind: 'win-presentation', enabled: true, affectsMath: true,
+      mathBinding: ['maxCellMulti', 'fsMultiIncrement'],
+      params: { art: 'procedural blue xN markers on the cell', fsIncrement: 'read from math.manifest.fsMultiIncrement' },
+      compatibleGrids: ['6x6'] },
+    { id: 'tiered-free-spins', kind: 'base-feature', enabled: true, affectsMath: true,
+      mathBinding: ['fsSpinsByScatter', 'retriggerSpins', 'fsReelStrips'],
+      params: { spinsByScatterCount: 'read from math.manifest.fsSpinsByScatter', ownStrips: 'the free spins roll fsReelStrips — the DISPLAY must roll the same strips the settlement evaluates' },
+      compatibleGrids: ['6x6'] },
+    { id: 'bonus-buy', kind: 'base-feature', enabled: true, affectsMath: true,
+      mathBinding: ['buyScatterWeights'],
+      params: { note: 'scatter counts for a bought round are drawn from buyScatterWeights' },
+      compatibleGrids: ['6x6'] },
+    { id: 'win-marquees', kind: 'win-presentation', enabled: true, affectsMath: false,
+      params: { tiers: ['win', 'big', 'mega', 'epic', 'max'], art: 'theme/sushiparty/winscreen/' } },
+    { id: 'sound-volume-parameters', kind: 'presentation', enabled: true, affectsMath: false,
+      params: { note: 'per-event volumes ship in audio.events' } },
+  ],
 };
 
 // ── Assets per game ─────────────────────────────────────────────────────────
@@ -496,8 +524,33 @@ function fruitstacksAssets(o: AssetOverrides): Record<string, unknown> {
   };
 }
 
+
+
+function sushiAssets(o: AssetOverrides): Record<string, unknown> {
+  const S = 'theme/sushiparty/';
+  const sym = (n: string) => `${S}symbols/symbol_${n}.png`;
+  return {
+    root: 'assets/',
+    theme: S,
+    images: {
+      background: (o.bg as string) ?? `${S}bg_base.png`,
+      fsBackground: (o.fsBg as string) ?? null,
+      fsBackgroundNote: 'not baked yet — the free-spins background is still to come; do NOT substitute the base background',
+      frame: (o.frame as object) ?? { file: `${S}frame.png` },
+    },
+    symbols: {
+      scatter: sym('scatter'), fs: sym('fs'),
+      highA: sym('high_a'), highB: sym('high_b'), highC: sym('high_c'), highD: sym('high_d'),
+      lowE: sym('low_e'), lowF: sym('low_f'), lowG: sym('low_g'), lowH: sym('low_h'),
+    },
+    winTiers: { dir: `${S}winscreen/` },
+    fsCounter: { dir: `${S}fs/`, files: ['counter_empty.png', 'counter_frame.png', 'award_banner.png', 'award_text.png', 'award_press.png'] },
+    note: 'ASSET BUNDLE IS PROVISIONAL — the HD symbol slices and the mov->webp sheets are not baked yet, so no spritesheet geometry is declared. Do not treat the absence of a sheet here as "this symbol has no animation".',
+  };
+}
+
 const ASSET_BUILDERS: Record<GameKey, (o: AssetOverrides) => Record<string, unknown>> = {
-  vice: viceAssets, crackfarm: crackfarmAssets, fruitstacks: fruitstacksAssets,
+  vice: viceAssets, crackfarm: crackfarmAssets, fruitstacks: fruitstacksAssets, sushi: sushiAssets,
 };
 
 // ── Flow (stage pipeline as data) ───────────────────────────────────────────
@@ -600,7 +653,12 @@ const FLOWS: Record<GameKey, Record<string, unknown>> = {
     ],
   },
   fruitstacks: {
-    iris: { style: 'none (dark-field badge intro instead)' },
+    iris: {
+      style: 'none',
+      technique: 'Fruit Stacks deliberately has NO iris. Its stage changes are a DARK-FIELD BADGE intro instead: the scene dims to a flat dark field and a badge scales in over it. Do not substitute the looney-iris from the other games — the absence is a decision, not a gap.',
+      darkField: { alpha: 0.82, badge: 'the 15-badge art', cta: 'breathing CLICK TO START', autoAdvanceSeconds: 12 },
+      perStageTimings: 'still to be captured — this game is not handed off yet',
+    },
     stages: [
       BOOT_STAGE,
       { id: 'game-intro', controlBar: false },
@@ -612,6 +670,20 @@ const FLOWS: Record<GameKey, Record<string, unknown>> = {
       { id: 'fs-total', controlBar: false, params: { poolFliesOntoWin: true } },
       { id: 'win-marquees', controlBar: true },
     ],
+  },
+  sushi: {
+    iris: IRIS,
+    stages: [
+      BOOT_STAGE,
+      { id: 'game-intro', controlBar: false },
+      { id: 'base', controlBar: true, params: { spin: '6x6 cluster board; reels roll, they do not drop' } },
+      { id: 'nudge', controlBar: true, params: { rule: 'PowerNudge walks a reel by whole cells and the board is RE-SCORED — it is NOT a tumble; the nudged cluster pays ONCE (custom.mechanic nudge-pay-once)' } },
+      { id: 'fs-intro', controlBar: false, params: { spinsByScatterCount: 'math.manifest.fsSpinsByScatter' } },
+      { id: 'fs-round', controlBar: true, params: { cellMultipliers: 'procedural blue xN markers, incremented by math.manifest.fsMultiIncrement, capped at maxCellMulti', strips: 'the FS rolls fsReelStrips — the DISPLAY must roll the same strips the settlement evaluates' } },
+      { id: 'win-marquees', controlBar: true },
+      { id: 'total-win-outro', controlBar: false },
+    ],
+    status: 'PROVISIONAL — Sushi Party presentation is still being built (free spins, buy and win screens unfinished). This records what exists so the export stops crashing and the parity gate can run; it is not a finished handoff.',
   },
 };
 
@@ -682,6 +754,7 @@ function sizingPackage(game: GameKey, gridId: string): Record<string, unknown> {
       perSymbolMuls: {
         vice: { default: 0.8, scatter: 0.96 },
         crackfarm: { default: 1, scatter: 0.96 },
+        sushi: { default: 0.9, scatter: 1 },
         fruitstacks: { default: 0.9, scatter: 0.99 },
       }[game],
       note: "objectScale 1.3 = the 'large' symbol-size preset (default); art is square-stretched to targetSize in both axes",
@@ -715,9 +788,16 @@ export function buildPresetV2(i: PresetInputs): Record<string, unknown> {
       : { mode: 'inline', manifest: { gridId: i.gridId, reelStrips: [], payTable: {}, scatterPay: [0, 0, 0], freeSpinsCount: 0, freeSpinsCap: 0, maxWinMultiplier: 0 } },
     // D8: also surface the payout fields FLAT at the export root so the
     // partner's root-reading loaders can't silently fall back to Fantasy 5×3.
-    // Vice-gated — keeps the other games' export bytes unchanged. The nested
-    // math.manifest above is retained for our own tooling.
-    ...(i.game === 'vice' && manifest ? flattenMathRoot(manifest) : {}),
+    // The nested math.manifest above is retained for our own tooling.
+    //
+    // This used to be VICE-GATED "to keep the other games' export bytes
+    // unchanged" — which meant the exact failure we tell the dev to check first
+    // was still live for Crack Farm, Fruit Stacks and Sushi: their exports had
+    // NO reelStrips / rtpBps / gridId at the root at all, so a root-reading
+    // loader gets undefined and silently swaps in the Fantasy 5x3 default. A
+    // game that pays completely different math while looking fine is not worth
+    // a stable byte count. Every game gets the safety net.
+    ...(manifest ? flattenMathRoot(manifest) : {}),
     mechanics: i.bare ? [] : MECHANICS[i.game],
     assets: i.bare ? { root: 'assets/' } : ASSET_BUILDERS[i.game](i.overrides),
     audio: i.game === 'vice'
@@ -744,7 +824,13 @@ export function buildPresetV2(i: PresetInputs): Record<string, unknown> {
     extras: {
       profileId: i.profileId,
       sizing: sizingPackage(i.game, i.gridId),
-      ...(i.presentationTuning ? { presentationTuning: i.presentationTuning } : {}),
+      // A game with no tuning file must SAY so. Silently omitting the block
+      // reads as "nothing to tune here", when the truth is that everything not
+      // declared gets filled by the implementing engine with its own defaults.
+      presentationTuning: i.presentationTuning ?? {
+        ABSENT: true,
+        why: 'no src/data/<game>PresentationTuning.json exists for this game yet. Vice Heat ships ~1,900 measured numbers here (transitions, reels, the win presentation, the expanding wild, the control bar, the buy overlay). Until this block is authored, treat this preset as math + assets only — the presentation is NOT specified.',
+      },
       schemaNotes,
       rtpNote: 'rtpBps is the operative certified RTP; targetRtpPct is display metadata only',
     },

@@ -16,14 +16,29 @@ import { build } from 'esbuild';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(HERE, '..');
-const OUT = resolve(process.argv[2] ?? join(ROOT, 'dev-handoff', 'preset', 'vice-heat.chainwtf-preset.json'));
+
+// --game=<key> emits any built-in, not just Vice. The other three have no
+// handoff folder yet, so they default to scratchpad_presets/ — the point of
+// emitting them is to run the same parity gate over their export before their
+// packages are built, so they do not repeat Vice's defects.
+const GAMES = {
+  vice: { grid: '5x5', name: 'Vice Heat', out: join(ROOT, 'dev-handoff', 'preset', 'vice-heat.chainwtf-preset.json') },
+  crackfarm: { grid: '5x3', name: 'Crack Farm', out: join(ROOT, 'scratchpad_presets', 'crack-farm.chainwtf-preset.json') },
+  fruitstacks: { grid: '6x5', name: 'Fruit Stacks', out: join(ROOT, 'scratchpad_presets', 'fruit-stacks.chainwtf-preset.json') },
+  sushi: { grid: '6x6', name: 'Sushi Party', out: join(ROOT, 'scratchpad_presets', 'sushi-party.chainwtf-preset.json') },
+};
+const gameArg = (process.argv.find((a) => a.startsWith('--game=')) ?? '--game=vice').slice(7);
+const GAME = GAMES[gameArg];
+if (!GAME) { console.error(`unknown --game=${gameArg}; known: ${Object.keys(GAMES).join(', ')}`); process.exit(2); }
+const positional = process.argv.slice(2).find((a) => !a.startsWith('--'));
+const OUT = resolve(positional ?? GAME.out);
 
 // The studio reads these; everything else in the export comes from code
 // defaults (the live localStorage is empty apart from audio prefs, so a fresh
 // visitor and this emitter produce the same file).
 const STORE = new Map(Object.entries({
-  'active-game': 'vice',
-  'studio-grid': '5x5',
+  'active-game': gameArg,
+  'studio-grid': GAME.grid,
   'vice:bare': '0',
 }));
 const localStorage = {
@@ -54,7 +69,7 @@ await build({
 });
 
 const { buildExportPreset } = await import('file://' + bundle.replace(/\\/g, '/'));
-const preset = buildExportPreset('Vice Heat');
+const preset = buildExportPreset(GAME.name);
 writeFileSync(OUT, JSON.stringify(preset, null, 2) + '\n');
 
 const vp = preset.visualParams ?? {};

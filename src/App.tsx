@@ -746,34 +746,47 @@ export function App() {
       pointerEvents: bootFade ? 'none' : 'auto',
       fontFamily: 'ui-sans-serif, system-ui, sans-serif',
     }}>
-      {/* CHAIN GAMES loader (Noski's chain_loader_alpha.mov, baked to an 11x11
-          sheet of 120 frames at 372px). Played in CSS, not Pixi, so it runs
-          while the renderer is still booting. It is a ONE-SHOT logo build-in,
-          not a cycle — the wrap frame 120 -> 1 is 53x a normal frame step — so
-          it runs once and holds. The 121st cell is a copy of frame 120, which is
-          exactly what the animation lands on. */}
+      {/* CHAIN GAMES loader — Noski's chain_loader_alpha.mov baked to an 8x8 sheet
+          of 60 frames at 250 px (public/theme/vice/chain_loader_sheet.webp,
+          2000x2000, 228 KB). It plays at 15 fps, so the 4.000 s wall clock of the
+          source is preserved exactly.
+
+          IT IS A ONE-SHOT logo build-in, not a cycle: the source's wrap frame is
+          53x a normal frame-to-frame step, so it plays once and HOLDS. The 4 spare
+          cells of the 64 are copies of the last frame, which is where it lands.
+
+          WHY IT LOOKS LIKE THIS. The first cut animated background-position on a
+          4092x4092 sheet and was laggy (Noski) — 16.7 MP is ~67 MB of texture, and
+          background-size 1100% made the browser re-rasterise that giant image on
+          every step, all while the game's real assets were decoding alongside it.
+          Two changes: the sheet is now 4.0 MP / 228 KB (a quarter of the pixels,
+          an eighth of the bytes), and stepping happens on TRANSFORM, which the
+          compositor handles on the GPU without re-rasterising anything.
+
+          A transform animation cannot drive both axes on one element, so the row
+          walks on the wrapper and the column on the strip inside it. steps(8,
+          jump-none) gives exactly 8 stops including both ends — plain steps(8)
+          would land between cells (that bug produced half-frames earlier). */}
       <style>{`
-        @keyframes boot-loader-x { from { background-position-x: 0%; } to { background-position-x: 100%; } }
-        @keyframes boot-loader-y { from { background-position-y: 0%; } to { background-position-y: 100%; } }
+        @keyframes boot-loader-col { from { transform: translate3d(0,0,0); } to { transform: translate3d(-1750px,0,0); } }
+        @keyframes boot-loader-row { from { transform: translate3d(0,0,0); } to { transform: translate3d(0,-1750px,0); } }
         @keyframes boot-bar-idle { 0%,100% { opacity: 0.5; } 50% { opacity: 0.9; } }
       `}</style>
-      {/* jump-none is load-bearing. Plain steps(11) splits 0..100% into ELEVENTHS
-          (0, 9.09, 18.18 …) while the 11 columns sit on TENTHS (0, 10, 20 …), so
-          every "frame" showed two half-frames side by side and drifted — that was
-          the garbled, too-fast look. steps(11, jump-none) yields exactly 11 values
-          including both endpoints, i.e. the column grid, and holds on the last. */}
-      {/* The bar sat ~122 px under the mark (Noski: "der balken is zu weit unterm
-          logo"). Measured on the final frame: the solid lockup ends at 57.8% of
-          the 372 px frame, so a 300 px box carries 126 px of transparent tail
-          below it. 126 dead + 18 flex gap - 128 margin = a 16 px optical gap. */}
-      <div style={{
-        width: 300, height: 300, marginBottom: -128,
-        backgroundImage: `url(${import.meta.env.BASE_URL}theme/vice/chain_loader_sheet.webp)`,
-        backgroundSize: '1100% 1100%',
-        backgroundRepeat: 'no-repeat',
-        animation: 'boot-loader-x 0.3667s steps(11, jump-none) 11 both, '
-                 + 'boot-loader-y 4.033s steps(11, jump-none) 1 both',
-      }} />
+      {/* 250 px frame shown 1:1. Logo ink ends at 57.8% of the frame, so 105 px of
+          the box is transparent tail; 105 dead + 18 flex gap - 108 margin leaves a
+          ~15 px optical gap to the bar. */}
+      <div style={{ width: 250, height: 250, marginBottom: -108, overflow: 'hidden', contain: 'strict' }}>
+        <div style={{ width: 250, height: 250, animation: 'boot-loader-row 4.2667s steps(8, jump-none) 1 both', willChange: 'transform' }}>
+          <div style={{
+            width: 2000, height: 2000,
+            backgroundImage: `url(${import.meta.env.BASE_URL}theme/vice/chain_loader_sheet.webp)`,
+            backgroundSize: '2000px 2000px',
+            backgroundRepeat: 'no-repeat',
+            animation: 'boot-loader-col 0.5333s steps(8, jump-none) 8 both',
+            willChange: 'transform',
+          }} />
+        </div>
+      </div>
       {/* Ultra-clean bar (Noski): hairline, no glow, no colour ramp — just the
           fill against a barely-there track. */}
       <div style={{ width: 236, height: 2, borderRadius: 999, background: 'rgba(255,255,255,0.10)', overflow: 'hidden' }}>

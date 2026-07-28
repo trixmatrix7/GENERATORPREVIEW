@@ -259,8 +259,20 @@ const pass = (group, msg) => passes.push(`${group}: ${msg}`);
   };
   if (existsSync(assetDir)) walk(assetDir);
 
-  // Every "theme/..." or "/audio/..." string in the preset must exist on disk.
-  const refs = new Set([...blob.matchAll(/"([^"]*(?:theme\/[^"]+\.(?:webp|png)|audio\/[^"]+\.ogg))"/g)].map((m) => m[1]));
+  // Every DELIVERABLE path must exist on disk. A path under a provenance or
+  // commentary key is not a deliverable — it records where a shipped file came
+  // from in OUR repo, and demanding it in the package would be wrong.
+  const PROVENANCE = /^_|InRepo$|^(note|notes|comment|why|why2|supersedes|source|_source|rule|formula|detail|description)$/i;
+  const MEDIA = /\.(webp|png|ogg|mp3|wav|jpg|jpeg)$/i;
+  const refs = new Set();
+  (function collect(o, key) {
+    if (typeof o === 'string') {
+      if (!PROVENANCE.test(key ?? '') && MEDIA.test(o) && /^\/?(theme|audio)\//.test(o)) refs.add(o);
+      return;
+    }
+    if (!o || typeof o !== 'object') return;
+    for (const k of Object.keys(o)) collect(o[k], Array.isArray(o) ? key : k);
+  })(P, null);
   for (const r of refs) {
     const rel = r.replace(/^\/?(?:assets\/)?/, '').replace(/^\//, '');
     if (!onDisk.includes(rel)) fail(g, `the preset references "${r}" but dev-handoff/assets/${rel} does not exist`);

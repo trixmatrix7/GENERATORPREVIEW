@@ -82,6 +82,30 @@ for (const { devId, sourceId } of CONTRACT) {
   });
 }
 
+// EVENTS NOISKI PICKED THAT THE PARTNER RUNTIME NEVER DISPATCHES.
+// They are part of his mix and they play on our build; the dev's engine has no
+// dispatch site for them, so they are silent in his build until he adds one.
+// Ship them anyway — the alternative is that the day he wires the beat, the
+// sound is missing and he substitutes his own.
+const CONTRACT_SOURCES = new Set(CONTRACT.map((c) => c.sourceId));
+const EXTRAS = Object.keys(preset.picks ?? {})
+  .filter((id) => !CONTRACT_SOURCES.has(id) && (preset.volumes?.[id] ?? 0) > 0);
+
+for (const id of EXTRAS) {
+  const r = resolveSource(id);
+  if (r.missing) { rows.push({ devId: id, state: 'MISSING', note: `live source ${r.missing} not found` }); drift++; continue; }
+  keep.add(`${id}.ogg`);
+  const dest = join(DEST, `${id}.ogg`);
+  const srcHash = md5(r.path);
+  const same = existsSync(dest) && md5(dest) === srcHash;
+  if (!same) { drift++; if (!CHECK) copyFileSync(r.path, dest); }
+  rows.push({
+    devId: id, state: same ? 'ok' : (CHECK ? 'DRIFT' : 'restaged'),
+    src: relative(PUBLIC, r.path).replace(/\\/g, '/'), via: 'not dispatched by the partner runtime',
+    md5: srcHash.slice(0, 8), bytes: statSync(r.path).size, vol: preset.volumes?.[id],
+  });
+}
+
 // Anything left in the folder that the contract does not produce is either the
 // UI sfx (which the tuning block references by name) or a leftover.
 const UI = new Set(['ui-click.ogg', 'ui-spin.ogg', 'ui-open.ogg', 'README.md']);

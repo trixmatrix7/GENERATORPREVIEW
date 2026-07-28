@@ -5,7 +5,7 @@
     "name": "GENERATOR PREVIEW (Noski studio)",
     "version": "2.1.0"
   },
-  "exportedAt": "2026-07-28T05:46:26.574Z",
+  "exportedAt": "2026-07-28T06:08:10.221Z",
   "game": {
     "id": "vice-heat",
     "theme": "vice",
@@ -53291,105 +53291,178 @@
         },
         "events": {
           "spin-start": {
-            "volume": 0.78,
-            "oggFirst": true
+            "volume": 0.47,
+            "file": "audio/spin-start.ogg",
+            "sourceInRepo": "audio/themelib/ui-click/ui-klick-02.ogg"
           },
           "reel-stop": {
-            "volume": 0.58,
-            "oggFirst": true
+            "volume": 0.16,
+            "file": "audio/reel-stop.ogg",
+            "sourceInRepo": "audio/themelib/pop-burst/pop-blase-06.ogg"
           },
-          "win-small": {
-            "volume": 0,
-            "oggFirst": true,
-            "note": "INTENTIONAL design choice (Noski): the classic win jingles ship as EXAMPLE sounds at volume 0 — the marquee music + coin-chime swish carry the win audio. Activating = pick a file in the Sound-Bibliothek or raise the volume; files exist (audio/win-small.ogg etc.). Nothing is missing or waiting on recordings."
-          },
-          "win-normal": {
-            "volume": 0,
-            "oggFirst": true,
-            "note": "see win-small — intentional volume-0 example sound, activate via library/volume"
-          },
-          "win-big": {
-            "volume": 0,
-            "oggFirst": true,
-            "note": "see win-small — intentional volume-0 example sound, activate via library/volume"
-          },
-          "win-mega": {
-            "volume": 0,
-            "oggFirst": false,
-            "note": "see win-small — intentional volume-0 example sound, activate via library/volume"
-          },
-          "win-marquee": {
-            "volume": 0.95,
-            "oggFirst": true,
-            "exclusive": true
+          "coin-chime": {
+            "volume": 0.53,
+            "file": "audio/coin-chime.ogg",
+            "sourceInRepo": "audio/library/coin-chime/fairy-arcade-sparkle-299474.ogg"
           },
           "scatter-land": {
             "volume": 0.55,
-            "oggFirst": true
-          },
-          "wild-land": {
-            "volume": 0.8,
-            "oggFirst": true
-          },
-          "wild-expand": {
-            "volume": 0.85,
-            "oggFirst": true
+            "file": "audio/scatter-land.ogg",
+            "sourceInRepo": "audio/themelib/tumble-drop/tumble-settle-06.ogg"
           },
           "free-spin-trigger": {
-            "volume": 1,
-            "oggFirst": false,
-            "note": "fires the moment the LAST reel stops with 3+ scatters landed (onTeaseEnd hit)"
+            "volume": 0.59,
+            "file": "audio/free-spin-trigger.ogg",
+            "sourceInRepo": "audio/library/free-spin-trigger/achievement-bell-af8df2.ogg"
+          },
+          "fs-retrigger": {
+            "volume": 0.64,
+            "file": "audio/fs-retrigger.ogg",
+            "devRuntimeDispatches": false,
+            "why2": "the partner runtime never fires this event — it is silent in his build until he adds the dispatch",
+            "sourceInRepo": "audio/library/free-spin-trigger/retro-game-notification-d71ea0.ogg"
+          },
+          "tease-miss": {
+            "volume": 0.26,
+            "file": "audio/tease-miss.ogg",
+            "devRuntimeDispatches": false,
+            "why2": "the partner runtime never fires this event — it is silent in his build until he adds the dispatch",
+            "sourceInRepo": "audio/library/reel-stop/click-error-2699e4.ogg"
+          },
+          "tease-riser": {
+            "volume": 0.26,
+            "file": "audio/tease-riser.ogg",
+            "devRuntimeDispatches": false,
+            "why2": "the partner runtime never fires this event — it is silent in his build until he adds the dispatch",
+            "sourceInRepo": "audio/themelib/whoosh-riser/whoosh-riser-04.ogg"
+          },
+          "wild-expand": {
+            "volume": 0.12,
+            "file": "audio/wild-expand.ogg (registry default)",
+            "devRuntimeDispatches": false,
+            "why2": "the partner runtime never fires this event — it is silent in his build until he adds the dispatch"
+          },
+          "wild-land": {
+            "volume": 0.09,
+            "file": "audio/wild-land.ogg (registry default)",
+            "devRuntimeDispatches": false,
+            "why2": "the partner runtime never fires this event — it is silent in his build until he adds the dispatch"
+          },
+          "ambient-music": {
+            "volume": 0.35,
+            "file": "audio/ambient-music.ogg (registry default)"
+          },
+          "win-marquee": {
+            "volume": 0.95,
+            "file": "audio/win-marquee.ogg (registry default)",
+            "shippedToDevAs": "win-screen-music"
+          },
+          "multi-fly": {
+            "volume": 0,
+            "file": "audio/multi-fly.ogg (registry default)",
+            "enabled": false,
+            "why": "deliberately silent in the shipped mix",
+            "devRuntimeDispatches": false,
+            "why2": "the partner runtime never fires this event — it is silent in his build until he adds the dispatch"
+          },
+          "multi-collect": {
+            "volume": 0,
+            "file": "audio/multi-collect.ogg (registry default)",
+            "enabled": false,
+            "why": "deliberately silent in the shipped mix",
+            "devRuntimeDispatches": false,
+            "why2": "the partner runtime never fires this event — it is silent in his build until he adds the dispatch"
+          },
+          "multi-apply": {
+            "volume": 0,
+            "file": "audio/multi-apply.ogg (registry default)",
+            "enabled": false,
+            "why": "deliberately silent in the shipped mix",
+            "devRuntimeDispatches": false,
+            "why2": "the partner runtime never fires this event — it is silent in his build until he adds the dispatch"
+          },
+          "fs-counter-down": {
+            "volume": 0,
+            "file": "audio/fs-counter-down.ogg (registry default)",
+            "enabled": false,
+            "why": "deliberately silent in the shipped mix",
+            "devRuntimeDispatches": false,
+            "why2": "the partner runtime never fires this event — it is silent in his build until he adds the dispatch"
+          },
+          "fs-counter-up": {
+            "volume": 0,
+            "file": "audio/fs-counter-up.ogg (registry default)",
+            "enabled": false,
+            "why": "deliberately silent in the shipped mix",
+            "devRuntimeDispatches": false,
+            "why2": "the partner runtime never fires this event — it is silent in his build until he adds the dispatch"
           },
           "near-miss-tease": {
-            "volume": 0.4,
-            "oggFirst": false
+            "volume": 0,
+            "file": "audio/near-miss-tease.ogg (registry default)",
+            "enabled": false,
+            "why": "deliberately silent in the shipped mix",
+            "devRuntimeDispatches": false,
+            "why2": "the partner runtime never fires this event — it is silent in his build until he adds the dispatch"
           },
           "reel-spin-loop": {
             "volume": 0,
-            "oggFirst": false,
-            "loop": true,
-            "note": "OFF for vice — no bed under the spin"
+            "file": "audio/reel-spin-loop.ogg (registry default)",
+            "enabled": false,
+            "why": "deliberately silent in the shipped mix",
+            "devRuntimeDispatches": false,
+            "why2": "the partner runtime never fires this event — it is silent in his build until he adds the dispatch"
           },
-          "coin-chime": {
-            "volume": 0.3,
-            "oggFirst": true,
-            "note": "connection swish, was 0.5 then -40%"
+          "win-small": {
+            "volume": 0,
+            "file": "audio/win-small.ogg (registry default)",
+            "enabled": false,
+            "why": "deliberately silent in the shipped mix"
           },
-          "ambient-music": {
-            "volume": 0.06,
-            "oggFirst": true,
-            "loop": true,
-            "exclusive": true,
-            "note": "Noski's pick: gimme-that-groove @ 0.06 (src/data/viceSoundPreset.json), shipped FLAT as /audio/ambient-music.ogg. NOT the dev-default synthwave."
+          "win-normal": {
+            "volume": 0,
+            "file": "audio/win-normal.ogg (registry default)",
+            "enabled": false,
+            "why": "deliberately silent in the shipped mix"
+          },
+          "win-big": {
+            "volume": 0,
+            "file": "audio/win-big.ogg (registry default)",
+            "enabled": false,
+            "why": "deliberately silent in the shipped mix"
+          },
+          "win-mega": {
+            "volume": 0,
+            "file": "audio/win-mega.ogg (registry default)",
+            "enabled": false,
+            "why": "deliberately silent in the shipped mix"
           },
           "win-tally-tick": {
             "volume": 0,
-            "oggFirst": true,
-            "note": "tally/tier hooks are wired but muted: the synthesized placeholders sounded wrong; drop a real .ogg under audio/<id>.ogg and raise the volume to enable"
+            "file": "audio/win-tally-tick.ogg (registry default)",
+            "enabled": false,
+            "why": "deliberately silent in the shipped mix",
+            "devRuntimeDispatches": false,
+            "why2": "the partner runtime never fires this event — it is silent in his build until he adds the dispatch"
           },
           "win-tally-end": {
             "volume": 0,
-            "oggFirst": true,
-            "note": "tally/tier hooks are wired but muted: the synthesized placeholders sounded wrong; drop a real .ogg under audio/<id>.ogg and raise the volume to enable"
+            "file": "audio/win-tally-end.ogg (registry default)",
+            "enabled": false,
+            "why": "deliberately silent in the shipped mix",
+            "devRuntimeDispatches": false,
+            "why2": "the partner runtime never fires this event — it is silent in his build until he adds the dispatch"
           },
           "tier-up": {
             "volume": 0,
-            "oggFirst": true,
-            "note": "tally/tier hooks are wired but muted: the synthesized placeholders sounded wrong; drop a real .ogg under audio/<id>.ogg and raise the volume to enable"
-          },
-          "tease-riser": {
-            "volume": 0.4,
-            "oggFirst": true,
-            "note": "10s rising-tension bed (scanning alarm), cut by the resolve"
-          },
-          "tease-miss": {
-            "volume": 0.45,
-            "oggFirst": true,
-            "note": "dull negative tap on the miss"
+            "file": "audio/tier-up.ogg (registry default)",
+            "enabled": false,
+            "why": "deliberately silent in the shipped mix",
+            "devRuntimeDispatches": false,
+            "why2": "the partner runtime never fires this event — it is silent in his build until he adds the dispatch"
           }
         },
         "srcRule": "oggFirst: [/audio/<id>.ogg, /audio/<id>.mp3]; otherwise [/audio/<id>.wav, /audio/<id>.ogg, /audio/<id>.mp3]; unknown event volume fallback 0.7 (unused — all 20 registry events have explicit volumes)",
-        "viceNote": "vice makes ZERO replaceSource calls — the defaultSoundConfig map above IS the vice mix verbatim",
         "uiSfx": {
           "click": {
             "file": "audio/ui-click.ogg",
@@ -53406,8 +53479,8 @@
           "rule": "HTMLAudio, follows master mute + volume (effective = vol * sm.volume)"
         },
         "mixingRules": {
-          "marqueeStart": "duck('ambient-music', 300ms fade to 0, keeps looping muted) + play('win-marquee')",
-          "marqueeEnd": "fadeStop('win-marquee', smooth ? 900 : 260 ms) + unduck('ambient-music', smooth ? 700 : 400 ms)",
+          "marqueeStart": "duck('ambient-music', 300ms fade to 0, keeps looping muted) + play('win-screen-music')  [our internal event id is win-marquee; it ships to the dev as win-screen-music, which is the only spelling in preset.audio.events]",
+          "marqueeEnd": "fadeStop('win-screen-music', smooth ? 900 : 260 ms) + unduck('ambient-music', smooth ? 700 : 400 ms)  [the duck MUST release — if the exclusive group is still keyed on the old name the ambient bed never returns and it reads as hanging marquee music]",
           "duckDefaults": "SoundManager duck default 350ms, unduck default 450ms (overridden by the explicit values above)",
           "reelSpinLoopFade": "fadeStop 450ms the moment reel 0 stops; safety fadeStop 90ms when all reels stopped",
           "scatterDingLadder": "rate = 1 + min(n,3)*0.14 per scatter in one landing sequence; counter resets after 4000ms silence",
@@ -53415,7 +53488,9 @@
           "winStingerGate": "state-driven win-small/normal/big/mega thresholds 2x/10x/50x bet; ALL suppressed when ratio >= minBigWin 15 (marquee owns audio); coin-chime accents at 200/600ms (big) +1100/1700/2300ms (mega) — moot at design volume 0",
           "ambientAutoplay": "play on mount + pointerdown/keydown unlock + first-spin fallback; exclusive flag makes double play a no-op",
           "teaseArc": "onTeaseStart: duck('ambient-music',350) + play('tease-riser'); onTeaseEnd(hit): fadeStop('tease-riser', hit?120:60) + unduck(500) + play(hit ? 'free-spin-trigger' : 'tease-miss')"
-        }
+        },
+        "_source": "src/data/viceSoundPreset.json — Noski's finished mix, seeded at App.tsx boot. THIS is the live table.",
+        "supersedes": "This block previously carried the pre-Audio-Studio registry DEFAULTS from src/audio/defaultSoundConfig.ts — a second, contradicting volume table inside the same preset, with ten wrong values (ambient-music 0.06 against a live 0.35, free-spin-trigger 1.0 against 0.59, spin-start 0.78 against 0.47, reel-stop 0.58 against 0.16, coin-chime 0.3 against 0.53, wild-land 0.8 against 0.09, wild-expand 0.85 against 0.12, near-miss-tease 0.4 against 0, tease-riser 0.4 against 0.26, tease-miss 0.45 against 0.26). If two tables ever reappear, preset.audio.events is the one the dev loads and this one is documentation of the same values."
       }
     },
     "schemaNotes": [

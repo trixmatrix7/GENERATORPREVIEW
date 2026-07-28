@@ -21,9 +21,12 @@ assets/audio/ambient-music.ogg
 assets/audio/coin-chime.ogg
 assets/audio/connect-symbol.ogg
 assets/audio/free-spin-trigger.ogg
+assets/audio/fs-retrigger.ogg
 assets/audio/reel-stop.ogg
 assets/audio/scatter-land.ogg
 assets/audio/spin-start.ogg
+assets/audio/tease-miss.ogg
+assets/audio/tease-riser.ogg
 assets/audio/ui-click.ogg
 assets/audio/ui-open.ogg
 assets/audio/ui-spin.ogg

@@ -47,7 +47,8 @@
     "amountFontSize": [46, 50, 54, 58],
     "shake": [0, 5, 8, 12],
     "shakeRot": [0, 0.006, 0.01, 0.016],
-    "sizeMul": 0.48,
+    "sizeMul": 0.624,
+    "sizeMulNote": "Vice calls setWinTierGeometry({ sizeMul: 0.48 * 1.3 }) — the base default is 0.48 and Noski added +30%. Shipping 0.48 renders the entire marquee stack 30% too small.",
     "tierScale": [1.0, 1.16, 1.34, 1.6],
     "pulseAmp": 0.03
   },
@@ -78,8 +79,9 @@
     "reducedMotion": { "holdSec": 1.2, "fadeSec": 0.3, "coinRain": false, "pulse": false }
   },
   "sound": {
-    "event": "win-marquee",
-    "file": "audio/win-marquee.ogg",
+    "event": "win-screen-music",
+    "eventNote": "our internal id is win-marquee; the dev registry key is win-screen-music, which is the only spelling in preset.audio.events. Using win-marquee gives a silent win screen.",
+    "file": "audio/win-screen-music.ogg",
     "formatOrder": ["ogg", "mp3"],
     "volume": 0.95,
     "loop": false,
@@ -87,7 +89,7 @@
     "ducksAmbient": true,
     "themeNeutral": true,
     "description": "Neutral orchestral fanfare, one 5-note hook. Starts on marquee slam-in, ends with the marquee.",
-    "startHook": { "play": "win-marquee", "duckAmbientMs": 300 },
+    "startHook": { "play": "win-screen-music", "duckAmbientMs": 300 },
     "exitHook": {
       "fadeStopMs": { "smooth": 900, "skip": 260 },
       "unduckAmbientMs": { "smooth": 700, "skip": 400 }

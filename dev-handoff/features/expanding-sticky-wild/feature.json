@@ -17,14 +17,20 @@
     "scope": ["free-spins-sticky-tier"]
   },
   "sticky": {
-    "stickyTowerCap": 3,
+    "stickyTowerCap": 5,
     "joinOrder": "leftmost-first",
     "accumulation": "organic-per-spin",
     "newTowerCondition": "wild-naturally-in-settled-window",
     "towerLifetime": "rest-of-round",
+    "stickyFromLanding": true,
+    "stickyFromLandingDetail": "A tower must stay on screen from the moment it locks until the round ends — INCLUDING while the other reels are rolling. Do not tear it down at spin start and rebuild it after the board lands: the player sees the tower blink out every spin, which reads as losing the feature they were paid for. Our fix is a preserveStandingTowers flag that suppresses the spin-start teardown for the whole sticky round (src/game/ReelSet.ts, set at FS entry in PixiApp and cleared on FS exit).",
     "rollsOnlyUncoveredReels": true,
     "perSpinExpansionForNonStickyReels": false,
     "returnsAllExpandedReels": true
+  },
+  "towerMultipliers": {
+    "feature": "tower-multipliers",
+    "note": "Each sticky tower carries a ×1–×5 badge dealt when it JOINED and kept for the round; wins pay × the highest badge crossed. See features/tower-multipliers/."
   },
   "round": {
     "stickyRoundSpins": 10,

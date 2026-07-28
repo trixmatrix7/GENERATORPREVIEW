@@ -12,6 +12,7 @@ import { manifestForProfile } from '@/config/activeMath';
 import { defaultSoundConfig } from '@/audio/defaultSoundConfig';
 import { ULTRA_CLEAN } from '@/audio/soundPresets';
 import { FRUIT_LOCKED_SOUNDS, FRUIT_LOCKED_VOLUMES, FRUIT_LOCKED_VISUAL_PARAMS } from '@/config/fruitStacksLockedSettings';
+import { VICE_DEFAULT_VISUAL_PARAMS } from '@/config/viceVisualDefaults';
 import { buildPresetV2, type GameKey, type ResolvedAudioEvent } from './exportPresetV2Core';
 import viceTuning from '@/data/vicePresentationTuning.json';
 import viceSoundPreset from '@/data/viceSoundPreset.json';
@@ -290,7 +291,14 @@ export function buildExportPreset(name: string): Record<string, unknown> {
     manifest,
     overrides: { bg: o.bg, fsBg: o.fsBg, frame: o.frame, expandingWild: o.expandingWild },
     audioEvents,
-    visualParams: { ...(game === 'fruitstacks' ? FRUIT_LOCKED_VISUAL_PARAMS : {}), ...(o.visualParams ?? {}) },
+    // Vice seeds the expanded-wild look (panel/border/badge-pop) so the dev
+    // receives it as settings even from an untouched studio — the export
+    // otherwise only carries params the user actively changed.
+    visualParams: {
+      ...(game === 'fruitstacks' ? FRUIT_LOCKED_VISUAL_PARAMS : {}),
+      ...(game === 'vice' ? VICE_DEFAULT_VISUAL_PARAMS : {}),
+      ...(o.visualParams ?? {}),
+    },
     bare: isBareBuild(),
     exportedAt: new Date().toISOString(),
     generatorVersion: '2.1.0',

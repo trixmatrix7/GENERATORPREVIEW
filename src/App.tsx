@@ -24,6 +24,7 @@ import { getThemeByName } from '@/config/themes';
 import { viceSymbolMap, VICE_INTRO_URL } from '@/config/viceAssets';
 import { CRACKFARM, crackFarmSymbolMap, crackFarmGameIntro } from '@/config/crackFarmTheme';
 import { FRUIT_LOCKED_SOUNDS, FRUIT_LOCKED_VOLUMES, FRUIT_LOCKED_VISUAL_PARAMS } from '@/config/fruitStacksLockedSettings';
+import { VICE_DEFAULT_VISUAL_PARAMS } from '@/config/viceVisualDefaults';
 import { FRUITSTACKS, fruitStacksSymbolMap, fruitStacksGameIntro } from '@/config/fruitStacksTheme';
 import { SUSHI, sushiSymbolMap, sushiGameIntro } from '@/config/sushiTheme';
 import { SUSHI_MATH } from '@/game/sushiMath';
@@ -671,16 +672,12 @@ export function App() {
     void pixiAppRef.setTowerBadgeArt(`${B}wild_multi_sheet.webp`, 5);
     // EXPANDED wild tower — panel + border + the badge lock-pop. These used to be
     // hardcoded (opaque #0b0d14 panel, no border at all), which is why Noski
-    // could not find them in the studio. Values below are the CURRENT look, so
-    // nothing changes visually until they are dialled; they ship to the dev as
-    // settings through the preset's visualParams.
-    pixiAppRef.applyVisualParam('expandWildBackdrop', '#0b0d14');
-    pixiAppRef.applyVisualParam('expandWildBackdropAlpha', 1);
-    pixiAppRef.applyVisualParam('expandWildBorder', '#ff3ea5');
-    pixiAppRef.applyVisualParam('expandWildBorderWidth', 0);
-    pixiAppRef.applyVisualParam('expandWildBorderAlpha', 1);
-    pixiAppRef.applyVisualParam('expandWildMultiPop', 1.45);
-    pixiAppRef.applyVisualParam('expandWildMultiPopTime', 0.42);
+    // could not find them in the studio. The defaults ARE the current look, so
+    // nothing changes visually until they are dialled; the same table seeds the
+    // preset export so the dev gets them as settings (viceVisualDefaults.ts).
+    for (const [pid, pval] of Object.entries(VICE_DEFAULT_VISUAL_PARAMS)) {
+      pixiAppRef.applyVisualParam(pid, pval);
+    }
     // Custom neon frame (palm + marquee arrow). The window rect is the TRUE
     // transparent hole measured from the 1500² art's alpha — mapped onto the
     // frame bounds so the palm/arrow hang over the background, not the reels.

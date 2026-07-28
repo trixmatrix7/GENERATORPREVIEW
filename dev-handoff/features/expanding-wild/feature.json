@@ -52,6 +52,19 @@
     "shineBorder": "reel-sized, at lock-in",
     "idleBreath": { "scaleY": 1.007, "periodYSec": 1.7, "scaleX": 1.004, "periodXSec": 2.45, "ease": "sine.inOut", "randomPhase": true }
   },
+  "look": {
+    "note": "The tower's panel and border are SETTINGS, not constants. They were hardcoded in our build (an opaque #0b0d14 fill, no border at all) and are now studio parameters shipped at the preset root under visualParams — take them as tunables rather than baking them in. Defaults below ARE the shipped look, so adopting them changes nothing visually.",
+    "params": {
+      "expandWildBackdrop": { "type": "color", "default": "#0b0d14", "what": "fill of the panel behind the tower art" },
+      "expandWildBackdropAlpha": { "type": "number", "range": [0, 1], "default": 1, "what": "0 = the reel shows through, 1 = solid" },
+      "expandWildBorder": { "type": "color", "default": "#ff3ea5", "what": "border colour around the wild reel; only visible when the width is above 0" },
+      "expandWildBorderWidth": { "type": "number", "range": [0, 16], "default": 0, "what": "border thickness in px; 0 = no border, which is the shipped look" },
+      "expandWildBorderAlpha": { "type": "number", "range": [0, 1], "default": 1, "what": "border opacity" },
+      "expandWildMultiPop": { "type": "number", "range": [1, 2.5], "default": 1.45, "what": "overshoot scale of the ×N badge lock-pop (see features/tower-multipliers)" },
+      "expandWildMultiPopTime": { "type": "number", "range": [0.1, 1.2], "default": 0.42, "what": "duration of that pop in seconds" }
+    },
+    "drawOrder": "panel fill first, then the optional border stroke on the same rounded rect (radius = the reel's corner radius), then the tower art on top"
+  },
   "sounds": {
     "onLand": "wild-land",
     "onExpand": "wild-expand"

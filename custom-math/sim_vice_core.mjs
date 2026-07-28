@@ -14,7 +14,10 @@
 //
 // TARGET RULE SET (what viceSpin.ts implements, and what sim_vice.mjs models
 // with `--eval=corrected --no-simul --hot`):
-//   • corrected ways evaluator (src/game/viceWays.ts via the winEval façade)
+//   • the ENGINE ways evaluator (src/engine/WinEvaluator.ts via the winEval
+//     façade). A wild in column 0 folds to HIGH_A — that is what SlotGame.sol:341
+//     does, so it is the spec. An earlier "corrected" evaluator (viceWays.ts) was
+//     built on the assumption this was a bug; it was WRONG and has been deleted.
 //   • custom.simulExpandMultipliers RETIRED (never applied)
 //   • HOT SPINS live (1-in-hotSpinChance1In natural/ante base spins expand)
 //

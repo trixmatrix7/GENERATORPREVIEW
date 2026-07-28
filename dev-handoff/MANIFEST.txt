@@ -1,5 +1,10 @@
 Vice Heat — dev handoff package · file manifest
-generated 2026-07-27 (FINAL certification: natural 95.91% / buy3 95.93% / buy4 96.11% / ante 96.40%)
+generated 2026-07-28 (certification: natural 96.46% / buy3 96.35% / buy4 96.08%, rtpBps 9670)
+  ⛔ the 2026-07-27 numbers (95.91 / 95.93 / 96.11 / 96.40) are VOID — they were measured
+     with a "corrected" ways evaluator that was itself wrong. D11 is retracted; the contract
+     (SlotGame.sol:341) is the spec and nothing in either evaluator should change.
+  NEW mechanics in this drop: tower multipliers x1-x5 (D12), guaranteed tower on the
+     4-scatter buy (D13), expanded-wild backdrop/border/badge-pop as visualParams.
 
 ASSET_SPECS.md
 FLOW.md

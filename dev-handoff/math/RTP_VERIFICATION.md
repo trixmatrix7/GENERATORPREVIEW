@@ -1,28 +1,39 @@
 # Vice Heat — RTP verification (for the dev)
 
-> # ✅ CURRENT CERTIFICATION — 2026-07-27 (use `sim_vice.mjs`, not the Python)
+> # ✅ CURRENT CERTIFICATION — 2026-07-28 (`custom-math/sim_vice_core.mjs`)
 >
-> The Python model describes the DESIGN. `sim_vice.mjs` in this folder mirrors the actual
-> settlement code, and re-measuring against it is what exposed four live defects (a ways
-> evaluator that under-paid whenever a wild sat in column 0, a retired multiplier ladder still
-> being paid, a hot-spin feature that was advertised but never built, and buy strips that had
-> been overwritten). Everything below is the fixed, shipped game:
+> **⛔ The 2026-07-27 table that used to sit here (95.91 / 95.93 / 96.11 / 96.40) is VOID.**
+> It was measured with `--eval=corrected`, an evaluator we wrote on the belief that a wild in
+> column 0 folding to `HIGH_A` was a bug. It is not — `SlotGame.sol:341` does exactly that, and
+> **the contract is the spec**. The "corrected" evaluator made every symbol connect with every
+> other symbol on a wild reel. It has been deleted; every number it produced is void, and the
+> `--eval=corrected` flag on `sim_vice.mjs` must not be used for certification.
 >
-> | mode | cost | certified RTP | rounds |
-> |---|---|---|---|
-> | natural | 1× | **95.91%** ±1.14pp | 30,000,000 |
-> | buy 3-scatter | 100× | **95.93%** ±1.04pp | 1,500,000 |
-> | buy 4-scatter | 200× | **96.11%** ±1.20pp | 1,500,000 |
-> | ante | 3.25× | **96.40%** ±1.35pp | 12,000,000 |
+> The certifying tool is now **`custom-math/sim_vice_core.mjs`**, which drives the *live* round
+> core (`src/game/viceSpin.ts`) — the same pure function our settlement and our display both
+> call, so what it measures is literally what the game pays.
 >
-> Zero max-win-cap violations across ~45M rounds. `rtpBps` 9591. Natural attribution
-> (% of wager): base 52.98 · hot 6.56 · fs3 9.82 · fs4 26.55. Hit frequency 70.43%,
-> per-round std 24.32× of stake, max win 1-in-109,091.
+> | mode | cost | certified RTP | rounds | confirmed by |
+> |---|---|---|---|---|
+> | natural | 1× | **96.46%** ±1.59pp | 20,000,000 | 96.94% ±2.95pp / 6M, separate seed |
+> | buy 3-scatter | 100× | **96.35%** ±0.97pp | 500,000 | — |
+> | buy 4-scatter | 200× | **96.08%** ±0.39pp | 4,000,000 | independent simulator |
+> | ante | 3.25× | see `simResults.ante` | — | — |
 >
-> Reproduce: `node sim_vice.mjs 30000000 --mode=natural --eval=corrected --no-simul --hot --seed=880022`
-> (swap `--mode=` for buy3 / buy4 / ante). `fit_fs_density.mjs` is the tool that tuned the
-> top-level `fsReelStrips` density onto target. **Never run without `--eval=corrected --no-simul --hot`
-> — the defaults deliberately model the OLD broken runtime so the difference stays measurable.**
+> Zero max-win-cap violations in every run. `rtpBps` **9670**. Natural attribution (% of wager):
+> base 47.88 · hot 3.76 · fs3 14.16 · fs4 30.66. Hit frequency 68.24%, per-round std 28.01× of
+> stake. 4-scatter buy: max win 1-in-143, tower guarantee fires on 83.6% of rounds, zero-tower
+> rounds 0% (was 15.5%), mean 2.03 towers at round end.
+>
+> **What restored the RTP was a mechanic, not an evaluator change:** per-reel **tower
+> multipliers ×1–×5** on fully-wild free-spin reels, weights `[55,20,9,6,10]`, a combination
+> paying × the **HIGHEST** badge it crosses (a product model measured 187% on the 4-scatter buy;
+> a sum model floored at 90.53%). Badges are drawn from a reserved seed namespace so the
+> reel-stop stream is untouched — that is what lets two independent simulators agree.
+>
+> Reproduce: `node custom-math/sim_vice_core.mjs 20000000 --mode=natural --seed=90210`
+> (swap `--mode=` for buy3 / buy4 / ante). The machine-readable record lives in
+> `math_vice_heat.json → simResults` and is copied into the preset.
 >
 > ---
 >

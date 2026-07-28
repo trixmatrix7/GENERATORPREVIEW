@@ -1,0 +1,62 @@
+{
+  "id": "tower-multipliers",
+  "title": "Tower Multipliers ×1–×5",
+  "type": "win-modifier",
+  "themeAgnostic": true,
+  "extends": "expanding-wild",
+  "summary": "Every reel standing fully wild during a free spin is dealt a ×1–×5 badge. A winning combination pays × the HIGHEST badge it crosses. Carries the free-spins RTP in Vice Heat.",
+  "scope": ["free-spins"],
+  "rule": {
+    "dealtTo": "every reel that stands FULLY WILD during a free spin",
+    "weights": [55, 20, 9, 6, 10],
+    "weightsMeaning": "index 0 = ×1 … index 4 = ×5; relative weights, not percentages of a fixed base",
+    "apply": "highest-crossed",
+    "applyDetail": "a ways combination starts on reel 0 and runs matchCount reels, so it crosses reels 0..matchCount-1; the win is multiplied by the highest badge among the expanded reels in that span",
+    "notProduct": "the product of crossed badges measures 187% RTP on a bought 4-scatter round",
+    "notSum": "the sum floors at 90.53% even with the weights pushed to the floor",
+    "scatterPayMultiplied": false,
+    "appliedOnInstantMaxWin": false,
+    "onHotSpins": false
+  },
+  "sticky": {
+    "keepsBadgeForRound": true,
+    "detail": "a 4-scatter STICKY tower keeps the badge it was dealt when it JOINED; a 3-scatter round re-expands from scratch each spin and therefore draws fresh badges each spin"
+  },
+  "randomness": {
+    "reservedNamespace": true,
+    "namespace": "keccak(seed, 1 << 200)",
+    "why": "the badge draw must not consume words from the reel-stop stream — reels must land identically with the mechanic on or off, or every certified RTP figure becomes meaningless for the implementing build",
+    "severity": "launch-blocking if ignored"
+  },
+  "presentation": {
+    "art": { "file": "theme/vice/wild_multi_sheet.webp", "frames": 5, "order": ["x1", "x2", "x3", "x4", "x5"], "sliceToIndividualTextures": true },
+    "placement": { "slotYFrac": 0.86, "sizeFrac": 0.82, "sizedOff": "reel width", "heightFrom": "frame aspect", "why": "clears the vertical WILD lettering on the tower art" },
+    "lockPop": {
+      "dropFromFracOfReelHeight": 0.10,
+      "overshootScaleParam": "expandWildMultiPop",
+      "overshootScaleDefault": 1.45,
+      "durationParam": "expandWildMultiPopTime",
+      "durationDefaultSec": 0.42,
+      "settleEase": "back.out(3)",
+      "towerFlex": { "scaleX": 1.05, "scaleY": 0.95, "ease": "elastic.out(1, 0.45)" },
+      "why": "badge and tower must read as ONE impact; two separate fades read as no impact at all"
+    }
+  },
+  "presetKeys": {
+    "custom": ["towerMultiplierWeights", "towerMultiplierRule", "towerMultiplierStickyRule", "towerMultiplierOnHotSpins"],
+    "visualParams": ["expandWildMultiPop", "expandWildMultiPopTime"]
+  },
+  "referenceImpl": {
+    "file": "src/game/viceSpin.ts",
+    "functions": ["drawTowerMultiplier", "applyTowerMultipliers"],
+    "note": "pure and seed-derived; shared by settlement (src/dev/mockHost.ts) and the decode façade, so display and payout are the same function of the same seed"
+  },
+  "certification": {
+    "tool": "custom-math/sim_vice_core.mjs",
+    "natural": { "rtpPct": 96.46, "ci99Pp": 1.59, "rounds": 20000000 },
+    "buy3": { "rtpPct": 96.35, "ci99Pp": 0.97, "rounds": 500000 },
+    "buy4": { "rtpPct": 96.08, "ci99Pp": 0.39, "rounds": 4000000 },
+    "maxWinCapViolations": 0,
+    "x5OnBoardPctOfNaturalRounds": 0.22
+  }
+}

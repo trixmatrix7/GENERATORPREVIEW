@@ -13,7 +13,8 @@ the named hooks. Both are theme-agnostic and RTP-neutral (purely presentational)
 | Feature | One-liner |
 |---|---|
 | [`expanding-wild/`](./expanding-wild/) | A landed wild expands to fill its whole reel with a tower graphic and acts wild for the full column. **Add one image** — dims + auto-crop for 5×5 and 5×3 in the README. |
-| [`expanding-sticky-wild/`](./expanding-sticky-wild/) | Expanded wilds stay locked in place across the free-spins round (towers accumulate, cap 3); same visuals/sounds as expanding-wild. |
+| [`expanding-sticky-wild/`](./expanding-sticky-wild/) | Expanded wilds stay locked in place across the free-spins round (towers accumulate, cap **5**), **sticky from the moment they land — they must stay standing while the other reels roll**; same visuals/sounds as expanding-wild. |
+| [`tower-multipliers/`](./tower-multipliers/) | Each fully-wild reel carries a ×1–×5 badge; a win pays × the **highest** badge it crosses. **This carries the free-spins RTP.** ⚠️ Draw the badges from a reserved seed namespace or every certified number breaks. |
 | [`win-marquees/`](./win-marquees/) | Tiered win banners (WIN → BIG → MEGA → EPIC → MAX) with layered art + number plate; theme-neutral music ducks the ambient bed under the fanfare. |
 | [`coin-rain/`](./coin-rain/) | Chroma-keyed coin-shower spritesheet that rains over the board on big-tier wins (3 sheets × 10×10 = 300 frames @ 45 fps). |
 | [`tease-camera/`](./tease-camera/) | True POV dolly: the whole world (background included) pushes toward the machine centre in gated steps during a scatter tease; bounces out on a miss, locks on a hit. |

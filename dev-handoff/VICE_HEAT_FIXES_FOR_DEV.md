@@ -3,28 +3,35 @@
 **Status:** Launch-blocking. Target launch: **Thursday.**
 **Preset under discussion:** `dev-handoff/preset/vice-heat.chainwtf-preset.json` (schema `chainwtf-game-preset` v2).
 
-> ## ✅ FINAL CERTIFICATION — 2026-07-27 (this supersedes every RTP number anywhere below)
+> ## ✅ FINAL CERTIFICATION — 2026-07-28 (this supersedes every RTP number anywhere below, **including the 95.91 / 95.93 / 96.11 / 96.40 table this block used to carry**)
 >
-> The whole game was re-measured against a **runtime-faithful** simulator (`math/sim_vice.mjs`, which mirrors our settlement path rather than the design model). Doing that surfaced four separate defects — see D11 for the big one. All are fixed; these are the shipped numbers:
+> ### ⚠️ Read D11 first if you saw the previous revision of this document.
+> The earlier certification was measured against an evaluator we had "corrected" on the belief that `SlotGame.sol:341` was buggy. **It is not** — the contract is the spec, our design-model simulator was the outlier, and the corrected evaluator made every symbol connect with every other symbol on a wild reel. That evaluator is deleted and **those four RTP numbers are void.** D11 is retracted in full; no engine or contract change is wanted.
 >
-> | mode | cost | certified RTP | rounds |
-> |---|---|---|---|
-> | **natural** | 1× | **95.91%** ±1.14pp | 30,000,000 |
-> | **buy 3-scatter** | 100× | **95.93%** ±1.04pp | 1,500,000 |
-> | **buy 4-scatter** | 200× | **96.11%** ±1.20pp | 1,500,000 |
-> | **ante** | 3.25× | **96.40%** ±1.35pp | 12,000,000 |
+> These numbers are measured against the **contract's** rule set, by `custom-math/sim_vice_core.mjs`, which drives the *live* round core (`src/game/viceSpin.ts` — the same function our settlement and our display both call). A second, independently written simulator confirms the two headline rows.
 >
-> **Zero max-win-cap violations across ~45M certified rounds.** `rtpBps` is now **9591** and `expectedMetrics.rtpPct` carries the same measured 95.91 (so D10's 9600 stamp no longer drifts).
+> | mode | cost | certified RTP | rounds | confirmed by |
+> |---|---|---|---|---|
+> | **natural** | 1× | **96.46%** ±1.59pp | 20,000,000 | 96.94% ±2.95pp / 6M, separate seed |
+> | **buy 3-scatter** | 100× | **96.35%** ±0.97pp | 500,000 | — |
+> | **buy 4-scatter** | 200× | **96.08%** ±0.39pp | 4,000,000 | independent simulator |
+> | **ante** | 3.25× | see `simResults.ante` | 20,000,000 | — |
 >
-> **What moved, and why it matters to you:**
-> - **The base game now carries 53% of natural RTP** (was 29.6%). That is the D11 evaluator fix — most boards were under-paying.
-> - **fs3 fell to 9.8%** (was 32.5%) because `custom.simulExpandMultipliers` was **deleted** — both the top-level table and the buy3 override. 1–4 wilds pay natural ways; only 5 full wild reels pay the instant max win. **Do not implement a simul ladder.**
-> - **Hot spins are now real** and contribute 6.6% (`custom.hotSpinChance1In` 80). They were in the manifest and advertised in this preset but implemented nowhere. They fire on natural and ante base spins and **never on a bought round** (expansion would erase the scatters the player paid for). ⚠️ The **ante depends on them**: with hot spins off the ante drops to ~84%.
-> - **The buy stages were re-fitted.** Their previous strips had been overwritten and were paying **8.9%** (buy3) and **122%** (buy4) of their price. buy3 now carries its own 405-stop / 15-wild FS strips, buy4 a diluted 401-stop / 3-wild set. **Prices are unchanged at 100× and 200×.**
-> - **The ante was re-fitted** (its reel 0 had lost its wild entirely). Trigger promise preserved: 1-in-18.31 combined, 3sc 1-in-20.5 / 4+sc 1-in-173.2.
-> - The top-level `fsReelStrips` are now **1170 stops with 10 wilds** (the 120-stop originals, ×10 with the density nudged +2.6% to land natural on target). buy3/buy4 carry their own and were unaffected.
+> **Zero max-win-cap violations in every run.** `rtpBps` is **9670**.
 >
-> Reproduce any row: `node math/sim_vice.mjs <rounds> --mode=<natural|buy3|buy4|ante> --eval=corrected --no-simul --hot --seed=880022`.
+> Natural RTP attribution (share of wager): **base 47.9% · hot spins 3.8% · FS 3-scatter 14.2% · FS 4-scatter 30.7%.**
+>
+> **What moved since the previous drop, and why it matters to you:**
+> - **The evaluator is untouched again.** See D11. Anything you measured or changed on the strength of the old D11 should be reverted.
+> - **NEW MECHANIC — per-reel TOWER MULTIPLIERS ×1–×5 (D12).** This is where the free-spins RTP was restored. Every fully-wild reel in a free spin is dealt a badge from `custom.towerMultiplierWeights` `[55,20,9,6,10]`; a combination pays × the **HIGHEST** badge it crosses. Not a product, not a sum. Badges are drawn from a **reserved seed namespace** so the reel-stop stream is untouched.
+> - **NEW — GUARANTEED TOWER on the 4-scatter buy (D13).** 15.5% of bought rounds used to show no tower at all; now 0%. Priced in — the buy is still 200×.
+> - **`custom.simulExpandMultipliers` stays deleted.** 1–4 wilds pay natural ways; only 5 full wild reels pay the instant max win. **Do not implement a simul ladder.**
+> - **Hot spins are real** (`custom.hotSpinChance1In` 80). They fire on natural and ante base spins and **never on a bought round** (expansion would erase the scatters the player paid for). ⚠️ The **ante depends on them**.
+> - **The buy stages carry their own strips.** buy3 a 405-stop / 15-wild FS set, buy4 its own calibrated set with the tower guarantee. **Prices unchanged at 100× and 200×.** ⚠️ When you swap strips you must swap **`reelLengths` with them** — we shipped a round where they desynced and the display rolled a different board than the settlement scored.
+> - Top-level `fsReelStrips` are **1170 stops with 10 wilds**; buy3/buy4 carry their own.
+>
+> Reproduce any row: `node custom-math/sim_vice_core.mjs <rounds> --mode=<natural|buy3|buy4|ante> --seed=90210`.
+> The full machine-readable record — per-mode RTP, CI, attribution, tower-count distribution, guarantee fire rate, max-win frequency, invariant violations — is `math.manifest.simResults` in the preset.
 
 > **UPDATE 2026-07-27 — FREE-SPINS RE-CERTIFICATION (supersedes the D2 numbers and the §E scatterPay below):**
 > The FS math was redesigned to Noski's volatile spec and re-certified at RTP **95.99%** (`custom-math/simulate_vice_heat_v2.py`, k=1.13). The preset now carries — at `math.manifest` **and** the flat export root:
@@ -65,7 +72,9 @@ All "our spec" lines are `src/data/math_vice_heat.json` unless noted; the same v
 
 | ID | Mechanic | Severity | Owner |
 |----|----------|----------|-------|
-| **D11** | **Ways evaluator: wild on reel 0 collapses the paytable to HIGH_A** | **Launch-blocking (underpays)** | **DEV (same bug, byte-identical)** |
+| ~~D11~~ | ~~Ways evaluator: wild on reel 0 collapses the paytable to HIGH_A~~ | ❌ **RETRACTED — was our error, change nothing** | — |
+| **D12** | **Tower multipliers ×1–×5 on fully-wild reels (NEW)** | **Launch-blocking (carries the FS RTP)** | DEV |
+| **D13** | **Guaranteed tower on the 4-scatter buy (NEW)** | High (the buy's promise) | DEV |
 | D8 | Ingestion object (nested vs flat root) | **VERIFY FIRST** | Coordinate |
 | D1 | Expanding wilds in FS | Launch-blocking | DEV |
 | D2 | Sticky towers / simul-multipliers / full-house | Launch-blocking | DEV |
@@ -143,34 +152,45 @@ All "our spec" lines are `src/data/math_vice_heat.json` unless noted; the same v
 ## D10 — rtpBps/targetRtp overwritten at compile (cosmetic)
 - Our preset carries `rtpBps:9599 / targetRtpPct:95.99` (`math_vice_heat.json:3-4`). `assembler.ts:52-53` recomputes from `expectedMetrics.rtpPct ?? 96`, which our manifest lacks, so it stamps `RTP_BPS=9600 / 96.0`. Affects only the contract's risk-reserve quote (`SlotGame.sol:156`), not payouts. **Fix:** US adds `expectedMetrics.rtpPct` to the manifest (see our-side doc), or DEV reads `rtpBps` directly.
 
-## D11 — WAYS EVALUATOR: a wild on reel 0 collapses the whole paytable to HIGH_A (**underpays; both engines**)
+## D11 — ~~WAYS EVALUATOR: a wild on reel 0 collapses the paytable to HIGH_A~~ — ❌ **RETRACTED. DO NOT IMPLEMENT.**
 
-- **Symptom:** on a board where reel 0 is a full wild reel, only ONE symbol combination pays. Noski hit it in a sticky free-spins round — towers standing on reels 1/2/4 and only the shades guy (HIGH_A) connected, while J, K and the briefcase visibly should have.
-- **Root cause (in YOUR engine too — this code is byte-identical to ours):** `evaluateWins` seeds its candidate-symbol set from **column 0 only**, and folds a wild there into HIGH_A:
-  ```ts
-  const sym = board[row][0];
-  if (sym === SymbolId.SCATTER) continue;
-  const effectiveSym = sym === SymbolId.WILD ? SymbolId.HIGH_A : sym;   // <-- the bug
-  if (evaluatedSymbols.has(effectiveSym)) continue;
+> ### ⛔ We were wrong. Please discard the previous D11 entirely.
+>
+> An earlier revision of this document told you that `_evaluateWins` seeding its candidate set from column 0 — and folding a wild there into `HIGH_A` — was a payout bug in your engine, and asked you to change both `WinEvaluator.ts` and **`SlotGame.sol:_evaluateWins`**. **That was a mistake on our side. Do not make that change.** If you already started it, revert it.
+
+- **What we got wrong.** We saw a free-spins board where reel 0 was a full wild wall and only the shades guy (`HIGH_A`) paid, and concluded the evaluator was under-paying. It is not. The line
+  ```solidity
+  uint8 effectiveSym = (sym == SYM_WILD) ? SYM_HIGH_A : sym;   // SlotGame.sol:341
   ```
-  (ours: `src/engine/WinEvaluator.ts:113-123`; yours: same function, plus `SlotGame.sol:340-341`.)
-  Seeding from column 0 is a legitimate shortcut — a left-to-right ways win must start on reel 0, so only symbols visible there can pay. But a **wild substitutes for every symbol**, so a wild in column 0 should open the door for all of them. Mapping it to HIGH_A instead means a full wild reel 0 yields the candidate set `{HIGH_A}` and at most one combination can ever pay — even though the counting loop right below (`cell === effectiveSym || cell === SymbolId.WILD`, ours `:138`, yours `WinEvaluator.ts:138` / `SlotGame.sol:351`) already substitutes wilds for anything.
-- **Measured on the reported board** (towers on reels 0,1,3; reel 2 = `[K, shades, J, briefcase, J]`; reel 4 = `[J, J, shades, car, white-suit]`) with the shipped paytable:
+  is **the specified behaviour**, byte-identical in `WinEvaluator.ts:120`. A fully wild reel 0 is deliberately scored as ONE combination at the wild/HIGH_A rate — it does not open a separate combination for every paying symbol on the board.
+- **The contract is the spec.** `SlotGame.sol` settles real money; the client only mirrors it. Our design-model Python simulator iterated every paying symbol, so it disagreed with the contract — the **simulator was the outlier, not the chain.** We had it backwards, and the "measured" 45.20× vs 153.96× comparison in the old text was simply the contract's answer next to a model that does not describe the product.
+- **What happened when we "fixed" it.** We shipped a mirrored evaluator (`src/game/viceWays.ts`) that seeded every paying symbol. On screen, every symbol connected with every other symbol — highs with lows, all at once — which is exactly what you would expect once reel 0 offers a candidate set of everything. Noski caught it immediately. The file has been **deleted**; our `winEval` façade routes `ways` straight back to the engine evaluator, and it now carries a permanent comment so nobody re-opens this.
+- **Consequence for the numbers.** Every RTP figure that was measured against the "corrected" evaluator is **void** — including the natural 95.91 / buy 95.93 / 96.11 / ante 96.40 table that the old D11 asked you to trust. The certification block at the top of this document is the re-measurement against the **contract's** rule, and it is the only table to use.
+- **Nothing for you to do here.** Leave `WinEvaluator.ts` and `SlotGame.sol` exactly as they are. The RTP was restored to target by adding a real mechanic — per-reel **TOWER MULTIPLIERS** (see D12) — not by touching the evaluator.
+- **The rule we work by now, and recommend to you:** when a simulator and the deployed contract disagree about what a board pays, **the contract wins**, and the simulator gets fixed. A payout rule is only a bug if the *contract* is wrong.
 
-  | | combinations | total |
-  |---|---|---|
-  | current engine | shades guy 5-of-a-kind, 125 ways | **45.20×** |
-  | correct model | + briefcase 4oak 18.36× + K 4oak 16.95× + **J 5oak, 500 ways, 73.45×** | **153.96×** |
+---
 
-  The player received **29.4%** of what the certified math owed.
-- **Blast radius (measured, 300k boards per mode on the shipped Vice strips):** base game — 7.6% of boards change value, ways RTP component **47.15% → 52.74%** (+5.6pp); free spins — **73.85% → 92.78%** (+18.9pp). It bites on **any board with a wild anywhere in column 0**, which is ~12.5% of base spins (reel 0 carries one wild in 40 stops) and effectively every expanded free spin — not just sticky rounds.
-- **This is a PAYOUT bug, not a display bug.** Settlement and presentation both score through the same evaluator, so the game genuinely paid less. Our certified simulator has always used the correct model (`math/simulate_vice_heat_v2.py:171-183` iterates every paying symbol), so **the runtime has been paying under its own certification** — the published RTP did not describe the shipped build.
-- **Our fix (ours, already shipped):** we did NOT edit `src/engine/*` (it stays byte-identical to your repo). We added `src/game/viceWays.ts`, a mirror of the engine evaluator whose ONLY difference is the candidate set — every paying symbol id in the paytable, wild and scatter excluded — and routed the `ways` model to it through our `winEval` façade, which fixes settlement and presentation in one edit.
-- **Verification we ran (recommend you repeat it):** across **548,631** fuzzed boards with no wild in column 0 the two evaluators produced **identical combination sets** — the correction is provably a no-op wherever the shortcut was valid, so it cannot regress a non-expanding ways game.
-- **Concrete dev fix:** replace the column-0 seeding loop with an iteration over every paying symbol id in the paytable (skip WILD and SCATTER), keeping everything else — scatter block, per-reel counting, consecutive-from-reel-0 matching, ways product, pay-index caps, bps arithmetic — untouched. Mirror the same change in `SlotGame.sol:_evaluateWins` so the contract and the client agree.
-- **Rebalancing already done on our side — take it, don't redo it.** The paytable did NOT need re-scaling: `payTable` and `scatterPay` in the preset are unchanged and correct. What absorbed the evaluator fix was the strip set — the top-level `fsReelStrips` (now 1170 stops / 10 wilds) plus fully re-fitted buy and ante strips. Ship the preset's numbers as-is; the certified result is natural **95.91%**, buys **95.93 / 96.11%**, ante **96.40%**. Any RTP you measured before applying D11 is void.
+## D12 — TOWER MULTIPLIERS (new mechanic; the RTP is restored here, not in the evaluator)
 
-**Math ownership summary:** D1–D4, D6, D7, D9 are DEV-engine work — the preset already carries the full certified spec in `preset.math.manifest.custom`. D8 is shared. D10 (and the export-flattening half of D8) are the only items we fix in the preset/export. Nothing in the win-evaluator's scatter/wild handling needs changing on either side.
+This is the mechanic that puts the free spins back on target under the contract's evaluator. It is fully specified in `preset.math.manifest.custom` and implemented in `src/game/viceSpin.ts` (pure, seed-derived) + `src/dev/mockHost.ts`.
+
+- **Rule.** Every reel that stands **fully wild** during a free spin is dealt a badge of **×1–×5**, drawn from `custom.towerMultiplierWeights` `[55, 20, 9, 6, 10]` (55% ×1 … 10% ×5). A winning combination pays × the **HIGHEST** badge it crosses — `custom.towerMultiplierRule: "highest-crossed"`.
+- **What it is NOT.** Badges do **not** multiply together (a product model measured **187%** RTP on the 4-scatter buy) and they do **not** sum. Highest-crossed is the certified rule.
+- **Scatter pay is never multiplied**, and nothing stacks on top of the 5-wild instant max win (`custom.fullBoardInstantMaxWin`) — that pays exactly `maxWinMultiplier × bet` and ends the round.
+- **Sticky towers keep their badge** for the life of the round (`custom.towerMultiplierStickyRule`) — a tower is not re-rolled each spin.
+- **Hot spins do not carry a badge** (`custom.towerMultiplierOnHotSpins: false`) — they expand wilds in the base game, where this mechanic does not apply.
+- **Randomness namespace.** Badges are drawn from a **reserved seed namespace** (`1n << 200n` in `viceSpin.ts`) so the badge draw does not consume words from the reel-stop stream. Reels land identically with the mechanic on or off; this is what makes the two independent simulators agree. **Mirror this** — if you draw badges inline you will shift every stop and invalidate the certification.
+- **Frequency, so you can sanity-check a build:** a ×5 badge reaches the board in **0.22%** of natural rounds (≈1 in 455).
+
+## D13 — GUARANTEED TOWER on the 4-scatter buy
+
+- `viceBuyStages` for the 4-scatter buy carries **`guaranteedTowerOnFirstSpin: true`** (+ `guaranteedTowerReel`). If the first free spin of a **bought** 4-scatter round would land with no fully-wild reel anywhere, that stage's reel is advanced to the next stop whose window contains a wild.
+- **Why:** the buy is sold as "10 sticky tower spins". Without the guarantee **15.5%** of bought rounds — 1 in 6.4 — showed the player no tower at all. That is now **0%**; the guarantee fires on 83.6% of rounds, and the mean tower count at round end is **2.03**.
+- It applies to the **bought** round only — never to a natural or ante trigger.
+- The buy price is unchanged at **200×**; the certified RTP below is measured *with* the guarantee in place, so it is already paid for.
+
+**Math ownership summary:** D1–D4, D6, D7, D9 are DEV-engine work — the preset already carries the full certified spec in `preset.math.manifest.custom`. D8 is shared. D10 (and the export-flattening half of D8) are the only items we fix in the preset/export. **D11 is retracted — no evaluator change on either side.** D12/D13 are new `custom{}` mechanics to port. Nothing in the win-evaluator's scatter/wild handling needs changing anywhere.
 
 ---
 
@@ -300,8 +320,10 @@ Cross-reference: the paytable/feature copy is maintained on our side and deliver
 # PRIORITIZED FIX ORDER
 
 1. **D8 — verify the ingestion object first** (could be the whole story; ~5 min). Confirm `preset.math.manifest` (not `preset`/`preset.math`) reaches `configFromMathProfile`.
-2. **D11 — the ways-evaluator wild-on-reel-0 bug** (a ~10-line change in `_evaluateWins`, client + contract). It underpays on ~12.5% of base spins and on effectively every expanded free spin, and it is in YOUR engine today regardless of anything else on this list. Cheap to fix, and it invalidates any RTP figure measured before it.
+2. ~~D11 — the ways-evaluator wild-on-reel-0 bug.~~ ❌ **RETRACTED — do nothing.** If a previous revision of this list had you editing `_evaluateWins` or `SlotGame.sol`, revert it. See D11.
 3. **D1 + D2 — expanding wilds + sticky/simul/full-house FS** (restores ~65% of RTP). Reference: `src/dev/mockHost.ts:407-548` reads the exact `custom{}` keys the preset already ships.
+3b. **D12 — tower multipliers ×1–×5.** Port with D1/D2; without it the free spins land well under the certified RTP. Draw the badges from a **reserved seed namespace** so reel stops are unaffected.
+3c. **D13 — guaranteed tower on the 4-scatter buy.** Small, and it is what the 200× buy promises.
 4. **D3, D4 — staged buys + ante** (only if those buttons ship at launch).
 5. **Section D layout** — switch to bottom bar + tuned onResize + left-rail logo (biggest visible fix after RTP).
 6. **B1/B2 marquee + ways-immersive; B4 intro** — presentation richness.

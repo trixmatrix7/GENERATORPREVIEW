@@ -113,19 +113,27 @@ export function App() {
   const [bootProgress, setBootProgress] = useState(0.06);
   const [bootFade, setBootFade] = useState(false);
   const [bootGone, setBootGone] = useState(false);
-  // The CHAIN GAMES loader is a 4.0 s one-shot build-in. On a warm cache the
-  // assets are ready in a few hundred ms, so without a floor the boot screen
-  // tore the logo away mid-build — it read as a fast, broken flicker. Hold the
-  // screen until the lockup has actually resolved; the last ~0.6 s of the clip
-  // plays through the fade, so this costs nothing extra on screen.
+  // The CHAIN GAMES loader is a one-shot logo build-in: 64 cells at 66.7 ms
+  // each = 4.2667 s. On a warm cache the assets are ready in a few hundred ms,
+  // so without a floor the boot screen tore the logo away mid-build.
+  //
+  // THE BAR MUST NEVER LEAD THE LOGO (Noski: "der Balken ist fertig bevor das
+  // Spritesheet komplett abgespielt ist — erst danach darf er voll gehen").
+  // Real asset progress alone filled it instantly on a warm cache, so the bar
+  // sat at 100% while the lockup was still assembling — it read as if the game
+  // were waiting on nothing. The bar is now the MINIMUM of real progress and
+  // the clip's own playhead (see boot-bar-clock below), so it can only reach
+  // full once the one-shot has finished, and the screen holds a beat on the
+  // finished logo + full bar before it fades.
   const bootStartRef = useRef(performance.now());
-  const MIN_BOOT_MS = 3400;
-  /** Fade + tear down the boot screen, never earlier than the loader needs. */
+  const LOADER_MS = 4267;   // the sheet's declared one-shot duration
+  const BAR_HOLD_MS = 280;  // dwell on "logo standing, bar full" before the fade
+  /** Fade + tear down the boot screen, never before the loader has played out. */
   const finishBoot = useCallback(() => {
     setBootProgress(1);
-    const wait = Math.max(0, MIN_BOOT_MS - (performance.now() - bootStartRef.current));
-    setTimeout(() => setBootFade(true), wait + 150);
-    setTimeout(() => setBootGone(true), wait + 800);
+    const wait = Math.max(0, LOADER_MS + BAR_HOLD_MS - (performance.now() - bootStartRef.current));
+    setTimeout(() => setBootFade(true), wait);
+    setTimeout(() => setBootGone(true), wait + 650);
   }, []);
   // Preview device: 'mobile' shows the game in a portrait phone frame.
   const [device, setDevice] = useState<'desktop' | 'mobile'>(
@@ -786,6 +794,7 @@ export function App() {
         @keyframes boot-loader-col { from { transform: translate3d(0,0,0); } to { transform: translate3d(-1750px,0,0); } }
         @keyframes boot-loader-row { from { transform: translate3d(0,0,0); } to { transform: translate3d(0,-1750px,0); } }
         @keyframes boot-bar-idle { 0%,100% { opacity: 0.5; } 50% { opacity: 0.9; } }
+        @keyframes boot-bar-clock { from { max-width: 0%; } to { max-width: 100%; } }
       `}</style>
       {/* 250 px frame shown 1:1. Logo ink ends at 57.8% of the frame, so 105 px of
           the box is transparent tail; 105 dead + 18 flex gap - 108 margin leaves a
@@ -803,13 +812,21 @@ export function App() {
         </div>
       </div>
       {/* Ultra-clean bar (Noski): hairline, no glow, no colour ramp — just the
-          fill against a barely-there track. */}
+          fill against a barely-there track.
+
+          THE CLOCK GATE. `width` is the real asset progress; `max-width` is
+          animated 0→100% across the loader's own 4.2667 s, so what you see is
+          min(assets, playhead) — the bar tracks whichever is SLOWER and can
+          only top out once the logo has finished building. Percentage
+          max-width resolves against the track, so the two compose exactly.
+          Doing it in CSS costs no re-renders: a per-frame React clock would
+          have competed with the asset decoding this screen exists to cover. */}
       <div style={{ width: 236, height: 2, borderRadius: 999, background: 'rgba(255,255,255,0.10)', overflow: 'hidden' }}>
         <div style={{
           width: `${Math.round(bootProgress * 100)}%`, height: '100%', borderRadius: 999,
           background: 'rgba(255,255,255,0.92)',
           transition: 'width 0.35s ease',
-          animation: 'boot-bar-idle 1.8s ease-in-out infinite',
+          animation: 'boot-bar-idle 1.8s ease-in-out infinite, boot-bar-clock 4.2667s linear 1 both',
         }} />
       </div>
     </div>

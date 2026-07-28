@@ -762,8 +762,12 @@ export function App() {
           every "frame" showed two half-frames side by side and drifted — that was
           the garbled, too-fast look. steps(11, jump-none) yields exactly 11 values
           including both endpoints, i.e. the column grid, and holds on the last. */}
+      {/* The bar sat ~122 px under the mark (Noski: "der balken is zu weit unterm
+          logo"). Measured on the final frame: the solid lockup ends at 57.8% of
+          the 372 px frame, so a 300 px box carries 126 px of transparent tail
+          below it. 126 dead + 18 flex gap - 128 margin = a 16 px optical gap. */}
       <div style={{
-        width: 300, height: 300, marginBottom: -22,
+        width: 300, height: 300, marginBottom: -128,
         backgroundImage: `url(${import.meta.env.BASE_URL}theme/vice/chain_loader_sheet.webp)`,
         backgroundSize: '1100% 1100%',
         backgroundRepeat: 'no-repeat',

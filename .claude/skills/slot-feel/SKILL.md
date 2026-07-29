@@ -257,6 +257,10 @@ pro Spalte; Rohdaten scratchpad/winna_analysis/timings.json). DIE Referenz für 
   `setTitleImage(url, 'top', { maxHeight })` — die Höhen-Kappe um denselben Faktor senken, den die
   Szene gewinnt (150 → 122 bei 1,225×), dann bleibt die Bildschirmgröße exakt gleich (103 px hier).
   Und `onResize()` am Ende von `setTitleImage` aufrufen: der Titel lädt NACH dem ersten Layout.
+  **Die Klemmung muss auf die TINTE zielen, nicht auf die Sprite-Box.** Wortmarken-PNGs tragen oben
+  transparente Polsterung — Crack Farms Logo 144 px von 1536 = 9,4 %, auf dem Bild ~10 px, die es
+  gratis verschenkt. `inkTopFrac` messen (Alpha-Bbox der Quell-PNG im 2D-Canvas) und in der Klemmung
+  abziehen: die Box darf über den Rand, die Schrift nicht. Brachte hier 12 px echte Höhe.
 - **Seiten-Maskottchen: `heightFrac` ist eine Fraktion der MASCHINEN-Höhe, nicht der Bildschirm-Höhe
   (2026-07-28).** Wächst die Szene, wächst das Maskottchen mit, obwohl die Fraktion gleich blieb.
   Für „30 % kleiner" also BEIDE Effekte einrechnen: gemessene Bildschirmhöhe × 0,7, geteilt durch die

@@ -239,7 +239,7 @@ export function App() {
       // scale with the scene: measured 0.686 -> 0.840 is a 1.225x gain, so the
       // 150 cap drops to 150/1.225 = 122 and the wordmark lands back where it
       // was (103 on-screen px on the reference pane).
-      track(pixiAppRef.setTitleImage(CRACKFARM.logo, 'top', { maxHeight: 122 }));
+      track(pixiAppRef.setTitleImage(CRACKFARM.logo, 'top', { maxHeight: 122, inkTopFrac: 0.094 }));
       STATIC_LOOK_SYMBOLS.add(1);
       NO_IDLE_SYMBOLS.add(0);
       // Per-symbol WIN animations (Noski's connection clips, magenta-keyed →
@@ -290,7 +290,7 @@ export function App() {
       // 0.377 of the machine height instead of 0.66.
       void pixiAppRef.setSideMascot(`${cf}pig_idle.png`, {
         cols: 6, rows: 5, count: 30, fps: 9, // 25% slower idle-fly tempo (Noski)
-        side: 'left', centerYFrac: 0.32, heightFrac: 0.377, marginX: 96,
+        side: 'left', centerYFrac: 0.32, heightFrac: 0.422, marginX: 96,
       });
       // The tall 1×3 mutant plant fills a reel on expansion — and it GROWS:
       // the wild slides down to the reel floor and the plant rises out of it.

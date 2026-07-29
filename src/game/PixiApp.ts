@@ -209,6 +209,11 @@ export class PixiApp {
   /** Authored local Y of a 'top' title — the clamp in onResize slides DOWN from
    *  here and must never accumulate, so the base is kept separately. */
   private titleBaseY: number | null = null;
+  /** Fraction of a 'top' title's height that is TRANSPARENT above the ink. The
+   *  on-canvas clamp targets the visible letters, not the sprite box — Crack
+   *  Farm's wordmark carries 9.4% padding, i.e. ~10 screen px the logo was
+   *  giving away for nothing. */
+  private titleInkTopFrac = 0;
   private titleTexture: Texture | null = null;
   /** Bottom band reserved for the DOM control-bar overlay, as a fraction of
    *  the canvas WIDTH (the bar strip is 150/1200 of the design width). 0 = off. */
@@ -677,7 +682,9 @@ export class PixiApp {
     // ("egal ob oben bissl drüber ist") while the logo keeps its size.
     if (this.titleSprite && !this.titleLeftLayout && this.titleBaseY != null) {
       const t = this.titleSprite;
-      const minY = (4 - this.sceneRoot.y) / scale + t.height;   // top edge lands at 4px
+      // Target the INK, not the sprite box: transparent padding may sit off-canvas.
+      const inkPad = t.height * this.titleInkTopFrac;
+      const minY = (2 - this.sceneRoot.y) / scale + t.height - inkPad;
       t.y = Math.max(this.titleBaseY, minY);
     }
 
@@ -757,7 +764,7 @@ export class PixiApp {
    *  grid: height-capped so it stays inside the box's top padding, width-capped
    *  at 60% of the reel width; bottom-anchored just above the frame. Pass null
    *  to restore the text title. */
-  async setTitleImage(url: string | null, layout: 'top' | 'left' = 'top', opts: { maxHeight?: number } = {}): Promise<void> {
+  async setTitleImage(url: string | null, layout: 'top' | 'left' = 'top', opts: { maxHeight?: number; inkTopFrac?: number } = {}): Promise<void> {
     if (!this._initialized || this._aborted) return;
     if (this.titleSprite) {
       this.titleSprite.parent?.removeChild(this.titleSprite);
@@ -810,6 +817,7 @@ export class PixiApp {
       this.titleSprite.x = rw / 2;
       this.titleSprite.y = HEADER_H - 2; // bottom edge sits just above the frame
       this.titleBaseY = HEADER_H - 2;
+      this.titleInkTopFrac = opts.inkTopFrac ?? 0;
     }
     this.sceneRoot.addChild(this.titleSprite);
     // The title loads AFTER the first layout, and a 'top' title changes how much
